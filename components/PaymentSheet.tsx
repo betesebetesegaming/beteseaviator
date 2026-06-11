@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { normalizeGambiaPhone } from "@/lib/gambiaPhone";
+import { GAMBIA_PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { apiUrl } from "@/lib/apiUrl";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { isTerminalDepositStatus, startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
@@ -219,7 +219,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     }
     const normalizedPhone = normalizeGambiaPhone(phone);
     if (!normalizedPhone) {
-      setMessage({ ok: false, text: 'Enter a valid phone (Gambia 7-digit local or +220XXXXXXX).' });
+      setMessage({ ok: false, text: GAMBIA_PHONE_HINT });
       return;
     }
 
@@ -403,7 +403,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 7701234 or +2207701234"
+                  placeholder="e.g. 7701234"
                   className="w-full p-3 border-2 border-slate-300 rounded-xl text-lg font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:border-betese-green focus:ring-2 focus:ring-green-600/25 focus:outline-none"
                 />
               </div>

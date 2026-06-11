@@ -93,7 +93,7 @@ export default function AdminUsersPage() {
     if (!name.trim()) return toast.error("Name is required.");
     if (password.length < 8) return toast.error("Password must be at least 8 characters.");
     if (role === "player" && !normalizePhone(phone))
-      return toast.error("Customers need a phone — that's how they sign in.");
+      return toast.error("Customers need a valid 7-digit Gambia phone.");
     if ((role === "super_agent" || role === "sub_agent" || role === "admin") && !email.trim())
       return toast.error("Agents and admins need an email.");
     if (role === "sub_agent" && !parentId)

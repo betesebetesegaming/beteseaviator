@@ -43,7 +43,7 @@ export const PROMO_SLIDES: PromoSlide[] = [
   {
     id: "demo",
     title: "Try demo — 10,000 GMD free",
-    subtitle: "Phone 770000001 · password: password",
+    subtitle: "Phone 3010001 · password: password",
     cta: "See demo accounts",
     href: "#demo-accounts",
     gradient: "from-red-700 via-rose-900 to-black",

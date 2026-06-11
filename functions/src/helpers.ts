@@ -42,8 +42,10 @@ export const DEFAULT_SETTINGS = {
 
 export type Settings = typeof DEFAULT_SETTINGS;
 
+import { normalizeGambiaPhoneLocal } from "./gambiaPhone";
+
 export function normalizePhone(input: string): string {
-  return String(input).replace(/\D/g, "").replace(/^0+/, "");
+  return normalizeGambiaPhoneLocal(input) ?? "";
 }
 
 export function phoneToEmail(phone: string): string {

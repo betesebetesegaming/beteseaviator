@@ -90,8 +90,8 @@ In Vercel:
 | Admin | admin@betese.com | (set at /setup) |
 | Super agent | username `john` | password |
 | Sub agent | username `victor` | password |
-| Customer | phone `770000001` | password |
-| Customer (direct) | phone `770000002` | password |
+| Customer | phone `3010001` | password |
+| Customer (direct) | phone `3020002` | password |
 
 ## Roles
 

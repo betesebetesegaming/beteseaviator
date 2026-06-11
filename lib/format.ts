@@ -1,6 +1,8 @@
-/** Normalize a phone number: strip everything but digits ("77 000-0001" -> "770000001"). */
+import { normalizeGambiaPhoneLocal } from "./gambiaPhone";
+
+/** Normalize to 7-digit Gambia local number, or empty string if invalid. */
 export function normalizePhone(input: string): string {
-  return input.replace(/\D/g, "").replace(/^0+/, "");
+  return normalizeGambiaPhoneLocal(input) ?? "";
 }
 
 /** Synthetic email used for phone + password auth. */

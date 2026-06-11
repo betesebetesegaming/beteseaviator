@@ -28,7 +28,7 @@ export const completeRegistration = onCall(async (req) => {
   const ref = req.data?.ref ? String(req.data.ref).toLowerCase().trim() : null;
 
   if (!name) throw new HttpsError("invalid-argument", "Name is required.");
-  if (!phone) throw new HttpsError("invalid-argument", "Phone is required.");
+    if (!phone) throw new HttpsError("invalid-argument", "A valid 7-digit Gambia phone is required.");
 
   // contact email: explicit > real auth email (never the synthetic phone alias)
   const tokenEmail = req.auth?.token.email as string | undefined;
@@ -275,7 +275,7 @@ export const seedPlatform = onCall(async (req) => {
       "✈️ Aviator — cash out before the crash",
       "💰 Wave & AfriMoney deposits in GMD",
       "🔥 Aviator Turbo — up to x200",
-      "🎁 Demo: phone 770000001 · password: password",
+      "🎁 Demo: phone 3010001 · password: password",
     ],
   });
   created.push("lobby promotions");
@@ -298,7 +298,7 @@ export const seedPlatform = onCall(async (req) => {
       ancestors: [johnId],
     });
     await createAccount({
-      phone: "770000001",
+      phone: "3010001",
       password: "password",
       name: "Demo Customer One",
       role: "player",
@@ -307,7 +307,7 @@ export const seedPlatform = onCall(async (req) => {
       balance: 10_000,
     });
     await createAccount({
-      phone: "770000002",
+      phone: "3020002",
       password: "password",
       name: "Demo Customer Two",
       role: "player",
@@ -322,7 +322,7 @@ export const seedPlatform = onCall(async (req) => {
       { merge: true }
     );
     await db.doc(`users/${victorId}`).set({ stats: { customerCount: 1 } }, { merge: true });
-    created.push("demo accounts (john, victor, 770000001, 770000002 — password: password)");
+    created.push("demo accounts (john, victor, 3010001, 3020002 — password: password)");
   }
 
   return { ok: true, created };

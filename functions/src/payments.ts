@@ -50,7 +50,7 @@ export const requestDeposit = onCall(async (req) => {
   if (settings.providers[provider] === false) {
     throw new HttpsError("failed-precondition", "This provider is currently disabled.");
   }
-  if (!phone) throw new HttpsError("invalid-argument", "Phone is required.");
+  if (!phone) throw new HttpsError("invalid-argument", "A valid 7-digit Gambia phone is required.");
   if (!Number.isFinite(amount) || amount < settings.minDeposit) {
     throw new HttpsError("invalid-argument", `Minimum deposit is ${settings.minDeposit} GMD.`);
   }
@@ -95,7 +95,7 @@ export const requestWithdrawal = onCall(async (req) => {
   if (settings.providers[provider] === false) {
     throw new HttpsError("failed-precondition", "This provider is currently disabled.");
   }
-  if (!phone) throw new HttpsError("invalid-argument", "Payout phone is required.");
+  if (!phone) throw new HttpsError("invalid-argument", "A valid 7-digit Gambia payout phone is required.");
   if (!Number.isFinite(amount) || amount < settings.minWithdrawal) {
     throw new HttpsError("invalid-argument", `Minimum withdrawal is ${settings.minWithdrawal} GMD.`);
   }

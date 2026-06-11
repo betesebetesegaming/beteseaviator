@@ -88,7 +88,7 @@ export default function AgentPlayersPage() {
   async function createCustomer() {
     const phone = normalizePhone(newPhone);
     if (!newName.trim()) return toast.error("Enter the customer's name.");
-    if (!phone) return toast.error("Phone is required — it's how the customer signs in.");
+    if (!phone) return toast.error("Enter a valid 7-digit Gambia phone — it's how the customer signs in.");
     if (newPassword.length < 8) return toast.error("Password must be at least 8 characters.");
     setBusy(true);
     try {

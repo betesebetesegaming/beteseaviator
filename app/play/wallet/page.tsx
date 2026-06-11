@@ -14,7 +14,7 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { apiUrl } from "@/lib/apiUrl";
-import { normalizeGambiaPhone } from "@/lib/gambiaPhone";
+import { GAMBIA_PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { isTerminalDepositStatus, startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
@@ -66,7 +66,7 @@ export default function WalletPage() {
       if (!fbUser || !profile) return;
       const normalizedPhone = normalizeGambiaPhone(phone || "");
       if (!normalizedPhone) {
-        toast.error("Enter a valid phone number for mobile money.");
+        toast.error(GAMBIA_PHONE_HINT);
         return;
       }
       await dbDepositRequest({
@@ -138,7 +138,7 @@ export default function WalletPage() {
   async function submitMobileWithdrawal() {
     if (!fbUser || !profile) return;
     const normalizedPhone = normalizeGambiaPhone(withdrawPhone || profile.phone || "");
-    if (!normalizedPhone) return toast.error("Enter a valid mobile money phone number.");
+    if (!normalizedPhone) return toast.error(GAMBIA_PHONE_HINT);
     const amt = Number(withdrawAmount);
     if (!Number.isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount.");
     if (amt > (wallet?.balance ?? 0)) return toast.error("Insufficient balance.");
@@ -283,7 +283,7 @@ export default function WalletPage() {
             <Input
               label="Payout phone number"
               type="tel"
-              placeholder="7701234 or +2207701234"
+              placeholder="e.g. 7701234"
               value={withdrawPhone}
               onChange={(e) => setWithdrawPhone(e.target.value)}
             />

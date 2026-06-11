@@ -53,7 +53,7 @@ export async function createPlayerAccount(opts: {
   countForAgents?: boolean;
 }): Promise<string> {
   const phone = normalizePhone(opts.phone);
-  if (!phone) throw new HttpsError("invalid-argument", "Phone is required.");
+  if (!phone) throw new HttpsError("invalid-argument", "A valid 7-digit Gambia phone is required.");
   if (opts.password.length < 8) {
     throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
   }
