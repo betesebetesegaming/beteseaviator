@@ -6,6 +6,8 @@ import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestor
 import { Plus, Search } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { adminCreateUser, adminSetUserStatus, errorMessage } from "@/lib/api";
+import { agentSubdomainUrl } from "@/lib/agentLinks";
+import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { normalizePhone, formatDate } from "@/lib/format";
 import type { Role, UserProfile } from "@/lib/types";
 import {
@@ -45,6 +47,7 @@ export default function AdminUsersPage() {
     parentId: "",
   });
   const [creating, setCreating] = useState(false);
+  const [createdAgent, setCreatedAgent] = useState<{ slug: string; name: string } | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(500));
@@ -93,7 +96,7 @@ export default function AdminUsersPage() {
     if (!name.trim()) return toast.error("Name is required.");
     if (password.length < 8) return toast.error("Password must be at least 8 characters.");
     if (role === "player" && !normalizePhone(phone))
-      return toast.error("Customers need a valid 7-digit Gambia phone.");
+      return toast.error("Customers need a valid Gambia or Senegal phone.");
     if ((role === "super_agent" || role === "sub_agent" || role === "admin") && !email.trim())
       return toast.error("Agents and admins need an email.");
     if (role === "sub_agent" && !parentId)
@@ -110,6 +113,9 @@ export default function AdminUsersPage() {
         parentId: parentId || null,
       });
       toast.success(`User created${res.slug ? ` — username "${res.slug}"` : ""}.`);
+      if (res.slug && (role === "super_agent" || role === "sub_agent")) {
+        setCreatedAgent({ slug: res.slug, name: name.trim() });
+      }
       setCreateOpen(false);
       setForm({
         role: "player",
@@ -178,6 +184,7 @@ export default function AdminUsersPage() {
               <Th>Role</Th>
               <Th>Login</Th>
               <Th>Username</Th>
+              <Th>Agent link</Th>
               <Th>Joined</Th>
               <Th>Status</Th>
               <Th>Action</Th>
@@ -194,6 +201,20 @@ export default function AdminUsersPage() {
                   {u.role === "player" ? (u.phone ?? "—") : (u.email ?? "—")}
                 </Td>
                 <Td className="text-emerald-300">{u.agentSlug ?? "—"}</Td>
+                <Td>
+                  {u.agentSlug ? (
+                    <a
+                      href={agentSubdomainUrl(u.agentSlug)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-emerald-400 hover:underline"
+                    >
+                      {u.agentSlug}.beteseaviator.com
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </Td>
                 <Td className="text-slate-500">{formatDate(u.createdAt)}</Td>
                 <Td>
                   <Badge value={u.status} />
@@ -250,7 +271,7 @@ export default function AdminUsersPage() {
           )}
           {isAgentRole && (
             <Input
-              label="Username / referral code (blank = auto-generate)"
+              label="Username (creates paul.beteseaviator.com automatically — blank = from name)"
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
             />
@@ -295,6 +316,25 @@ export default function AdminUsersPage() {
             {creating ? "Creating…" : "Create"}
           </Button>
         </div>
+      </Modal>
+
+      <Modal
+        open={!!createdAgent}
+        onClose={() => setCreatedAgent(null)}
+        title="Agent marketing links ready"
+      >
+        {createdAgent && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-400">
+              Share these with <strong>{createdAgent.name}</strong>. Customers who sign up through
+              either link are attached to this agent immediately.
+            </p>
+            <AgentMarketingLinks slug={createdAgent.slug} agentName={createdAgent.name} />
+            <Button className="w-full" onClick={() => setCreatedAgent(null)}>
+              Done
+            </Button>
+          </div>
+        )}
       </Modal>
     </div>
   );

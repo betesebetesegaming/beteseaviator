@@ -14,15 +14,19 @@ import {
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { apiUrl } from "@/lib/apiUrl";
-import { GAMBIA_PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
+import { PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
-import { isTerminalDepositStatus, startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
+import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
 import { buildDepositResult, type PaymentResultPayload } from "@/lib/paymentResultPayload";
-import { formatSigned, formatXof, formatDate } from "@/lib/format";
-import type { WalletTransaction } from "@/lib/types";
+import { formatSigned, formatDate } from "@/lib/format";
+import { subscribePlatformSettings } from "@/lib/games/api";
+import { mergeBonusSettings } from "@/lib/bonuses";
+import type { PlatformSettings, WalletTransaction } from "@/lib/types";
+import { DEFAULT_SETTINGS } from "@/lib/types";
 import { PaymentSheet } from "@/components/PaymentSheet";
 import { PaymentResultModal } from "@/components/PaymentResultModal";
+import { BonusOffersPanel, WalletBalanceCards } from "@/components/wallet/WalletBonusPanel";
 import { Badge, Button, Card, EmptyState, Input, Select, TableShell, Td, Th } from "@/components/ui";
 
 type Tab = "history" | "deposit" | "withdraw";
@@ -31,6 +35,7 @@ export default function WalletPage() {
   const { fbUser, profile, wallet } = useAuth();
   const [tab, setTab] = useState<Tab>("history");
   const [transactions, setTransactions] = useState<WalletTransaction[] | null>(null);
+  const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [depositOpen, setDepositOpen] = useState(false);
   const [paymentResult, setPaymentResult] = useState<PaymentResultPayload | null>(null);
 
@@ -52,6 +57,8 @@ export default function WalletPage() {
     });
   }, [fbUser]);
 
+  useEffect(() => subscribePlatformSettings(setSettings), []);
+
   useEffect(() => {
     if (profile?.phone && !withdrawPhone) setWithdrawPhone(profile.phone);
   }, [profile, withdrawPhone]);
@@ -66,7 +73,7 @@ export default function WalletPage() {
       if (!fbUser || !profile) return;
       const normalizedPhone = normalizeGambiaPhone(phone || "");
       if (!normalizedPhone) {
-        toast.error(GAMBIA_PHONE_HINT);
+        toast.error(PHONE_HINT);
         return;
       }
       await dbDepositRequest({
@@ -138,7 +145,7 @@ export default function WalletPage() {
   async function submitMobileWithdrawal() {
     if (!fbUser || !profile) return;
     const normalizedPhone = normalizeGambiaPhone(withdrawPhone || profile.phone || "");
-    if (!normalizedPhone) return toast.error(GAMBIA_PHONE_HINT);
+    if (!normalizedPhone) return toast.error(PHONE_HINT);
     const amt = Number(withdrawAmount);
     if (!Number.isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount.");
     if (amt > (wallet?.balance ?? 0)) return toast.error("Insufficient balance.");
@@ -191,18 +198,18 @@ export default function WalletPage() {
   if (!fbUser || !profile) return null;
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <Card className="mb-5 bg-gradient-to-r from-emerald-500/10 to-transparent text-center">
-        <p className="text-xs uppercase tracking-widest text-slate-400">My Balance</p>
-        <p className="mt-1 text-4xl font-black text-emerald-300">
-          {formatXof(wallet?.balance ?? 0)}
-        </p>
-        {wallet?.frozen && (
-          <p className="mt-2 text-xs font-semibold text-red-400">
-            Wallet frozen — betting and withdrawals are disabled.
-          </p>
-        )}
-      </Card>
+    <div className="mx-auto max-w-5xl">
+      <div className="mb-5 grid gap-5 lg:grid-cols-[1fr_280px]">
+        <div>
+          <WalletBalanceCards wallet={wallet} />
+          {wallet?.frozen && (
+            <p className="mt-3 text-center text-xs font-semibold text-red-400">
+              Wallet frozen — betting and withdrawals are disabled.
+            </p>
+          )}
+        </div>
+        <BonusOffersPanel bonuses={mergeBonusSettings(settings.bonuses)} />
+      </div>
 
       <div className="mb-5 grid grid-cols-3 rounded-lg bg-slate-900 p-1 text-sm font-medium">
         {(["history", "deposit", "withdraw"] as Tab[]).map((t) => (
@@ -259,8 +266,8 @@ export default function WalletPage() {
         <Card>
           <h2 className="mb-2 font-semibold">Deposit via ModemPay</h2>
           <p className="mb-4 text-sm text-slate-400">
-            Same checkout as Betese PMU — Wave, AfriMoney, APS, QMoney or card. Your wallet
-            is credited automatically when ModemPay confirms payment.
+            Wave, AfriMoney, APS, QMoney or card. Cash is credited on confirmation — eligible
+            deposit bonuses are added to your bonus balance automatically.
           </p>
           <Button className="w-full" onClick={() => setDepositOpen(true)}>
             Open payment methods
@@ -298,8 +305,7 @@ export default function WalletPage() {
               {busy ? "Processing…" : "Withdraw via ModemPay"}
             </Button>
             <p className="text-xs text-slate-500">
-              Funds are held immediately and sent via ModemPay transfer. Failed payouts are
-              refunded automatically.
+              Only cash balance can be withdrawn. Bonus balance is for Aviator &amp; Crash bets.
             </p>
           </div>
         </Card>

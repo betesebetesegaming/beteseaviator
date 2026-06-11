@@ -28,7 +28,7 @@ export const completeRegistration = onCall(async (req) => {
   const ref = req.data?.ref ? String(req.data.ref).toLowerCase().trim() : null;
 
   if (!name) throw new HttpsError("invalid-argument", "Name is required.");
-    if (!phone) throw new HttpsError("invalid-argument", "A valid 7-digit Gambia phone is required.");
+    if (!phone) throw new HttpsError("invalid-argument", "A valid Gambia or Senegal phone number is required.");
 
   // contact email: explicit > real auth email (never the synthetic phone alias)
   const tokenEmail = req.auth?.token.email as string | undefined;
@@ -80,6 +80,7 @@ export const completeRegistration = onCall(async (req) => {
     });
     tx.set(db.doc(`wallets/${uid}`), {
       balance: 0,
+      bonusBalance: 0,
       currency: "GMD",
       frozen: false,
       updatedAt: FieldValue.serverTimestamp(),
@@ -198,6 +199,7 @@ export const seedPlatform = onCall(async (req) => {
     });
     batch.set(db.doc(`wallets/${uid}`), {
       balance: opts.balance ?? 0,
+      bonusBalance: 0,
       currency: "GMD",
       frozen: false,
       updatedAt: FieldValue.serverTimestamp(),

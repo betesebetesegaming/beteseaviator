@@ -18,6 +18,7 @@ import {
   type Provider,
   type ProfileData,
 } from "./helpers";
+import { applyDepositBonuses } from "./bonuses";
 
 // Per-provider webhook secrets. FAIL CLOSED: while a secret is unset, that
 // provider's webhooks are rejected and nobody can fake a deposit confirmation.
@@ -50,7 +51,7 @@ export const requestDeposit = onCall(async (req) => {
   if (settings.providers[provider] === false) {
     throw new HttpsError("failed-precondition", "This provider is currently disabled.");
   }
-  if (!phone) throw new HttpsError("invalid-argument", "A valid 7-digit Gambia phone is required.");
+  if (!phone) throw new HttpsError("invalid-argument", "A valid Gambia or Senegal phone is required.");
   if (!Number.isFinite(amount) || amount < settings.minDeposit) {
     throw new HttpsError("invalid-argument", `Minimum deposit is ${settings.minDeposit} GMD.`);
   }
@@ -95,7 +96,7 @@ export const requestWithdrawal = onCall(async (req) => {
   if (settings.providers[provider] === false) {
     throw new HttpsError("failed-precondition", "This provider is currently disabled.");
   }
-  if (!phone) throw new HttpsError("invalid-argument", "A valid 7-digit Gambia payout phone is required.");
+  if (!phone) throw new HttpsError("invalid-argument", "A valid Gambia payout phone is required.");
   if (!Number.isFinite(amount) || amount < settings.minWithdrawal) {
     throw new HttpsError("invalid-argument", `Minimum withdrawal is ${settings.minWithdrawal} GMD.`);
   }
@@ -132,15 +133,17 @@ export const requestWithdrawal = onCall(async (req) => {
 
 /** Credits a confirmed deposit exactly once (idempotent under transaction). */
 async function settleDepositPaid(requestId: string, source: string): Promise<void> {
+  const settings = await getSettings();
   await db.runTransaction(async (tx) => {
     const ref = db.doc(`paymentRequests/${requestId}`);
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Payment request not found.");
     const r = snap.data()!;
     if (r.type !== "deposit") throw new HttpsError("failed-precondition", "Not a deposit.");
-    if (r.status !== "pending" && r.status !== "approved") return; // already settled — no double credit
+    if (r.status !== "pending" && r.status !== "approved") return;
 
-    const userSnap = await tx.get(db.doc(`users/${r.userId}`));
+    const userRef = db.doc(`users/${r.userId}`);
+    const userSnap = await tx.get(userRef);
     const ancestors = (userSnap.data()?.ancestors as string[] | undefined) ?? [];
     const wallet = await walletRead(tx, r.userId);
 
@@ -152,6 +155,18 @@ async function settleDepositPaid(requestId: string, source: string): Promise<voi
       meta: { requestId, source },
       ignoreFrozen: true,
     });
+
+    applyDepositBonuses(tx, {
+      uid: r.userId,
+      wallet,
+      depositAmount: r.amount,
+      depositRef: requestId,
+      depositAt: new Date(),
+      userData: userSnap.data(),
+      settings,
+      userRef,
+    });
+
     tx.update(ref, { status: "paid", settledAt: FieldValue.serverTimestamp() });
     bumpDailyStats(tx, todayIso(), { deposits: r.amount });
     bumpPlatformStats(tx, { totalDeposits: r.amount });

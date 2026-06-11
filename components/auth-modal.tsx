@@ -17,12 +17,76 @@ import { auth } from "@/lib/firebase";
 import { useAuth, homeFor } from "@/lib/auth-context";
 import { agentLogin, completeRegistration, errorMessage } from "@/lib/api";
 import { normalizePhone, phoneToEmail } from "@/lib/format";
-import { GAMBIA_PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
+import {
+  PHONE_HINT,
+  PHONE_LABEL,
+  PHONE_PLACEHOLDER,
+  normalizePhoneE164,
+  type PhoneCountry,
+} from "@/lib/phone";
 import { Button, Input, Modal } from "@/components/ui";
 import { Logo } from "@/components/logo";
 
 export type AuthModalMode = "login" | "register" | "complete" | "agent";
 type CustomerAuth = "password" | "otp";
+
+function PhoneCountryToggle({
+  value,
+  onChange,
+}: {
+  value: PhoneCountry;
+  onChange: (country: PhoneCountry) => void;
+}) {
+  return (
+    <div className="flex rounded-lg bg-slate-950/70 p-1 text-xs font-semibold">
+      <button
+        type="button"
+        onClick={() => onChange("GM")}
+        className={`flex-1 rounded-md py-2 transition-colors ${
+          value === "GM" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
+        }`}
+      >
+        Gambia (+220)
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("SN")}
+        className={`flex-1 rounded-md py-2 transition-colors ${
+          value === "SN" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
+        }`}
+      >
+        Senegal (+221)
+      </button>
+    </div>
+  );
+}
+
+function CustomerPhoneFields({
+  phoneCountry,
+  onCountryChange,
+  phone,
+  onPhoneChange,
+}: {
+  phoneCountry: PhoneCountry;
+  onCountryChange: (c: PhoneCountry) => void;
+  phone: string;
+  onPhoneChange: (v: string) => void;
+}) {
+  return (
+    <>
+      <PhoneCountryToggle value={phoneCountry} onChange={onCountryChange} />
+      <Input
+        label={PHONE_LABEL[phoneCountry]}
+        type="tel"
+        inputMode="numeric"
+        maxLength={phoneCountry === "GM" ? 12 : 16}
+        placeholder={PHONE_PLACEHOLDER[phoneCountry]}
+        value={phone}
+        onChange={(e) => onPhoneChange(e.target.value)}
+      />
+    </>
+  );
+}
 
 export function AuthModal({
   open,
@@ -44,6 +108,7 @@ export function AuthModal({
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState<PhoneCountry>("GM");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -61,6 +126,7 @@ export function AuthModal({
     setCustomerAuth("password");
     setOtpSent(false);
     setOtpCode("");
+    setPhoneCountry("GM");
   }, [open, initialMode]);
 
   useEffect(() => {
@@ -78,8 +144,8 @@ export function AuthModal({
   }, [open, loading, fbUser, profile, onSuccess, onClose, name]);
 
   async function loginWithPassword() {
-    const normalized = normalizePhone(phone);
-    if (!normalized) return toast.error(GAMBIA_PHONE_HINT);
+    const normalized = normalizePhone(phone, phoneCountry);
+    if (!normalized) return toast.error(PHONE_HINT);
     if (!password) return toast.error("Enter your password.");
     setBusy(true);
     try {
@@ -93,9 +159,9 @@ export function AuthModal({
   }
 
   async function registerWithPhone() {
-    const normalized = normalizePhone(phone);
+    const normalized = normalizePhone(phone, phoneCountry);
     if (!name.trim()) return toast.error("Enter your full name.");
-    if (!normalized) return toast.error(GAMBIA_PHONE_HINT);
+    if (!normalized) return toast.error(PHONE_HINT);
     if (password.length < 8) return toast.error("Password must be at least 8 characters.");
     if (password !== confirm) return toast.error("Passwords do not match.");
     setBusy(true);
@@ -122,8 +188,8 @@ export function AuthModal({
   }
 
   async function sendOtp() {
-    const e164 = normalizeGambiaPhone(phone);
-    if (!e164) return toast.error(GAMBIA_PHONE_HINT);
+    const e164 = normalizePhoneE164(phone, phoneCountry);
+    if (!e164) return toast.error(PHONE_HINT);
     setBusy(true);
     try {
       if (!recaptchaRef.current) {
@@ -184,8 +250,8 @@ export function AuthModal({
 
   async function completeProfile() {
     if (!name.trim()) return toast.error("Enter your full name.");
-    const normalized = normalizePhone(phone);
-    if (!normalized) return toast.error(GAMBIA_PHONE_HINT);
+    const normalized = normalizePhone(phone, phoneCountry);
+    if (!normalized) return toast.error(PHONE_HINT);
     setBusy(true);
     try {
       await completeRegistration({ name: name.trim(), phone: normalized, ref: refCode });
@@ -276,12 +342,11 @@ export function AuthModal({
       ) : mode === "complete" ? (
         <div className="space-y-4">
           <Input label="Full Name" value={name} onChange={(e) => setName(e.target.value)} />
-          <Input
-            label="Phone Number (7 digits)"
-            type="tel"
-            placeholder="e.g. 7701234"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+          <CustomerPhoneFields
+            phoneCountry={phoneCountry}
+            onCountryChange={setPhoneCountry}
+            phone={phone}
+            onPhoneChange={setPhone}
           />
           <Button className="w-full" onClick={completeProfile} disabled={busy}>
             {busy ? "Saving…" : "Start playing for real"}
@@ -290,12 +355,11 @@ export function AuthModal({
       ) : mode === "register" ? (
         <div className="space-y-3">
           <Input label="Full Name" placeholder="Awa Diop" value={name} onChange={(e) => setName(e.target.value)} />
-          <Input
-            label="Phone Number (7 digits)"
-            type="tel"
-            placeholder="e.g. 7701234"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+          <CustomerPhoneFields
+            phoneCountry={phoneCountry}
+            onCountryChange={setPhoneCountry}
+            phone={phone}
+            onPhoneChange={setPhone}
           />
           <Input
             label="Email (optional)"
@@ -321,12 +385,11 @@ export function AuthModal({
         </div>
       ) : customerAuth === "password" ? (
         <div className="space-y-3">
-          <Input
-            label="Phone Number (7 digits)"
-            type="tel"
-            placeholder="e.g. 7701234"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+          <CustomerPhoneFields
+            phoneCountry={phoneCountry}
+            onCountryChange={setPhoneCountry}
+            phone={phone}
+            onPhoneChange={setPhone}
           />
           <Input
             label="Password"
@@ -348,14 +411,11 @@ export function AuthModal({
         </div>
       ) : (
         <div className="space-y-3">
-          <Input
-            label="Phone Number (7 digits)"
-            type="tel"
-            inputMode="numeric"
-            maxLength={12}
-            placeholder="e.g. 7701234"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+          <CustomerPhoneFields
+            phoneCountry={phoneCountry}
+            onCountryChange={setPhoneCountry}
+            phone={phone}
+            onPhoneChange={setPhone}
           />
           {otpSent && (
             <Input

@@ -15,10 +15,10 @@ const TYPE_DEFAULTS: Record<Game["type"], GameLobbyVisual> = {
     tagline: "Cash out before the crash",
   },
   slots: {
-    gradient: "from-violet-600/40 via-fuchsia-500/20 to-slate-950",
-    accent: "text-violet-400",
-    icon: "slots",
-    tagline: "Spin and win big",
+    gradient: "from-red-600/40 via-orange-500/20 to-slate-950",
+    accent: "text-red-400",
+    icon: "plane",
+    tagline: "Cash out before the crash",
   },
 };
 

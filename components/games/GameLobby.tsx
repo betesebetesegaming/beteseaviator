@@ -32,7 +32,7 @@ export function GameLobby() {
   const { profile } = useAuth();
   const isPlayer = profile?.role === "player";
   const [games, setGames] = useState<Game[] | null>(null);
-  const [category, setCategory] = useState<LobbyNavCategory>("discover");
+  const [category, setCategory] = useState<LobbyNavCategory>("aviator");
   const [search, setSearch] = useState("");
 
   useEffect(() => subscribeActiveGames(setGames), []);
@@ -46,9 +46,8 @@ export function GameLobby() {
   const counts = useMemo(() => {
     if (!games) return {};
     return {
-      discover: games.length,
-      crash: games.filter((g) => g.type === "crash").length,
-      slots: games.filter((g) => g.type === "slots").length,
+      aviator: games.filter((g) => g.id === "aviator").length,
+      crash: games.filter((g) => g.type === "crash" && g.id !== "aviator").length,
     } as Partial<Record<LobbyNavCategory, number>>;
   }, [games]);
 

@@ -8,6 +8,8 @@ import { Plus, ArrowRightLeft } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { agentCreateSubAgent, agentTransferToSubAgent, errorMessage } from "@/lib/api";
+import { agentSubdomainUrl } from "@/lib/agentLinks";
+import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { formatXof } from "@/lib/format";
 import type { UserProfile } from "@/lib/types";
 import {
@@ -34,6 +36,7 @@ export default function SubAgentsPage() {
   const [transferTarget, setTransferTarget] = useState<AgentRow | null>(null);
   const [transferAmount, setTransferAmount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [createdLinks, setCreatedLinks] = useState<{ slug: string; name: string } | null>(null);
 
   // sub agents are a super-agent feature only
   useEffect(() => {
@@ -75,7 +78,8 @@ export default function SubAgentsPage() {
         username: form.username.trim().toLowerCase(),
         password: form.password,
       });
-      toast.success(`Sub agent created — username "${res.slug}".`);
+      toast.success(`Sub agent created — share ${agentSubdomainUrl(res.slug)}`);
+      setCreatedLinks({ slug: res.slug, name: form.name.trim() });
       setCreateOpen(false);
       setForm({ name: "", email: "", username: "", password: "" });
     } catch (e) {
@@ -129,6 +133,7 @@ export default function SubAgentsPage() {
             <tr>
               <Th>Name</Th>
               <Th>Username</Th>
+              <Th>Agent link</Th>
               <Th>Email</Th>
               <Th>Balance</Th>
               <Th>Status</Th>
@@ -140,6 +145,20 @@ export default function SubAgentsPage() {
               <tr key={a.uid}>
                 <Td className="font-medium">{a.name}</Td>
                 <Td className="text-emerald-300">{a.agentSlug}</Td>
+                <Td>
+                  {a.agentSlug ? (
+                    <a
+                      href={agentSubdomainUrl(a.agentSlug)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-emerald-400 hover:underline"
+                    >
+                      {a.agentSlug}.beteseaviator.com
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </Td>
                 <Td className="text-slate-400">{a.email}</Td>
                 <Td className="tabular-nums">
                   {a.balance === undefined ? "—" : formatXof(a.balance)}
@@ -178,7 +197,7 @@ export default function SubAgentsPage() {
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
           <Input
-            label="Username (referral code & sign-in)"
+            label="Username (creates username.beteseaviator.com automatically)"
             placeholder="victor"
             value={form.username}
             onChange={(e) => setForm({ ...form, username: e.target.value })}
@@ -216,6 +235,21 @@ export default function SubAgentsPage() {
             {busy ? "Transferring…" : "Transfer"}
           </Button>
         </div>
+      </Modal>
+
+      <Modal
+        open={!!createdLinks}
+        onClose={() => setCreatedLinks(null)}
+        title="Sub-agent link ready"
+      >
+        {createdLinks && (
+          <div className="space-y-4">
+            <AgentMarketingLinks slug={createdLinks.slug} agentName={createdLinks.name} />
+            <Button className="w-full" onClick={() => setCreatedLinks(null)}>
+              Done
+            </Button>
+          </div>
+        )}
       </Modal>
     </div>
   );

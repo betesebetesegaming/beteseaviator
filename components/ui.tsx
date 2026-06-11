@@ -122,6 +122,7 @@ const badgeColors: Record<string, string> = {
   lost: "bg-slate-500/15 text-slate-300",
   cancelled: "bg-slate-500/15 text-slate-300",
   inactive: "bg-slate-500/15 text-slate-300",
+  bonus: "bg-violet-500/15 text-violet-300",
 };
 
 export function Badge({ value }: { value: string }) {

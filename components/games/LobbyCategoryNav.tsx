@@ -1,23 +1,15 @@
 "use client";
 
 import {
-  Compass,
-  Dices,
   Plane,
-  Sparkles,
-  Tv,
-  Zap,
+  Rocket,
   type LucideIcon,
 } from "lucide-react";
 import { LOBBY_NAV, type LobbyNavCategory } from "@/lib/games/promotions";
 
 const ICONS: Record<string, LucideIcon> = {
-  compass: Compass,
   plane: Plane,
-  sparkles: Sparkles,
-  zap: Zap,
-  tv: Tv,
-  dice: Dices,
+  rocket: Rocket,
 };
 
 type Props = {
@@ -33,7 +25,7 @@ export function LobbyCategoryNav({ active, onChange, counts }: Props) {
       aria-label="Game categories"
     >
       {LOBBY_NAV.map((item) => {
-        const Icon = ICONS[item.icon] ?? Compass;
+        const Icon = ICONS[item.icon] ?? Plane;
         const isActive = active === item.id;
         const count = counts[item.id];
         const disabled = !item.available;

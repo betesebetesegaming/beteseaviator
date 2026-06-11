@@ -8,9 +8,12 @@ import { adminSaveSettings, errorMessage } from "@/lib/api";
 import {
   DEFAULT_SETTINGS,
   PROVIDER_LABELS,
+  type BonusSettings,
   type PaymentProvider,
   type PlatformSettings,
 } from "@/lib/types";
+import { mergeBonusSettings } from "@/lib/bonuses";
+import { BonusRuleEditor } from "@/components/admin/BonusSettingsEditor";
 import { Button, Card, Input } from "@/components/ui";
 
 export default function AdminSettingsPage() {
@@ -19,9 +22,27 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     return onSnapshot(doc(db, "settings", "platform"), (snap) => {
-      if (snap.exists()) setSettings({ ...DEFAULT_SETTINGS, ...(snap.data() as PlatformSettings) });
+      if (snap.exists()) {
+        const data = snap.data() as PlatformSettings;
+        setSettings({
+          ...DEFAULT_SETTINGS,
+          ...data,
+          providers: { ...DEFAULT_SETTINGS.providers, ...(data.providers ?? {}) },
+          bonuses: mergeBonusSettings(data.bonuses),
+        });
+      }
     });
   }, []);
+
+  function updateBonus(key: keyof BonusSettings, patch: Partial<BonusSettings[keyof BonusSettings]>) {
+    setSettings((prev) => ({
+      ...prev,
+      bonuses: {
+        ...mergeBonusSettings(prev.bonuses),
+        [key]: { ...mergeBonusSettings(prev.bonuses)[key], ...patch },
+      },
+    }));
+  }
 
   function num(key: keyof PlatformSettings) {
     return {
@@ -76,6 +97,32 @@ export default function AdminSettingsPage() {
           <Input label="Min withdrawal" type="number" {...num("minWithdrawal")} />
           <Input label="Min auto-cashout" type="number" step="0.01" {...num("minAutoCashout")} />
           <Input label="Max auto-cashout" type="number" {...num("maxAutoCashout")} />
+        </div>
+      </Card>
+
+      <Card className="mb-5">
+        <h2 className="mb-1 font-semibold">Deposit bonuses</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Bonuses credit the player&apos;s bonus balance (for Aviator bets). First deposit, weekly
+          crash, and weekend (Friday night) bonuses can stack on one deposit.
+        </p>
+        <div className="space-y-4">
+          <BonusRuleEditor
+            title="First deposit bonus"
+            rule={mergeBonusSettings(settings.bonuses).firstDeposit}
+            onChange={(patch) => updateBonus("firstDeposit", patch)}
+          />
+          <BonusRuleEditor
+            title="Weekly crash bonus (once per week)"
+            rule={mergeBonusSettings(settings.bonuses).weeklyCrash}
+            onChange={(patch) => updateBonus("weeklyCrash", patch)}
+          />
+          <BonusRuleEditor
+            title="Weekend bonus (Friday night deposits)"
+            rule={mergeBonusSettings(settings.bonuses).weekend}
+            onChange={(patch) => updateBonus("weekend", patch)}
+            showWeekendHours
+          />
         </div>
       </Card>
 

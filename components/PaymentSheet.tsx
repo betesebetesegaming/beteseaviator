@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { GAMBIA_PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
+import { PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { apiUrl } from "@/lib/apiUrl";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { isTerminalDepositStatus, startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
@@ -219,7 +219,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     }
     const normalizedPhone = normalizeGambiaPhone(phone);
     if (!normalizedPhone) {
-      setMessage({ ok: false, text: GAMBIA_PHONE_HINT });
+      setMessage({ ok: false, text: PHONE_HINT });
       return;
     }
 

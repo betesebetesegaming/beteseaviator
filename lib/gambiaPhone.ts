@@ -1,38 +1,19 @@
-/** Gambia mobile numbers are exactly 7 digits locally (country code +220). */
-
-export const GAMBIA_COUNTRY_CODE = "220";
-export const GAMBIA_LOCAL_LENGTH = 7;
-
-export const GAMBIA_PHONE_HINT = "Enter a valid 7-digit Gambia phone (e.g. 7701234).";
-
-/** Strip to 7-digit local number for storage / auth, or null if invalid. */
-export function normalizeGambiaPhoneLocal(input: string): string | null {
-  const raw = String(input || "").trim();
-  if (!raw) return null;
-
-  let digits = raw.replace(/\D/g, "");
-
-  if (digits.startsWith(GAMBIA_COUNTRY_CODE)) {
-    digits = digits.slice(3);
-  }
-
-  digits = digits.replace(/^0+/, "");
-
-  if (digits.length !== GAMBIA_LOCAL_LENGTH) return null;
-  if (!/^\d{7}$/.test(digits)) return null;
-
-  return digits;
-}
-
-/** E.164 format for ModemPay / Firebase phone auth: +220XXXXXXX */
-export function normalizeGambiaPhone(input: string): string | null {
-  const local = normalizeGambiaPhoneLocal(input);
-  return local ? `+${GAMBIA_COUNTRY_CODE}${local}` : null;
-}
-
-/** Display as "770 1234" */
-export function formatGambiaPhoneLocal(local: string): string {
-  const d = normalizeGambiaPhoneLocal(local) ?? local.replace(/\D/g, "");
-  if (d.length !== GAMBIA_LOCAL_LENGTH) return local;
-  return `${d.slice(0, 3)} ${d.slice(3)}`;
-}
+/** @deprecated Import from ./phone instead */
+export {
+  GAMBIA_COUNTRY_CODE,
+  GAMBIA_LOCAL_LENGTH,
+  GAMBIA_PHONE_HINT,
+  PHONE_HINT,
+  PHONE_LABEL,
+  PHONE_PLACEHOLDER,
+  formatGambiaPhoneLocal,
+  formatPhoneDisplay,
+  normalizeGambiaPhone,
+  normalizeGambiaPhoneLocal,
+  normalizePhone,
+  normalizePhoneE164,
+  normalizePhoneLocal,
+  phoneToEmail,
+  type ParsedPhone,
+  type PhoneCountry,
+} from "./phone";

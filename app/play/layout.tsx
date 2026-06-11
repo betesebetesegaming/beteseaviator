@@ -9,6 +9,7 @@ import { useAuthModal } from "@/lib/auth-modal-context";
 import { formatXof } from "@/lib/format";
 import { Logo } from "@/components/logo";
 import { PendingDepositReconciler } from "@/components/PendingDepositReconciler";
+import { parseAgentSlugFromHost } from "@/lib/agentLinks";
 
 function PlayAuthFromQuery() {
   const router = useRouter();
@@ -17,7 +18,11 @@ function PlayAuthFromQuery() {
 
   useEffect(() => {
     const signup = searchParams.get("signup");
-    const ref = searchParams.get("ref")?.toLowerCase().trim() || null;
+    let ref = searchParams.get("ref")?.toLowerCase().trim() || null;
+
+    if (!ref && typeof window !== "undefined") {
+      ref = parseAgentSlugFromHost(window.location.hostname);
+    }
 
     if (signup || ref) {
       openAuth("register", ref);
@@ -62,9 +67,14 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
                 <span className="hidden text-sm text-slate-400 md:inline">
                   Hi, {profile.name.split(" ")[0]}
                 </span>
-                <span className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-bold text-emerald-300">
+                <span className="hidden rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-bold text-emerald-300 sm:inline">
                   {formatXof(wallet?.balance ?? 0)}
                 </span>
+                {(wallet?.bonusBalance ?? 0) > 0 && (
+                  <span className="hidden rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-1.5 text-xs font-bold text-violet-300 md:inline">
+                    +{formatXof(wallet?.bonusBalance ?? 0)} bonus
+                  </span>
+                )}
                 <Link
                   href="/play/wallet"
                   className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium hover:bg-slate-700"

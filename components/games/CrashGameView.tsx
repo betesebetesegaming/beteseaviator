@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
 import { errorMessage } from "@/lib/api";
 import { formatXof } from "@/lib/format";
+import { playableBalance } from "@/lib/bonuses";
 import { clampBetAmount, DEFAULT_BET_STEP, DEFAULT_BET_PRESETS } from "@/lib/games/betAmount";
 import {
   cashoutGameBet,
@@ -84,7 +85,7 @@ export function CrashGameView({ game }: Props) {
   const serverNow = now + offset;
   const { phase, liveMultiplier } = useCrashLiveState(round, serverNow);
 
-  const displayBalance = isPlayer ? (wallet?.balance ?? 0) : 10_000;
+  const displayBalance = isPlayer ? playableBalance(wallet) : 10_000;
   const amountNum = clampBetAmount(betAmount, settings, displayBalance);
   const autoNum = autoCashout ? Number(autoCashout) : null;
 
@@ -185,7 +186,13 @@ export function CrashGameView({ game }: Props) {
       <p className="text-center text-xs text-slate-500">
         {isPlayer ? (
           <>
-            Balance: {formatXof(wallet?.balance ?? 0)}
+            Balance: {formatXof(playableBalance(wallet))}
+            {(wallet?.bonusBalance ?? 0) > 0 && (
+              <>
+                {" "}
+                ({formatXof(wallet?.balance ?? 0)} cash + {formatXof(wallet?.bonusBalance ?? 0)} bonus)
+              </>
+            )}
             {session && (
               <>
                 {" "}

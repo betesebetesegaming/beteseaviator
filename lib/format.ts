@@ -1,13 +1,14 @@
-import { normalizeGambiaPhoneLocal } from "./gambiaPhone";
+import { normalizePhone as toPhoneKey, type PhoneCountry } from "./phone";
 
-/** Normalize to 7-digit Gambia local number, or empty string if invalid. */
-export function normalizePhone(input: string): string {
-  return normalizeGambiaPhoneLocal(input) ?? "";
+/** Normalize to storage key (Gambia 7-digit or Senegal 221+9-digit), or empty if invalid. */
+export function normalizePhone(input: string, preferredCountry: PhoneCountry = "GM"): string {
+  return toPhoneKey(input, preferredCountry);
 }
 
 /** Synthetic email used for phone + password auth. */
 export function phoneToEmail(phone: string): string {
-  return `p${normalizePhone(phone)}@phone.beteseaviator.com`;
+  const key = toPhoneKey(phone);
+  return `p${key}@phone.beteseaviator.com`;
 }
 
 export function formatGmd(amount: number): string {

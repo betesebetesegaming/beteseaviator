@@ -90,6 +90,7 @@ export const adminCreateUser = onCall(async (req) => {
     });
     batch.set(db.doc(`wallets/${uid}`), {
       balance: 0,
+      bonusBalance: 0,
       currency: "GMD",
       frozen: false,
       updatedAt: FieldValue.serverTimestamp(),
@@ -211,6 +212,52 @@ export const adminSaveSettings = onCall(async (req) => {
     }
     clean.providers = providers;
   }
+
+  if (data.bonuses && typeof data.bonuses === "object") {
+    const raw = data.bonuses as Record<string, unknown>;
+    const parseRule = (key: "firstDeposit" | "weeklyCrash" | "weekend", extra?: string[]) => {
+      const src = (raw[key] ?? {}) as Record<string, unknown>;
+      const percent = Number(src.percent);
+      const maxAmount = Number(src.maxAmount);
+      const minDeposit = Number(src.minDeposit);
+      if (!Number.isFinite(percent) || percent < 0 || percent > 2) {
+        throw new HttpsError("invalid-argument", `Invalid ${key} bonus percent.`);
+      }
+      if (!Number.isFinite(maxAmount) || maxAmount < 0) {
+        throw new HttpsError("invalid-argument", `Invalid ${key} bonus max amount.`);
+      }
+      if (!Number.isFinite(minDeposit) || minDeposit < 0) {
+        throw new HttpsError("invalid-argument", `Invalid ${key} bonus min deposit.`);
+      }
+      const rule: Record<string, unknown> = {
+        enabled: src.enabled !== false,
+        percent,
+        maxAmount,
+        minDeposit,
+      };
+      if (extra?.includes("fridayStartHour")) {
+        const h = Number(src.fridayStartHour);
+        if (!Number.isFinite(h) || h < 0 || h > 23) {
+          throw new HttpsError("invalid-argument", "Friday start hour must be 0–23.");
+        }
+        rule.fridayStartHour = h;
+      }
+      if (extra?.includes("sundayEndHour")) {
+        const h = Number(src.sundayEndHour);
+        if (!Number.isFinite(h) || h < 0 || h > 23) {
+          throw new HttpsError("invalid-argument", "Sunday end hour must be 0–23.");
+        }
+        rule.sundayEndHour = h;
+      }
+      return rule;
+    };
+    clean.bonuses = {
+      firstDeposit: parseRule("firstDeposit"),
+      weeklyCrash: parseRule("weeklyCrash"),
+      weekend: parseRule("weekend", ["fridayStartHour", "sundayEndHour"]),
+    };
+  }
+
   await db.doc("settings/platform").set(clean, { merge: true });
   return { ok: true };
 });

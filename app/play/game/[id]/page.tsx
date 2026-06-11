@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Eye } from "lucide-react";
 import { fetchGame } from "@/lib/games/api";
+import { isLobbyGame } from "@/lib/games/catalog";
 import { useAuth } from "@/lib/auth-context";
 import type { Game } from "@/lib/types";
 import { CrashGameView } from "@/components/games/CrashGameView";
@@ -24,6 +25,17 @@ export default function GamePage() {
 
   if (!game) return <Spinner label="Loading game…" />;
 
+  if (!isLobbyGame(game)) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-slate-900/70 p-8 text-center">
+        <p className="text-slate-300">This game is not available.</p>
+        <Link href="/play" className="mt-4 inline-block text-sm text-betese-yellow hover:underline">
+          Back to Aviator &amp; Crash games
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div>
       {!isPlayer && (
@@ -41,7 +53,7 @@ export default function GamePage() {
           href="/play"
           className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-white"
         >
-          <ArrowLeft size={16} /> All games
+          <ArrowLeft size={16} /> Aviator &amp; Crash
         </Link>
         <h1 className="font-semibold">{game.name}</h1>
         <span className="text-xs text-slate-500">RTP {Number(game.rtp).toFixed(0)}%</span>
@@ -49,11 +61,7 @@ export default function GamePage() {
 
       {game.type === "crash" ? (
         <CrashGameView game={game} />
-      ) : (
-        <p className="rounded-xl border border-white/10 bg-slate-900/70 p-6 text-center text-slate-400">
-          {game.type} games are coming soon. Check back later.
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }

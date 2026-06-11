@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db, rtdb } from "@/lib/firebase";
 import { cashout, placeBet } from "@/lib/api";
+import { filterLobbyGames } from "@/lib/games/catalog";
 import { DEFAULT_SETTINGS, type Game, type GameSession, type LiveRound, type PlatformSettings } from "@/lib/types";
 
 export type CrashHistoryItem = { roundId: string; crashPoint: number; at: number };
@@ -28,7 +29,8 @@ export async function fetchGame(gameId: string): Promise<Game | null> {
 export function subscribeActiveGames(onGames: (games: Game[]) => void): FsUnsubscribe {
   const q = query(collection(db, "games"), where("status", "==", "active"));
   return onSnapshot(q, (snap) => {
-    onGames(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Game));
+    const games = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Game);
+    onGames(filterLobbyGames(games));
   });
 }
 
@@ -36,7 +38,28 @@ export function subscribePlatformSettings(
   onSettings: (settings: PlatformSettings) => void
 ): FsUnsubscribe {
   return onSnapshot(doc(db, "settings", "platform"), (snap) => {
-    onSettings(snap.exists() ? ({ ...DEFAULT_SETTINGS, ...snap.data() } as PlatformSettings) : DEFAULT_SETTINGS);
+    const data = (snap.exists() ? snap.data() : {}) as Partial<PlatformSettings>;
+    onSettings({
+      ...DEFAULT_SETTINGS,
+      ...data,
+      providers: { ...DEFAULT_SETTINGS.providers, ...(data.providers ?? {}) },
+      bonuses: {
+        ...DEFAULT_SETTINGS.bonuses!,
+        ...(data.bonuses ?? {}),
+        firstDeposit: {
+          ...DEFAULT_SETTINGS.bonuses!.firstDeposit,
+          ...(data.bonuses?.firstDeposit ?? {}),
+        },
+        weeklyCrash: {
+          ...DEFAULT_SETTINGS.bonuses!.weeklyCrash,
+          ...(data.bonuses?.weeklyCrash ?? {}),
+        },
+        weekend: {
+          ...DEFAULT_SETTINGS.bonuses!.weekend,
+          ...(data.bonuses?.weekend ?? {}),
+        },
+      },
+    });
   });
 }
 

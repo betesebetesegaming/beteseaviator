@@ -38,18 +38,31 @@ export const DEFAULT_SETTINGS = {
   minAutoCashout: 1.01,
   maxAutoCashout: 100,
   providers: { wave: true, afrimoney: true, aps: true, qmoney: true } as Record<string, boolean>,
+  bonuses: {
+    firstDeposit: { enabled: true, percent: 0.5, maxAmount: 500, minDeposit: 100 },
+    weeklyCrash: { enabled: true, percent: 0.1, maxAmount: 200, minDeposit: 200 },
+    weekend: {
+      enabled: true,
+      percent: 0.25,
+      maxAmount: 300,
+      minDeposit: 100,
+      fridayStartHour: 18,
+      sundayEndHour: 23,
+    },
+  },
 };
 
 export type Settings = typeof DEFAULT_SETTINGS;
 
-import { normalizeGambiaPhoneLocal } from "./gambiaPhone";
+import { normalizePhone as toPhoneKey, phoneToEmail as phoneKeyToEmail } from "./phone";
 
 export function normalizePhone(input: string): string {
-  return normalizeGambiaPhoneLocal(input) ?? "";
+  return toPhoneKey(input);
 }
 
 export function phoneToEmail(phone: string): string {
-  return `p${normalizePhone(phone)}@phone.beteseaviator.com`;
+  const key = toPhoneKey(phone);
+  return phoneKeyToEmail(key || phone.replace(/\D/g, ""));
 }
 
 export function round2(n: number): number {
@@ -69,7 +82,17 @@ export function txnReference(): string {
 
 export async function getSettings(): Promise<Settings> {
   const snap = await db.doc("settings/platform").get();
-  return { ...DEFAULT_SETTINGS, ...(snap.data() ?? {}) } as Settings;
+  const data = snap.data() ?? {};
+  return {
+    ...DEFAULT_SETTINGS,
+    ...data,
+    providers: { ...DEFAULT_SETTINGS.providers, ...(data.providers ?? {}) },
+    bonuses: {
+      firstDeposit: { ...DEFAULT_SETTINGS.bonuses.firstDeposit, ...(data.bonuses?.firstDeposit ?? {}) },
+      weeklyCrash: { ...DEFAULT_SETTINGS.bonuses.weeklyCrash, ...(data.bonuses?.weeklyCrash ?? {}) },
+      weekend: { ...DEFAULT_SETTINGS.bonuses.weekend, ...(data.bonuses?.weekend ?? {}) },
+    },
+  } as Settings;
 }
 
 /** Authenticated caller's uid or 401. */
@@ -97,11 +120,13 @@ export async function requireRole(
 interface MoveMoneyArgs {
   uid: string;
   amount: number; // positive credit, negative debit
-  type: "deposit" | "withdrawal" | "bet" | "win" | "commission" | "transfer" | "refund";
+  type: "deposit" | "withdrawal" | "bet" | "win" | "commission" | "transfer" | "refund" | "bonus";
   description: string;
   meta?: Record<string, unknown>;
   /** debits normally blocked on frozen wallets; refunds may still land */
   ignoreFrozen?: boolean;
+  /** bonus credits land in bonusBalance (for betting only, not withdrawal) */
+  creditAsBonus?: boolean;
 }
 
 /**
@@ -115,12 +140,13 @@ interface MoveMoneyArgs {
 export async function walletRead(
   tx: FirebaseFirestore.Transaction,
   uid: string
-): Promise<{ balance: number; frozen: boolean; exists: boolean }> {
+): Promise<{ balance: number; bonusBalance: number; frozen: boolean; exists: boolean }> {
   const snap = await tx.get(db.doc(`wallets/${uid}`));
-  if (!snap.exists) return { balance: 0, frozen: false, exists: false };
+  if (!snap.exists) return { balance: 0, bonusBalance: 0, frozen: false, exists: false };
   const data = snap.data()!;
   return {
     balance: Number(data.balance ?? 0),
+    bonusBalance: Number(data.bonusBalance ?? 0),
     frozen: Boolean(data.frozen),
     exists: true,
   };
@@ -128,28 +154,43 @@ export async function walletRead(
 
 export function walletWrite(
   tx: FirebaseFirestore.Transaction,
-  wallet: { balance: number; frozen: boolean; exists: boolean },
+  wallet: { balance: number; bonusBalance: number; frozen: boolean; exists: boolean },
   args: MoveMoneyArgs
 ): number {
   const amount = round2(args.amount);
   if (!Number.isFinite(amount) || amount === 0) {
     throw new HttpsError("invalid-argument", "Invalid amount.");
   }
+
+  const cashBefore = round2(wallet.balance);
+  const bonusBefore = round2(wallet.bonusBalance);
+  let meta = args.meta ?? {};
+
   if (amount < 0) {
     if (wallet.frozen && !args.ignoreFrozen) {
       throw new HttpsError("failed-precondition", "Wallet is frozen.");
     }
-    if (wallet.balance + amount < 0) {
+    const need = Math.abs(amount);
+    const total = round2(wallet.balance + wallet.bonusBalance);
+    if (total < need) {
       throw new HttpsError("failed-precondition", "Insufficient balance.");
     }
+    const fromBonus = Math.min(wallet.bonusBalance, need);
+    const fromCash = round2(need - fromBonus);
+    wallet.bonusBalance = round2(wallet.bonusBalance - fromBonus);
+    wallet.balance = round2(wallet.balance - fromCash);
+    meta = { ...meta, fromBonus, fromCash };
+  } else if (args.creditAsBonus) {
+    wallet.bonusBalance = round2(wallet.bonusBalance + amount);
+  } else {
+    wallet.balance = round2(wallet.balance + amount);
   }
-  const balanceBefore = round2(wallet.balance);
-  const balanceAfter = round2(wallet.balance + amount);
 
   tx.set(
     db.doc(`wallets/${args.uid}`),
     {
-      balance: balanceAfter,
+      balance: wallet.balance,
+      bonusBalance: wallet.bonusBalance,
       currency: "GMD",
       frozen: wallet.frozen,
       updatedAt: FieldValue.serverTimestamp(),
@@ -160,19 +201,17 @@ export function walletWrite(
     userId: args.uid,
     type: args.type,
     amount,
-    balanceBefore,
-    balanceAfter,
+    balanceBefore: cashBefore,
+    balanceAfter: wallet.balance,
     reference: txnReference(),
     status: "completed",
     description: args.description,
-    meta: args.meta ?? {},
+    meta: { bonusBefore, bonusAfter: wallet.bonusBalance, ...meta },
     createdAt: FieldValue.serverTimestamp(),
   });
 
-  // keep local copy in sync so multiple writes to one wallet in a tx compose
-  wallet.balance = balanceAfter;
   wallet.exists = true;
-  return balanceAfter;
+  return wallet.balance;
 }
 
 /** Increment platform-wide counters (inside a transaction). */

@@ -53,7 +53,7 @@ export async function createPlayerAccount(opts: {
   countForAgents?: boolean;
 }): Promise<string> {
   const phone = normalizePhone(opts.phone);
-  if (!phone) throw new HttpsError("invalid-argument", "A valid 7-digit Gambia phone is required.");
+  if (!phone) throw new HttpsError("invalid-argument", "A valid Gambia or Senegal phone is required.");
   if (opts.password.length < 8) {
     throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
   }
@@ -97,6 +97,7 @@ export async function createPlayerAccount(opts: {
     });
     tx.set(db.doc(`wallets/${uid}`), {
       balance: 0,
+      bonusBalance: 0,
       currency: "GMD",
       frozen: false,
       updatedAt: FieldValue.serverTimestamp(),
@@ -222,6 +223,7 @@ export const agentCreateSubAgent = onCall(async (req) => {
   });
   batch.set(db.doc(`wallets/${subUid}`), {
     balance: 0,
+    bonusBalance: 0,
     currency: "GMD",
     frozen: false,
     updatedAt: FieldValue.serverTimestamp(),

@@ -7,6 +7,7 @@ import { ImagePlus, Plus, Trash2, Upload } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { adminSaveLobbyPromos, errorMessage } from "@/lib/api";
 import { gamePlayPath } from "@/lib/games/api";
+import { filterLobbyGames } from "@/lib/games/catalog";
 import { PROMO_TICKER, type LobbyPromoConfig, type PromoSlide } from "@/lib/games/promotions";
 import { subscribeLobbyPromos, uploadPromoBannerImage } from "@/lib/promotions/lobbyPromos";
 import type { Game } from "@/lib/types";
@@ -60,7 +61,8 @@ export default function AdminPromotionsPage() {
   useEffect(() => {
     const q = query(collection(db, "games"), where("status", "==", "active"));
     return onSnapshot(q, (snap) => {
-      setGames(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Game));
+      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Game);
+      setGames(filterLobbyGames(all));
     });
   }, []);
 

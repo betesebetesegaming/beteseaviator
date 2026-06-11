@@ -2,16 +2,25 @@
  * Keeps aviator's `wallets/{uid}` ledger in sync when ModemPay webhooks credit
  * `users.wallet_balance` (same field betesepmu uses).
  */
-import { db, walletRead, walletWrite } from "./helpers";
+import { applyDepositBonuses } from "./bonuses";
+import { db, getSettings, walletRead, walletWrite } from "./helpers";
 
 export async function syncAviatorWalletCredit(
   uid: string,
   amount: number,
-  externalRef: string
-): Promise<void> {
-  if (!uid || amount <= 0) return;
+  externalRef: string,
+  depositAt: Date = new Date()
+): Promise<{ bonuses: { kind: string; amount: number }[] }> {
+  if (!uid || amount <= 0) return { bonuses: [] };
+
+  const settings = await getSettings();
+  let applied: { kind: string; amount: number }[] = [];
+
   await db.runTransaction(async (tx) => {
+    const userRef = db.doc(`users/${uid}`);
+    const userSnap = await tx.get(userRef);
     const wallet = await walletRead(tx, uid);
+
     walletWrite(tx, wallet, {
       uid,
       amount,
@@ -19,7 +28,20 @@ export async function syncAviatorWalletCredit(
       description: `Deposit via ModemPay (${externalRef})`,
       meta: { externalRef, source: "modempay" },
     });
+
+    applied = applyDepositBonuses(tx, {
+      uid,
+      wallet,
+      depositAmount: amount,
+      depositRef: externalRef,
+      depositAt,
+      userData: userSnap.data(),
+      settings,
+      userRef,
+    });
   });
+
+  return { bonuses: applied };
 }
 
 export async function syncAviatorWalletDebit(

@@ -52,35 +52,24 @@ export const PROMO_SLIDES: PromoSlide[] = [
 ];
 
 export const PROMO_TICKER: string[] = [
-  "🎮 New crash games added weekly on BETESE",
+  "✈️ Aviator — cash out before the crash",
   "💰 Instant Wave & AfriMoney deposits",
-  "✈️ Cash out before the crash — win in GMD",
-  "🔥 Aviator Turbo — higher speed, higher multipliers",
+  "🔥 Aviator Turbo — faster rounds, up to x200",
   "🎁 Demo players: 10,000 GMD play money",
 ];
 
-export type LobbyNavCategory =
-  | "discover"
-  | "crash"
-  | "slots"
-  | "instant"
-  | "live"
-  | "table";
+export type LobbyNavCategory = "aviator" | "crash";
 
 export type LobbyNavItem = {
   id: LobbyNavCategory;
   label: string;
-  icon: "compass" | "plane" | "sparkles" | "zap" | "tv" | "dice";
+  icon: "plane" | "rocket";
   available: boolean;
 };
 
 export const LOBBY_NAV: LobbyNavItem[] = [
-  { id: "discover", label: "Discover", icon: "compass", available: true },
-  { id: "crash", label: "Crash Games", icon: "plane", available: true },
-  { id: "slots", label: "Slots", icon: "sparkles", available: true },
-  { id: "instant", label: "Instant Win", icon: "zap", available: false },
-  { id: "live", label: "Live Casino", icon: "tv", available: false },
-  { id: "table", label: "Table Games", icon: "dice", available: false },
+  { id: "aviator", label: "Aviator Games", icon: "plane", available: true },
+  { id: "crash", label: "Crash Games", icon: "rocket", available: true },
 ];
 
 export function filterGamesByLobbyCategory(
@@ -88,13 +77,11 @@ export function filterGamesByLobbyCategory(
   category: LobbyNavCategory
 ): Game[] {
   switch (category) {
-    case "discover":
-      return games;
+    case "aviator":
+      return games.filter((g) => g.id === "aviator");
     case "crash":
-      return games.filter((g) => g.type === "crash");
-    case "slots":
-      return games.filter((g) => g.type === "slots");
+      return games.filter((g) => g.type === "crash" && g.id !== "aviator");
     default:
-      return [];
+      return games;
   }
 }

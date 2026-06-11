@@ -1,55 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import toast from "react-hot-toast";
-import { Copy, Users, UserCog, Banknote, TrendingUp, Award, WalletCards } from "lucide-react";
+import { Users, UserCog, Banknote, TrendingUp, Award, WalletCards } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
+import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { Card, StatCard } from "@/components/ui";
-
-const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://beteseaviator.com";
 
 export default function AgentDashboard() {
   const { profile, wallet } = useAuth();
-  const [copied, setCopied] = useState(false);
-
   const stats = profile?.stats ?? {};
   const ggr = (stats.totalBets ?? 0) - (stats.totalWins ?? 0);
-  const referralLink = `${SITE}/play?signup=1&ref=${profile?.agentSlug ?? ""}`;
-
-  async function copyLink() {
-    await navigator.clipboard.writeText(referralLink);
-    setCopied(true);
-    toast.success("Referral link copied!");
-    setTimeout(() => setCopied(false), 2000);
-  }
 
   return (
     <div>
       <h1 className="mb-1 text-xl font-bold">Welcome back, {profile?.name}</h1>
       <p className="mb-6 text-sm text-slate-400">
-        Share your link, bring in players, earn commission on the profit they generate.
+        Share your agent link or subdomain — every customer who signs up is attached to you for
+        commission.
       </p>
 
-      <Card className="mb-6 border-emerald-500/30 bg-emerald-500/5">
-        <p className="mb-2 text-xs uppercase tracking-widest text-emerald-300">
-          Your referral link
-        </p>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <code className="flex-1 overflow-x-auto rounded-lg bg-slate-950/70 px-3 py-2 text-sm text-emerald-200">
-            {referralLink}
-          </code>
-          <button
-            onClick={copyLink}
-            className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
-          >
-            <Copy size={15} /> {copied ? "Copied!" : "Copy"}
-          </button>
+      {profile?.agentSlug ? (
+        <div className="mb-6">
+          <AgentMarketingLinks slug={profile.agentSlug} agentName={profile.name} />
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          Every customer who signs up through this link is permanently attached to you.
-        </p>
-      </Card>
+      ) : (
+        <Card className="mb-6 border-amber-500/30 bg-amber-500/10 text-sm text-amber-100">
+          Your agent username is not set yet. Contact BETESE admin to assign one — your marketing
+          link is created automatically from your username.
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard

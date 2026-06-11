@@ -27,6 +27,7 @@ export interface AgentStats {
 
 export interface Wallet {
   balance: number;
+  bonusBalance?: number;
   currency: "GMD";
   frozen: boolean;
   updatedAt: Timestamp | null;
@@ -39,7 +40,8 @@ export type TransactionType =
   | "win"
   | "commission"
   | "transfer"
-  | "refund";
+  | "refund"
+  | "bonus";
 
 export interface WalletTransaction {
   id: string;
@@ -130,6 +132,27 @@ export interface PaymentRequest {
   createdAt: Timestamp | null;
 }
 
+export interface BonusRuleSettings {
+  enabled: boolean;
+  /** Fraction of deposit, e.g. 0.25 = 25% */
+  percent: number;
+  maxAmount: number;
+  minDeposit: number;
+}
+
+export interface WeekendBonusSettings extends BonusRuleSettings {
+  /** Friday from this hour (GMT), default 18 = 6pm */
+  fridayStartHour: number;
+  /** Sunday until this hour (GMT), default 23 */
+  sundayEndHour: number;
+}
+
+export interface BonusSettings {
+  firstDeposit: BonusRuleSettings;
+  weeklyCrash: BonusRuleSettings;
+  weekend: WeekendBonusSettings;
+}
+
 export interface PlatformSettings {
   subAgentRate: number; // e.g. 0.05
   superAgentRate: number; // e.g. 0.03
@@ -140,6 +163,7 @@ export interface PlatformSettings {
   minAutoCashout: number;
   maxAutoCashout: number;
   providers: Record<PaymentProvider, boolean>;
+  bonuses?: BonusSettings;
 }
 
 export interface DailyStats {
@@ -151,6 +175,8 @@ export interface DailyStats {
   sessions: number;
 }
 
+import { DEFAULT_BONUS_SETTINGS } from "./bonuses";
+
 export const DEFAULT_SETTINGS: PlatformSettings = {
   subAgentRate: 0.05,
   superAgentRate: 0.03,
@@ -161,6 +187,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   minAutoCashout: 1.01,
   maxAutoCashout: 100,
   providers: { wave: true, afrimoney: true, aps: true, qmoney: true },
+  bonuses: DEFAULT_BONUS_SETTINGS,
 };
 
 export const PROVIDER_LABELS: Record<PaymentProvider, string> = {
