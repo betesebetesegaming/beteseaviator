@@ -1,0 +1,36 @@
+[debug] [2026-06-11T15:08:19.799Z] ----------------------------------------------------------------------
+[debug] [2026-06-11T15:08:19.803Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Dell\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js projects:list
+[debug] [2026-06-11T15:08:19.804Z] CLI Version:   15.18.0
+[debug] [2026-06-11T15:08:19.805Z] Platform:      win32
+[debug] [2026-06-11T15:08:19.805Z] Node Version:  v24.15.0
+[debug] [2026-06-11T15:08:19.805Z] Time:          Thu Jun 11 2026 15:08:19 GMT+0000 (Greenwich Mean Time)
+[debug] [2026-06-11T15:08:19.805Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-06-11T15:08:19.808Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-06-11T15:08:19.843Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-06-11T15:08:19.843Z] > authorizing via signed-in user (betesefootball@gmail.com)
+[debug] [2026-06-11T15:08:19.846Z] Checked if tokens are valid: false, expires at: 1781190943514
+[debug] [2026-06-11T15:08:19.847Z] Checked if tokens are valid: false, expires at: 1781190943514
+[debug] [2026-06-11T15:08:19.847Z] > refreshing access token with scopes: []
+[debug] [2026-06-11T15:08:19.849Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-06-11T15:08:19.849Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-11T15:08:21.130Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-06-11T15:08:21.131Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-06-11T15:08:21.139Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects pageSize=1000
+[debug] [2026-06-11T15:08:21.716Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2026-06-11T15:08:21.716Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2026-06-11T15:08:22.592Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects 200
+[debug] [2026-06-11T15:08:22.593Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects [omitted]
+[info] ┌──────────────────────┬─────────────────────┬────────────────┬──────────────────────┐
+│ Project Display Name │ Project ID          │ Project Number │ Resource Location ID │
+├──────────────────────┼─────────────────────┼────────────────┼──────────────────────┤
+│ beteseaviator        │ beteseaviator-a05ae │ 866081872707   │ [Not specified]      │
+├──────────────────────┼─────────────────────┼────────────────┼──────────────────────┤
+│ beteseoffice         │ beteseoffice        │ 863896682023   │ [Not specified]      │
+├──────────────────────┼─────────────────────┼────────────────┼──────────────────────┤
+│ betesepmu            │ betesepmu-4ffc7     │ 564957052051   │ [Not specified]      │
+├──────────────────────┼─────────────────────┼────────────────┼──────────────────────┤
+│ outsourcejobs        │ outsourcejobs-18f45 │ 463068307452   │ [Not specified]      │
+└──────────────────────┴─────────────────────┴────────────────┴──────────────────────┘
+[info] 
+[info] 4 project(s) total.
