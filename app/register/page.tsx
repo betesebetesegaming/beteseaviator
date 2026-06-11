@@ -6,11 +6,12 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { Plane, Gift } from "lucide-react";
+import { Gift } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { completeRegistration, errorMessage } from "@/lib/api";
 import { normalizePhone, phoneToEmail } from "@/lib/format";
 import { Button, Input, Card, Spinner } from "@/components/ui";
+import { Logo } from "@/components/logo";
 
 function RegisterForm() {
   const router = useRouter();
@@ -74,11 +75,8 @@ function RegisterForm() {
   return (
     <main className="flex flex-1 items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center justify-center gap-2">
-          <Plane className="animate-float text-emerald-400" size={32} />
-          <h1 className="text-2xl font-bold tracking-tight">
-            BETESE <span className="text-emerald-400">Aviator</span>
-          </h1>
+        <div className="mb-6 flex justify-center">
+          <Logo height={40} />
         </div>
 
         <Card>

@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   title: "BETESE Aviator",
   description:
     "BETESE Aviator — crash game platform. Deposit with mobile money, bet, cash out before the crash.",
+  icons: {
+    icon: [{ url: "/icon.png", type: "image/png" }],
+    apple: [{ url: "/icon.png", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({

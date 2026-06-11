@@ -1,0 +1,17 @@
+{
+  "rules": {
+    "rounds": {
+      "$gameId": {
+        "current": { ".read": true, ".write": false },
+        "history": { ".read": true, ".write": false },
+        ".write": false
+      }
+    },
+    "payments": {
+      ".read": true,
+      ".write": true
+    },
+    ".read": false,
+    ".write": false
+  }
+}

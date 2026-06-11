@@ -12,7 +12,7 @@ export default function Home() {
   useEffect(() => {
     if (loading) return;
     if (!fbUser) {
-      router.replace("/login");
+      router.replace("/play");
     } else if (!profile) {
       router.replace("/register/complete");
     } else {

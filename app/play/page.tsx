@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Rocket, TrendingUp, Eye } from "lucide-react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { Rocket, TrendingUp } from "lucide-react";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import type { Game } from "@/lib/types";
 import { Card, Spinner, EmptyState, Badge } from "@/components/ui";
 
 export default function LobbyPage() {
+  const { profile } = useAuth();
+  const isPlayer = profile?.role === "player";
   const [games, setGames] = useState<Game[] | null>(null);
 
   useEffect(() => {
@@ -22,6 +25,13 @@ export default function LobbyPage() {
 
   return (
     <div>
+      {!isPlayer && (
+        <div className="mb-5 flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          <Eye size={16} className="shrink-0" />
+          Browse and watch live rounds for free. Create an account when you want to bet with real
+          XOF.
+        </div>
+      )}
       <h1 className="mb-1 text-xl font-bold">Game Lobby</h1>
       <p className="mb-6 text-sm text-slate-400">Pick a game and cash out before the crash.</p>
 

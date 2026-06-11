@@ -3,12 +3,13 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
-import { Plane } from "lucide-react";
+import { Gift } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { completeRegistration, errorMessage } from "@/lib/api";
 import { normalizePhone } from "@/lib/format";
 import { auth } from "@/lib/firebase";
 import { Button, Input, Card, Spinner } from "@/components/ui";
+import { Logo } from "@/components/logo";
 
 /**
  * Finishes sign-up for accounts created via Google or SMS code:
@@ -61,11 +62,8 @@ function CompleteForm() {
   return (
     <main className="flex flex-1 items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center justify-center gap-2">
-          <Plane className="animate-float text-emerald-400" size={32} />
-          <h1 className="text-2xl font-bold tracking-tight">
-            BETESE <span className="text-emerald-400">Aviator</span>
-          </h1>
+        <div className="mb-6 flex justify-center">
+          <Logo height={40} />
         </div>
         <Card>
           <h2 className="mb-1 text-lg font-semibold">One last step</h2>

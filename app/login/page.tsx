@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import {
@@ -13,20 +13,31 @@ import {
   signInWithPopup,
   type ConfirmationResult,
 } from "firebase/auth";
-import { Plane } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 import { agentLogin, errorMessage } from "@/lib/api";
 import { normalizePhone, phoneToEmail } from "@/lib/format";
 import { Button, Input, Card } from "@/components/ui";
+import { Logo } from "@/components/logo";
 
 type Tab = "customer" | "agent";
 type CustomerMode = "password" | "otp";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { fbUser, loading } = useAuth();
-  const [tab, setTab] = useState<Tab>("customer");
+  const [tab, setTab] = useState<Tab>(
+    searchParams.get("tab") === "agent" ? "agent" : "customer"
+  );
   const [mode, setMode] = useState<CustomerMode>("password");
   const [busy, setBusy] = useState(false);
 
@@ -136,11 +147,8 @@ export default function LoginPage() {
   return (
     <main className="flex flex-1 items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center justify-center gap-2">
-          <Plane className="animate-float text-emerald-400" size={32} />
-          <h1 className="text-2xl font-bold tracking-tight">
-            BETESE <span className="text-emerald-400">Aviator</span>
-          </h1>
+        <div className="mb-6 flex justify-center">
+          <Logo height={40} />
         </div>
 
         <Card>
