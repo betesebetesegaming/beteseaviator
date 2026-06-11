@@ -47,7 +47,7 @@ export function DemoAccountsPanel() {
   const customers = DEMO_ACCOUNTS.filter((a) => a.role === "Customer");
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/90 to-slate-950 p-5 sm:p-6">
+    <section className="rounded-2xl border border-betese-yellow/15 bg-[#111] p-5 sm:p-6">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-black uppercase tracking-widest text-emerald-400">

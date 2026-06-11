@@ -46,3 +46,30 @@ body {
 .animate-float {
   animation: float-plane 2s ease-in-out infinite;
 }
+
+/* Lobby: hide horizontal scrollbars on category nav */
+.lobby-scroll-x {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.lobby-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+/* Promo ticker marquee */
+@keyframes promo-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-promo-marquee {
+  animation: promo-marquee 35s linear infinite;
+}
+
+.lobby-page {
+  background: #000;
+}
