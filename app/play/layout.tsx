@@ -51,7 +51,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
       </Suspense>
       <PendingDepositReconciler />
       <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/play">
             <Logo height={34} />
           </Link>
@@ -109,7 +109,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
     </>
   );
 }
