@@ -17,6 +17,7 @@ import { apiUrl } from "@/lib/apiUrl";
 import { normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
+import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
 import { buildDepositResult, type PaymentResultPayload } from "@/lib/paymentResultPayload";
 import { formatSigned, formatXof, formatDate } from "@/lib/format";
 import type { WalletTransaction } from "@/lib/types";
@@ -91,16 +92,28 @@ export default function WalletPage() {
     if (typeof window === "undefined") return;
     const ref = new URLSearchParams(window.location.search).get("deposit");
     if (!ref || !ref.startsWith("BETESE-")) return;
-    return subscribeDepositById(ref, (record) => {
+
+    let settled = false;
+    const stopPolling = startDepositReconcilePolling(ref, () => settled);
+
+    const unsub = subscribeDepositById(ref, (record) => {
       if (!record) return;
       if (record.status === "Approved") {
+        settled = true;
         setPaymentResult(buildDepositResult("Approved", record.amount, record.method, ref));
         window.history.replaceState({}, "", "/play/wallet");
       } else if (record.status === "Rejected") {
+        settled = true;
         setPaymentResult(buildDepositResult("Rejected", record.amount, record.method, ref));
         window.history.replaceState({}, "", "/play/wallet");
       }
     });
+
+    return () => {
+      settled = true;
+      stopPolling();
+      unsub();
+    };
   }, []);
 
   async function submitMobileWithdrawal() {

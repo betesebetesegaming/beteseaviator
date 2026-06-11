@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { apiUrl } from "@/lib/apiUrl";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
+import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
 
 type Method = 'AfriMoney' | 'Wave' | 'APS' | 'QMoney' | 'Card';
 
@@ -126,29 +127,11 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       }
     });
 
-    // Safety net: if the deposit is still Pending after 20s (webhook missed,
-    // backend crashed, etc.) poll the reconcile endpoint which asks ModemPay
-    // directly and replays any stored events for this externalRef. Stops as
-    // soon as status flips or after ~3 minutes.
-    let stopped = false;
-    const pollReconcile = async () => {
-      const started = Date.now();
-      await new Promise(r => setTimeout(r, 20000));
-      while (!stopped && !settled && Date.now() - started < 3 * 60 * 1000) {
-        try {
-          await fetch(apiUrl('/modempay-reconcile-deposit'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ externalRef: trackingRef }),
-          });
-        } catch { /* ignore — RTDB subscription will catch the update */ }
-        await new Promise(r => setTimeout(r, 10000));
-      }
-    };
-    pollReconcile();
+    const stopPolling = startDepositReconcilePolling(trackingRef, () => settled);
 
     return () => {
-      stopped = true;
+      settled = true;
+      stopPolling();
       unsub();
     };
   }, [trackingRef, stage]);
@@ -454,7 +437,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                 </div>
                 {liveStatus === 'Pending' && (
                   <p className="mt-3 text-xs font-bold text-amber-700 animate-pulse">
-                    Live via Firebase — no refresh needed. Complete payment on your phone.
+                    Live via Firebase — no refresh needed. If payment stalls, we recheck with ModemPay every 30 seconds.
                   </p>
                 )}
                 {liveStatus === 'Approved' && (

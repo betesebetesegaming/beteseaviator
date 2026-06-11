@@ -8,6 +8,7 @@ import { useAuth, homeFor } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
 import { formatXof } from "@/lib/format";
 import { Logo } from "@/components/logo";
+import { PendingDepositReconciler } from "@/components/PendingDepositReconciler";
 
 function PlayAuthFromQuery() {
   const router = useRouter();
@@ -48,6 +49,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
       <Suspense fallback={null}>
         <PlayAuthFromQuery />
       </Suspense>
+      <PendingDepositReconciler />
       <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/play">
