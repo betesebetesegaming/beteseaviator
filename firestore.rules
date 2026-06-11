@@ -103,7 +103,7 @@ service cloud.firestore {
     }
 
     match /settings/{docId} {
-      allow read: if isAdmin() || docId == 'platform';
+      allow read: if isAdmin() || docId == 'platform' || docId == 'lobbyPromos';
       allow write: if false;
     }
 

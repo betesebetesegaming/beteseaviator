@@ -114,6 +114,13 @@ export const adminSaveSettings = call<Record<string, unknown>, { ok: true }>(
   "adminSaveSettings"
 );
 
+import type { PromoSlide } from "./games/promotions";
+
+export const adminSaveLobbyPromos = call<
+  { slides: PromoSlide[]; ticker?: string[] },
+  { ok: true }
+>("adminSaveLobbyPromos");
+
 export function errorMessage(e: unknown): string {
   if (e && typeof e === "object" && "message" in e) {
     const msg = String((e as { message: unknown }).message);

@@ -20,6 +20,7 @@ export {
   adminAdjustWallet,
   adminFreezeWallet,
   adminSaveSettings,
+  adminSaveLobbyPromos,
 } from "./admin";
 export { processCommissions, adminRunCommissions } from "./commissions";
 

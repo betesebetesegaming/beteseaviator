@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Plane,
   LayoutDashboard,
   Users,
   Wallet,
@@ -11,6 +10,7 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  Megaphone,
 } from "lucide-react";
 import { RoleGuard } from "@/components/role-guard";
 import { useAuth } from "@/lib/auth-context";
@@ -20,6 +20,7 @@ const NAV = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/wallets", label: "Wallets", icon: Wallet },
   { href: "/admin/withdrawals", label: "Withdrawals", icon: HandCoins },
+  { href: "/admin/promotions", label: "Promotions", icon: Megaphone },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
@@ -31,7 +32,7 @@ function AdminNav() {
     <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/90 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
         <Link href="/admin" className="flex items-center gap-2 font-bold">
-          <Plane className="text-emerald-400" size={22} />
+          <Megaphone className="text-emerald-400" size={22} />
           <span className="hidden sm:inline">
             BETESE <span className="text-emerald-400">Admin</span>
           </span>

@@ -214,3 +214,61 @@ export const adminSaveSettings = onCall(async (req) => {
   await db.doc("settings/platform").set(clean, { merge: true });
   return { ok: true };
 });
+
+/** Lobby banner ads — images + text shown on /play carousel. */
+export const adminSaveLobbyPromos = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const slides = req.data?.slides;
+  const ticker = req.data?.ticker;
+
+  if (!Array.isArray(slides) || slides.length === 0) {
+    throw new HttpsError("invalid-argument", "At least one slide is required.");
+  }
+  if (slides.length > 12) {
+    throw new HttpsError("invalid-argument", "Maximum 12 slides allowed.");
+  }
+
+  const cleanSlides: Record<string, unknown>[] = [];
+  for (let i = 0; i < slides.length; i++) {
+    const s = slides[i] as Record<string, unknown>;
+    const id = String(s.id ?? `promo-${i}`).trim().slice(0, 64);
+    const title = String(s.title ?? "").trim().slice(0, 120);
+    const subtitle = String(s.subtitle ?? "").trim().slice(0, 240);
+    const imageUrl = s.imageUrl ? String(s.imageUrl).trim().slice(0, 2048) : undefined;
+    if (!title && !imageUrl) {
+      throw new HttpsError("invalid-argument", `Slide ${i + 1} needs a title or image.`);
+    }
+    cleanSlides.push({
+      id,
+      title,
+      subtitle,
+      cta: s.cta ? String(s.cta).trim().slice(0, 40) : undefined,
+      href: s.href ? String(s.href).trim().slice(0, 512) : undefined,
+      imageUrl,
+      gradient: s.gradient
+        ? String(s.gradient).trim().slice(0, 120)
+        : "from-emerald-700 via-emerald-900 to-black",
+      accent: s.accent ? String(s.accent).trim().slice(0, 40) : "text-betese-yellow",
+      active: s.active !== false,
+      sortOrder: Number(s.sortOrder ?? i),
+    });
+  }
+
+  let cleanTicker: string[] | undefined;
+  if (Array.isArray(ticker)) {
+    cleanTicker = ticker
+      .map((line) => String(line).trim().slice(0, 200))
+      .filter(Boolean)
+      .slice(0, 20);
+  }
+
+  await db.doc("settings/lobbyPromos").set(
+    {
+      slides: cleanSlides,
+      ...(cleanTicker?.length ? { ticker: cleanTicker } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  return { ok: true };
+});

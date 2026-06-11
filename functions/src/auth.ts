@@ -256,6 +256,30 @@ export const seedPlatform = onCall(async (req) => {
   });
   created.push("settings", "games");
 
+  await db.doc("settings/lobbyPromos").set({
+    slides: [
+      {
+        id: "aviator-launch",
+        title: "Fly high with Aviator",
+        subtitle: "Cash out before the crash — win real GMD on BETESE",
+        cta: "Play now",
+        href: "/play/game/aviator",
+        imageUrl: "/promotions/aviator-ad.png",
+        gradient: "from-red-700 via-rose-900 to-black",
+        accent: "text-betese-yellow",
+        active: true,
+        sortOrder: 0,
+      },
+    ],
+    ticker: [
+      "✈️ Aviator — cash out before the crash",
+      "💰 Wave & AfriMoney deposits in GMD",
+      "🔥 Aviator Turbo — up to x200",
+      "🎁 Demo: phone 770000001 · password: password",
+    ],
+  });
+  created.push("lobby promotions");
+
   if (withDemoData) {
     const johnId = await createAccount({
       email: "john@betese.com",

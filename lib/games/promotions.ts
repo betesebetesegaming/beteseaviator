@@ -6,8 +6,19 @@ export type PromoSlide = {
   subtitle: string;
   cta?: string;
   href?: string;
+  /** Full-width banner photo (admin upload or static asset). */
+  imageUrl?: string;
   gradient: string;
   accent: string;
+  active?: boolean;
+  sortOrder?: number;
+};
+
+/** Stored at settings/lobbyPromos — managed from admin → Promotions. */
+export type LobbyPromoConfig = {
+  slides: PromoSlide[];
+  ticker?: string[];
+  updatedAt?: string;
 };
 
 export const PROMO_SLIDES: PromoSlide[] = [
