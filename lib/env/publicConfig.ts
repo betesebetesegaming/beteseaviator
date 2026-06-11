@@ -1,9 +1,12 @@
 /**
  * Public (browser-safe) environment variables.
  *
- * On Vercel, NEXT_PUBLIC_* vars must exist at build time to be inlined into JS
- * chunks. We also inject them at runtime via app/layout.tsx (window.__BETESE_ENV__)
- * so production works even when env vars were added after the last client build.
+ * Firebase web config is not secret — defaults match beteseaviator-a05ae so
+ * Vercel builds work even before env vars are added. Override via
+ * NEXT_PUBLIC_* in Vercel or .env.local when needed.
+ *
+ * We also inject vars at runtime via app/layout.tsx (window.__BETESE_ENV__)
+ * so production picks up env changes without a full client rebuild when possible.
  */
 
 export type PublicClientEnv = {
@@ -26,67 +29,93 @@ declare global {
   }
 }
 
+/** Default Firebase web app config for beteseaviator-a05ae (public, not secret). */
+export const DEFAULT_PUBLIC_ENV: PublicClientEnv = {
+  NEXT_PUBLIC_FIREBASE_API_KEY: "AIzaSyCfG9tVqFxcqmOvsR9jI_cyJXi4LLPgFyA",
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "beteseaviator-a05ae.firebaseapp.com",
+  NEXT_PUBLIC_FIREBASE_DATABASE_URL: "https://beteseaviator-a05ae-default-rtdb.firebaseio.com",
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: "beteseaviator-a05ae",
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "beteseaviator-a05ae.firebasestorage.app",
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "866081872707",
+  NEXT_PUBLIC_FIREBASE_APP_ID: "1:866081872707:web:54248cbdef8d405f106df6",
+  NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: "G-R5PH4J1K6S",
+  NEXT_PUBLIC_API_BASE_URL:
+    "https://us-central1-beteseaviator-a05ae.cloudfunctions.net",
+};
+
 const PUBLIC_ENV_KEYS = [
-  'NEXT_PUBLIC_FIREBASE_API_KEY',
-  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-  'NEXT_PUBLIC_FIREBASE_DATABASE_URL',
-  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-  'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
-  'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
-  'NEXT_PUBLIC_FIREBASE_APP_ID',
-  'NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID',
-  'NEXT_PUBLIC_API_BASE_URL',
-  'NEXT_PUBLIC_SIGNUP_OTP_ENABLED',
-  'NEXT_PUBLIC_SIGNUP_OTP_GATEWAY_OK',
+  "NEXT_PUBLIC_FIREBASE_API_KEY",
+  "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+  "NEXT_PUBLIC_FIREBASE_DATABASE_URL",
+  "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+  "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+  "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+  "NEXT_PUBLIC_FIREBASE_APP_ID",
+  "NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID",
+  "NEXT_PUBLIC_API_BASE_URL",
+  "NEXT_PUBLIC_SIGNUP_OTP_ENABLED",
+  "NEXT_PUBLIC_SIGNUP_OTP_GATEWAY_OK",
 ] as const;
 
 function readPublicEnv(name: (typeof PUBLIC_ENV_KEYS)[number]): string {
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     const fromWindow = window.__BETESE_ENV__?.[name as keyof PublicClientEnv];
     if (fromWindow && String(fromWindow).trim()) {
       return String(fromWindow).trim();
     }
   }
-  return String(process.env[name] || '').trim();
-}
-
-function requirePublicEnv(name: (typeof PUBLIC_ENV_KEYS)[number]): string {
-  const value = readPublicEnv(name);
-  if (!value) {
-    throw new Error(
-      `Missing ${name}. Set it in Vercel → Settings → Environment Variables (Production + Preview), then redeploy.`,
-    );
-  }
-  return value;
+  const fromProcess = String(process.env[name] || "").trim();
+  if (fromProcess) return fromProcess;
+  const fallback = DEFAULT_PUBLIC_ENV[name as keyof PublicClientEnv];
+  return fallback ? String(fallback).trim() : "";
 }
 
 /** Build the env object injected by the server layout into the HTML page. */
 export function getPublicEnvForInjection(): PublicClientEnv {
   return {
-    NEXT_PUBLIC_FIREBASE_API_KEY: String(process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '').trim(),
-    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: String(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '').trim(),
-    NEXT_PUBLIC_FIREBASE_DATABASE_URL: String(process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || '').trim(),
-    NEXT_PUBLIC_FIREBASE_PROJECT_ID: String(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '').trim(),
-    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: String(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || '').trim(),
-    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: String(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '').trim(),
-    NEXT_PUBLIC_FIREBASE_APP_ID: String(process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '').trim(),
-    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: String(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || '').trim() || undefined,
-    NEXT_PUBLIC_API_BASE_URL: String(process.env.NEXT_PUBLIC_API_BASE_URL || '').trim() || undefined,
-    NEXT_PUBLIC_SIGNUP_OTP_ENABLED: String(process.env.NEXT_PUBLIC_SIGNUP_OTP_ENABLED || '').trim() || undefined,
-    NEXT_PUBLIC_SIGNUP_OTP_GATEWAY_OK: String(process.env.NEXT_PUBLIC_SIGNUP_OTP_GATEWAY_OK || '').trim() || undefined,
+    NEXT_PUBLIC_FIREBASE_API_KEY:
+      readPublicEnv("NEXT_PUBLIC_FIREBASE_API_KEY") ||
+      DEFAULT_PUBLIC_ENV.NEXT_PUBLIC_FIREBASE_API_KEY,
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:
+      readPublicEnv("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN") ||
+      DEFAULT_PUBLIC_ENV.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    NEXT_PUBLIC_FIREBASE_DATABASE_URL:
+      readPublicEnv("NEXT_PUBLIC_FIREBASE_DATABASE_URL") ||
+      DEFAULT_PUBLIC_ENV.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID:
+      readPublicEnv("NEXT_PUBLIC_FIREBASE_PROJECT_ID") ||
+      DEFAULT_PUBLIC_ENV.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:
+      readPublicEnv("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET") ||
+      DEFAULT_PUBLIC_ENV.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:
+      readPublicEnv("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID") ||
+      DEFAULT_PUBLIC_ENV.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    NEXT_PUBLIC_FIREBASE_APP_ID:
+      readPublicEnv("NEXT_PUBLIC_FIREBASE_APP_ID") ||
+      DEFAULT_PUBLIC_ENV.NEXT_PUBLIC_FIREBASE_APP_ID,
+    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID:
+      readPublicEnv("NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID") ||
+      DEFAULT_PUBLIC_ENV.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+    NEXT_PUBLIC_API_BASE_URL:
+      readPublicEnv("NEXT_PUBLIC_API_BASE_URL") ||
+      DEFAULT_PUBLIC_ENV.NEXT_PUBLIC_API_BASE_URL,
+    NEXT_PUBLIC_SIGNUP_OTP_ENABLED: readPublicEnv("NEXT_PUBLIC_SIGNUP_OTP_ENABLED") || undefined,
+    NEXT_PUBLIC_SIGNUP_OTP_GATEWAY_OK:
+      readPublicEnv("NEXT_PUBLIC_SIGNUP_OTP_GATEWAY_OK") || undefined,
   };
 }
 
 export function getPublicFirebaseConfig() {
   return {
-    apiKey: requirePublicEnv('NEXT_PUBLIC_FIREBASE_API_KEY'),
-    authDomain: requirePublicEnv('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN'),
-    databaseURL: requirePublicEnv('NEXT_PUBLIC_FIREBASE_DATABASE_URL'),
-    projectId: requirePublicEnv('NEXT_PUBLIC_FIREBASE_PROJECT_ID'),
-    storageBucket: requirePublicEnv('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET'),
-    messagingSenderId: requirePublicEnv('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID'),
-    appId: requirePublicEnv('NEXT_PUBLIC_FIREBASE_APP_ID'),
-    measurementId: readPublicEnv('NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID') || undefined,
+    apiKey: readPublicEnv("NEXT_PUBLIC_FIREBASE_API_KEY"),
+    authDomain: readPublicEnv("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN"),
+    databaseURL: readPublicEnv("NEXT_PUBLIC_FIREBASE_DATABASE_URL"),
+    projectId: readPublicEnv("NEXT_PUBLIC_FIREBASE_PROJECT_ID"),
+    storageBucket: readPublicEnv("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET"),
+    messagingSenderId: readPublicEnv("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"),
+    appId: readPublicEnv("NEXT_PUBLIC_FIREBASE_APP_ID"),
+    measurementId: readPublicEnv("NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID") || undefined,
   };
 }
 
@@ -100,9 +129,9 @@ export function getFirebaseProjectId(): string {
  * derive from project id (us-central1 default region for this project).
  */
 export function getApiBaseUrl(): string {
-  const explicit = readPublicEnv('NEXT_PUBLIC_API_BASE_URL');
+  const explicit = readPublicEnv("NEXT_PUBLIC_API_BASE_URL");
   if (explicit) {
-    return explicit.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+    return explicit.replace(/\/api\/?$/, "").replace(/\/+$/, "");
   }
   const projectId = getFirebaseProjectId();
   return `https://us-central1-${projectId}.cloudfunctions.net`;
