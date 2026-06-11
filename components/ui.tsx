@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
+import { useEffect, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
 import { X } from "lucide-react";
 
 export function Card({
@@ -145,17 +145,46 @@ export function Modal({
   title: string;
   children: ReactNode;
 }) {
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-md rounded-xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/70 backdrop-blur-[1px]"
+        aria-label="Close dialog"
+        onClick={onClose}
+      />
+      <div className="relative z-10 flex w-full max-w-md max-h-[min(92dvh,720px)] flex-col overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl sm:max-h-[min(88dvh,680px)]">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4">
+          <h3 id="modal-title" className="pr-8 text-base font-semibold leading-snug text-white sm:text-lg">
+            {title}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-3 top-3 rounded-lg p-1.5 text-slate-400 hover:bg-white/5 hover:text-white sm:right-4 sm:top-4"
+            aria-label="Close"
+          >
             <X size={18} />
           </button>
         </div>
-        {children}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
+          {children}
+        </div>
       </div>
     </div>
   );

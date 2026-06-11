@@ -257,7 +257,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onClose} />
 
       <div
-        className="relative w-full sm:max-w-lg bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="relative w-full sm:max-w-lg bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[min(92dvh,720px)]"
         style={{
           transform: `translateY(${dragY}px)`,
           transition: dragStartY.current == null ? 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)' : 'none',

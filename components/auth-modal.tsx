@@ -216,17 +216,18 @@ export function AuthModal({
               : "Sign in to place bets"
       }
     >
-      <div className="mb-4 flex justify-center">
-        <Logo height={32} showWordmark={false} />
+      <div className="mb-3 flex justify-center sm:mb-4">
+        <Logo height={28} showWordmark={false} className="sm:hidden" />
+        <Logo height={32} showWordmark={false} className="hidden sm:inline-flex" />
       </div>
-      <p className="mb-4 text-center text-sm text-slate-400">
+      <p className="mb-3 text-center text-sm text-slate-400 sm:mb-4">
         {mode === "complete"
           ? "Add your phone number to deposit, bet and withdraw with real GMD."
           : "Watch the game for free — sign up when you're ready to bet for real money."}
       </p>
 
       {mode !== "complete" && mode !== "agent" && (
-        <div className="mb-4 grid grid-cols-2 rounded-lg bg-slate-950/70 p-1 text-sm font-medium">
+        <div className="mb-3 grid grid-cols-2 rounded-lg bg-slate-950/70 p-1 text-sm font-medium sm:mb-4">
           <button
             type="button"
             onClick={() => setMode("login")}

@@ -41,7 +41,7 @@ export const PaymentResultModal: React.FC<PaymentResultModalProps> = ({ result, 
     <AnimatePresence>
       {result && (
         <motion.div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          className="fixed inset-0 z-[100] flex items-end justify-center p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -52,7 +52,7 @@ export const PaymentResultModal: React.FC<PaymentResultModalProps> = ({ result, 
           <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
 
           <motion.div
-            className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden"
+            className="relative w-full max-w-sm max-h-[min(92dvh,560px)] overflow-y-auto overscroll-contain bg-white rounded-3xl shadow-2xl"
             initial={{ scale: 0.85, y: 24, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.9, y: 12, opacity: 0 }}
