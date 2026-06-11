@@ -9,6 +9,7 @@ import { useAuthModal } from "@/lib/auth-modal-context";
 import { formatXof } from "@/lib/format";
 import { Logo } from "@/components/logo";
 import { PendingDepositReconciler } from "@/components/PendingDepositReconciler";
+import { LobbyBackgroundShell } from "@/components/games/LobbyBackgroundShell";
 import { parseAgentSlugFromHost } from "@/lib/agentLinks";
 
 function PlayAuthFromQuery() {
@@ -50,12 +51,12 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
   }, [loading, profile, router]);
 
   return (
-    <>
+    <LobbyBackgroundShell>
       <Suspense fallback={null}>
         <PlayAuthFromQuery />
       </Suspense>
       <PendingDepositReconciler />
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/90 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/75 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/play">
             <Logo height={34} />
@@ -120,6 +121,6 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
         </div>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
-    </>
+    </LobbyBackgroundShell>
   );
 }
