@@ -257,7 +257,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onClose} />
 
       <div
-        className="relative w-full sm:max-w-lg bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[min(92dvh,720px)]"
+        className="payment-surface relative w-full sm:max-w-lg bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[min(92dvh,720px)] text-slate-900"
         style={{
           transform: `translateY(${dragY}px)`,
           transition: dragStartY.current == null ? 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)' : 'none',
@@ -285,7 +285,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                   setMessage(null);
                 }
               }}
-              className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+              className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-slate-700"
               aria-label="Back"
             >
               <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.4}>
@@ -293,8 +293,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
               </svg>
             </button>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-widest text-gray-400">Top up wallet</p>
-              <h3 className="text-lg font-black text-betese-dark leading-tight">
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">Top up wallet</p>
+              <h3 className="text-lg font-black text-slate-900 leading-tight">
                 {stage === 'choose' && 'Choose payment'}
                 {stage === 'enter-amount' && (method ? `Pay with ${methodMeta[method].label}` : 'Pay')}
                 {stage === 'paying' && 'Processing…'}
@@ -303,15 +303,15 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
             </div>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-black uppercase text-gray-400">Wallet</p>
-            <p className="text-sm font-black text-betese-dark">{(user.walletBalance ?? 0).toFixed(0)} GMD</p>
+            <p className="text-[10px] font-black uppercase text-slate-500">Wallet</p>
+            <p className="text-sm font-black text-green-700">{(user.walletBalance ?? 0).toFixed(0)} GMD</p>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3">
           {stage === 'choose' && (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">Pick how you want to pay. All payments open a secure ModemPay checkout — finish payment there and return to Betese.</p>
+              <p className="text-sm text-slate-600">Pick how you want to pay. All payments open a secure ModemPay checkout — finish payment there and return to Betese.</p>
               {(Object.keys(methodMeta) as Method[]).map((m) => {
                 const meta = methodMeta[m];
                 return (
@@ -325,14 +325,14 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                     </div>
                     <div className="flex-1 text-left">
                       <p className={`text-base font-black ${meta.tint}`}>{meta.label}</p>
-                      <p className="text-xs font-bold text-gray-600">{meta.sub}</p>
+                      <p className="text-xs font-bold text-slate-600">{meta.sub}</p>
                       {meta.powered && (
-                        <p className="mt-1 inline-block text-[9px] font-black uppercase tracking-widest text-gray-500 bg-white rounded px-1.5 py-0.5 border border-gray-200">
+                        <p className="mt-1 inline-block text-[9px] font-black uppercase tracking-widest text-slate-600 bg-white rounded px-1.5 py-0.5 border border-slate-200">
                           Powered by ModemPay
                         </p>
                       )}
                     </div>
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2.4}>
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2.4}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
                     </svg>
                   </button>
@@ -349,19 +349,19 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                 </div>
                 <div>
                   <p className={`text-base font-black ${methodMeta[method].tint}`}>{methodMeta[method].label}</p>
-                  <p className="text-xs font-bold text-gray-600">{methodMeta[method].sub}</p>
+                  <p className="text-xs font-bold text-slate-600">{methodMeta[method].sub}</p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-1">Amount (GMD)</label>
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-600 mb-1">Amount (GMD)</label>
                 <input
                   type="number"
                   inputMode="numeric"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
                   placeholder="e.g. 500"
-                  className="w-full p-3 border-2 border-gray-200 rounded-xl text-lg font-black focus:border-betese-green focus:outline-none"
+                  className="w-full p-3 border-2 border-slate-300 rounded-xl text-lg font-black text-slate-900 bg-white placeholder:text-slate-400 focus:border-betese-green focus:ring-2 focus:ring-green-600/25 focus:outline-none"
                   min={1}
                 />
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -370,7 +370,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                       key={preset}
                       type="button"
                       onClick={() => setAmount(preset)}
-                      className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-black"
+                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-black text-slate-800 border border-slate-200"
                     >
                       {preset} GMD
                     </button>
@@ -379,7 +379,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-1">
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-600 mb-1">
                   {method === 'AfriMoney' ? 'AfriMoney phone'
                     : method === 'QMoney' ? 'QMoney phone'
                     : method === 'Card' ? 'Phone (for receipt)'
@@ -390,7 +390,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="e.g. 7701234 or +2207701234"
-                  className="w-full p-3 border-2 border-gray-200 rounded-xl text-lg font-bold focus:border-betese-green focus:outline-none"
+                  className="w-full p-3 border-2 border-slate-300 rounded-xl text-lg font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:border-betese-green focus:ring-2 focus:ring-green-600/25 focus:outline-none"
                 />
               </div>
 
@@ -403,7 +403,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
               <button
                 onClick={handlePay}
                 disabled={busy}
-                className="w-full py-4 bg-betese-green text-white font-black rounded-2xl shadow-xl disabled:opacity-50 active:scale-95 transition-all text-lg uppercase tracking-widest"
+                className="w-full py-4 bg-betese-green hover:bg-green-700 text-white font-black rounded-2xl shadow-xl disabled:opacity-50 active:scale-95 transition-all text-lg uppercase tracking-widest"
               >
                 {busy ? 'Processing…' : `Pay with ${methodMeta[method].label}`}
               </button>
@@ -412,9 +412,9 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
 
           {stage === 'paying' && (
             <div className="py-10 text-center">
-              <div className="mx-auto w-16 h-16 rounded-full border-4 border-betese-green border-t-transparent animate-spin" />
-              <p className="mt-4 font-black text-betese-dark">Sending your payment…</p>
-              <p className="text-xs text-gray-500 mt-1">Don’t close this window.</p>
+              <div className="mx-auto w-16 h-16 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+              <p className="mt-4 font-black text-slate-900">Sending your payment…</p>
+              <p className="text-xs text-slate-500 mt-1">Don’t close this window.</p>
             </div>
           )}
 
@@ -449,7 +449,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                       : liveStatus === 'Rejected' ? 'Payment failed'
                       : 'Waiting for payment…'}
                     </p>
-                    <p className="mt-1 text-xs text-gray-600">{message?.text}</p>
+                    <p className="mt-1 text-xs text-slate-600">{message?.text}</p>
                   </div>
                 </div>
                 {liveStatus === 'Pending' && (
@@ -463,7 +463,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
               </div>
               <button
                 onClick={onClose}
-                className="w-full py-4 bg-betese-green text-white font-black rounded-2xl shadow-xl active:scale-95 transition-all text-lg uppercase tracking-widest"
+                className="w-full py-4 bg-betese-green hover:bg-green-700 text-white font-black rounded-2xl shadow-xl active:scale-95 transition-all text-lg uppercase tracking-widest"
               >
                 {liveStatus === 'Approved' ? 'Done' : liveStatus === 'Rejected' ? 'Close' : 'Continue in background'}
               </button>

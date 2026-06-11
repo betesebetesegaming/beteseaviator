@@ -8,6 +8,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-betese-green: #008000;
+  --color-betese-yellow: #ffff00;
+  --color-betese-dark: #0f172a;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -16,6 +19,23 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/** White payment modals/sheets must not inherit the app dark-theme text color. */
+.payment-surface {
+  color: #0f172a;
+}
+
+.payment-surface input,
+.payment-surface select,
+.payment-surface textarea {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+
+.payment-surface input::placeholder,
+.payment-surface textarea::placeholder {
+  color: #94a3b8;
 }
 
 @keyframes float-plane {

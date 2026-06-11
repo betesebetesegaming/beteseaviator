@@ -52,7 +52,7 @@ export const PaymentResultModal: React.FC<PaymentResultModalProps> = ({ result, 
           <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} />
 
           <motion.div
-            className="relative w-full max-w-sm max-h-[min(92dvh,560px)] overflow-y-auto overscroll-contain bg-white rounded-3xl shadow-2xl"
+            className="payment-surface relative w-full max-w-sm max-h-[min(92dvh,560px)] overflow-y-auto overscroll-contain bg-white rounded-3xl shadow-2xl text-slate-900"
             initial={{ scale: 0.85, y: 24, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.9, y: 12, opacity: 0 }}
@@ -86,22 +86,22 @@ export const PaymentResultModal: React.FC<PaymentResultModalProps> = ({ result, 
               >
                 {result.title}
               </h2>
-              <p className="mt-2 text-sm font-medium text-gray-600 leading-relaxed">{result.message}</p>
+              <p className="mt-2 text-sm font-medium text-slate-600 leading-relaxed">{result.message}</p>
 
               {(result.amount != null || result.method) && (
                 <div className="mt-4 inline-flex flex-col gap-1 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-left min-w-[220px]">
                   {result.method && (
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Method</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Method</p>
                   )}
-                  {result.method && <p className="text-sm font-black text-betese-dark">{result.method}</p>}
+                  {result.method && <p className="text-sm font-black text-slate-900">{result.method}</p>}
                   {result.amount != null && (
                     <>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">Amount</p>
-                      <p className="text-xl font-black text-betese-dark">{result.amount.toFixed(0)} GMD</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-1">Amount</p>
+                      <p className="text-xl font-black text-green-700">{result.amount.toFixed(0)} GMD</p>
                     </>
                   )}
                   {result.reference && (
-                    <p className="text-[10px] text-gray-400 mt-1 truncate">Ref: {result.reference}</p>
+                    <p className="text-[10px] text-slate-500 mt-1 truncate">Ref: {result.reference}</p>
                   )}
                 </div>
               )}
@@ -112,7 +112,7 @@ export const PaymentResultModal: React.FC<PaymentResultModalProps> = ({ result, 
                 type="button"
                 onClick={onClose}
                 className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-white shadow-xl active:scale-[0.98] transition-transform ${
-                  result.kind === 'success' ? 'bg-betese-green' : 'bg-red-600'
+                  result.kind === 'success' ? 'bg-betese-green hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
                 }`}
               >
                 {result.kind === 'success' ? 'Great!' : 'Close'}
