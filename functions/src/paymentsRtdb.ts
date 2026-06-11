@@ -145,15 +145,25 @@ export async function patchWithdrawalOnRtdb(
   await rtdbRef().update(updates);
 }
 
-export async function syncCheckoutToRtdb(record: RtdbCheckoutRecord): Promise<void> {
-  const updates: Record<string, unknown> = {
-    [`payments/checkouts/${record.external_ref}`]: record,
-  };
-  if (record.session_id) {
-    updates[`payments/intentIndex/${record.session_id}`] = record.external_ref;
+/** RTDB rejects undefined values — strip them before any update(). */
+function rtdbSafeRecord<T extends Record<string, unknown>>(record: T): T {
+  const clean = {} as T;
+  for (const [key, value] of Object.entries(record)) {
+    if (value !== undefined) (clean as Record<string, unknown>)[key] = value;
   }
-  if (record.payment_link_id) {
-    updates[`payments/linkIndex/${record.payment_link_id}`] = record.external_ref;
+  return clean;
+}
+
+export async function syncCheckoutToRtdb(record: RtdbCheckoutRecord): Promise<void> {
+  const safe = rtdbSafeRecord(record as unknown as Record<string, unknown>) as RtdbCheckoutRecord;
+  const updates: Record<string, unknown> = {
+    [`payments/checkouts/${safe.external_ref}`]: safe,
+  };
+  if (safe.session_id) {
+    updates[`payments/intentIndex/${safe.session_id}`] = safe.external_ref;
+  }
+  if (safe.payment_link_id) {
+    updates[`payments/linkIndex/${safe.payment_link_id}`] = safe.external_ref;
   }
   await rtdbRef().update(updates);
 }

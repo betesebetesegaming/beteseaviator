@@ -81,6 +81,27 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /** ModemPay deposit/withdrawal tracking — same collections as betesepmu. */
+    match /deposit_requests/{requestId} {
+      allow read: if signedIn()
+        && (resource.data.customer_id == uid() || isAdmin());
+      allow create: if signedIn()
+        && isActiveUser(uid())
+        && request.resource.data.customer_id == uid()
+        && request.resource.data.status == 'Pending';
+      allow update, delete: if false;
+    }
+
+    match /withdrawal_requests/{requestId} {
+      allow read: if signedIn()
+        && (resource.data.user_id == uid() || isAdmin());
+      allow create: if signedIn()
+        && isActiveUser(uid())
+        && request.resource.data.user_id == uid()
+        && request.resource.data.status == 'Pending';
+      allow update, delete: if false;
+    }
+
     match /settings/{docId} {
       allow read: if isAdmin() || docId == 'platform';
       allow write: if false;

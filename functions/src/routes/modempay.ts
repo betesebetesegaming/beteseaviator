@@ -146,12 +146,13 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
     }
 
     if (body.customerId && body.externalRef) {
+      const methodLabel = mapModemPayMethodLabel(provider);
       const pendingDeposit: RtdbDepositRecord = {
         id: body.externalRef,
         customer_id: body.customerId,
         customer_name: body.customerName || null,
         amount,
-        method: mapModemPayMethodLabel(provider),
+        method: methodLabel,
         transaction_id: body.customerPhone || null,
         status: 'Pending',
         timestamp: createdAt,
@@ -161,6 +162,20 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
         verification_message: 'Waiting for ModemPay to confirm payment before your wallet is credited.',
       };
       await syncDepositToRtdb(pendingDeposit).catch(err => logger.warn('RTDB deposit sync failed', err));
+      await adminDb.collection('deposit_requests').doc(body.externalRef).set({
+        id: body.externalRef,
+        amount: Number(amount.toFixed(2)),
+        method: methodLabel,
+        transaction_id: body.customerPhone || null,
+        customer_id: body.customerId,
+        customer_name: body.customerName || null,
+        status: 'Pending',
+        timestamp: createdAt,
+        provider_reference: body.externalRef,
+        verification_status: 'PendingProviderConfirmation',
+        verification_source: 'webhook',
+        verification_message: 'Waiting for ModemPay to confirm payment before your wallet is credited.',
+      }, { merge: true }).catch(err => logger.warn('Firestore deposit_request write failed', err));
     }
 
     res.json({
@@ -861,6 +876,11 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
       transaction_id: providerTxnId,
     }, { merge: true });
 
+    if (customerId && creditAmount > 0) {
+      aviatorCredit = creditAmount;
+      aviatorUid = customerId;
+    }
+
     if (userRef && userData) {
       const currentWallet = Number(userData.wallet_balance || 0);
       const currentDeposited = Number(userData.total_deposited_amount || 0);
@@ -869,10 +889,8 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
         total_deposited_amount: Number((currentDeposited + creditAmount).toFixed(2)),
         ...(userData.first_deposit_at ? {} : { first_deposit_at: completedAt }),
       });
-      aviatorCredit = creditAmount;
-      aviatorUid = customerId || '';
     } else if (customerId) {
-      logger.warn('markDepositCompleted: customer not found, wallet not credited', { externalRef, customerId });
+      logger.warn('markDepositCompleted: users doc missing — crediting aviator wallet only', { externalRef, customerId });
     }
   });
 
@@ -1244,6 +1262,7 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
       failure_reason?: string;
       raw_payload?: Record<string, unknown>;
       session_id?: string | null;
+      payment_link_id?: string | null;
       amount?: number;
       method?: string;
     };
@@ -1256,15 +1275,18 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
     // If webhook hasn't updated Firestore yet, ask ModemPay directly.
     const intentId = checkout.session_id
       || (checkout as { payment_intent_id?: string }).payment_intent_id
+      || checkout.payment_link_id
       || null;
     if (checkoutStatus === 'pending' && intentId) {
       const intentResult = await retrievePaymentIntent(intentId);
-      const intent = (intentResult.data as { data?: Record<string, unknown> }).data
-        || (intentResult.data as Record<string, unknown>);
-      const intentStatus = String(intent.status || intent.payment_status || '').toLowerCase();
+      const envelope = intentResult.data as { data?: Record<string, unknown> };
+      const intent = envelope?.data || (intentResult.data as Record<string, unknown>);
+      const intentStatus = String(
+        intent.status || intent.payment_status || (intent.data as Record<string, unknown> | undefined)?.status || '',
+      ).toLowerCase();
       providerPayload = intent;
 
-      if (['completed', 'succeeded', 'successful', 'paid'].includes(intentStatus)) {
+      if (['completed', 'succeeded', 'successful', 'paid', 'complete'].includes(intentStatus)) {
         checkoutStatus = 'completed';
         await adminDb.collection('modempay_checkouts').doc(externalRef).set({
           status: 'completed',

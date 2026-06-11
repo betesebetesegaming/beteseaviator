@@ -17,7 +17,7 @@ import { apiUrl } from "@/lib/apiUrl";
 import { normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
-import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
+import { isTerminalDepositStatus, startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
 import { buildDepositResult, type PaymentResultPayload } from "@/lib/paymentResultPayload";
 import { formatSigned, formatXof, formatDate } from "@/lib/format";
 import type { WalletTransaction } from "@/lib/types";
@@ -94,25 +94,44 @@ export default function WalletPage() {
     if (!ref || !ref.startsWith("BETESE-")) return;
 
     let settled = false;
-    const stopPolling = startDepositReconcilePolling(ref, () => settled);
+    const showResult = (status: "Approved" | "Rejected", amount: number, method: string) => {
+      if (settled) return;
+      settled = true;
+      setPaymentResult(buildDepositResult(status, amount, method, ref));
+      window.history.replaceState({}, "", "/play/wallet");
+    };
 
-    const unsub = subscribeDepositById(ref, (record) => {
+    const stopPolling = startDepositReconcilePolling(ref, () => settled, (status) => {
+      if (status === "Approved" || status === "Rejected") {
+        /* amount/method filled in when RTDB/Firestore snapshot arrives */
+      }
+    });
+
+    const unsubRtdb = subscribeDepositById(ref, (record) => {
       if (!record) return;
       if (record.status === "Approved") {
-        settled = true;
-        setPaymentResult(buildDepositResult("Approved", record.amount, record.method, ref));
-        window.history.replaceState({}, "", "/play/wallet");
+        showResult("Approved", record.amount, record.method);
       } else if (record.status === "Rejected") {
-        settled = true;
-        setPaymentResult(buildDepositResult("Rejected", record.amount, record.method, ref));
-        window.history.replaceState({}, "", "/play/wallet");
+        showResult("Rejected", record.amount, record.method);
+      }
+    });
+
+    const unsubFs = onSnapshot(doc(db, "deposit_requests", ref), (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const status = String(data.status || "");
+      if (status === "Approved") {
+        showResult("Approved", Number(data.amount || 0), String(data.method || "Wave"));
+      } else if (status === "Rejected") {
+        showResult("Rejected", Number(data.amount || 0), String(data.method || "Wave"));
       }
     });
 
     return () => {
       settled = true;
       stopPolling();
-      unsub();
+      unsubRtdb();
+      unsubFs();
     };
   }, []);
 

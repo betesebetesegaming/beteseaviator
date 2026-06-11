@@ -103,7 +103,7 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
     title: input.description || 'Wallet top-up',
     description: input.description,
     metadata: {
-      source: 'betese-pmu',
+      source: 'betese-aviator',
       method: input.method,
       external_reference: input.externalRef,
       ...(input.metadata || {}),
@@ -198,7 +198,7 @@ export async function createTransfer(input: CreateTransferInput) {
     beneficiary_name: input.recipient.name || 'Customer',
     narration: input.reason || 'Betese PMU withdrawal',
     metadata: {
-      source: 'betese-pmu',
+      source: 'betese-aviator',
       external_reference: input.externalRef,
       ...(input.metadata || {}),
     },

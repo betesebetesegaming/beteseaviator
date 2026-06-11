@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { apiUrl } from "@/lib/apiUrl";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
-import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
+import { isTerminalDepositStatus, startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
 
 type Method = 'AfriMoney' | 'Wave' | 'APS' | 'QMoney' | 'Card';
 
@@ -22,10 +24,15 @@ interface PaymentSheetProps {
   /** Optional prefilled amount (e.g. shortfall when funding a bet) */
   initialAmount?: number;
   /** Records a pending deposit — wallet is credited only after ModemPay webhook confirmation. */
-  onDepositRequest: (amount: number, method: Method, phone: string, externalRef: string) => void;
+  onDepositRequest: (amount: number, method: Method, phone: string, externalRef: string) => void | Promise<void>;
 }
 
 const generateRef = () => `BETESE-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+function isMobileCheckout(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
 
 const methodMeta: Record<Method, { logo: string; label: string; sub: string; tint: string; border: string; bg: string; powered: boolean }> = {
   AfriMoney: {
@@ -90,6 +97,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [trackingRef, setTrackingRef] = useState<string | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState<'Pending' | 'Approved' | 'Rejected' | null>(null);
 
   const dragStartY = useRef<number | null>(null);
@@ -104,6 +112,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     setBusy(false);
     setMessage(null);
     setTrackingRef(null);
+    setCheckoutUrl(null);
     setLiveStatus(null);
     setDragY(0);
     document.body.style.overflow = 'hidden';
@@ -116,23 +125,33 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     if (!trackingRef || stage !== 'confirm') return;
     setLiveStatus('Pending');
     let settled = false;
-    const unsub = subscribeDepositById(trackingRef, (record) => {
-      if (!record) return;
-      const status = String(record.status || 'Pending');
+
+    const applyStatus = (status: string) => {
       if (status === 'Approved' || status === 'Rejected') {
         settled = true;
-        setLiveStatus(status as 'Approved' | 'Rejected');
-      } else {
-        setLiveStatus('Pending');
+        setLiveStatus(status);
       }
+    };
+
+    const unsubRtdb = subscribeDepositById(trackingRef, (record) => {
+      if (!record) return;
+      applyStatus(String(record.status || 'Pending'));
     });
 
-    const stopPolling = startDepositReconcilePolling(trackingRef, () => settled);
+    const unsubFs = onSnapshot(doc(db, 'deposit_requests', trackingRef), (snap) => {
+      if (!snap.exists()) return;
+      applyStatus(String(snap.data()?.status || 'Pending'));
+    });
+
+    const stopPolling = startDepositReconcilePolling(trackingRef, () => settled, (status) => {
+      if (isTerminalDepositStatus(status)) applyStatus(status);
+    });
 
     return () => {
       settled = true;
       stopPolling();
-      unsub();
+      unsubRtdb();
+      unsubFs();
     };
   }, [trackingRef, stage]);
 
@@ -179,7 +198,6 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     if (!res.ok || !data.checkoutUrl) {
       throw new Error(data.error || 'Could not start checkout');
     }
-    window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer');
     const labelByProvider: Record<typeof provider, Method> = {
       wave: 'Wave',
       aps: 'APS',
@@ -187,8 +205,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       qmoney: 'QMoney',
       card: 'Card',
     };
-    onDepositRequest(numAmount, labelByProvider[provider], cleanPhone, externalRef);
-    return { transactionId: externalRef };
+    await onDepositRequest(numAmount, labelByProvider[provider], cleanPhone, externalRef);
+    return { transactionId: externalRef, checkoutUrl: data.checkoutUrl as string };
   };
 
   const handlePay = async () => {
@@ -217,7 +235,20 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         : method === 'QMoney' ? 'qmoney'
         : method === 'Card' ? 'card'
         : 'afrimoney';
-      await handleModemPay(providerKey, numAmount, cleanPhone, externalRef);
+      const { checkoutUrl: url } = await handleModemPay(providerKey, numAmount, cleanPhone, externalRef);
+      setCheckoutUrl(url);
+
+      if (isMobileCheckout()) {
+        try {
+          sessionStorage.setItem('betese_pending_deposit', externalRef);
+        } catch {
+          /* ignore */
+        }
+        window.location.href = url;
+        return;
+      }
+
+      window.open(url, '_blank', 'noopener,noreferrer');
       setTrackingRef(externalRef);
       setLiveStatus('Pending');
       setMessage({
@@ -437,8 +468,23 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                 </div>
                 {liveStatus === 'Pending' && (
                   <p className="mt-3 text-xs font-bold text-amber-700 animate-pulse">
-                    Live via Firebase — no refresh needed. If payment stalls, we recheck with ModemPay every 30 seconds.
+                    Live via Firebase — no refresh needed. If payment stalls, we recheck with ModemPay every 10 seconds.
                   </p>
+                )}
+                {liveStatus === 'Pending' && checkoutUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isMobileCheckout()) {
+                        window.location.href = checkoutUrl;
+                      } else {
+                        window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
+                      }
+                    }}
+                    className="mt-3 w-full py-3 rounded-xl border-2 border-amber-400 bg-white text-amber-900 font-black text-sm uppercase tracking-wide"
+                  >
+                    Open checkout again
+                  </button>
                 )}
                 {liveStatus === 'Approved' && (
                   <p className="mt-3 text-xs text-green-700 font-bold">Wallet credited. You can close this screen.</p>

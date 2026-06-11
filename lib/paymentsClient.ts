@@ -37,20 +37,24 @@ export async function dbDepositRequest(request: {
     request.timestamp instanceof Date
       ? request.timestamp.toISOString()
       : String(request.timestamp);
-  await setDoc(doc(db, "deposit_requests", request.id), {
-    id: request.id,
-    amount: Number(Number(request.amount).toFixed(2)),
-    method: request.method,
-    transaction_id: request.transactionId,
-    customer_id: request.customerId,
-    customer_name: request.customerName || null,
-    status: request.status,
-    timestamp: ts,
-    provider_reference: request.providerReference || null,
-    verification_status: request.verificationStatus || null,
-    verification_source: request.verificationSource || null,
-    verification_message: request.verificationMessage || null,
-  });
+  try {
+    await setDoc(doc(db, "deposit_requests", request.id), {
+      id: request.id,
+      amount: Number(Number(request.amount).toFixed(2)),
+      method: request.method,
+      transaction_id: request.transactionId,
+      customer_id: request.customerId,
+      customer_name: request.customerName || null,
+      status: request.status,
+      timestamp: ts,
+      provider_reference: request.providerReference || null,
+      verification_status: request.verificationStatus || null,
+      verification_source: request.verificationSource || null,
+      verification_message: request.verificationMessage || null,
+    });
+  } catch {
+    /* Backend checkout also writes deposit_requests — RTDB is enough for live status. */
+  }
 }
 
 /** Same as betesepmu firebaseClient.dbCreateWithdrawalRequest */
