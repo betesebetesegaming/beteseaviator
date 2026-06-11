@@ -303,7 +303,7 @@ export const placeBet = onCall(async (req) => {
   if (!Number.isFinite(betAmount) || betAmount < settings.minBet || betAmount > settings.maxBet) {
     throw new HttpsError(
       "invalid-argument",
-      `Bet must be between ${settings.minBet} and ${settings.maxBet} XOF.`
+      `Bet must be between ${settings.minBet} and ${settings.maxBet} GMD.`
     );
   }
   let autoCashoutAt: number | null = null;

@@ -80,7 +80,7 @@ export const completeRegistration = onCall(async (req) => {
     });
     tx.set(db.doc(`wallets/${uid}`), {
       balance: 0,
-      currency: "XOF",
+      currency: "GMD",
       frozen: false,
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -198,7 +198,7 @@ export const seedPlatform = onCall(async (req) => {
     });
     batch.set(db.doc(`wallets/${uid}`), {
       balance: opts.balance ?? 0,
-      currency: "XOF",
+      currency: "GMD",
       frozen: false,
       updatedAt: FieldValue.serverTimestamp(),
     });

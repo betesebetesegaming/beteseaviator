@@ -29,7 +29,7 @@ export default function LobbyPage() {
         <div className="mb-5 flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           <Eye size={16} className="shrink-0" />
           Browse and watch live rounds for free. Create an account when you want to bet with real
-          XOF.
+          GMD.
         </div>
       )}
       <h1 className="mb-1 text-xl font-bold">Game Lobby</h1>

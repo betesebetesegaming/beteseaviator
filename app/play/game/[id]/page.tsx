@@ -17,10 +17,10 @@ import {
 import { ArrowLeft, Eye, Plane } from "lucide-react";
 import { db, rtdb } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
+import { useAuthModal } from "@/lib/auth-modal-context";
 import { placeBet, cashout, errorMessage } from "@/lib/api";
 import { formatXof, multiplierAt } from "@/lib/format";
 import type { Game, GameSession, LiveRound } from "@/lib/types";
-import { AuthModal } from "@/components/auth-modal";
 import { Button, Card, Input, Spinner } from "@/components/ui";
 
 const QUICK_AMOUNTS = [100, 500, 1000, 5000];
@@ -29,10 +29,10 @@ export default function GamePage() {
   const params = useParams<{ id: string }>();
   const gameId = params.id;
   const { fbUser, profile, wallet } = useAuth();
+  const { openAuth } = useAuthModal();
 
   const isPlayer =
     !!profile && profile.role === "player" && profile.status === "active";
-  const [authOpen, setAuthOpen] = useState(false);
 
   const [game, setGame] = useState<Game | null>(null);
   const [round, setRound] = useState<LiveRound | null>(null);
@@ -168,7 +168,7 @@ export default function GamePage() {
 
   const doPlaceBet = useCallback(async () => {
     if (!isPlayer) {
-      setAuthOpen(true);
+      openAuth("register");
       return;
     }
     if (!canBet) return;
@@ -185,11 +185,11 @@ export default function GamePage() {
     } finally {
       setBusy(false);
     }
-  }, [isPlayer, canBet, gameId, amountNum, autoNum]);
+  }, [isPlayer, canBet, gameId, amountNum, autoNum, openAuth]);
 
   const doCashout = useCallback(async () => {
     if (!isPlayer) {
-      setAuthOpen(true);
+      openAuth("register");
       return;
     }
     if (!session || busy) return;
@@ -202,7 +202,7 @@ export default function GamePage() {
     } finally {
       setBusy(false);
     }
-  }, [session, busy]);
+  }, [session, busy, isPlayer, openAuth]);
 
   if (!game) return <Spinner label="Loading game…" />;
 
@@ -213,7 +213,7 @@ export default function GamePage() {
           <Eye size={16} className="shrink-0" />
           <span>
             You&apos;re watching in <strong>demo mode</strong> — rounds are live. Sign up when
-            you&apos;re ready to bet with real XOF.
+            you&apos;re ready to bet with real GMD.
           </span>
         </div>
       )}
@@ -290,7 +290,7 @@ export default function GamePage() {
             <div className="flex flex-wrap items-end gap-3">
               <div className="w-36">
                 <Input
-                  label="Bet amount (XOF)"
+                  label="Bet amount (GMD)"
                   type="number"
                   min={1}
                   value={betAmount}
@@ -371,13 +371,6 @@ export default function GamePage() {
           </div>
         </div>
       </Card>
-
-      <AuthModal
-        open={authOpen}
-        onClose={() => setAuthOpen(false)}
-        onSuccess={() => setAuthOpen(false)}
-        initialMode="register"
-      />
     </div>
   );
 }

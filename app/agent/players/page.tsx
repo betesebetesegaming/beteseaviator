@@ -222,7 +222,7 @@ export default function AgentPlayersPage() {
             wallet. Both sides are logged.
           </p>
           <Input
-            label="Amount (XOF)"
+            label="Amount (GMD)"
             type="number"
             min={1}
             value={depositAmount}

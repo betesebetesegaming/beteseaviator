@@ -52,7 +52,7 @@ export const requestDeposit = onCall(async (req) => {
   }
   if (!phone) throw new HttpsError("invalid-argument", "Phone is required.");
   if (!Number.isFinite(amount) || amount < settings.minDeposit) {
-    throw new HttpsError("invalid-argument", `Minimum deposit is ${settings.minDeposit} XOF.`);
+    throw new HttpsError("invalid-argument", `Minimum deposit is ${settings.minDeposit} GMD.`);
   }
 
   const reference = `DEP-${Date.now().toString(36).toUpperCase()}-${crypto
@@ -97,7 +97,7 @@ export const requestWithdrawal = onCall(async (req) => {
   }
   if (!phone) throw new HttpsError("invalid-argument", "Payout phone is required.");
   if (!Number.isFinite(amount) || amount < settings.minWithdrawal) {
-    throw new HttpsError("invalid-argument", `Minimum withdrawal is ${settings.minWithdrawal} XOF.`);
+    throw new HttpsError("invalid-argument", `Minimum withdrawal is ${settings.minWithdrawal} GMD.`);
   }
 
   const ref = db.collection("paymentRequests").doc();

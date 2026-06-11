@@ -8,13 +8,16 @@ export function phoneToEmail(phone: string): string {
   return `p${normalizePhone(phone)}@phone.beteseaviator.com`;
 }
 
-export function formatXof(amount: number): string {
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(amount)} XOF`;
+export function formatGmd(amount: number): string {
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(amount)} GMD`;
 }
+
+/** @deprecated Use formatGmd */
+export const formatXof = formatGmd;
 
 export function formatSigned(amount: number): string {
   const sign = amount >= 0 ? "+" : "-";
-  return `${sign}${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(Math.abs(amount))} XOF`;
+  return `${sign}${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(Math.abs(amount))} GMD`;
 }
 
 export function formatMultiplier(m: number): string {

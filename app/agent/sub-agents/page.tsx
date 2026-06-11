@@ -206,7 +206,7 @@ export default function SubAgentsPage() {
             agent&apos;s wallet. Both legs are logged.
           </p>
           <Input
-            label="Amount (XOF)"
+            label="Amount (GMD)"
             type="number"
             min={1}
             value={transferAmount}

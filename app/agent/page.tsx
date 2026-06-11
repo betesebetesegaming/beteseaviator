@@ -15,7 +15,7 @@ export default function AgentDashboard() {
 
   const stats = profile?.stats ?? {};
   const ggr = (stats.totalBets ?? 0) - (stats.totalWins ?? 0);
-  const referralLink = `${SITE}/register?ref=${profile?.agentSlug ?? ""}`;
+  const referralLink = `${SITE}/play?signup=1&ref=${profile?.agentSlug ?? ""}`;
 
   async function copyLink() {
     await navigator.clipboard.writeText(referralLink);

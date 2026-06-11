@@ -189,7 +189,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         customerName: user.name,
         customerPhone: cleanPhone,
         externalRef,
-        returnUrl: typeof window !== 'undefined' ? `${window.location.origin}/?deposit=${externalRef}` : undefined,
+        returnUrl: typeof window !== 'undefined' ? `${window.location.origin}/play/wallet?deposit=${externalRef}` : undefined,
       }),
     });
     const data = await res.json().catch(() => ({}));

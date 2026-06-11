@@ -30,7 +30,7 @@ Real-money bets require a completed player profile (phone number on file).
 ## Project layout
 
 ```
-app/              Next.js pages (/play, /agent, /admin, /login, /register, /setup)
+app/              Next.js pages (/play, /agent, /admin, /setup)
 components/       UI, Logo, AuthModal, role guards
 lib/              Firebase client, auth context, callable API helpers
 functions/        Cloud Functions (game engine, wallet, payments, commissions)

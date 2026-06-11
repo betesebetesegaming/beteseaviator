@@ -97,7 +97,7 @@ export async function createPlayerAccount(opts: {
     });
     tx.set(db.doc(`wallets/${uid}`), {
       balance: 0,
-      currency: "XOF",
+      currency: "GMD",
       frozen: false,
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -222,7 +222,7 @@ export const agentCreateSubAgent = onCall(async (req) => {
   });
   batch.set(db.doc(`wallets/${subUid}`), {
     balance: 0,
-    currency: "XOF",
+    currency: "GMD",
     frozen: false,
     updatedAt: FieldValue.serverTimestamp(),
   });

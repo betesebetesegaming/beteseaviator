@@ -90,7 +90,7 @@ export const adminCreateUser = onCall(async (req) => {
     });
     batch.set(db.doc(`wallets/${uid}`), {
       balance: 0,
-      currency: "XOF",
+      currency: "GMD",
       frozen: false,
       updatedAt: FieldValue.serverTimestamp(),
     });

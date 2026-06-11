@@ -148,7 +148,7 @@ export function walletWrite(
     db.doc(`wallets/${args.uid}`),
     {
       balance: balanceAfter,
-      currency: "XOF",
+      currency: "GMD",
       frozen: wallet.frozen,
       updatedAt: FieldValue.serverTimestamp(),
     },

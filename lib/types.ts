@@ -27,7 +27,7 @@ export interface AgentStats {
 
 export interface Wallet {
   balance: number;
-  currency: "XOF";
+  currency: "GMD";
   frozen: boolean;
   updatedAt: Timestamp | null;
 }

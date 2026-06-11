@@ -198,7 +198,7 @@ export default function AdminWalletsPage() {
             Use a negative amount to debit.
           </p>
           <Input
-            label="Amount (XOF, negative = debit)"
+            label="Amount (GMD, negative = debit)"
             type="number"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}

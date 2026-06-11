@@ -41,7 +41,7 @@ export function homeFor(role: Role | undefined | null): string {
     case "player":
       return "/play";
     default:
-      return "/login";
+      return "/play";
   }
 }
 
@@ -90,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await signOut(auth);
-    if (typeof window !== "undefined") window.location.href = "/login";
+    if (typeof window !== "undefined") window.location.href = "/play";
   };
 
   return (

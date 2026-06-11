@@ -1,15 +1,35 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { LogIn, UserPlus, Wallet, LogOut } from "lucide-react";
 import { useAuth, homeFor } from "@/lib/auth-context";
+import { useAuthModal } from "@/lib/auth-modal-context";
 import { formatXof } from "@/lib/format";
 import { Logo } from "@/components/logo";
 
+function PlayAuthFromQuery() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { openAuth } = useAuthModal();
+
+  useEffect(() => {
+    const signup = searchParams.get("signup");
+    const ref = searchParams.get("ref")?.toLowerCase().trim() || null;
+
+    if (signup || ref) {
+      openAuth("register", ref);
+      router.replace(ref ? `/play?ref=${encodeURIComponent(ref)}` : "/play", { scroll: false });
+    }
+  }, [searchParams, openAuth, router]);
+
+  return null;
+}
+
 export default function PlayLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const { openAuth } = useAuthModal();
   const { fbUser, profile, wallet, loading, logout } = useAuth();
 
   const isPlayer =
@@ -25,6 +45,9 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <>
+      <Suspense fallback={null}>
+        <PlayAuthFromQuery />
+      </Suspense>
       <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/play">
@@ -59,18 +82,26 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
                 <span className="hidden rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-200 sm:inline">
                   Demo mode
                 </span>
-                <Link
-                  href={needsProfile ? "/register/complete" : "/login"}
+                <button
+                  type="button"
+                  onClick={() => openAuth(needsProfile ? "complete" : "login")}
                   className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium hover:bg-slate-700"
                 >
                   <LogIn size={16} /> Sign in
-                </Link>
-                <Link
-                  href="/register"
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ref =
+                      typeof window !== "undefined"
+                        ? new URLSearchParams(window.location.search).get("ref")
+                        : null;
+                    openAuth("register", ref);
+                  }}
                   className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
                 >
                   <UserPlus size={16} /> Sign up
-                </Link>
+                </button>
               </>
             )}
           </div>

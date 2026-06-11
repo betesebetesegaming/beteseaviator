@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import toast from "react-hot-toast";
 import {
   GoogleAuthProvider,
@@ -13,15 +12,15 @@ import {
   signInWithPopup,
   type ConfirmationResult,
 } from "firebase/auth";
-import { LogIn, UserPlus } from "lucide-react";
+import { LogIn, UserPlus, Briefcase } from "lucide-react";
 import { auth } from "@/lib/firebase";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, homeFor } from "@/lib/auth-context";
 import { agentLogin, completeRegistration, errorMessage } from "@/lib/api";
 import { normalizePhone, phoneToEmail } from "@/lib/format";
 import { Button, Input, Modal } from "@/components/ui";
 import { Logo } from "@/components/logo";
 
-type Mode = "login" | "register" | "complete";
+export type AuthModalMode = "login" | "register" | "complete" | "agent";
 type CustomerAuth = "password" | "otp";
 
 export function AuthModal({
@@ -34,11 +33,11 @@ export function AuthModal({
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-  initialMode?: "login" | "register";
+  initialMode?: AuthModalMode;
   refCode?: string | null;
 }) {
   const { fbUser, profile, loading } = useAuth();
-  const [mode, setMode] = useState<Mode>(initialMode);
+  const [mode, setMode] = useState<AuthModalMode>(initialMode);
   const [customerAuth, setCustomerAuth] = useState<CustomerAuth>("password");
   const [busy, setBusy] = useState(false);
 
@@ -50,6 +49,8 @@ export function AuthModal({
   const [countryCode, setCountryCode] = useState("+221");
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+  const [agentId, setAgentId] = useState("");
+  const [agentPassword, setAgentPassword] = useState("");
 
   const confirmRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
@@ -67,9 +68,12 @@ export function AuthModal({
     if (fbUser && !profile) {
       setMode("complete");
       if (fbUser.displayName && !name) setName(fbUser.displayName);
-    } else if (fbUser && profile?.role === "player" && profile.status === "active") {
+    } else if (fbUser && profile?.status === "active") {
       onSuccess?.();
       onClose();
+      if (profile.role !== "player" && typeof window !== "undefined") {
+        window.location.href = homeFor(profile.role);
+      }
     }
   }, [open, loading, fbUser, profile, onSuccess, onClose, name]);
 
@@ -166,6 +170,22 @@ export function AuthModal({
     }
   }
 
+  async function loginAgent() {
+    if (!agentId || !agentPassword) {
+      return toast.error("Enter your username/email and password.");
+    }
+    setBusy(true);
+    try {
+      await loginAgentAccount(agentId, agentPassword);
+      toast.success("Signed in.");
+    } catch (e) {
+      const msg = errorMessage(e);
+      toast.error(msg.includes("auth/") ? "Invalid credentials." : msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function completeProfile() {
     if (!name.trim()) return toast.error("Enter your full name.");
     const normalized = normalizePhone(phone);
@@ -189,9 +209,11 @@ export function AuthModal({
       title={
         mode === "complete"
           ? "Finish your profile"
-          : mode === "register"
-            ? "Create account to play"
-            : "Sign in to place bets"
+          : mode === "agent"
+            ? "Agent sign in"
+            : mode === "register"
+              ? "Create account to play"
+              : "Sign in to place bets"
       }
     >
       <div className="mb-4 flex justify-center">
@@ -199,11 +221,11 @@ export function AuthModal({
       </div>
       <p className="mb-4 text-center text-sm text-slate-400">
         {mode === "complete"
-          ? "Add your phone number to deposit, bet and withdraw with real XOF."
+          ? "Add your phone number to deposit, bet and withdraw with real GMD."
           : "Watch the game for free — sign up when you're ready to bet for real money."}
       </p>
 
-      {mode !== "complete" && (
+      {mode !== "complete" && mode !== "agent" && (
         <div className="mb-4 grid grid-cols-2 rounded-lg bg-slate-950/70 p-1 text-sm font-medium">
           <button
             type="button"
@@ -228,7 +250,33 @@ export function AuthModal({
         </div>
       )}
 
-      {mode === "complete" ? (
+      {mode === "agent" ? (
+        <div className="space-y-4">
+          <Input
+            label="Agent username or email"
+            placeholder="john or john@betese.com"
+            value={agentId}
+            onChange={(e) => setAgentId(e.target.value)}
+          />
+          <Input
+            label="Password"
+            type="password"
+            value={agentPassword}
+            onChange={(e) => setAgentPassword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && loginAgent()}
+          />
+          <Button className="w-full" onClick={loginAgent} disabled={busy}>
+            {busy ? "Signing in…" : "Agent sign in"}
+          </Button>
+          <button
+            type="button"
+            onClick={() => setMode("login")}
+            className="block w-full text-center text-xs text-slate-400 hover:text-emerald-300"
+          >
+            Back to player sign in
+          </button>
+        </div>
+      ) : mode === "complete" ? (
         <div className="space-y-4">
           <Input label="Full Name" value={name} onChange={(e) => setName(e.target.value)} />
           <Input
@@ -342,7 +390,7 @@ export function AuthModal({
         </div>
       )}
 
-      {mode !== "complete" && (
+      {mode !== "complete" && mode !== "agent" && (
         <>
           <div className="my-4 flex items-center gap-3 text-xs text-slate-500">
             <div className="h-px flex-1 bg-white/10" />
@@ -352,12 +400,13 @@ export function AuthModal({
           <Button variant="secondary" className="w-full" onClick={loginGoogle} disabled={busy}>
             Continue with Google
           </Button>
-          <p className="mt-4 text-center text-xs text-slate-500">
-            Agent?{" "}
-            <Link href="/login?tab=agent" className="text-emerald-400 hover:underline" onClick={onClose}>
-              Sign in here
-            </Link>
-          </p>
+          <button
+            type="button"
+            onClick={() => setMode("agent")}
+            className="mt-4 flex w-full items-center justify-center gap-1.5 text-xs text-slate-400 hover:text-emerald-300"
+          >
+            <Briefcase size={13} /> Agent sign in
+          </button>
         </>
       )}
 
@@ -366,7 +415,6 @@ export function AuthModal({
   );
 }
 
-/** Agent login helper kept on the dedicated /login page — exported for reuse. */
 export async function loginAgentAccount(agentId: string, agentPassword: string) {
   if (agentId.includes("@")) {
     await signInWithEmailAndPassword(auth, agentId.trim().toLowerCase(), agentPassword);

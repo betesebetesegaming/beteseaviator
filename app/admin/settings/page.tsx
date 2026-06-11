@@ -68,7 +68,7 @@ export default function AdminSettingsPage() {
       </Card>
 
       <Card className="mb-5">
-        <h2 className="mb-4 font-semibold">Game & money limits (XOF)</h2>
+        <h2 className="mb-4 font-semibold">Game & money limits (GMD)</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Min bet" type="number" {...num("minBet")} />
           <Input label="Max bet" type="number" {...num("maxBet")} />
