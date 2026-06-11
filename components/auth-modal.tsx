@@ -21,45 +21,18 @@ import {
   PHONE_HINT,
   PHONE_LABEL,
   PHONE_PLACEHOLDER,
+  PHONE_COUNTRY_OPTIONS,
+  getPhoneCountryMeta,
+  isActivePhoneCountry,
   normalizePhoneE164,
   type PhoneCountry,
+  type PhoneCountryCode,
 } from "@/lib/phone";
-import { Button, Input, Modal } from "@/components/ui";
+import { Button, Input, Modal, Select } from "@/components/ui";
 import { Logo } from "@/components/logo";
 
 export type AuthModalMode = "login" | "register" | "complete" | "agent";
 type CustomerAuth = "password" | "otp";
-
-function PhoneCountryToggle({
-  value,
-  onChange,
-}: {
-  value: PhoneCountry;
-  onChange: (country: PhoneCountry) => void;
-}) {
-  return (
-    <div className="flex rounded-lg bg-slate-950/70 p-1 text-xs font-semibold">
-      <button
-        type="button"
-        onClick={() => onChange("GM")}
-        className={`flex-1 rounded-md py-2 transition-colors ${
-          value === "GM" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
-        }`}
-      >
-        Gambia (+220)
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange("SN")}
-        className={`flex-1 rounded-md py-2 transition-colors ${
-          value === "SN" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
-        }`}
-      >
-        Senegal (+221)
-      </button>
-    </div>
-  );
-}
 
 function CustomerPhoneFields({
   phoneCountry,
@@ -67,23 +40,43 @@ function CustomerPhoneFields({
   phone,
   onPhoneChange,
 }: {
-  phoneCountry: PhoneCountry;
-  onCountryChange: (c: PhoneCountry) => void;
+  phoneCountry: PhoneCountryCode;
+  onCountryChange: (c: PhoneCountryCode) => void;
   phone: string;
   onPhoneChange: (v: string) => void;
 }) {
+  const meta = getPhoneCountryMeta(phoneCountry);
+  const active = isActivePhoneCountry(phoneCountry);
+
   return (
     <>
-      <PhoneCountryToggle value={phoneCountry} onChange={onCountryChange} />
-      <Input
-        label={PHONE_LABEL[phoneCountry]}
-        type="tel"
-        inputMode="numeric"
-        maxLength={phoneCountry === "GM" ? 12 : 16}
-        placeholder={PHONE_PLACEHOLDER[phoneCountry]}
-        value={phone}
-        onChange={(e) => onPhoneChange(e.target.value)}
-      />
+      <Select
+        label="Country"
+        value={phoneCountry}
+        onChange={(e) => onCountryChange(e.target.value as PhoneCountryCode)}
+      >
+        {PHONE_COUNTRY_OPTIONS.map((c) => (
+          <option key={c.code} value={c.code}>
+            {c.label} ({c.dial}){c.active ? "" : " — coming soon"}
+          </option>
+        ))}
+      </Select>
+      {active ? (
+        <Input
+          label={`${PHONE_LABEL[phoneCountry]} · ${meta.dial}`}
+          type="tel"
+          inputMode="numeric"
+          autoComplete="tel-national"
+          maxLength={phoneCountry === "GM" ? 12 : 16}
+          placeholder={PHONE_PLACEHOLDER[phoneCountry]}
+          value={phone}
+          onChange={(e) => onPhoneChange(e.target.value.replace(/[^\d+\s]/g, ""))}
+        />
+      ) : (
+        <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-100">
+          {meta.label} sign-up is coming soon. Please use Gambia or Senegal for now.
+        </p>
+      )}
     </>
   );
 }
@@ -108,7 +101,7 @@ export function AuthModal({
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [phoneCountry, setPhoneCountry] = useState<PhoneCountry>("GM");
+  const [phoneCountry, setPhoneCountry] = useState<PhoneCountryCode>("GM");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -144,6 +137,9 @@ export function AuthModal({
   }, [open, loading, fbUser, profile, onSuccess, onClose, name]);
 
   async function loginWithPassword() {
+    if (!isActivePhoneCountry(phoneCountry)) {
+      return toast.error("Gambia and Senegal are available now. Ghana & Nigeria coming soon.");
+    }
     const normalized = normalizePhone(phone, phoneCountry);
     if (!normalized) return toast.error(PHONE_HINT);
     if (!password) return toast.error("Enter your password.");
@@ -159,6 +155,9 @@ export function AuthModal({
   }
 
   async function registerWithPhone() {
+    if (!isActivePhoneCountry(phoneCountry)) {
+      return toast.error("Gambia and Senegal are available now. Ghana & Nigeria coming soon.");
+    }
     const normalized = normalizePhone(phone, phoneCountry);
     if (!name.trim()) return toast.error("Enter your full name.");
     if (!normalized) return toast.error(PHONE_HINT);
@@ -188,6 +187,9 @@ export function AuthModal({
   }
 
   async function sendOtp() {
+    if (!isActivePhoneCountry(phoneCountry)) {
+      return toast.error("Gambia and Senegal are available now. Ghana & Nigeria coming soon.");
+    }
     const e164 = normalizePhoneE164(phone, phoneCountry);
     if (!e164) return toast.error(PHONE_HINT);
     setBusy(true);
@@ -250,6 +252,9 @@ export function AuthModal({
 
   async function completeProfile() {
     if (!name.trim()) return toast.error("Enter your full name.");
+    if (!isActivePhoneCountry(phoneCountry)) {
+      return toast.error("Gambia and Senegal are available now. Ghana & Nigeria coming soon.");
+    }
     const normalized = normalizePhone(phone, phoneCountry);
     if (!normalized) return toast.error(PHONE_HINT);
     setBusy(true);

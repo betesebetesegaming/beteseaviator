@@ -1,14 +1,69 @@
-/** Gambia (+220, 7 digits) is primary; Senegal (+221, 9 digits) is also supported. */
+/** Gambia (+220) and Senegal (+221) are active; Ghana & Nigeria listed for future use. */
 
+/** Countries that accept sign-up / login today */
 export type PhoneCountry = "GM" | "SN";
+
+/** All options shown in the country dropdown */
+export type PhoneCountryCode = PhoneCountry | "GH" | "NG";
 
 export const GAMBIA_COUNTRY_CODE = "220";
 export const SENEGAL_COUNTRY_CODE = "221";
 export const GAMBIA_LOCAL_LENGTH = 7;
 export const SENEGAL_LOCAL_LENGTH = 9;
 
+export type PhoneCountryMeta = {
+  code: PhoneCountryCode;
+  label: string;
+  dial: string;
+  /** Sign-up enabled on BETESE today */
+  active: boolean;
+  localLength?: number;
+  placeholder: string;
+};
+
+export const PHONE_COUNTRY_OPTIONS: PhoneCountryMeta[] = [
+  {
+    code: "GM",
+    label: "Gambia",
+    dial: "+220",
+    active: true,
+    localLength: GAMBIA_LOCAL_LENGTH,
+    placeholder: "7701234",
+  },
+  {
+    code: "SN",
+    label: "Senegal",
+    dial: "+221",
+    active: true,
+    localLength: SENEGAL_LOCAL_LENGTH,
+    placeholder: "771234567",
+  },
+  {
+    code: "GH",
+    label: "Ghana",
+    dial: "+233",
+    active: false,
+    placeholder: "Coming soon",
+  },
+  {
+    code: "NG",
+    label: "Nigeria",
+    dial: "+234",
+    active: false,
+    placeholder: "Coming soon",
+  },
+];
+
+export function isActivePhoneCountry(code: PhoneCountryCode): code is PhoneCountry {
+  return code === "GM" || code === "SN";
+}
+
+export function getPhoneCountryMeta(code: PhoneCountryCode): PhoneCountryMeta {
+  return PHONE_COUNTRY_OPTIONS.find((c) => c.code === code) ?? PHONE_COUNTRY_OPTIONS[0];
+}
+
 export const PHONE_HINT =
-  "Gambia: 7 digits (e.g. 7701234). Senegal: 9 digits (e.g. 771234567) or +221…";
+  "Gambia: 7 digits (e.g. 7701234). Senegal: 9 digits (e.g. 771234567).";
 
 /** @deprecated Use PHONE_HINT */
 export const GAMBIA_PHONE_HINT = PHONE_HINT;
@@ -19,8 +74,8 @@ export const PHONE_PLACEHOLDER: Record<PhoneCountry, string> = {
 };
 
 export const PHONE_LABEL: Record<PhoneCountry, string> = {
-  GM: "Phone (Gambia · 7 digits)",
-  SN: "Phone (Senegal · 9 digits)",
+  GM: "Phone number",
+  SN: "Phone number",
 };
 
 export type ParsedPhone = { country: PhoneCountry; local: string };
