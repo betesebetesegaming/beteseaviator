@@ -1,6 +1,6 @@
 import express from "express";
-import cors from "cors";
 import { onRequest } from "firebase-functions/v2/https";
+import { applyPaymentCors, PAYMENT_HTTP_ORIGINS } from "./corsMiddleware";
 import {
   checkoutHandler,
   wavePaymentHandler,
@@ -19,10 +19,13 @@ import {
 /**
  * Single Cloud Function hosting every ModemPay route (same handlers as betesepmu).
  * Webhook uses raw body on its path only — required for HMAC-SHA512 verification.
+ *
+ * Must be `invoker: "public"` — Gen2 runs on Cloud Run and blocks browser calls
+ * with 403 (looks like CORS) unless allUsers has run.invoker.
  */
 const app = express();
 app.disable("x-powered-by");
-app.use(cors({ origin: true }));
+applyPaymentCors(app);
 
 app.post(
   "/modempay-webhook",
@@ -45,7 +48,15 @@ app.get("/modempay-transactions/:id", (req, res) => void transactionHandler(req,
 app.post("/modempay-reconcile-deposit", (req, res) => void reconcileDepositHandler(req, res));
 
 export const modempayApi = onRequest(
-  { region: "us-central1", memory: "256MiB", timeoutSeconds: 60, maxInstances: 5, cpu: 1 },
+  {
+    region: "us-central1",
+    memory: "256MiB",
+    timeoutSeconds: 60,
+    maxInstances: 5,
+    cpu: 1,
+    invoker: "public",
+    cors: PAYMENT_HTTP_ORIGINS,
+  },
   app
 );
 
