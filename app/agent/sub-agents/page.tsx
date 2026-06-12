@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { collection, doc, getDoc, onSnapshot, query, where } from "firebase/firestore";
 import { Plus, ArrowRightLeft } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { agentCreateSubAgent, agentTransferToSubAgent, errorMessage } from "@/lib/api";
 import { agentSubdomainUrl } from "@/lib/agentLinks";
@@ -67,14 +67,15 @@ export default function SubAgentsPage() {
   }, [fbUser]);
 
   async function createSubAgent() {
-    if (!form.name.trim() || !form.email.trim() || !form.username.trim())
-      return toast.error("Name, email and username are required.");
+    if (!form.name.trim()) return toast.error("Name is required.");
+    if (!form.email.trim() && !form.username.trim())
+      return toast.error("Add a username or email so they can sign in.");
     if (form.password.length < 8) return toast.error("Password must be at least 8 characters.");
     setBusy(true);
     try {
       const res = await agentCreateSubAgent({
         name: form.name.trim(),
-        email: form.email.trim().toLowerCase(),
+        email: form.email.trim().toLowerCase() || undefined,
         username: form.username.trim().toLowerCase(),
         password: form.password,
       });
@@ -191,13 +192,13 @@ export default function SubAgentsPage() {
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
           <Input
-            label="Email (used to sign in)"
+            label="Email (optional — or sign in with username/name)"
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
           <Input
-            label="Username (creates username.beteseaviator.com automatically)"
+            label="Username (creates username.beteseaviator.com — blank = from name)"
             placeholder="victor"
             value={form.username}
             onChange={(e) => setForm({ ...form, username: e.target.value })}

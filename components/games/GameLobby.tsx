@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { subscribeActiveGames } from "@/lib/games/api";
+import { subscribeActiveGames } from "@/lib/games/subscriptions";
 import {
   filterGamesByLobbyCategory,
   LOBBY_NAV,

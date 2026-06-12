@@ -9,7 +9,7 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
 import { adminResolvePayment, errorMessage } from "@/lib/api";
 import { formatXof, formatDate } from "@/lib/format";
 import { PROVIDER_LABELS, type PaymentRequest, type PaymentStatus } from "@/lib/types";

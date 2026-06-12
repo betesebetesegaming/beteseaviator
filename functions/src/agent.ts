@@ -13,6 +13,8 @@ import {
   bumpDailyStats,
   bumpPlatformStats,
   RESERVED_SLUGS,
+  staffLoginEmail,
+  staffLoginKey,
   type ProfileData,
 } from "./helpers";
 
@@ -27,7 +29,7 @@ function slugify(input: string): string {
 
 /** Creates a unique slug doc inside a transaction-free flow (create() is atomic). */
 export async function claimSlug(desired: string, uid: string, agentName: string): Promise<string> {
-  let base = slugify(desired);
+  const base = slugify(desired);
   if (!base || RESERVED_SLUGS.includes(base)) {
     throw new HttpsError("invalid-argument", "This username is not available.");
   }
@@ -185,33 +187,48 @@ export const agentDepositToCustomer = onCall(async (req) => {
 export const agentCreateSubAgent = onCall(async (req) => {
   const { uid } = await requireRole(req, ["super_agent"]);
   const name = String(req.data?.name ?? "").trim();
-  const email = String(req.data?.email ?? "").toLowerCase().trim();
+  const email = req.data?.email ? String(req.data.email).toLowerCase().trim() : "";
   const username = String(req.data?.username ?? "").trim();
   const password = String(req.data?.password ?? "");
-  if (!name || !email.includes("@")) {
-    throw new HttpsError("invalid-argument", "Name and a valid email are required.");
+  const hasEmail = email.includes("@");
+  const loginKey = staffLoginKey(username || name);
+  if (!name) {
+    throw new HttpsError("invalid-argument", "Name is required.");
+  }
+  if (!hasEmail && !loginKey) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Provide an email or a username/name they can sign in with."
+    );
   }
   if (password.length < 8) {
     throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
   }
 
+  const provisionalAuthEmail = hasEmail ? email : staffLoginEmail(loginKey);
   let subUid: string;
   try {
-    const u = await auth.createUser({ email, password, displayName: name });
+    const u = await auth.createUser({ email: provisionalAuthEmail, password, displayName: name });
     subUid = u.uid;
   } catch (e: unknown) {
     if ((e as { code?: string }).code === "auth/email-already-exists") {
-      throw new HttpsError("already-exists", "This email is already registered.");
+      throw new HttpsError("already-exists", "This login is already registered.");
     }
     throw e;
   }
   const slug = await claimSlug(username || name, subUid, name);
+  if (!hasEmail) {
+    const finalAuthEmail = staffLoginEmail(slug);
+    if (finalAuthEmail !== provisionalAuthEmail) {
+      await auth.updateUser(subUid, { email: finalAuthEmail });
+    }
+  }
   await auth.setCustomUserClaims(subUid, { role: "sub_agent" });
 
   const batch = db.batch();
   batch.set(db.doc(`users/${subUid}`), {
     name,
-    email,
+    email: hasEmail ? email : null,
     phone: null,
     role: "sub_agent",
     parentId: uid,

@@ -8,6 +8,8 @@ import {
   phoneToEmail,
   requireAuth,
   requireRole,
+  resolveStaffAuthEmail,
+  staffLoginKey,
   DEFAULT_SETTINGS,
   type ProfileData,
   type Role,
@@ -127,22 +129,41 @@ export const agentLogin = onCall(async (req) => {
     if (!snap.empty) userDoc = snap.docs[0];
   }
 
+  if (!userDoc?.exists) {
+    const nameKey = staffLoginKey(username);
+    if (nameKey && nameKey !== username) {
+      const staffByKey = await db.doc(`staffLogins/${nameKey}`).get();
+      if (staffByKey.exists) {
+        userDoc = await db.doc(`users/${staffByKey.data()!.uid}`).get();
+      }
+      if (!userDoc?.exists) {
+        const bySlug = await db
+          .collection("users")
+          .where("agentSlug", "==", nameKey)
+          .limit(1)
+          .get();
+        if (!bySlug.empty) userDoc = bySlug.docs[0];
+      }
+    }
+  }
+
   if (!userDoc?.exists) throw new HttpsError("not-found", "Invalid credentials.");
   const profile = userDoc.data() as ProfileData;
   if (profile.status !== "active") throw new HttpsError("permission-denied", "Account suspended.");
-  if (!profile.email) throw new HttpsError("failed-precondition", "Account has no email login.");
+
+  const authEmail = resolveStaffAuthEmail(profile);
 
   const res = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${WEB_API_KEY.value()}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: profile.email, password, returnSecureToken: true }),
+      body: JSON.stringify({ email: authEmail, password, returnSecureToken: true }),
     }
   );
   if (!res.ok) throw new HttpsError("permission-denied", "Invalid credentials.");
 
-  return { email: profile.email };
+  return { email: authEmail };
 });
 
 const PRIMARY_STAFF_LOGIN = "admin";

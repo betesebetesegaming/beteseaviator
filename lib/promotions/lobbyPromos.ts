@@ -1,6 +1,7 @@
 import { doc, onSnapshot, type Unsubscribe } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
+import { storage } from "@/lib/storage";
 import {
   PROMO_SLIDES,
   PROMO_TICKER,

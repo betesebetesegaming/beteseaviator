@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { ImagePlus, Plus, Trash2, Upload } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
 import { adminSaveLobbyPromos, errorMessage } from "@/lib/api";
 import { gamePlayPath } from "@/lib/games/api";
 import { filterLobbyGames } from "@/lib/games/catalog";

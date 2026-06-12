@@ -16,7 +16,7 @@ export function StaffLoginForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!id.trim() || !password) {
-      return toast.error("Enter your username or email and password.");
+      return toast.error("Enter your name, username, or email and password.");
     }
     setBusy(true);
     try {
@@ -38,9 +38,9 @@ export function StaffLoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <Input
-        label="Username or email"
+        label="Name, username, or email"
         autoComplete="username"
-        placeholder="Enter your username or email"
+        placeholder="e.g. paul or your email"
         value={id}
         onChange={(e) => setId(e.target.value)}
       />

@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import {
   createContext,
   useCallback,
@@ -7,7 +8,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { AuthModal, type AuthModalMode } from "@/components/auth-modal";
+import type { AuthModalMode } from "@/components/auth-modal";
+
+const LazyAuthModal = dynamic(
+  () => import("@/components/auth-modal").then((m) => m.AuthModal),
+  { ssr: false }
+);
 
 interface AuthModalContextValue {
   openAuth: (mode?: AuthModalMode, ref?: string | null) => void;
@@ -35,7 +41,14 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
   return (
     <AuthModalContext.Provider value={{ openAuth, closeAuth }}>
       {children}
-      <AuthModal open={open} onClose={closeAuth} initialMode={mode} refCode={refCode} />
+      {open ? (
+        <LazyAuthModal
+          open={open}
+          onClose={closeAuth}
+          initialMode={mode}
+          refCode={refCode}
+        />
+      ) : null}
     </AuthModalContext.Provider>
   );
 }

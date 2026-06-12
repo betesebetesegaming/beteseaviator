@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { Plus, Search } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
 import { adminCreateUser, adminSetUserStatus, errorMessage } from "@/lib/api";
 import { agentSubdomainUrl } from "@/lib/agentLinks";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
@@ -97,8 +97,8 @@ export default function AdminUsersPage() {
     if (password.length < 8) return toast.error("Password must be at least 8 characters.");
     if (role === "player" && !normalizePhone(phone))
       return toast.error("Customers need a valid Gambia or Senegal phone.");
-    if ((role === "super_agent" || role === "sub_agent" || role === "admin") && !email.trim())
-      return toast.error("Agents and admins need an email.");
+    if (isStaffRole && !email.trim() && !username.trim())
+      return toast.error("Staff can sign in with name or username — add a username if needed.");
     if (role === "sub_agent" && !parentId)
       return toast.error("A sub agent must belong to a super agent.");
     setCreating(true);
@@ -199,7 +199,9 @@ export default function AdminUsersPage() {
                   <Badge value={u.role} />
                 </Td>
                 <Td className="tabular-nums text-slate-400">
-                  {u.role === "player" ? (u.phone ?? "—") : (u.email ?? "—")}
+                  {u.role === "player"
+                    ? (u.phone ?? "—")
+                    : (u.email ?? u.agentSlug ?? u.staffLoginId ?? "—")}
                 </Td>
                 <Td className="text-emerald-300">{u.agentSlug ?? "—"}</Td>
                 <Td>
@@ -264,7 +266,7 @@ export default function AdminUsersPage() {
             />
           ) : (
             <Input
-              label="Email (used to sign in)"
+              label="Email (optional — sign in with username or name instead)"
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}

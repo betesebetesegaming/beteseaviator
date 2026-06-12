@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { AGENT_RESERVED_SUBDOMAINS, SITE_ORIGIN } from "@/lib/agentLinks";
-import { STAFF_LOGIN_PATH } from "@/lib/auth-login";
+import { STAFF_LOGIN_PATH } from "@/lib/staff-routes";
 
 const AGENT_DOMAIN =
   process.env.NEXT_PUBLIC_AGENT_DOMAIN?.replace(/^https?:\/\//, "").replace(/\/$/, "") ||

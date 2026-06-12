@@ -11,7 +11,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { apiUrl } from "@/lib/apiUrl";
 import { PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";

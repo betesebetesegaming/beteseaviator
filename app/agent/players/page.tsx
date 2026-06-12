@@ -11,7 +11,7 @@ import {
   where,
 } from "firebase/firestore";
 import { Plus, Search, Banknote } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import {
   agentCreateCustomer,

@@ -10,6 +10,8 @@ import {
   walletRead,
   walletWrite,
   phoneToEmail,
+  staffLoginEmail,
+  staffLoginKey,
   type ProfileData,
   type Role,
 } from "./helpers";
@@ -49,8 +51,13 @@ export const adminCreateUser = onCall(async (req) => {
   }
 
   if (role === "super_agent" || role === "sub_agent" || role === "admin") {
-    if (!email.includes("@")) {
-      throw new HttpsError("invalid-argument", "A valid email is required for this role.");
+    const hasEmail = email.includes("@");
+    const loginKey = staffLoginKey(username || name);
+    if (!hasEmail && !loginKey) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Provide an email or a username/name they can sign in with."
+      );
     }
     let ancestors: string[] = [];
     if (role === "sub_agent") {
@@ -62,30 +69,43 @@ export const adminCreateUser = onCall(async (req) => {
       ancestors = [parentId];
     }
 
+    const provisionalAuthEmail = hasEmail ? email : staffLoginEmail(loginKey);
     let uid: string;
     try {
-      const u = await auth.createUser({ email, password, displayName: name });
+      const u = await auth.createUser({ email: provisionalAuthEmail, password, displayName: name });
       uid = u.uid;
     } catch (e: unknown) {
       if ((e as { code?: string }).code === "auth/email-already-exists") {
-        throw new HttpsError("already-exists", "This email is already registered.");
+        throw new HttpsError("already-exists", "This login is already registered.");
       }
       throw e;
     }
 
     const slug =
       role === "admin" ? null : await claimSlug(username || name, uid, name);
+    const staffLoginId =
+      role === "admin"
+        ? (username ? username.toLowerCase().trim() : loginKey)
+        : null;
+
+    if (!hasEmail) {
+      const finalAuthEmail = staffLoginEmail(slug || staffLoginId || loginKey);
+      if (finalAuthEmail !== provisionalAuthEmail) {
+        await auth.updateUser(uid, { email: finalAuthEmail });
+      }
+    }
+
     await auth.setCustomUserClaims(uid, { role });
 
     const batch = db.batch();
     batch.set(db.doc(`users/${uid}`), {
       name,
-      email,
+      email: hasEmail ? email : null,
       phone: phone || null,
       role,
       parentId: role === "sub_agent" ? parentId : null,
       agentSlug: slug,
-      staffLoginId: role === "admin" && username ? username.toLowerCase().trim() : null,
+      staffLoginId,
       ancestors,
       status: "active",
       stats: {},
@@ -101,8 +121,8 @@ export const adminCreateUser = onCall(async (req) => {
     if (role !== "admin") {
       batch.set(db.doc("stats/platform"), { agentCount: FieldValue.increment(1) }, { merge: true });
     }
-    if (role === "admin" && username) {
-      batch.set(db.doc(`staffLogins/${username.toLowerCase().trim()}`), { uid, role: "admin" });
+    if (role === "admin" && staffLoginId) {
+      batch.set(db.doc(`staffLogins/${staffLoginId}`), { uid, role: "admin" });
     }
     if (role === "sub_agent" && parentId) {
       batch.set(

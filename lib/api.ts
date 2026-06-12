@@ -1,11 +1,25 @@
-import { httpsCallable } from "firebase/functions";
-import { functions } from "./firebase";
+import { app } from "./firebase";
+import type { Functions } from "firebase/functions";
+import type { PromoSlide } from "./games/promotions";
 import type { PaymentProvider, Role } from "./types";
+
+let functionsInstance: Functions | null = null;
+
+async function getFunctions() {
+  if (!functionsInstance) {
+    const { getFunctions: initFunctions } = await import("firebase/functions");
+    functionsInstance = initFunctions(app, "us-central1");
+  }
+  return functionsInstance;
+}
 
 function call<Req, Res>(name: string) {
   return async (data: Req): Promise<Res> => {
-    const fn = httpsCallable<Req, Res>(functions, name);
-    const result = await fn(data);
+    const [{ httpsCallable }, fns] = await Promise.all([
+      import("firebase/functions"),
+      getFunctions(),
+    ]);
+    const result = await httpsCallable<Req, Res>(fns, name)(data);
     return result.data;
   };
 }
@@ -60,7 +74,7 @@ export const agentDepositToCustomer = call<
 >("agentDepositToCustomer");
 
 export const agentCreateSubAgent = call<
-  { name: string; email: string; username: string; password: string },
+  { name: string; email?: string; username: string; password: string },
   { uid: string; slug: string }
 >("agentCreateSubAgent");
 
@@ -107,8 +121,6 @@ export const adminResolvePayment = call<
 export const adminSaveSettings = call<Record<string, unknown>, { ok: true }>(
   "adminSaveSettings"
 );
-
-import type { PromoSlide } from "./games/promotions";
 
 export const adminSaveLobbyPromos = call<
   { slides: PromoSlide[]; ticker?: string[] },
@@ -165,7 +177,6 @@ export const getOperationsHub = call<
 export function errorMessage(e: unknown): string {
   if (e && typeof e === "object" && "message" in e) {
     const msg = String((e as { message: unknown }).message);
-    // Firebase callable errors arrive as "functions/xyz: actual message" sometimes
     return msg.replace(/^(functions\/[\w-]+:?\s*)/, "");
   }
   return "Something went wrong. Please try again.";

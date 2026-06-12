@@ -8,7 +8,7 @@ import { StaffLoginShell } from "@/components/auth/StaffLoginShell";
 import { Spinner } from "@/components/ui";
 import { auth } from "@/lib/firebase";
 import { homeFor, useAuth } from "@/lib/auth-context";
-import { isStaffRole } from "@/lib/auth-login";
+import { isStaffRole } from "@/lib/staff-routes";
 
 export default function StaffLoginPage() {
   const router = useRouter();

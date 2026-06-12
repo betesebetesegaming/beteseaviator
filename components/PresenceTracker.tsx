@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { onDisconnect, ref, serverTimestamp, set, update } from "firebase/database";
 import { usePathname } from "next/navigation";
-import { rtdb } from "@/lib/firebase";
+import { rtdb } from "@/lib/rtdb";
 import { useAuth } from "@/lib/auth-context";
 
 /** Keeps presence/{uid} updated so admin can see who is online. */

@@ -66,6 +66,36 @@ export function phoneToEmail(phone: string): string {
   return phoneKeyToEmail(key || phone.replace(/\D/g, ""));
 }
 
+/** Normalized username / name key for staff sign-in (no email required). */
+export function staffLoginKey(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 24);
+}
+
+/** Synthetic Firebase Auth email when a staff account has no real email. */
+export function staffLoginEmail(loginKey: string): string {
+  const key = staffLoginKey(loginKey);
+  if (!key) {
+    throw new HttpsError("invalid-argument", "A valid username or name is required to sign in.");
+  }
+  return `${key}@staff.beteseaviator.com`;
+}
+
+/** Email used for Firebase Auth — real email if set, otherwise username/slug-based login. */
+export function resolveStaffAuthEmail(
+  profile: Pick<ProfileData, "email" | "agentSlug" | "staffLoginId">
+): string {
+  const email = String(profile.email || "").trim().toLowerCase();
+  if (email.includes("@")) return email;
+  const key = profile.agentSlug || profile.staffLoginId;
+  if (key) return staffLoginEmail(key);
+  throw new HttpsError("failed-precondition", "Account has no login identifier.");
+}
+
 export function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }

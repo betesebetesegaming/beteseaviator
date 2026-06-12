@@ -11,6 +11,7 @@ export interface UserProfile {
   role: Role;
   parentId: string | null; // owning agent uid (players) / super agent uid (sub agents)
   agentSlug: string | null; // agent username, referral code, subdomain
+  staffLoginId?: string | null; // admin username login id
   status: UserStatus;
   createdAt: Timestamp | null;
   stats?: AgentStats;

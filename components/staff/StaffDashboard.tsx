@@ -16,7 +16,8 @@ import {
   Award,
   WalletCards,
 } from "lucide-react";
-import { db, rtdb } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
+import { rtdb } from "@/lib/rtdb";
 import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
 import { roleLabel } from "@/lib/staff-nav";

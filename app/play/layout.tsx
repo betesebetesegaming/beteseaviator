@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -8,10 +9,16 @@ import { useAuth, homeFor } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
 import { formatXof } from "@/lib/format";
 import { Logo } from "@/components/logo";
-import { PendingDepositReconciler } from "@/components/PendingDepositReconciler";
+import { PresenceTracker } from "@/components/PresenceTracker";
 import { LobbyBackgroundShell } from "@/components/games/LobbyBackgroundShell";
 import { AgentReferralBanner } from "@/components/games/AgentReferralBanner";
 import { parseAgentSlugFromHost } from "@/lib/agentLinks";
+
+const PendingDepositReconciler = dynamic(
+  () =>
+    import("@/components/PendingDepositReconciler").then((m) => m.PendingDepositReconciler),
+  { ssr: false }
+);
 
 function PlayAuthFromQuery() {
   const router = useRouter();
@@ -56,7 +63,8 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
       <Suspense fallback={null}>
         <PlayAuthFromQuery />
       </Suspense>
-      <PendingDepositReconciler />
+      <PresenceTracker />
+      {isPlayer ? <PendingDepositReconciler /> : null}
       <AgentReferralBanner />
       <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/75 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">

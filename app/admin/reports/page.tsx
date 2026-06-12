@@ -8,19 +8,16 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { db } from "@/lib/firebase";
+import dynamic from "next/dynamic";
+import { db } from "@/lib/firestore";
 import { formatXof, todayIso, daysAgoIso } from "@/lib/format";
 import type { Commission, DailyStats } from "@/lib/types";
 import { Card, EmptyState, Input, Spinner, StatCard, TableShell, Td, Th } from "@/components/ui";
+
+const ReportsGgrChart = dynamic(
+  () => import("@/components/admin/ReportsGgrChart").then((m) => m.ReportsGgrChart),
+  { ssr: false, loading: () => <Spinner /> }
+);
 
 export default function AdminReportsPage() {
   const [from, setFrom] = useState(daysAgoIso(13));
@@ -110,25 +107,7 @@ export default function AdminReportsPage() {
         ) : chartData.length === 0 ? (
           <EmptyState message="No activity in this range." />
         ) : (
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
-                <YAxis stroke="#64748b" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#0f172a",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: 8,
-                    color: "#f1f5f9",
-                  }}
-                  formatter={(value) => [formatXof(Number(value)), "GGR"]}
-                />
-                <Bar dataKey="GGR" fill="#34d399" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <ReportsGgrChart data={chartData} />
         )}
       </Card>
 

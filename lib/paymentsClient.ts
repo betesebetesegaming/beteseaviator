@@ -1,5 +1,5 @@
 import { doc, setDoc } from "firebase/firestore";
-import { db } from "./firebase";
+import { db } from "./firestore";
 import { depositToRtdb, withdrawalToRtdb } from "./payments/rtdbRecords";
 import { rtdbWriteDeposit, rtdbWriteWithdrawal } from "./payments/rtdbClient";
 

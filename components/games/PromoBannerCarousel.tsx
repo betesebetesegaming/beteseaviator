@@ -25,6 +25,8 @@ function SlideLayer({
           <img
             src={slide.imageUrl}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="absolute inset-0 h-full w-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/50 to-black/20" />

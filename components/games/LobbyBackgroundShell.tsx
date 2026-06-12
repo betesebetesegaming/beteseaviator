@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Palette } from "lucide-react";
 import {
@@ -10,7 +11,11 @@ import {
   themeSwatchStyle,
   type LobbyThemeId,
 } from "@/lib/lobbyThemes";
-import { LobbyThemeModal } from "./LobbyThemeModal";
+
+const LobbyThemeModal = dynamic(
+  () => import("./LobbyThemeModal").then((m) => m.LobbyThemeModal),
+  { ssr: false }
+);
 
 type Ctx = {
   themeId: LobbyThemeId;
@@ -79,12 +84,14 @@ export function LobbyBackgroundShell({
                 <span className="hidden sm:inline">Theme</span>
               </button>
             </div>
-            <LobbyThemeModal
-              open={modalOpen}
-              onClose={() => setModalOpen(false)}
-              value={themeId}
-              onChange={setThemeId}
-            />
+            {modalOpen ? (
+              <LobbyThemeModal
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                value={themeId}
+                onChange={setThemeId}
+              />
+            ) : null}
           </>
         )}
         {children}

@@ -11,7 +11,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { requestWithdrawal, errorMessage } from "@/lib/api";
 import { formatSigned, formatXof, formatDate } from "@/lib/format";

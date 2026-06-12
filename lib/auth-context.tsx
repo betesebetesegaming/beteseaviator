@@ -8,9 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db, initAnalytics } from "./firebase";
-import { loginPathFor } from "./auth-login";
+import { auth, initAnalytics } from "./firebase";
+import { loginPathFor } from "./staff-routes";
 import type { Role, UserProfile, Wallet } from "./types";
 
 interface AuthState {
@@ -45,7 +44,7 @@ export function homeFor(role: Role | undefined | null): string {
   }
 }
 
-export { loginPathFor } from "./auth-login";
+export { loginPathFor } from "./staff-routes";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [fbUser, setFbUser] = useState<User | null>(null);
@@ -71,22 +70,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!fbUser) return;
-    const unsubProfile = onSnapshot(
-      doc(db, "users", fbUser.uid),
-      (snap) => {
-        setProfile(
-          snap.exists() ? ({ uid: snap.id, ...snap.data() } as UserProfile) : null
-        );
-        setProfileReady(true);
-      },
-      () => setProfileReady(true)
-    );
-    const unsubWallet = onSnapshot(doc(db, "wallets", fbUser.uid), (snap) => {
-      setWallet(snap.exists() ? (snap.data() as Wallet) : null);
-    });
+
+    let cancelled = false;
+    let unsubProfile: (() => void) | undefined;
+    let unsubWallet: (() => void) | undefined;
+
+    void (async () => {
+      const { doc, onSnapshot } = await import("firebase/firestore");
+      const { db } = await import("./firestore");
+      if (cancelled) return;
+
+      unsubProfile = onSnapshot(
+        doc(db, "users", fbUser.uid),
+        (snap) => {
+          setProfile(
+            snap.exists() ? ({ uid: snap.id, ...snap.data() } as UserProfile) : null
+          );
+          setProfileReady(true);
+        },
+        () => setProfileReady(true)
+      );
+      unsubWallet = onSnapshot(doc(db, "wallets", fbUser.uid), (snap) => {
+        setWallet(snap.exists() ? (snap.data() as Wallet) : null);
+      });
+    })();
+
     return () => {
-      unsubProfile();
-      unsubWallet();
+      cancelled = true;
+      unsubProfile?.();
+      unsubWallet?.();
     };
   }, [fbUser]);
 

@@ -11,7 +11,7 @@ import {
   query,
 } from "firebase/firestore";
 import { Search, Snowflake, SlidersHorizontal } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
 import { adminAdjustWallet, adminFreezeWallet, errorMessage } from "@/lib/api";
 import { formatXof, normalizePhone } from "@/lib/format";
 import type { UserProfile, Wallet } from "@/lib/types";

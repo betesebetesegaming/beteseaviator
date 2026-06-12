@@ -10,7 +10,7 @@ import {
   where,
 } from "firebase/firestore";
 import { Award } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
 import type { Commission } from "@/lib/types";
