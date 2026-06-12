@@ -14,19 +14,8 @@ import {
   type ModemPayPayoutNetwork,
 } from '../modempay';
 import { adminDb } from '../adminModem';
-import {
-  syncAviatorWalletCredit,
-  syncAviatorWalletDebit,
-  syncAviatorWalletRefund,
-} from '../walletSync';
-import {
-  DEPOSIT_PENDING_TTL_MS,
-  expireCustomerStaleDeposits,
-  expireDepositIfStale,
-  isDepositCreditEligible,
-  isDepositPastTtl,
-  depositCreatedAt,
-} from '../depositExpiry';
+import { db, walletRead, walletWrite } from '../helpers';
+import { syncAviatorWalletCredit } from '../walletSync';
 import {
   patchDepositOnRtdb,
   syncCheckoutToRtdb,
@@ -83,12 +72,6 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
   }
 
   try {
-    if (body.customerId) {
-      await expireCustomerStaleDeposits(body.customerId).catch((err) =>
-        logger.warn('expireCustomerStaleDeposits failed', { customerId: body.customerId, err }),
-      );
-    }
-
     const result = await createCheckoutSession({
       method: provider as ModemPayMethod,
       amount,
@@ -270,6 +253,7 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
   let recipientPhone = String(body.recipientPhone || '').trim();
   let recipientName = String(body.recipientName || '').trim();
   let withdrawalCode = String(body.withdrawalCode || '').trim();
+  let holdCompleted = false;
 
   try {
     const requestRef = adminDb.collection('withdrawal_requests').doc(requestId);
@@ -320,41 +304,46 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
     const processedByName = body.processedByName || 'ModemPay Payout';
     const payoutLabel = method === 'wave' ? 'Wave' : 'AfriMoney';
 
-    // Hold wallet balance before calling ModemPay.
-    const holdOk = await adminDb.runTransaction(async (tx) => {
-      const userRef = adminDb.collection('users').doc(customerId);
-      const userSnap = await tx.get(userRef);
-      if (!userSnap.exists) throw new Error('Customer not found');
-      const walletBalance = Number((userSnap.data() as { wallet_balance?: number }).wallet_balance || 0);
-      if (walletBalance < amount) throw new Error('Insufficient wallet balance');
+    // Hold cash balance on wallets/{uid} — same ledger the app displays and bets use.
+    try {
+      await db.runTransaction(async (tx) => {
+        const freshReq = await tx.get(db.collection('withdrawal_requests').doc(requestId));
+        if (!freshReq.exists) throw new Error('Withdrawal request not found');
+        const fresh = freshReq.data() as { status?: string };
+        if (fresh.status !== 'Pending') {
+          throw new Error(`Withdrawal request is already ${fresh.status}`);
+        }
 
-      tx.update(userRef, {
-        wallet_balance: Number((walletBalance - amount).toFixed(2)),
-      });
-      tx.update(requestRef, {
-        status: 'Processing',
-        payout_method: payoutLabel,
-        payout_network: method,
-        recipient_phone: cleanPhone,
-        external_ref: requestId,
-        processed_by: processedById,
-        processed_by_name: processedByName,
-        processing_at: new Date().toISOString(),
-      });
-      return true;
-    }).catch((err) => {
-      logger.warn('Withdrawal hold failed', { requestId, err });
-      return false;
-    });
+        const wallet = await walletRead(tx, customerId);
+        if (wallet.frozen) throw new Error('Wallet is frozen.');
+        if (wallet.balance < amount) throw new Error('Insufficient balance.');
 
-    if (!holdOk) {
-      res.status(400).json({ error: 'Could not hold wallet balance for withdrawal' });
+        walletWrite(tx, wallet, {
+          uid: customerId,
+          amount: -amount,
+          type: 'withdrawal',
+          description: `Withdrawal hold (${requestId})`,
+          meta: { externalRef: requestId, source: 'modempay' },
+        });
+
+        tx.update(db.collection('withdrawal_requests').doc(requestId), {
+          status: 'Processing',
+          payout_method: payoutLabel,
+          payout_network: method,
+          recipient_phone: cleanPhone,
+          external_ref: requestId,
+          processed_by: processedById,
+          processed_by_name: processedByName,
+          processing_at: new Date().toISOString(),
+        });
+      });
+      holdCompleted = true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn('Withdrawal hold failed', { requestId, customerId, amount, err: message });
+      res.status(400).json({ error: message || 'Could not hold wallet balance for withdrawal' });
       return;
     }
-
-    await syncAviatorWalletDebit(customerId, amount, requestId).catch((err) =>
-      logger.warn('Aviator wallet debit sync failed', { requestId, err }),
-    );
 
     await patchWithdrawalOnRtdb(requestId, customerId, {
       status: 'Processing',
@@ -416,6 +405,9 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
     });
   } catch (err) {
     logger.error('Payout error', err);
+    if (holdCompleted) {
+      await refundWithdrawalHold(requestId, customerId, amount, err instanceof Error ? err.message : String(err));
+    }
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 }
@@ -585,11 +577,6 @@ async function processModemPayEvent(event: ModemPayEvent): Promise<void> {
         });
         return;
       }
-      const expireResult = await expireDepositIfStale(ref);
-      if (expireResult === 'expired' || expireResult === 'already_terminal') {
-        logger.warn(`${eventType} ignored — deposit expired or terminal`, { ref, expireResult });
-        return;
-      }
       await markDepositCompleted(ref, payload);
       return;
     }
@@ -729,10 +716,8 @@ async function findPendingCheckoutByHints(payload: Record<string, unknown>): Pro
     || (payload.metadata as Record<string, unknown> | undefined)?.customer_id
     || '',
   ).trim();
-  const ttlCutoff = new Date(Date.now() - DEPOSIT_PENDING_TTL_MS).toISOString();
   const pending = await adminDb.collection('modempay_checkouts')
     .where('status', '==', 'pending')
-    .where('created_at', '>=', ttlCutoff)
     .orderBy('created_at', 'desc')
     .limit(25)
     .get()
@@ -763,19 +748,6 @@ async function findPendingCheckoutByHints(payload: Record<string, unknown>): Pro
 }
 
 async function markDepositCompleted(externalRef: string, payload: Record<string, unknown>) {
-  const preCheckoutSnap = await adminDb.collection('modempay_checkouts').doc(externalRef).get();
-  const preDepositSnap = await adminDb.collection('deposit_requests').doc(externalRef).get();
-  const preCheckout = preCheckoutSnap.exists ? preCheckoutSnap.data() : null;
-  const preDeposit = preDepositSnap.exists ? preDepositSnap.data() : null;
-
-  if (!isDepositCreditEligible(preCheckout, preDeposit)) {
-    if (isDepositPastTtl(depositCreatedAt(preCheckout, preDeposit))) {
-      await expireDepositIfStale(externalRef);
-    }
-    logger.warn('markDepositCompleted: deposit not credit eligible', { externalRef });
-    return;
-  }
-
   const payloadAmount = Number(payload.amount ?? payload.paid_amount ?? payload.total_amount ?? 0);
   let customerId: string | undefined;
   const completedAt = new Date().toISOString();
@@ -807,8 +779,6 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
           customer_name?: string | null;
           customer_phone?: string | null;
           method?: string;
-          created_at?: string;
-          credit_blocked?: boolean;
         }
       : null;
 
@@ -819,8 +789,6 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
           customer_id?: string;
           customer_name?: string;
           method?: string;
-          timestamp?: string;
-          credit_blocked?: boolean;
         }
       : null;
 
@@ -831,14 +799,7 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
 
     if (checkout?.status === 'completed') return;
     if (depositReq?.status === 'Approved') return;
-    if (depositReq?.status === 'Rejected' || checkout?.credit_blocked || depositReq?.credit_blocked) {
-      logger.warn('markDepositCompleted: credit blocked inside transaction', { externalRef });
-      return;
-    }
-    if (isDepositPastTtl(depositCreatedAt(checkout, depositReq))) {
-      logger.warn('markDepositCompleted: deposit past TTL inside transaction', { externalRef });
-      return;
-    }
+    if (depositReq?.status === 'Rejected') return;
 
     const creditAmount = Number(
       (payloadAmount > 0 ? payloadAmount : checkout?.amount ?? depositReq?.amount) || 0,
@@ -1148,7 +1109,6 @@ async function markDepositFailed(externalRef: string, reason: string, payload: R
     failure_reason: reason,
     raw_payload: payload,
     failed_at: failedAt,
-    credit_blocked: true,
   }, { merge: true }).catch(err => logger.warn('Failed to mark deposit failed', err));
 
   const depositSnap = await adminDb.collection('deposit_requests').doc(externalRef).get();
@@ -1165,7 +1125,6 @@ async function markDepositFailed(externalRef: string, reason: string, payload: R
     verification_source: 'webhook',
     verification_message: reason,
     verified_at: failedAt,
-    credit_blocked: true,
   }, { merge: true }).catch(err => logger.warn('Failed to mark deposit request failed', err));
 
   await patchDepositOnRtdb(externalRef, customerId, {
@@ -1236,25 +1195,28 @@ async function markWithdrawalSettled(externalRef: string, payload: Record<string
 
 async function refundWithdrawalHold(requestId: string, customerId: string, amount: number, reason: string) {
   const failedAt = new Date().toISOString();
-  await adminDb.runTransaction(async (tx) => {
-    const userRef = adminDb.collection('users').doc(customerId);
-    const userSnap = await tx.get(userRef);
-    if (userSnap.exists) {
-      const walletBalance = Number((userSnap.data() as { wallet_balance?: number }).wallet_balance || 0);
-      tx.update(userRef, {
-        wallet_balance: Number((walletBalance + amount).toFixed(2)),
-      });
-    }
-    tx.update(adminDb.collection('withdrawal_requests').doc(requestId), {
+  await db.runTransaction(async (tx) => {
+    const reqSnap = await tx.get(db.collection('withdrawal_requests').doc(requestId));
+    if (!reqSnap.exists) return;
+    const status = String((reqSnap.data() as { status?: string }).status || '');
+    if (status === 'Failed' || status === 'Canceled') return;
+
+    const wallet = await walletRead(tx, customerId);
+    walletWrite(tx, wallet, {
+      uid: customerId,
+      amount,
+      type: 'refund',
+      description: `Withdrawal refund: ${reason}`,
+      meta: { externalRef: requestId, source: 'modempay' },
+      ignoreFrozen: true,
+    });
+
+    tx.update(db.collection('withdrawal_requests').doc(requestId), {
       status: 'Failed',
       failure_reason: reason,
       failed_at: failedAt,
     });
   }).catch(err => logger.warn('Failed to refund withdrawal hold', { requestId, err }));
-
-  await syncAviatorWalletRefund(customerId, amount, requestId, reason).catch((err) =>
-    logger.warn('Aviator wallet refund sync failed', { requestId, err }),
-  );
 
   await patchWithdrawalOnRtdb(requestId, customerId, {
     status: 'Failed',
@@ -1307,12 +1269,6 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
   }
 
   try {
-    const expireResult = await expireDepositIfStale(externalRef);
-    if (expireResult === 'expired') {
-      res.json({ ok: true, status: 'Rejected', expired: true });
-      return;
-    }
-
     const checkoutSnap = await adminDb.collection('modempay_checkouts').doc(externalRef).get();
     if (!checkoutSnap.exists) {
       res.status(404).json({ error: 'Checkout not found for externalRef' });
@@ -1392,12 +1348,6 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
         res.json({ ok: true, status: newStatus, replayed: true });
         return;
       }
-    }
-
-    const lateExpire = await expireDepositIfStale(externalRef);
-    if (lateExpire === 'expired') {
-      res.json({ ok: true, status: 'Rejected', expired: true });
-      return;
     }
 
     res.json({ ok: true, status: depositStatus, checkoutStatus });

@@ -150,16 +150,16 @@ const PRIMARY_ADMIN_EMAIL = "admin@beteseaviator.com";
 const PRIMARY_ADMIN_PASSWORD = "Betese123";
 const ADMIN_BOOTSTRAP_KEY = "beteseaviator-reset-2026";
 
-/** Creates or updates the primary admin (login: admin). Callable once without auth, then admin-only. */
-export const ensurePrimaryAdmin = onCall(async (req) => {
+/** Creates or updates the primary admin (login: admin). Bootstrap requires setupKey; updates require admin auth. */
+export const ensurePrimaryAdmin = onCall({ invoker: "public" }, async (req) => {
   const password = String(req.data?.password ?? PRIMARY_ADMIN_PASSWORD);
   if (password.length < 8) {
     throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
   }
+  const setupKey = String(req.data?.setupKey ?? "");
 
   const staffSnap = await db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`).get();
   if (staffSnap.exists) {
-    const setupKey = String(req.data?.setupKey ?? "");
     if (setupKey && setupKey === ADMIN_BOOTSTRAP_KEY) {
       const uid = staffSnap.data()!.uid as string;
       await auth.updateUser(uid, { password });
@@ -193,6 +193,10 @@ export const ensurePrimaryAdmin = onCall(async (req) => {
     );
     await db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`).set({ uid, role: "admin" });
     return { ok: true, uid, action: "linked_existing_admin" };
+  }
+
+  if (!req.auth && setupKey !== ADMIN_BOOTSTRAP_KEY) {
+    throw new HttpsError("permission-denied", "Bootstrap requires a valid setup key.");
   }
 
   let uid: string;

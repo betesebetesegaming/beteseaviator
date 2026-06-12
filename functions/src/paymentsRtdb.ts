@@ -167,14 +167,3 @@ export async function syncCheckoutToRtdb(record: RtdbCheckoutRecord): Promise<vo
   }
   await rtdbRef().update(updates);
 }
-
-/** Remove expired deposit nodes from live RTDB paths so reconcilers stop seeing them. */
-export async function removeDepositFromRtdb(id: string, customerId?: string | null): Promise<void> {
-  const updates: Record<string, null> = {
-    [`payments/deposits/${id}`]: null,
-  };
-  if (customerId) {
-    updates[`payments/byCustomer/${customerId}/deposits/${id}`] = null;
-  }
-  await rtdbRef().update(updates);
-}

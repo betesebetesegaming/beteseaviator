@@ -3,7 +3,15 @@
  */
 import { setGlobalOptions } from "firebase-functions/v2";
 
-setGlobalOptions({ region: "us-central1", maxInstances: 10, memory: "256MiB" });
+// cpu "gcf_gen1" = fractional vCPU (~1/6 at 256MiB) so all functions fit the
+// project's regional Cloud Run CPU quota; requires concurrency 1.
+setGlobalOptions({
+  region: "us-central1",
+  maxInstances: 10,
+  memory: "256MiB",
+  cpu: "gcf_gen1",
+  concurrency: 1,
+});
 
 export { completeRegistration, agentLogin, seedPlatform, ensurePrimaryAdmin } from "./auth";
 export { placeBet, cashout, pokeRound, gameTick } from "./game";
@@ -29,6 +37,3 @@ export { getOperationsHub } from "./operations";
 
 /** ModemPay — same handlers as betesepmu (single Cloud Function to save quota). */
 export { modempayApi } from "./modempayApi";
-
-/** Expire abandoned ModemPay deposits stuck in Pending after 30 seconds. */
-export { expireStaleDeposits } from "./depositExpiry";
