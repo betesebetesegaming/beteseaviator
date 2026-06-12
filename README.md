@@ -30,7 +30,7 @@ Real-money bets require a completed player profile (phone number on file).
 ## Project layout
 
 ```
-app/              Next.js pages (/play, /agent, /admin, /setup)
+app/              Next.js pages (/play, /agent, /admin)
 components/       UI, Logo, AuthModal, role guards
 lib/              Firebase client, auth context, callable API helpers
 functions/        Cloud Functions (game engine, wallet, payments, commissions)
@@ -53,7 +53,9 @@ cd functions; npm install; npm run build; cd ..
 npx firebase-tools@latest deploy --only functions,firestore:rules,firestore:indexes,database,storage
 ```
 
-3. **Bootstrap the platform** (once): open `/setup` in the deployed app and create the admin account + demo data.
+3. **Seed the primary admin** (backend-only): the `ensurePrimaryAdmin` Cloud Function creates the
+   admin staff account on first run. There is no public setup page — bootstrapping is done from the
+   backend so no credentials or setup keys are ever exposed in the frontend.
 
 ## Running locally
 
@@ -83,15 +85,11 @@ In Vercel:
 2. Add all `NEXT_PUBLIC_FIREBASE_*` variables from `.env.example`
 3. Deploy — every push to `main` auto-deploys
 
-## Accounts (after demo seed)
+## Accounts
 
-| Role | Login | Password |
-|------|-------|----------|
-| Admin | admin@betese.com | (set at /setup) |
-| Super agent | username `john` | password |
-| Sub agent | username `victor` | password |
-| Customer | phone `3010001` | password |
-| Customer (direct) | phone `3020002` | password |
+The primary admin is seeded by the `ensurePrimaryAdmin` backend function and signs in at
+`/admin/login`. Credentials are not published in the app or this README — they are held by the
+platform operator. Agents and customers are created from the admin/agent panels.
 
 ## Roles
 
