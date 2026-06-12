@@ -71,10 +71,13 @@ export async function processCommissionsForDate(date: string): Promise<{
     const commissionId = `${agentId}_${playerId}_${date}`;
 
     try {
-      await db.runTransaction(async (tx) => {
+      // The transaction body may retry on contention, so it must stay free of
+      // side effects on the summary counters. It returns whether it created the
+      // row; we tally outside, after it commits exactly once.
+      const didCreate = await db.runTransaction(async (tx) => {
         const ref = db.doc(`commissions/${commissionId}`);
         const existing = await tx.get(ref);
-        if (existing.exists) return;
+        if (existing.exists) return false; // already paid — idempotent skip
 
         const wallet = await walletRead(tx, agentId);
         tx.set(ref, {
@@ -102,9 +105,14 @@ export async function processCommissionsForDate(date: string): Promise<{
           { stats: { commissionEarned: FieldValue.increment(commissionAmount) } },
           { merge: true }
         );
+        return true;
+      });
+      if (didCreate) {
         created++;
         total += commissionAmount;
-      });
+      } else {
+        skipped++;
+      }
     } catch (e) {
       logger.error("commission row failed", { commissionId, e });
     }
