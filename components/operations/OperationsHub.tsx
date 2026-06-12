@@ -32,11 +32,7 @@ const TX_TYPES: TransactionType[] = [
   "bonus",
 ];
 
-type Props = {
-  basePath: "/admin" | "/agent";
-};
-
-export function OperationsHub({ basePath }: Props) {
+export function OperationsHub() {
   const searchParams = useSearchParams();
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
@@ -210,7 +206,7 @@ export function OperationsHub({ basePath }: Props) {
                   <p className="mt-1 mb-3 text-sm text-slate-400">
                     Open a player account under your network.
                   </p>
-                  <Link href={`${basePath}/players`}>
+                  <Link href="/admin/customers">
                     <Button variant="secondary" className="w-full">
                       Create customer
                     </Button>
@@ -223,7 +219,7 @@ export function OperationsHub({ basePath }: Props) {
                     <p className="mt-1 mb-3 text-sm text-slate-400">
                       Grow your team — sub-agents bring their own customers.
                     </p>
-                    <Link href={`${basePath}/sub-agents`}>
+                    <Link href="/admin/sub-agents">
                       <Button variant="secondary" className="w-full">
                         Create sub-agent
                       </Button>

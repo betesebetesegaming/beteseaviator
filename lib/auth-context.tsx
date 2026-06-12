@@ -35,10 +35,9 @@ const AuthContext = createContext<AuthState>({
 export function homeFor(role: Role | undefined | null): string {
   switch (role) {
     case "admin":
-      return "/admin";
     case "super_agent":
     case "sub_agent":
-      return "/agent";
+      return "/admin";
     case "player":
       return "/play";
     default:

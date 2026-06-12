@@ -102,9 +102,9 @@ export const completeRegistration = onCall(async (req) => {
 });
 
 /**
- * Agents sign in with their username (slug). We resolve the slug to the
- * account email, verify the password against Identity Toolkit, and hand back
- * a custom token. Suspended accounts are rejected.
+ * Staff/agents sign in with username (slug or staff login id). Resolves to the
+ * account email, verifies password server-side, then returns the email so the
+ * client can complete sign-in with Firebase Auth (avoids custom-token IAM).
  */
 export const agentLogin = onCall(async (req) => {
   const username = String(req.data?.username ?? "").toLowerCase().trim();
@@ -142,8 +142,7 @@ export const agentLogin = onCall(async (req) => {
   );
   if (!res.ok) throw new HttpsError("permission-denied", "Invalid credentials.");
 
-  const token = await auth.createCustomToken(userDoc.id);
-  return { token };
+  return { email: profile.email };
 });
 
 const PRIMARY_STAFF_LOGIN = "admin";

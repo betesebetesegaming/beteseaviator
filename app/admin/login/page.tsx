@@ -56,8 +56,8 @@ export default function StaffLoginPage() {
     <StaffLoginShell
       badge="Staff portal"
       badgeColor="text-emerald-400"
-      title="Admin & agent sign in"
-      subtitle="One login for platform admins and agents. You are sent to the right dashboard after sign in."
+      title="Staff sign in"
+      subtitle="One login for admin and agents. After sign in you only see what your role allows — admin sees everything, agents see their network only."
     >
       <StaffLoginForm />
     </StaffLoginShell>

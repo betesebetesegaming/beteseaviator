@@ -17,10 +17,10 @@ export const completeRegistration = call<
   { ok: true; role: Role }
 >("completeRegistration");
 
-/** Agent username login: verifies password server-side, returns a custom token. */
+/** Agent/staff username login: verifies password server-side, returns email for client sign-in. */
 export const agentLogin = call<
   { username: string; password: string },
-  { token: string }
+  { email: string }
 >("agentLogin");
 
 /** One-time platform bootstrap: creates admin + demo data when no admin exists yet. */

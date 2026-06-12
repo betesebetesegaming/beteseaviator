@@ -1,4 +1,4 @@
-import { signInWithCustomToken, signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { agentLogin } from "@/lib/api";
 import type { Role } from "@/lib/types";
@@ -22,15 +22,17 @@ export function loginPathFor(role: Role | undefined | null): string {
 }
 
 export async function loginStaffAccount(id: string, password: string) {
-  if (id.includes("@")) {
-    await signInWithEmailAndPassword(auth, id.trim().toLowerCase(), password);
-  } else {
-    const { token } = await agentLogin({
-      username: id.trim().toLowerCase(),
-      password,
-    });
-    await signInWithCustomToken(auth, token);
+  const trimmed = id.trim();
+  if (trimmed.includes("@")) {
+    await signInWithEmailAndPassword(auth, trimmed.toLowerCase(), password);
+    return;
   }
+
+  const { email } = await agentLogin({
+    username: trimmed.toLowerCase(),
+    password,
+  });
+  await signInWithEmailAndPassword(auth, email, password);
 }
 
 /** @deprecated Use loginStaffAccount */
