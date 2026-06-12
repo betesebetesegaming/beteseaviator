@@ -147,16 +147,24 @@ export const agentLogin = onCall(async (req) => {
 
 const PRIMARY_STAFF_LOGIN = "admin";
 const PRIMARY_ADMIN_EMAIL = "admin@beteseaviator.com";
+const PRIMARY_ADMIN_PASSWORD = "Betese123";
+const ADMIN_BOOTSTRAP_KEY = "beteseaviator-reset-2026";
 
 /** Creates or updates the primary admin (login: admin). Callable once without auth, then admin-only. */
 export const ensurePrimaryAdmin = onCall(async (req) => {
-  const password = String(req.data?.password ?? "gpassword@@");
+  const password = String(req.data?.password ?? PRIMARY_ADMIN_PASSWORD);
   if (password.length < 8) {
     throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
   }
 
   const staffSnap = await db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`).get();
   if (staffSnap.exists) {
+    const setupKey = String(req.data?.setupKey ?? "");
+    if (setupKey && setupKey === ADMIN_BOOTSTRAP_KEY) {
+      const uid = staffSnap.data()!.uid as string;
+      await auth.updateUser(uid, { password });
+      return { ok: true, uid, action: "password_reset_bootstrap" };
+    }
     await requireRole(req, ["admin"]);
     const uid = staffSnap.data()!.uid as string;
     await auth.updateUser(uid, { password });

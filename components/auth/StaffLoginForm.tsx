@@ -25,7 +25,13 @@ export function StaffLoginForm() {
       toast.success("Welcome back!");
     } catch (e) {
       const msg = errorMessage(e);
-      toast.error(msg.includes("auth/") ? "Invalid credentials." : msg);
+      if (msg.toLowerCase().includes("invalid credential")) {
+        toast.error("Wrong username or password. Admin: admin / Betese123");
+      } else if (msg.includes("auth/")) {
+        toast.error("Wrong username or password. Admin: admin / Betese123");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -44,9 +50,14 @@ export function StaffLoginForm() {
         label="Password"
         type="password"
         autoComplete="current-password"
+        placeholder="Betese123"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
+      <p className="text-xs text-slate-500">
+        Primary admin: username <strong className="text-slate-300">admin</strong> · password{" "}
+        <strong className="text-slate-300">Betese123</strong>
+      </p>
       <Button type="submit" className="w-full gap-2" disabled={busy}>
         <LogIn size={16} />
         {busy ? "Signing in…" : "Sign in"}

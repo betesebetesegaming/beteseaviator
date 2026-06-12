@@ -72,7 +72,7 @@ export default function AdminSettingsPage() {
   async function runEnsureAdmin() {
     setOpsBusy("admin");
     try {
-      const res = await ensurePrimaryAdmin({ password: "gpassword@@" });
+      const res = await ensurePrimaryAdmin({ password: "Betese123" });
       toast.success(`Staff login ready: ${res.login ?? "admin"} (${res.action})`);
     } catch (e) {
       toast.error(errorMessage(e));
@@ -181,7 +181,7 @@ export default function AdminSettingsPage() {
         <p className="mb-4 text-sm text-slate-400">
           Primary admin signs in at <strong className="text-white">/admin/login</strong> with username{" "}
           <code className="rounded bg-slate-800 px-1">admin</code> and password{" "}
-          <code className="rounded bg-slate-800 px-1">gpassword@@</code>. Refresh customer demos each
+          <code className="rounded bg-slate-800 px-1">Betese123</code>. Refresh customer demos each
           morning so lobby test phones match today.
         </p>
         <div className="flex flex-wrap gap-3">
