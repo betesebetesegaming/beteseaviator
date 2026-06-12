@@ -25,5 +25,7 @@ export {
 } from "./admin";
 export { processCommissions, adminRunCommissions } from "./commissions";
 
+export { getOperationsHub } from "./operations";
+
 /** ModemPay — same handlers as betesepmu (single Cloud Function to save quota). */
 export { modempayApi } from "./modempayApi";

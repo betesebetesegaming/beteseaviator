@@ -12,8 +12,7 @@ import {
   HandCoins,
   AlertCircle,
   Radio,
-  Receipt,
-  UserPlus,
+  Activity,
 } from "lucide-react";
 import { db, rtdb } from "@/lib/firebase";
 import { formatXof } from "@/lib/format";
@@ -85,11 +84,11 @@ export default function AdminDashboard() {
           value={stats.agentCount ?? 0}
           icon={<UserCog size={20} />}
         />
-        <Link href="/admin/live">
+        <Link href="/admin/operations">
           <StatCard
             label="Live now"
             value={onlineCount}
-            hint="click for live user list"
+            hint="click for operations hub"
             icon={<Radio size={20} />}
           />
         </Link>
@@ -132,7 +131,7 @@ export default function AdminDashboard() {
           </p>
           <Link href="/admin/users">
             <Button variant="secondary" className="w-full gap-2">
-              <UserPlus size={16} /> Manage users
+              <Users size={16} /> Manage users
             </Button>
           </Link>
         </Card>
@@ -141,9 +140,9 @@ export default function AdminDashboard() {
           <p className="mb-4 text-sm text-slate-400">
             See who is online now — customers on /play, agents and admins on their dashboards.
           </p>
-          <Link href="/admin/live">
+          <Link href="/admin/operations?tab=live">
             <Button variant="secondary" className="w-full gap-2">
-              <Radio size={16} /> Open live view
+              <Radio size={16} /> Open operations hub
             </Button>
           </Link>
         </Card>
@@ -152,9 +151,9 @@ export default function AdminDashboard() {
           <p className="mb-4 text-sm text-slate-400">
             Full audit trail with references, before/after balances and admin adjustment notes.
           </p>
-          <Link href="/admin/transactions">
+          <Link href="/admin/operations?tab=transactions">
             <Button variant="secondary" className="w-full gap-2">
-              <Receipt size={16} /> View ledger
+              <Activity size={16} /> View ledger
             </Button>
           </Link>
         </Card>

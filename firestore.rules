@@ -53,13 +53,28 @@ service cloud.firestore {
     }
 
     match /wallets/{userId} {
-      allow read: if signedIn() && (uid() == userId || isAdmin());
+      allow read: if signedIn() && (
+        uid() == userId
+        || isAdmin()
+        || (isAgent() && (
+          userId == uid()
+          || userDoc(userId).parentId == uid()
+          || uid() in userDoc(userId).ancestors
+        ))
+      );
       allow write: if false;
     }
 
     match /transactions/{txnId} {
-      allow read: if signedIn()
-        && (resource.data.userId == uid() || isAdmin());
+      allow read: if signedIn() && (
+        resource.data.userId == uid()
+        || isAdmin()
+        || (isAgent() && (
+          resource.data.userId == uid()
+          || userDoc(resource.data.userId).parentId == uid()
+          || uid() in userDoc(resource.data.userId).ancestors
+        ))
+      );
       allow write: if false;
     }
 

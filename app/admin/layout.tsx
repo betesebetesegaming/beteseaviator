@@ -12,17 +12,16 @@ import {
   LogOut,
   Megaphone,
   Radio,
-  Receipt,
+  Activity,
 } from "lucide-react";
 import { RoleGuard } from "@/components/role-guard";
 import { useAuth } from "@/lib/auth-context";
 
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/admin/live", label: "Live", icon: Radio },
+  { href: "/admin/operations", label: "Operations", icon: Activity },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/wallets", label: "Wallets", icon: Wallet },
-  { href: "/admin/transactions", label: "Ledger", icon: Receipt },
   { href: "/admin/withdrawals", label: "Withdrawals", icon: HandCoins },
   { href: "/admin/promotions", label: "Promotions", icon: Megaphone },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },

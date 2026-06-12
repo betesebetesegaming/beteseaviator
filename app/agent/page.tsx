@@ -1,10 +1,11 @@
 "use client";
 
-import { Users, UserCog, Banknote, TrendingUp, Award, WalletCards } from "lucide-react";
+import { Users, UserCog, Banknote, TrendingUp, Award, WalletCards, Activity } from "lucide-react";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
-import { Card, StatCard } from "@/components/ui";
+import { Button, Card, StatCard } from "@/components/ui";
 
 export default function AgentDashboard() {
   const { profile, wallet } = useAuth();
@@ -31,6 +32,14 @@ export default function AgentDashboard() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Link href="/agent/operations">
+          <StatCard
+            label="Operations hub"
+            value="Live · Ledger · Network"
+            hint="your customers, sub-agents & transactions"
+            icon={<Activity size={20} />}
+          />
+        </Link>
         <StatCard
           label="My Customers"
           value={stats.customerCount ?? 0}

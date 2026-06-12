@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plane, LayoutDashboard, Users, UserCog, Wallet, Percent, LogOut } from "lucide-react";
+import { Plane, LayoutDashboard, Users, UserCog, Wallet, Percent, LogOut, Activity } from "lucide-react";
 import { RoleGuard } from "@/components/role-guard";
 import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
 
 const NAV = [
   { href: "/agent", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/agent/operations", label: "Operations", icon: Activity },
   { href: "/agent/players", label: "My Customers", icon: Users },
   { href: "/agent/sub-agents", label: "Sub Agents", icon: UserCog, superOnly: true },
   { href: "/agent/commissions", label: "Commissions", icon: Percent },

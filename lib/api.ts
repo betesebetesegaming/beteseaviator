@@ -131,6 +131,48 @@ export const adminRefreshDailyDemos = call<
   { ok: true; date: string; accounts: unknown[] }
 >("adminRefreshDailyDemos");
 
+export type OperationsHubResponse = {
+  scope: "platform" | "network";
+  role: Role;
+  network: Array<{
+    uid: string;
+    name: string;
+    role: Role;
+    phone: string | null;
+    email: string | null;
+    agentSlug: string | null;
+    status: string;
+    balance?: number;
+  }>;
+  live: Array<{
+    uid: string;
+    name: string;
+    role: Role;
+    page: string;
+    lastSeen: number;
+    online: boolean;
+  }>;
+  liveOnline: number;
+  transactions: Array<{
+    id: string;
+    userId: string;
+    userName?: string;
+    type: string;
+    amount: number;
+    balanceBefore: number;
+    balanceAfter: number;
+    reference: string;
+    description: string;
+    meta?: Record<string, unknown>;
+    createdAt: number | null;
+  }>;
+};
+
+export const getOperationsHub = call<
+  { type?: string; limit?: number },
+  OperationsHubResponse
+>("getOperationsHub");
+
 export function errorMessage(e: unknown): string {
   if (e && typeof e === "object" && "message" in e) {
     const msg = String((e as { message: unknown }).message);
