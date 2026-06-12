@@ -252,7 +252,7 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
   let amount = Number(body.amount);
   let recipientPhone = String(body.recipientPhone || '').trim();
   let recipientName = String(body.recipientName || '').trim();
-  let withdrawalCode = String(body.withdrawalCode || '').trim();
+  const withdrawalCode = String(body.withdrawalCode || '').trim();
   let holdCompleted = false;
 
   try {
