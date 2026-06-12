@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { AGENT_RESERVED_SUBDOMAINS } from "@/lib/agentLinks";
+import { AGENT_RESERVED_SUBDOMAINS, SITE_ORIGIN } from "@/lib/agentLinks";
+import { STAFF_LOGIN_PATH } from "@/lib/auth-login";
 
 const AGENT_DOMAIN =
   process.env.NEXT_PUBLIC_AGENT_DOMAIN?.replace(/^https?:\/\//, "").replace(/\/$/, "") ||
@@ -38,7 +39,7 @@ export function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
 
   if (url.pathname.startsWith("/admin") || url.pathname.startsWith("/agent")) {
-    return NextResponse.redirect(new URL("/play", request.url));
+    return NextResponse.redirect(new URL(STAFF_LOGIN_PATH, SITE_ORIGIN));
   }
 
   if (url.pathname === "/" || url.pathname === "") {

@@ -31,7 +31,6 @@ export function RoleGuard({
       return;
     }
     if (!profile) {
-      router.replace("/play");
       return;
     }
     if (profile.status !== "active") {
