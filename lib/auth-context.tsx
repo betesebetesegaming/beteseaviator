@@ -10,6 +10,7 @@ import {
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db, initAnalytics } from "./firebase";
+import { loginPathFor } from "./auth-login";
 import type { Role, UserProfile, Wallet } from "./types";
 
 interface AuthState {
@@ -44,6 +45,8 @@ export function homeFor(role: Role | undefined | null): string {
       return "/play";
   }
 }
+
+export { loginPathFor } from "./auth-login";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [fbUser, setFbUser] = useState<User | null>(null);
@@ -89,8 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fbUser]);
 
   const logout = async () => {
+    const redirect = loginPathFor(profile?.role);
     await signOut(auth);
-    if (typeof window !== "undefined") window.location.href = "/play";
+    if (typeof window !== "undefined") window.location.href = redirect;
   };
 
   return (

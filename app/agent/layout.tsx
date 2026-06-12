@@ -67,8 +67,15 @@ function AgentNav() {
 }
 
 export default function AgentLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isLogin = pathname === "/agent/login";
+
+  if (isLogin) {
+    return <>{children}</>;
+  }
+
   return (
-    <RoleGuard allow={["super_agent", "sub_agent"]} guestMode="agent">
+    <RoleGuard allow={["super_agent", "sub_agent"]} loginPath="/admin/login">
       <AgentNav />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
     </RoleGuard>

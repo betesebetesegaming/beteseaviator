@@ -40,22 +40,22 @@ export function LobbyCategoryNav({ active, onChange, counts }: Props) {
               disabled
                 ? "cursor-not-allowed opacity-35"
                 : isActive
-                  ? "bg-betese-yellow/15 ring-1 ring-betese-yellow/40"
+                  ? "bg-[color-mix(in_srgb,var(--lobby-accent)_15%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--lobby-accent)_40%,transparent)]"
                   : "hover:bg-white/5"
             }`}
           >
             <span
               className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors ${
                 isActive
-                  ? "border-betese-yellow bg-betese-yellow/20 text-betese-yellow"
-                  : "border-betese-yellow/50 text-betese-yellow/80"
+                  ? "border-[var(--lobby-accent)] bg-[color-mix(in_srgb,var(--lobby-accent)_20%,transparent)] text-[var(--lobby-accent)]"
+                  : "border-[color-mix(in_srgb,var(--lobby-accent)_50%,transparent)] text-[color-mix(in_srgb,var(--lobby-accent)_80%,white)]"
               }`}
             >
               <Icon size={20} strokeWidth={1.75} />
             </span>
             <span
               className={`text-center text-[9px] font-bold uppercase leading-tight tracking-wide sm:text-[10px] ${
-                isActive ? "text-betese-yellow" : "text-slate-400"
+                isActive ? "text-[var(--lobby-accent)]" : "text-slate-400"
               }`}
             >
               {item.label}

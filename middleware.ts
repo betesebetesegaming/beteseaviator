@@ -21,6 +21,17 @@ function parseAgentSlugFromHost(host: string): string | null {
  */
 export function middleware(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
+  const h = host.split(":")[0].toLowerCase();
+
+  if (h === `admin.${AGENT_DOMAIN}`) {
+    const url = request.nextUrl.clone();
+    if (!url.pathname.startsWith("/admin")) {
+      url.pathname = "/admin/login";
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next();
+  }
+
   const slug = parseAgentSlugFromHost(host);
   if (!slug) return NextResponse.next();
 

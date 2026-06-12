@@ -1,25 +1,32 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { Palette } from "lucide-react";
 import {
-  readLobbyBackground,
-  saveLobbyBackground,
-  type LobbyBackgroundId,
-} from "@/lib/lobbyBackgrounds";
-import { LobbyBackgroundPicker } from "./LobbyBackgroundPicker";
+  getLobbyTheme,
+  readLobbyTheme,
+  saveLobbyTheme,
+  themeCssVars,
+  themeSwatchStyle,
+  type LobbyThemeId,
+} from "@/lib/lobbyThemes";
+import { LobbyThemeModal } from "./LobbyThemeModal";
 
 type Ctx = {
-  background: LobbyBackgroundId;
-  setBackground: (id: LobbyBackgroundId) => void;
+  themeId: LobbyThemeId;
+  setThemeId: (id: LobbyThemeId) => void;
 };
 
-const LobbyBackgroundContext = createContext<Ctx | null>(null);
+const LobbyThemeContext = createContext<Ctx | null>(null);
 
-export function useLobbyBackground() {
-  const ctx = useContext(LobbyBackgroundContext);
-  if (!ctx) throw new Error("useLobbyBackground must be used within LobbyBackgroundShell");
+export function useLobbyTheme() {
+  const ctx = useContext(LobbyThemeContext);
+  if (!ctx) throw new Error("useLobbyTheme must be used within LobbyBackgroundShell");
   return ctx;
 }
+
+/** @deprecated */
+export const useLobbyBackground = useLobbyTheme;
 
 export function LobbyBackgroundShell({
   children,
@@ -28,36 +35,60 @@ export function LobbyBackgroundShell({
   children: ReactNode;
   showPicker?: boolean;
 }) {
-  const [background, setBackgroundState] = useState<LobbyBackgroundId>("classic");
+  const [themeId, setThemeIdState] = useState<LobbyThemeId>("betese");
   const [ready, setReady] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    setBackgroundState(readLobbyBackground());
+    setThemeIdState(readLobbyTheme());
     setReady(true);
   }, []);
 
-  function setBackground(id: LobbyBackgroundId) {
-    setBackgroundState(id);
-    saveLobbyBackground(id);
+  function setThemeId(id: LobbyThemeId) {
+    setThemeIdState(id);
+    saveLobbyTheme(id);
   }
 
+  const theme = getLobbyTheme(ready ? themeId : "betese");
+
   return (
-    <LobbyBackgroundContext.Provider value={{ background, setBackground }}>
+    <LobbyThemeContext.Provider value={{ themeId, setThemeId }}>
       <div
-        data-lobby-bg={ready ? background : "classic"}
+        data-lobby-theme={theme.id}
+        style={themeCssVars(theme)}
         className="lobby-bg-shell relative flex min-h-full flex-1 flex-col"
       >
         <div className="lobby-bg-layer pointer-events-none fixed inset-0 -z-10" aria-hidden />
         <div className="lobby-bg-glow pointer-events-none fixed inset-0 -z-10" aria-hidden />
+        <div className="lobby-bg-noise pointer-events-none fixed inset-0 -z-10 opacity-[0.03]" aria-hidden />
+
         {showPicker && ready && (
-          <div className="pointer-events-none fixed bottom-4 right-4 z-30 sm:bottom-6 sm:right-6">
-            <div className="pointer-events-auto">
-              <LobbyBackgroundPicker value={background} onChange={setBackground} />
+          <>
+            <div className="pointer-events-none fixed bottom-4 right-4 z-30 sm:bottom-6 sm:right-6">
+              <button
+                type="button"
+                onClick={() => setModalOpen(true)}
+                className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/15 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-slate-200 shadow-lg backdrop-blur-md transition hover:border-[var(--lobby-accent)]/50 hover:text-white"
+                title="Select layout & colors"
+              >
+                <span
+                  className="h-6 w-6 shrink-0 rounded-full border border-white/20"
+                  style={themeSwatchStyle(theme)}
+                />
+                <Palette size={14} className="text-[var(--lobby-accent)]" />
+                <span className="hidden sm:inline">Theme</span>
+              </button>
             </div>
-          </div>
+            <LobbyThemeModal
+              open={modalOpen}
+              onClose={() => setModalOpen(false)}
+              value={themeId}
+              onChange={setThemeId}
+            />
+          </>
         )}
         {children}
       </div>
-    </LobbyBackgroundContext.Provider>
+    </LobbyThemeContext.Provider>
   );
 }

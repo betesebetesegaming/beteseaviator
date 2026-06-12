@@ -51,7 +51,7 @@ function SlideLayer({
         {slide.href && slide.cta && (
           <Link
             href={slide.href}
-            className="mt-3 inline-flex w-fit rounded-lg bg-betese-yellow px-4 py-1.5 text-xs font-black uppercase tracking-wide text-black transition hover:bg-yellow-300"
+            className="mt-3 inline-flex w-fit rounded-lg bg-[var(--lobby-accent)] px-4 py-1.5 text-xs font-black uppercase tracking-wide text-black transition hover:brightness-110"
           >
             {slide.cta}
           </Link>
@@ -117,7 +117,7 @@ export function PromoBannerCarousel() {
                   aria-label={`Go to slide ${i + 1}`}
                   onClick={() => setIndex(i)}
                   className={`h-1.5 rounded-full transition-all ${
-                    i === index ? "w-6 bg-betese-yellow" : "w-1.5 bg-white/40"
+                    i === index ? "w-6 bg-[var(--lobby-accent)]" : "w-1.5 bg-white/40"
                   }`}
                 />
               ))}
@@ -129,7 +129,7 @@ export function PromoBannerCarousel() {
       <div className="relative overflow-hidden border-t border-white/10 bg-black py-2">
         <div className="animate-promo-marquee flex w-max gap-8 whitespace-nowrap px-4">
           {[...ticker, ...ticker].map((text, i) => (
-            <span key={i} className="text-xs font-semibold text-betese-yellow/90">
+            <span key={i} className="text-xs font-semibold text-[color-mix(in_srgb,var(--lobby-accent)_90%,white)]">
               {text}
             </span>
           ))}

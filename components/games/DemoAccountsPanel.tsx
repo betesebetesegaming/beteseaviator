@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import toast from "react-hot-toast";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { Copy, LogIn, UserCircle2 } from "lucide-react";
+import { Copy, LogIn, UserCircle2, ExternalLink } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useAuthModal } from "@/lib/auth-modal-context";
-import { agentLogin, errorMessage } from "@/lib/api";
+import { errorMessage } from "@/lib/api";
 import { phoneToEmail } from "@/lib/format";
 import { DEMO_ACCOUNTS, type DemoAccount } from "@/lib/games/lobbyMeta";
 
@@ -26,14 +27,6 @@ export function DemoAccountsPanel() {
   async function quickLogin(account: DemoAccount) {
     setBusyId(account.id);
     try {
-      if (account.role.includes("agent")) {
-        await agentLogin({ username: account.login, password: account.password }).then(async (res) => {
-          const { signInWithCustomToken } = await import("firebase/auth");
-          await signInWithCustomToken(auth, res.token);
-        });
-        toast.success(`Signed in as ${account.label}`);
-        return;
-      }
       await signInWithEmailAndPassword(auth, phoneToEmail(account.login), account.password);
       toast.success(`Welcome, ${account.label}! Pick a game to bet.`);
     } catch (e) {
@@ -47,7 +40,7 @@ export function DemoAccountsPanel() {
   const customers = DEMO_ACCOUNTS.filter((a) => a.role === "Customer");
 
   return (
-    <section className="rounded-2xl border border-betese-yellow/15 bg-[#111] p-5 sm:p-6">
+    <section className="rounded-2xl border border-[color-mix(in_srgb,var(--lobby-accent)_15%,transparent)] bg-[#111] p-5 sm:p-6">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-black uppercase tracking-widest text-emerald-400">
@@ -130,8 +123,11 @@ export function DemoAccountsPanel() {
 
       <details className="mt-4 rounded-xl border border-white/5 bg-slate-950/40 px-4 py-3">
         <summary className="cursor-pointer text-sm font-semibold text-slate-300">
-          Agent demo accounts (dashboard only)
+          Agent demo accounts (separate login)
         </summary>
+        <p className="mt-2 text-xs text-slate-500">
+          Agents sign in on their own dashboard — not from the player lobby.
+        </p>
         <ul className="mt-3 space-y-2 text-sm text-slate-400">
           {DEMO_ACCOUNTS.filter((a) => a.role.includes("agent")).map((a) => (
             <li key={a.id} className="flex flex-wrap items-center justify-between gap-2">
@@ -140,17 +136,15 @@ export function DemoAccountsPanel() {
                 <code className="rounded bg-slate-800 px-1.5 py-0.5 text-emerald-300">{a.login}</code>{" "}
                 / password <code className="rounded bg-slate-800 px-1.5 py-0.5">password</code>
               </span>
-              <button
-                type="button"
-                onClick={() => quickLogin(a)}
-                disabled={busyId === a.id}
-                className="text-xs font-bold text-emerald-400 hover:text-emerald-300"
-              >
-                Login
-              </button>
             </li>
           ))}
         </ul>
+        <Link
+          href="/admin/login"
+          className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-sky-400 hover:text-sky-300"
+        >
+          Open staff sign in <ExternalLink size={12} />
+        </Link>
       </details>
     </section>
   );

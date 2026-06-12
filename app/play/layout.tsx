@@ -10,6 +10,7 @@ import { formatXof } from "@/lib/format";
 import { Logo } from "@/components/logo";
 import { PendingDepositReconciler } from "@/components/PendingDepositReconciler";
 import { LobbyBackgroundShell } from "@/components/games/LobbyBackgroundShell";
+import { AgentReferralBanner } from "@/components/games/AgentReferralBanner";
 import { parseAgentSlugFromHost } from "@/lib/agentLinks";
 
 function PlayAuthFromQuery() {
@@ -56,6 +57,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
         <PlayAuthFromQuery />
       </Suspense>
       <PendingDepositReconciler />
+      <AgentReferralBanner />
       <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/75 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/play">

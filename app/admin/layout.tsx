@@ -70,8 +70,15 @@ function AdminNav() {
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isLogin = pathname === "/admin/login";
+
+  if (isLogin) {
+    return <>{children}</>;
+  }
+
   return (
-    <RoleGuard allow={["admin"]}>
+    <RoleGuard allow={["admin"]} loginPath="/admin/login">
       <AdminNav />
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
     </RoleGuard>

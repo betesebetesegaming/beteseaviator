@@ -6,16 +6,15 @@ import {
   GoogleAuthProvider,
   RecaptchaVerifier,
   createUserWithEmailAndPassword,
-  signInWithCustomToken,
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
   signInWithPopup,
   type ConfirmationResult,
 } from "firebase/auth";
-import { LogIn, UserPlus, Briefcase } from "lucide-react";
+import { LogIn, UserPlus } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useAuth, homeFor } from "@/lib/auth-context";
-import { agentLogin, completeRegistration, errorMessage } from "@/lib/api";
+import { completeRegistration, errorMessage } from "@/lib/api";
 import { normalizePhone, phoneToEmail } from "@/lib/format";
 import {
   PHONE_HINT,
@@ -31,7 +30,7 @@ import {
 import { Button, Input, Modal, Select } from "@/components/ui";
 import { Logo } from "@/components/logo";
 
-export type AuthModalMode = "login" | "register" | "complete" | "agent";
+export type AuthModalMode = "login" | "register" | "complete";
 type CustomerAuth = "password" | "otp";
 
 function CustomerPhoneFields({
@@ -107,8 +106,6 @@ export function AuthModal({
   const [confirm, setConfirm] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
-  const [agentId, setAgentId] = useState("");
-  const [agentPassword, setAgentPassword] = useState("");
 
   const confirmRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
@@ -234,22 +231,6 @@ export function AuthModal({
     }
   }
 
-  async function loginAgent() {
-    if (!agentId || !agentPassword) {
-      return toast.error("Enter your username/email and password.");
-    }
-    setBusy(true);
-    try {
-      await loginAgentAccount(agentId, agentPassword);
-      toast.success("Signed in.");
-    } catch (e) {
-      const msg = errorMessage(e);
-      toast.error(msg.includes("auth/") ? "Invalid credentials." : msg);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function completeProfile() {
     if (!name.trim()) return toast.error("Enter your full name.");
     if (!isActivePhoneCountry(phoneCountry)) {
@@ -276,11 +257,9 @@ export function AuthModal({
       title={
         mode === "complete"
           ? "Finish your profile"
-          : mode === "agent"
-            ? "Agent sign in"
-            : mode === "register"
-              ? "Create account to play"
-              : "Sign in to place bets"
+          : mode === "register"
+            ? "Create account to play"
+            : "Sign in to place bets"
       }
     >
       <div className="mb-3 flex justify-center sm:mb-4">
@@ -293,7 +272,14 @@ export function AuthModal({
           : "Watch the game for free — sign up when you're ready to bet for real money."}
       </p>
 
-      {mode !== "complete" && mode !== "agent" && (
+      {refCode && mode === "register" && (
+        <p className="mb-3 rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-center text-xs text-sky-100 sm:mb-4">
+          You&apos;re joining via agent link:{" "}
+          <span className="font-bold uppercase text-sky-300">{refCode}</span>
+        </p>
+      )}
+
+      {mode !== "complete" && (
         <div className="mb-3 grid grid-cols-2 rounded-lg bg-slate-950/70 p-1 text-sm font-medium sm:mb-4">
           <button
             type="button"
@@ -318,33 +304,7 @@ export function AuthModal({
         </div>
       )}
 
-      {mode === "agent" ? (
-        <div className="space-y-4">
-          <Input
-            label="Agent username or email"
-            placeholder="john or john@betese.com"
-            value={agentId}
-            onChange={(e) => setAgentId(e.target.value)}
-          />
-          <Input
-            label="Password"
-            type="password"
-            value={agentPassword}
-            onChange={(e) => setAgentPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && loginAgent()}
-          />
-          <Button className="w-full" onClick={loginAgent} disabled={busy}>
-            {busy ? "Signing in…" : "Agent sign in"}
-          </Button>
-          <button
-            type="button"
-            onClick={() => setMode("login")}
-            className="block w-full text-center text-xs text-slate-400 hover:text-emerald-300"
-          >
-            Back to player sign in
-          </button>
-        </div>
-      ) : mode === "complete" ? (
+      {mode === "complete" ? (
         <div className="space-y-4">
           <Input label="Full Name" value={name} onChange={(e) => setName(e.target.value)} />
           <CustomerPhoneFields
@@ -447,7 +407,7 @@ export function AuthModal({
         </div>
       )}
 
-      {mode !== "complete" && mode !== "agent" && (
+      {mode !== "complete" && (
         <>
           <div className="my-4 flex items-center gap-3 text-xs text-slate-500">
             <div className="h-px flex-1 bg-white/10" />
@@ -457,29 +417,10 @@ export function AuthModal({
           <Button variant="secondary" className="w-full" onClick={loginGoogle} disabled={busy}>
             Continue with Google
           </Button>
-          <button
-            type="button"
-            onClick={() => setMode("agent")}
-            className="mt-4 flex w-full items-center justify-center gap-1.5 text-xs text-slate-400 hover:text-emerald-300"
-          >
-            <Briefcase size={13} /> Agent sign in
-          </button>
         </>
       )}
 
       <div id="auth-modal-recaptcha" />
     </Modal>
   );
-}
-
-export async function loginAgentAccount(agentId: string, agentPassword: string) {
-  if (agentId.includes("@")) {
-    await signInWithEmailAndPassword(auth, agentId.trim().toLowerCase(), agentPassword);
-  } else {
-    const { token } = await agentLogin({
-      username: agentId.trim().toLowerCase(),
-      password: agentPassword,
-    });
-    await signInWithCustomToken(auth, token);
-  }
 }

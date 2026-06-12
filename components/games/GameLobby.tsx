@@ -69,7 +69,7 @@ export function GameLobby() {
 
       {/* section heading */}
       <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2">
-        <h2 className="text-sm font-black uppercase tracking-widest text-betese-yellow">
+        <h2 className="text-sm font-black uppercase tracking-widest text-[var(--lobby-accent)]">
           {sectionTitle}
         </h2>
         <span className="text-xs text-slate-500">{filtered.length} available</span>

@@ -19,7 +19,7 @@ export function LobbySearchBar({ value, onChange }: Props) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Games, providers, types and more"
-        className="w-full rounded-xl border border-white/10 bg-black py-3 pl-11 pr-10 text-sm text-white placeholder:text-slate-500 focus:border-betese-yellow/50 focus:outline-none focus:ring-1 focus:ring-betese-yellow/30"
+        className="w-full rounded-xl border border-white/10 bg-black py-3 pl-11 pr-10 text-sm text-white placeholder:text-slate-500 focus:border-[color-mix(in_srgb,var(--lobby-accent)_50%,transparent)] focus:outline-none focus:ring-1 focus:ring-[color-mix(in_srgb,var(--lobby-accent)_30%,transparent)]"
       />
       {value && (
         <button

@@ -57,7 +57,7 @@ export function GameLobbyCard({ game }: { game: Game }) {
   return (
     <Link
       href={gamePlayPath(game)}
-      className="group block overflow-hidden rounded-xl bg-[#1a1a1a] ring-1 ring-white/5 transition-all hover:-translate-y-0.5 hover:ring-betese-yellow/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-betese-yellow"
+      className="group block overflow-hidden rounded-xl bg-[#1a1a1a] ring-1 ring-white/5 transition-all hover:-translate-y-0.5 hover:ring-[color-mix(in_srgb,var(--lobby-accent)_40%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lobby-accent)]"
     >
       {/* game artwork — tall tile like casino lobby */}
       <div className={`relative aspect-[4/3] overflow-hidden bg-gradient-to-br ${visual.gradient}`}>
@@ -80,7 +80,7 @@ export function GameLobbyCard({ game }: { game: Game }) {
 
       {/* title bar — gold name + provider like reference */}
       <div className="border-t border-white/5 bg-[#141414] px-2.5 py-2 sm:px-3 sm:py-2.5">
-        <p className="truncate text-sm font-bold text-betese-yellow group-hover:text-yellow-300">
+        <p className="truncate text-sm font-bold text-[var(--lobby-accent)] group-hover:brightness-125">
           {game.name}
         </p>
         <p className="truncate text-[11px] font-medium uppercase tracking-wide text-slate-500">
