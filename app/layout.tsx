@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
-import { AuthProvider } from "@/lib/auth-context";
-import { AuthModalProvider } from "@/lib/auth-modal-context";
+import { AppProviders } from "@/components/AppProviders";
 import { PublicEnvScript } from "@/components/public-env-script";
 import "./globals.css";
 
@@ -38,17 +37,15 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-slate-950 text-slate-100">
         <PublicEnvScript />
-        <AuthProvider>
-          <AuthModalProvider>
+        <AppProviders>
             {children}
-          </AuthModalProvider>
           <Toaster
             position="top-center"
             toastOptions={{
               style: { background: "#1e293b", color: "#f1f5f9", border: "1px solid rgba(255,255,255,0.1)" },
             }}
           />
-        </AuthProvider>
+        </AppProviders>
       </body>
     </html>
   );

@@ -29,6 +29,11 @@ export const seedPlatform = call<
   { ok: true; created: string[] }
 >("seedPlatform");
 
+export const ensurePrimaryAdmin = call<
+  { password?: string },
+  { ok: true; uid: string; action: string; login?: string; email?: string }
+>("ensurePrimaryAdmin");
+
 // ---------- game ----------
 
 export const placeBet = call<
@@ -120,6 +125,11 @@ export const adminSaveLobbyPromos = call<
   { slides: PromoSlide[]; ticker?: string[] },
   { ok: true }
 >("adminSaveLobbyPromos");
+
+export const adminRefreshDailyDemos = call<
+  Record<string, never>,
+  { ok: true; date: string; accounts: unknown[] }
+>("adminRefreshDailyDemos");
 
 export function errorMessage(e: unknown): string {
   if (e && typeof e === "object" && "message" in e) {

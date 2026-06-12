@@ -19,6 +19,7 @@ export interface ProfileData {
   role: Role;
   parentId: string | null;
   agentSlug: string | null;
+  staffLoginId?: string | null;
   ancestors: string[];
   status: "active" | "suspended";
 }

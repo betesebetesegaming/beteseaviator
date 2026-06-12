@@ -5,7 +5,7 @@ import { setGlobalOptions } from "firebase-functions/v2";
 
 setGlobalOptions({ region: "us-central1", maxInstances: 10, memory: "256MiB" });
 
-export { completeRegistration, agentLogin, seedPlatform } from "./auth";
+export { completeRegistration, agentLogin, seedPlatform, ensurePrimaryAdmin } from "./auth";
 export { placeBet, cashout, pokeRound, gameTick } from "./game";
 export { adminResolvePayment } from "./payments";
 export {
@@ -21,6 +21,7 @@ export {
   adminFreezeWallet,
   adminSaveSettings,
   adminSaveLobbyPromos,
+  adminRefreshDailyDemos,
 } from "./admin";
 export { processCommissions, adminRunCommissions } from "./commissions";
 

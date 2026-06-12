@@ -36,7 +36,7 @@ export function StaffLoginForm() {
       <Input
         label="Username or email"
         autoComplete="username"
-        placeholder="john or admin@betese.com"
+        placeholder="admin, john, or admin@betese.com"
         value={id}
         onChange={(e) => setId(e.target.value)}
       />

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
 import { Copy, LogIn, UserCircle2, ExternalLink } from "lucide-react";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { useAuthModal } from "@/lib/auth-modal-context";
 import { errorMessage } from "@/lib/api";
 import { phoneToEmail } from "@/lib/format";
@@ -23,6 +24,20 @@ async function copyText(text: string, label: string) {
 export function DemoAccountsPanel() {
   const { openAuth } = useAuthModal();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [demoDate, setDemoDate] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<DemoAccount[]>(DEMO_ACCOUNTS);
+
+  useEffect(() => {
+    return onSnapshot(doc(db, "settings", "demoAccounts"), (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const list = data.accounts as DemoAccount[] | undefined;
+      if (list?.length) {
+        setAccounts(list);
+        setDemoDate(typeof data.date === "string" ? data.date : null);
+      }
+    });
+  }, []);
 
   async function quickLogin(account: DemoAccount) {
     setBusyId(account.id);
@@ -37,7 +52,11 @@ export function DemoAccountsPanel() {
     }
   }
 
-  const customers = DEMO_ACCOUNTS.filter((a) => a.role === "Customer");
+  const customers = accounts.filter((a) => a.role === "Customer");
+  const agentDemos =
+    accounts.filter((a) => a.role.toLowerCase().includes("agent")).length > 0
+      ? accounts.filter((a) => a.role.toLowerCase().includes("agent"))
+      : DEMO_ACCOUNTS.filter((a) => a.role.includes("agent"));
 
   return (
     <section className="rounded-2xl border border-[color-mix(in_srgb,var(--lobby-accent)_15%,transparent)] bg-[#111] p-5 sm:p-6">
@@ -50,6 +69,9 @@ export function DemoAccountsPanel() {
           <p className="mt-1 max-w-xl text-sm text-slate-400">
             One-click demo login or sign in manually with phone + password. All demo wallets use
             play money (GMD).
+            {demoDate ? (
+              <span className="mt-1 block text-emerald-400/90">Today&apos;s demos · {demoDate}</span>
+            ) : null}
           </p>
         </div>
         <button
@@ -129,7 +151,7 @@ export function DemoAccountsPanel() {
           Agents sign in on their own dashboard — not from the player lobby.
         </p>
         <ul className="mt-3 space-y-2 text-sm text-slate-400">
-          {DEMO_ACCOUNTS.filter((a) => a.role.includes("agent")).map((a) => (
+          {agentDemos.map((a) => (
             <li key={a.id} className="flex flex-wrap items-center justify-between gap-2">
               <span>
                 <strong className="text-slate-200">{a.label}</strong> — login{" "}

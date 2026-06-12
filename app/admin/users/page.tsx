@@ -134,6 +134,7 @@ export default function AdminUsersPage() {
   }
 
   const isAgentRole = form.role === "super_agent" || form.role === "sub_agent";
+  const isStaffRole = isAgentRole || form.role === "admin";
 
   return (
     <div>
@@ -269,9 +270,13 @@ export default function AdminUsersPage() {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           )}
-          {isAgentRole && (
+          {isStaffRole && (
             <Input
-              label="Username (creates paul.beteseaviator.com automatically — blank = from name)"
+              label={
+                form.role === "admin"
+                  ? "Staff login ID (sign in at /admin/login — e.g. admin)"
+                  : "Username (creates paul.beteseaviator.com automatically — blank = from name)"
+              }
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
             />

@@ -7,6 +7,7 @@ import {
   normalizePhone,
   phoneToEmail,
   requireAuth,
+  requireRole,
   DEFAULT_SETTINGS,
   type ProfileData,
   type Role,
@@ -112,13 +113,21 @@ export const agentLogin = onCall(async (req) => {
     throw new HttpsError("invalid-argument", "Username and password are required.");
   }
 
-  const snap = await db
-    .collection("users")
-    .where("agentSlug", "==", username)
-    .limit(1)
-    .get();
-  if (snap.empty) throw new HttpsError("not-found", "Invalid credentials.");
-  const userDoc = snap.docs[0];
+  let userDoc: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot | null = null;
+
+  const staffSnap = await db.doc(`staffLogins/${username}`).get();
+  if (staffSnap.exists) {
+    userDoc = await db.doc(`users/${staffSnap.data()!.uid}`).get();
+  } else {
+    const snap = await db
+      .collection("users")
+      .where("agentSlug", "==", username)
+      .limit(1)
+      .get();
+    if (!snap.empty) userDoc = snap.docs[0];
+  }
+
+  if (!userDoc?.exists) throw new HttpsError("not-found", "Invalid credentials.");
   const profile = userDoc.data() as ProfileData;
   if (profile.status !== "active") throw new HttpsError("permission-denied", "Account suspended.");
   if (!profile.email) throw new HttpsError("failed-precondition", "Account has no email login.");
@@ -135,6 +144,93 @@ export const agentLogin = onCall(async (req) => {
 
   const token = await auth.createCustomToken(userDoc.id);
   return { token };
+});
+
+const PRIMARY_STAFF_LOGIN = "admin";
+const PRIMARY_ADMIN_EMAIL = "admin@beteseaviator.com";
+
+/** Creates or updates the primary admin (login: admin). Callable once without auth, then admin-only. */
+export const ensurePrimaryAdmin = onCall(async (req) => {
+  const password = String(req.data?.password ?? "gpassword@@");
+  if (password.length < 8) {
+    throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
+  }
+
+  const staffSnap = await db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`).get();
+  if (staffSnap.exists) {
+    await requireRole(req, ["admin"]);
+    const uid = staffSnap.data()!.uid as string;
+    await auth.updateUser(uid, { password });
+    return { ok: true, uid, action: "password_updated" };
+  }
+
+  const anyAdmin = await db.collection("users").where("role", "==", "admin").limit(1).get();
+  if (!anyAdmin.empty) {
+    try {
+      await requireRole(req, ["admin"]);
+    } catch {
+      throw new HttpsError(
+        "permission-denied",
+        "An admin exists but staff login is not configured. Sign in with email first."
+      );
+    }
+    const uid = anyAdmin.docs[0].id;
+    const profile = anyAdmin.docs[0].data() as ProfileData;
+    await auth.updateUser(uid, { password });
+    await db.doc(`users/${uid}`).set(
+      {
+        staffLoginId: PRIMARY_STAFF_LOGIN,
+        email: profile.email ?? PRIMARY_ADMIN_EMAIL,
+      },
+      { merge: true }
+    );
+    await db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`).set({ uid, role: "admin" });
+    return { ok: true, uid, action: "linked_existing_admin" };
+  }
+
+  let uid: string;
+  try {
+    const u = await auth.createUser({
+      email: PRIMARY_ADMIN_EMAIL,
+      password,
+      displayName: "BETESE Admin",
+    });
+    uid = u.uid;
+  } catch (e: unknown) {
+    if ((e as { code?: string }).code === "auth/email-already-exists") {
+      uid = (await auth.getUserByEmail(PRIMARY_ADMIN_EMAIL)).uid;
+      await auth.updateUser(uid, { password, displayName: "BETESE Admin" });
+    } else {
+      throw e;
+    }
+  }
+
+  await auth.setCustomUserClaims(uid, { role: "admin" });
+  const batch = db.batch();
+  batch.set(db.doc(`users/${uid}`), {
+    name: "BETESE Admin",
+    email: PRIMARY_ADMIN_EMAIL,
+    phone: null,
+    role: "admin",
+    parentId: null,
+    agentSlug: null,
+    staffLoginId: PRIMARY_STAFF_LOGIN,
+    ancestors: [],
+    status: "active",
+    stats: {},
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  batch.set(db.doc(`wallets/${uid}`), {
+    balance: 0,
+    bonusBalance: 0,
+    currency: "GMD",
+    frozen: false,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  batch.set(db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`), { uid, role: "admin" });
+  batch.set(db.doc("settings/platform"), DEFAULT_SETTINGS, { merge: true });
+  await batch.commit();
+  return { ok: true, uid, action: "created", login: PRIMARY_STAFF_LOGIN, email: PRIMARY_ADMIN_EMAIL };
 });
 
 /**
@@ -163,6 +259,7 @@ export const seedPlatform = onCall(async (req) => {
     name: string;
     role: Role;
     slug?: string;
+    staffLoginId?: string;
     parentId?: string | null;
     ancestors?: string[];
     balance?: number;
@@ -192,6 +289,7 @@ export const seedPlatform = onCall(async (req) => {
       role: opts.role,
       parentId: opts.parentId ?? null,
       agentSlug: opts.slug ?? null,
+      staffLoginId: opts.staffLoginId ?? null,
       ancestors: opts.ancestors ?? [],
       status: "active",
       stats: {},
@@ -211,6 +309,9 @@ export const seedPlatform = onCall(async (req) => {
         active: true,
       });
     }
+    if (opts.staffLoginId) {
+      batch.set(db.doc(`staffLogins/${opts.staffLoginId}`), { uid, role: opts.role });
+    }
     if (opts.phone) {
       batch.set(db.doc(`phones/${opts.phone}`), { uid });
     }
@@ -224,6 +325,7 @@ export const seedPlatform = onCall(async (req) => {
     password: adminPassword,
     name: "BETESE Admin",
     role: "admin",
+    staffLoginId: PRIMARY_STAFF_LOGIN,
   });
   created.push("admin");
 

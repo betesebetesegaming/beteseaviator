@@ -6,8 +6,10 @@ import {
   normalizePhone,
   requireRole,
   round2,
+  todayIso,
   walletRead,
   walletWrite,
+  phoneToEmail,
   type ProfileData,
   type Role,
 } from "./helpers";
@@ -83,6 +85,7 @@ export const adminCreateUser = onCall(async (req) => {
       role,
       parentId: role === "sub_agent" ? parentId : null,
       agentSlug: slug,
+      staffLoginId: role === "admin" && username ? username.toLowerCase().trim() : null,
       ancestors,
       status: "active",
       stats: {},
@@ -97,6 +100,9 @@ export const adminCreateUser = onCall(async (req) => {
     });
     if (role !== "admin") {
       batch.set(db.doc("stats/platform"), { agentCount: FieldValue.increment(1) }, { merge: true });
+    }
+    if (role === "admin" && username) {
+      batch.set(db.doc(`staffLogins/${username.toLowerCase().trim()}`), { uid, role: "admin" });
     }
     if (role === "sub_agent" && parentId) {
       batch.set(
@@ -318,4 +324,80 @@ export const adminSaveLobbyPromos = onCall(async (req) => {
     { merge: true }
   );
   return { ok: true };
+});
+
+/** Refresh today's customer demo accounts (new phones + reset balances). */
+export const adminRefreshDailyDemos = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const date = todayIso();
+  const mmdd = date.slice(5).replace("-", "");
+  const password = "password";
+  const demoDefs = [
+    { id: "customer-1", label: "Demo Player 1", phone: `301${mmdd}`, balance: 10_000 },
+    { id: "customer-2", label: "Demo Player 2", phone: `302${mmdd}`, balance: 5_000 },
+  ];
+
+  const accounts: Record<string, unknown>[] = [];
+
+  for (const demo of demoDefs) {
+    const authEmail = phoneToEmail(demo.phone);
+    let uid: string;
+    try {
+      const u = await auth.createUser({ email: authEmail, password, displayName: demo.label });
+      uid = u.uid;
+      await auth.setCustomUserClaims(uid, { role: "player" });
+      await db.doc(`users/${uid}`).set({
+        name: demo.label,
+        email: null,
+        phone: demo.phone,
+        role: "player",
+        parentId: null,
+        agentSlug: null,
+        ancestors: [],
+        status: "active",
+        stats: {},
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      await db.doc(`phones/${demo.phone}`).set({ uid });
+    } catch (e: unknown) {
+      if ((e as { code?: string }).code !== "auth/email-already-exists") throw e;
+      uid = (await auth.getUserByEmail(authEmail)).uid;
+      await auth.updateUser(uid, { password });
+    }
+
+    await db.runTransaction(async (tx) => {
+      const wallet = await walletRead(tx, uid);
+      const current = round2(wallet.balance);
+      if (current !== demo.balance) {
+        walletWrite(tx, wallet, {
+          uid,
+          amount: demo.balance - current,
+          type: "deposit",
+          description: `Daily demo reset ${date}`,
+          meta: { demo: true, demoDate: date },
+          ignoreFrozen: true,
+        });
+      }
+    });
+
+    accounts.push({
+      id: demo.id,
+      label: demo.label,
+      role: "Customer",
+      login: demo.phone,
+      loginHint: "Phone number at sign-in",
+      password,
+      balance: `${demo.balance.toLocaleString()} GMD`,
+      description: `Today's demo account (${date}). Resets daily.`,
+    });
+  }
+
+  await db.doc("settings/demoAccounts").set({
+    date,
+    password,
+    accounts,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return { ok: true, date, accounts };
 });
