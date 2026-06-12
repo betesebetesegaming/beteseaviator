@@ -6,7 +6,7 @@ import { subscribeDeposits } from "@/lib/payments/rtdbClient";
 import type { RtdbDepositRecord } from "@/lib/payments/rtdbRecords";
 import { RECONCILE_INTERVAL_MS, sweepPendingDeposits } from "@/lib/payments/reconcileDeposits";
 
-/** Background sweep: reconcile ModemPay deposits stuck Pending after 30s. */
+/** Background sweep: reconcile ModemPay deposits Pending for up to 30s, then server expires them. */
 export function PendingDepositReconciler() {
   const { fbUser } = useAuth();
   const lastTried = useRef(new Map<string, number>());

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "@/lib/auth-context";
 import { subscribeActiveGames } from "@/lib/games/api";
 import {
   filterGamesByLobbyCategory,
@@ -10,7 +9,6 @@ import {
 } from "@/lib/games/promotions";
 import type { Game } from "@/lib/types";
 import { EmptyState, Spinner } from "@/components/ui";
-import { DemoAccountsPanel } from "./DemoAccountsPanel";
 import { GameLobbyCard } from "./GameLobbyCard";
 import { LobbyCategoryNav } from "./LobbyCategoryNav";
 import { LobbySearchBar } from "./LobbySearchBar";
@@ -29,8 +27,6 @@ function searchGames(games: Game[], query: string): Game[] {
 }
 
 export function GameLobby() {
-  const { profile } = useAuth();
-  const isPlayer = profile?.role === "player";
   const [games, setGames] = useState<Game[] | null>(null);
   const [category, setCategory] = useState<LobbyNavCategory>("aviator");
   const [search, setSearch] = useState("");
@@ -91,13 +87,6 @@ export function GameLobby() {
           {filtered.map((game) => (
             <GameLobbyCard key={game.id} game={game} />
           ))}
-        </div>
-      )}
-
-      {/* demo accounts */}
-      {!isPlayer && (
-        <div id="demo-accounts" className="scroll-mt-24 pt-4">
-          <DemoAccountsPanel />
         </div>
       )}
     </div>

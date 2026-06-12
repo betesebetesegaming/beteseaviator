@@ -23,17 +23,6 @@ export const agentLogin = call<
   { email: string }
 >("agentLogin");
 
-/** One-time platform bootstrap: creates admin + demo data when no admin exists yet. */
-export const seedPlatform = call<
-  { adminEmail: string; adminPassword: string; withDemoData: boolean },
-  { ok: true; created: string[] }
->("seedPlatform");
-
-export const ensurePrimaryAdmin = call<
-  { password?: string },
-  { ok: true; uid: string; action: string; login?: string; email?: string }
->("ensurePrimaryAdmin");
-
 // ---------- game ----------
 
 export const placeBet = call<

@@ -1,6 +1,9 @@
 import { apiUrl } from "@/lib/apiUrl";
 import type { RtdbDepositRecord } from "./rtdbRecords";
 
+/** Pending deposits expire after this window — must match server DEPOSIT_PENDING_TTL_MS. */
+export const DEPOSIT_MAX_AGE_MS = 30_000;
+
 /** Wait this long after checkout before first reconcile attempt. */
 export const RECONCILE_AFTER_MS = 20_000;
 
@@ -69,6 +72,8 @@ export function sweepPendingDeposits(
 
     const ageMs = now - parseDepositTimestamp(req);
     if (ageMs < RECONCILE_AFTER_MS) continue;
+    // Past TTL: server scheduler expires these — do not hammer reconcile forever.
+    if (ageMs >= DEPOSIT_MAX_AGE_MS) continue;
 
     const last = lastTried.get(req.id) || 0;
     if (now - last < RECONCILE_THROTTLE_MS) continue;
@@ -94,7 +99,11 @@ export function startDepositReconcilePolling(
 
   const poll = async () => {
     await new Promise((r) => setTimeout(r, RECONCILE_AFTER_MS));
-    while (!stopped && !isSettled() && Date.now() - started < RECONCILE_MAX_MS) {
+    while (
+      !stopped
+      && !isSettled()
+      && Date.now() - started < DEPOSIT_MAX_AGE_MS
+    ) {
       try {
         const result = await reconcileDepositExternalRef(externalRef);
         const status = String(result?.status || "");

@@ -41,11 +41,11 @@ export const PROMO_SLIDES: PromoSlide[] = [
     accent: "text-white",
   },
   {
-    id: "demo",
-    title: "Try demo — 10,000 GMD free",
-    subtitle: "Phone 3010001 · password: password",
-    cta: "See demo accounts",
-    href: "#demo-accounts",
+    id: "welcome",
+    title: "Watch Aviator live — free",
+    subtitle: "Sign up when you're ready to bet for real GMD",
+    cta: "Play now",
+    href: "/play/game/aviator",
     gradient: "from-red-700 via-rose-900 to-black",
     accent: "text-betese-yellow",
   },
@@ -55,7 +55,7 @@ export const PROMO_TICKER: string[] = [
   "✈️ Aviator — cash out before the crash",
   "💰 Instant Wave & AfriMoney deposits",
   "🔥 Aviator Turbo — faster rounds, up to x200",
-  "🎁 Demo players: 10,000 GMD play money",
+  "🎁 Watch live for free — sign up to bet for real",
 ];
 
 export type LobbyNavCategory = "aviator" | "crash";

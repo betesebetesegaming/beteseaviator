@@ -29,3 +29,6 @@ export { getOperationsHub } from "./operations";
 
 /** ModemPay — same handlers as betesepmu (single Cloud Function to save quota). */
 export { modempayApi } from "./modempayApi";
+
+/** Expire abandoned ModemPay deposits stuck in Pending after 30 seconds. */
+export { expireStaleDeposits } from "./depositExpiry";

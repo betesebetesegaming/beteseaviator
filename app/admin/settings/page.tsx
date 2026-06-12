@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { adminSaveSettings, adminRefreshDailyDemos, ensurePrimaryAdmin, errorMessage } from "@/lib/api";
+import { adminSaveSettings, errorMessage } from "@/lib/api";
 import {
   DEFAULT_SETTINGS,
   PROVIDER_LABELS,
@@ -19,7 +19,6 @@ import { Button, Card, Input } from "@/components/ui";
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [busy, setBusy] = useState(false);
-  const [opsBusy, setOpsBusy] = useState<string | null>(null);
 
   useEffect(() => {
     return onSnapshot(doc(db, "settings", "platform"), (snap) => {
@@ -66,30 +65,6 @@ export default function AdminSettingsPage() {
       toast.error(errorMessage(e));
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function runEnsureAdmin() {
-    setOpsBusy("admin");
-    try {
-      const res = await ensurePrimaryAdmin({ password: "Betese123" });
-      toast.success(`Staff login ready: ${res.login ?? "admin"} (${res.action})`);
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setOpsBusy(null);
-    }
-  }
-
-  async function runRefreshDemos() {
-    setOpsBusy("demos");
-    try {
-      const res = await adminRefreshDailyDemos({});
-      toast.success(`Today's demo accounts refreshed (${res.date})`);
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setOpsBusy(null);
     }
   }
 
@@ -173,32 +148,6 @@ export default function AdminSettingsPage() {
               />
             </label>
           ))}
-        </div>
-      </Card>
-
-      <Card className="mb-6">
-        <h2 className="mb-1 font-semibold">Staff & demo operations</h2>
-        <p className="mb-4 text-sm text-slate-400">
-          Primary admin signs in at <strong className="text-white">/admin/login</strong> with username{" "}
-          <code className="rounded bg-slate-800 px-1">admin</code> and password{" "}
-          <code className="rounded bg-slate-800 px-1">Betese123</code>. Refresh customer demos each
-          morning so lobby test phones match today.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <Button
-            variant="secondary"
-            disabled={opsBusy !== null}
-            onClick={runEnsureAdmin}
-          >
-            {opsBusy === "admin" ? "Working…" : "Set up admin login (admin)"}
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={opsBusy !== null}
-            onClick={runRefreshDemos}
-          >
-            {opsBusy === "demos" ? "Refreshing…" : "Refresh today's demo accounts"}
-          </Button>
         </div>
       </Card>
 

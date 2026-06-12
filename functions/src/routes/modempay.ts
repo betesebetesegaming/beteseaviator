@@ -20,6 +20,14 @@ import {
   syncAviatorWalletRefund,
 } from '../walletSync';
 import {
+  DEPOSIT_PENDING_TTL_MS,
+  expireCustomerStaleDeposits,
+  expireDepositIfStale,
+  isDepositCreditEligible,
+  isDepositPastTtl,
+  depositCreatedAt,
+} from '../depositExpiry';
+import {
   patchDepositOnRtdb,
   syncCheckoutToRtdb,
   syncDepositToRtdb,
@@ -75,6 +83,12 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
   }
 
   try {
+    if (body.customerId) {
+      await expireCustomerStaleDeposits(body.customerId).catch((err) =>
+        logger.warn('expireCustomerStaleDeposits failed', { customerId: body.customerId, err }),
+      );
+    }
+
     const result = await createCheckoutSession({
       method: provider as ModemPayMethod,
       amount,
@@ -571,6 +585,11 @@ async function processModemPayEvent(event: ModemPayEvent): Promise<void> {
         });
         return;
       }
+      const expireResult = await expireDepositIfStale(ref);
+      if (expireResult === 'expired' || expireResult === 'already_terminal') {
+        logger.warn(`${eventType} ignored — deposit expired or terminal`, { ref, expireResult });
+        return;
+      }
       await markDepositCompleted(ref, payload);
       return;
     }
@@ -705,8 +724,15 @@ async function findPendingCheckoutByHints(payload: Record<string, unknown>): Pro
   const amount = Number(payload.amount || 0);
   const phone = String(payload.customer_phone || payload.account_number || '').replace(/\D/g, '').replace(/^220/, '');
   const intentId = String(payload.payment_intent_id || payload.payment_intentId || payload.id || '').trim();
+  const payloadCustomerId = String(
+    payload.customer_id
+    || (payload.metadata as Record<string, unknown> | undefined)?.customer_id
+    || '',
+  ).trim();
+  const ttlCutoff = new Date(Date.now() - DEPOSIT_PENDING_TTL_MS).toISOString();
   const pending = await adminDb.collection('modempay_checkouts')
     .where('status', '==', 'pending')
+    .where('created_at', '>=', ttlCutoff)
     .orderBy('created_at', 'desc')
     .limit(25)
     .get()
@@ -718,9 +744,12 @@ async function findPendingCheckoutByHints(payload: Record<string, unknown>): Pro
     const data = doc.data() as {
       amount?: number;
       customer_phone?: string;
+      customer_id?: string | null;
       session_id?: string;
       payment_intent_id?: string;
+      created_at?: string;
     };
+    if (payloadCustomerId && data.customer_id && data.customer_id !== payloadCustomerId) continue;
     // Skip only if THIS checkout was already linked to a DIFFERENT intent id —
     // we set session_id at creation to the same id ModemPay returns, so a
     // matching session_id is a positive signal, not a reason to skip.
@@ -734,6 +763,19 @@ async function findPendingCheckoutByHints(payload: Record<string, unknown>): Pro
 }
 
 async function markDepositCompleted(externalRef: string, payload: Record<string, unknown>) {
+  const preCheckoutSnap = await adminDb.collection('modempay_checkouts').doc(externalRef).get();
+  const preDepositSnap = await adminDb.collection('deposit_requests').doc(externalRef).get();
+  const preCheckout = preCheckoutSnap.exists ? preCheckoutSnap.data() : null;
+  const preDeposit = preDepositSnap.exists ? preDepositSnap.data() : null;
+
+  if (!isDepositCreditEligible(preCheckout, preDeposit)) {
+    if (isDepositPastTtl(depositCreatedAt(preCheckout, preDeposit))) {
+      await expireDepositIfStale(externalRef);
+    }
+    logger.warn('markDepositCompleted: deposit not credit eligible', { externalRef });
+    return;
+  }
+
   const payloadAmount = Number(payload.amount ?? payload.paid_amount ?? payload.total_amount ?? 0);
   let customerId: string | undefined;
   const completedAt = new Date().toISOString();
@@ -765,6 +807,8 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
           customer_name?: string | null;
           customer_phone?: string | null;
           method?: string;
+          created_at?: string;
+          credit_blocked?: boolean;
         }
       : null;
 
@@ -775,6 +819,8 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
           customer_id?: string;
           customer_name?: string;
           method?: string;
+          timestamp?: string;
+          credit_blocked?: boolean;
         }
       : null;
 
@@ -785,6 +831,14 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
 
     if (checkout?.status === 'completed') return;
     if (depositReq?.status === 'Approved') return;
+    if (depositReq?.status === 'Rejected' || checkout?.credit_blocked || depositReq?.credit_blocked) {
+      logger.warn('markDepositCompleted: credit blocked inside transaction', { externalRef });
+      return;
+    }
+    if (isDepositPastTtl(depositCreatedAt(checkout, depositReq))) {
+      logger.warn('markDepositCompleted: deposit past TTL inside transaction', { externalRef });
+      return;
+    }
 
     const creditAmount = Number(
       (payloadAmount > 0 ? payloadAmount : checkout?.amount ?? depositReq?.amount) || 0,
@@ -1094,6 +1148,7 @@ async function markDepositFailed(externalRef: string, reason: string, payload: R
     failure_reason: reason,
     raw_payload: payload,
     failed_at: failedAt,
+    credit_blocked: true,
   }, { merge: true }).catch(err => logger.warn('Failed to mark deposit failed', err));
 
   const depositSnap = await adminDb.collection('deposit_requests').doc(externalRef).get();
@@ -1110,6 +1165,7 @@ async function markDepositFailed(externalRef: string, reason: string, payload: R
     verification_source: 'webhook',
     verification_message: reason,
     verified_at: failedAt,
+    credit_blocked: true,
   }, { merge: true }).catch(err => logger.warn('Failed to mark deposit request failed', err));
 
   await patchDepositOnRtdb(externalRef, customerId, {
@@ -1251,6 +1307,12 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
   }
 
   try {
+    const expireResult = await expireDepositIfStale(externalRef);
+    if (expireResult === 'expired') {
+      res.json({ ok: true, status: 'Rejected', expired: true });
+      return;
+    }
+
     const checkoutSnap = await adminDb.collection('modempay_checkouts').doc(externalRef).get();
     if (!checkoutSnap.exists) {
       res.status(404).json({ error: 'Checkout not found for externalRef' });
@@ -1330,6 +1392,12 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
         res.json({ ok: true, status: newStatus, replayed: true });
         return;
       }
+    }
+
+    const lateExpire = await expireDepositIfStale(externalRef);
+    if (lateExpire === 'expired') {
+      res.json({ ok: true, status: 'Rejected', expired: true });
+      return;
     }
 
     res.json({ ok: true, status: depositStatus, checkoutStatus });

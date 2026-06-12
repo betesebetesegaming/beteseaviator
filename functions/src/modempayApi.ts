@@ -1,6 +1,7 @@
 import express from "express";
 import { onRequest } from "firebase-functions/v2/https";
 import { applyPaymentCors, PAYMENT_HTTP_ORIGINS } from "./corsMiddleware";
+import { expireStaleDepositsHandler } from "./depositExpiry";
 import {
   checkoutHandler,
   wavePaymentHandler,
@@ -46,6 +47,7 @@ app.post("/modempay-refund", (req, res) => void refundHandler(req, res));
 app.get("/modempay-balances", (req, res) => void balancesHandler(req, res));
 app.get("/modempay-transactions/:id", (req, res) => void transactionHandler(req, res));
 app.post("/modempay-reconcile-deposit", (req, res) => void reconcileDepositHandler(req, res));
+app.post("/modempay-expire-stale-deposits", (req, res) => void expireStaleDepositsHandler(req, res));
 
 export const modempayApi = onRequest(
   {
