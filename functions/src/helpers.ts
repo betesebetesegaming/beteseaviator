@@ -40,6 +40,12 @@ export const DEFAULT_SETTINGS = {
   minWithdrawal: 500,
   minAutoCashout: 1.01,
   maxAutoCashout: 100,
+  /** Must bet this fraction of recent deposits before free withdrawal (0.8 = 80%). */
+  depositPlaythroughRate: 0.8,
+  /** Fee on withdrawal before play-through is met (0.15 = 15%). */
+  earlyWithdrawalFeeRate: 0.15,
+  /** Bonus must be wagered this many times before it becomes cash. */
+  bonusWagerMultiplier: 3,
   providers: { wave: true, afrimoney: true, aps: true, qmoney: true } as Record<string, boolean>,
   bonuses: {
     firstDeposit: { enabled: true, percent: 0.5, maxAmount: 500, minDeposit: 100 },
@@ -173,21 +179,54 @@ interface MoveMoneyArgs {
 export async function walletRead(
   tx: FirebaseFirestore.Transaction,
   uid: string
-): Promise<{ balance: number; bonusBalance: number; frozen: boolean; exists: boolean }> {
+): Promise<{
+  balance: number;
+  bonusBalance: number;
+  frozen: boolean;
+  exists: boolean;
+  pendingDepositTotal: number;
+  depositWagerProgress: number;
+  bonusWagerRequired: number;
+  bonusWagerProgress: number;
+}> {
   const snap = await tx.get(db.doc(`wallets/${uid}`));
-  if (!snap.exists) return { balance: 0, bonusBalance: 0, frozen: false, exists: false };
+  if (!snap.exists) {
+    return {
+      balance: 0,
+      bonusBalance: 0,
+      frozen: false,
+      exists: false,
+      pendingDepositTotal: 0,
+      depositWagerProgress: 0,
+      bonusWagerRequired: 0,
+      bonusWagerProgress: 0,
+    };
+  }
   const data = snap.data()!;
   return {
     balance: Number(data.balance ?? 0),
     bonusBalance: Number(data.bonusBalance ?? 0),
     frozen: Boolean(data.frozen),
     exists: true,
+    pendingDepositTotal: Number(data.pendingDepositTotal ?? 0),
+    depositWagerProgress: Number(data.depositWagerProgress ?? 0),
+    bonusWagerRequired: Number(data.bonusWagerRequired ?? 0),
+    bonusWagerProgress: Number(data.bonusWagerProgress ?? 0),
   };
 }
 
 export function walletWrite(
   tx: FirebaseFirestore.Transaction,
-  wallet: { balance: number; bonusBalance: number; frozen: boolean; exists: boolean },
+  wallet: {
+    balance: number;
+    bonusBalance: number;
+    frozen: boolean;
+    exists: boolean;
+    pendingDepositTotal?: number;
+    depositWagerProgress?: number;
+    bonusWagerRequired?: number;
+    bonusWagerProgress?: number;
+  },
   args: MoveMoneyArgs
 ): number {
   const amount = round2(args.amount);

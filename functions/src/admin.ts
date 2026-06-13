@@ -221,6 +221,9 @@ export const adminSaveSettings = onCall(async (req) => {
     "minWithdrawal",
     "minAutoCashout",
     "maxAutoCashout",
+    "depositPlaythroughRate",
+    "earlyWithdrawalFeeRate",
+    "bonusWagerMultiplier",
   ] as const;
   for (const k of numericKeys) {
     if (data[k] !== undefined) {
@@ -234,6 +237,12 @@ export const adminSaveSettings = onCall(async (req) => {
   }
   if ((clean.apiProviderRate as number | undefined) !== undefined && (clean.apiProviderRate as number) > 1) {
     throw new HttpsError("invalid-argument", "API provider rate must be a fraction, e.g. 0.15 = 15%.");
+  }
+  if ((clean.depositPlaythroughRate as number | undefined) !== undefined && (clean.depositPlaythroughRate as number) > 1) {
+    throw new HttpsError("invalid-argument", "Deposit play-through rate must be a fraction, e.g. 0.8 = 80%.");
+  }
+  if ((clean.earlyWithdrawalFeeRate as number | undefined) !== undefined && (clean.earlyWithdrawalFeeRate as number) > 1) {
+    throw new HttpsError("invalid-argument", "Early withdrawal fee must be a fraction, e.g. 0.15 = 15%.");
   }
   if (data.apiProviderRate !== undefined) {
     const rate = Number(data.apiProviderRate);

@@ -22,6 +22,14 @@ import { buildDepositResult, type PaymentResultPayload } from "@/lib/paymentResu
 import { formatSigned, formatDate, formatXof } from "@/lib/format";
 import { subscribePlatformSettings } from "@/lib/games/subscriptions";
 import { mergeBonusSettings } from "@/lib/bonuses";
+import {
+  bonusWageringRemaining,
+  depositPlaythroughMet,
+  depositPlaythroughRequired,
+  depositPlaythroughRemaining,
+  playthroughRates,
+  previewWithdrawal,
+} from "@/lib/playthrough";
 import type { PlatformSettings, WalletTransaction } from "@/lib/types";
 import { DEFAULT_SETTINGS } from "@/lib/types";
 import { PaymentSheet } from "@/components/PaymentSheet";
@@ -164,6 +172,34 @@ export default function WalletPage() {
     }
     if (amt > (wallet?.balance ?? 0)) return toast.error("Insufficient balance.");
 
+    const preview = previewWithdrawal(
+      wallet ?? { balance: 0, bonusBalance: 0, currency: "GMD" as const, frozen: false, updatedAt: null },
+      amt,
+      settings
+    );
+    const { depositRate, earlyFeeRate } = playthroughRates(settings);
+    if (!preview.playthroughMet) {
+      if (preview.payoutAmount < settings.minWithdrawal) {
+        const remaining = depositPlaythroughRemaining(
+          wallet ?? { balance: 0, bonusBalance: 0, currency: "GMD" as const, frozen: false, updatedAt: null },
+          settings
+        );
+        return toast.error(
+          `After the ${Math.round(earlyFeeRate * 100)}% early fee, payout would be below minimum. Play ${formatXof(remaining)} more or withdraw a larger amount.`
+        );
+      }
+      const feePct = Math.round(earlyFeeRate * 100);
+      const bonusNote =
+        preview.bonusForfeited > 0
+          ? ` You will also lose ${formatXof(preview.bonusForfeited)} bonus.`
+          : "";
+      const ok = window.confirm(
+        `You have not played ${Math.round(depositRate * 100)}% of your deposit yet. ` +
+          `A ${feePct}% fee (${formatXof(preview.fee)}) will be deducted and you receive ${formatXof(preview.payoutAmount)}.${bonusNote} Continue?`
+      );
+      if (!ok) return;
+    }
+
     const requestId = `BETESE-WD-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
     const cleanPhone = normalizedPhone.replace(/^\+220/, "").replace(/\D/g, "");
     const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -210,6 +246,16 @@ export default function WalletPage() {
   }
 
   if (!fbUser || !profile) return null;
+
+  const w = wallet ?? { balance: 0, bonusBalance: 0, currency: "GMD" as const, frozen: false, updatedAt: null };
+  const { depositRate, earlyFeeRate, bonusMultiplier } = playthroughRates(settings);
+  const playthroughOk = depositPlaythroughMet(w, settings);
+  const wagerRequired = depositPlaythroughRequired(w, depositRate);
+  const wagerRemaining = depositPlaythroughRemaining(w, settings);
+  const bonusWagerLeft = bonusWageringRemaining(w);
+  const withdrawAmt = Number(withdrawAmount);
+  const withdrawPreview =
+    Number.isFinite(withdrawAmt) && withdrawAmt > 0 ? previewWithdrawal(w, withdrawAmt, settings) : null;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -292,6 +338,31 @@ export default function WalletPage() {
       {tab === "withdraw" && !frozen && (
         <Card>
           <h2 className="mb-4 font-semibold">Withdraw to mobile money</h2>
+
+          {(wagerRequired > 0 || bonusWagerLeft > 0) && (
+            <div className="mb-4 space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+              {wagerRequired > 0 && (
+                <p>
+                  {playthroughOk ? (
+                    <>Deposit play-through complete — free withdrawals unlocked.</>
+                  ) : (
+                    <>
+                      Play <strong>{formatXof(wagerRemaining)}</strong> more ({Math.round(depositRate * 100)}% of{" "}
+                      {formatXof(w.pendingDepositTotal ?? 0)} deposited) to withdraw without a{" "}
+                      {Math.round(earlyFeeRate * 100)}% fee.
+                    </>
+                  )}
+                </p>
+              )}
+              {bonusWagerLeft > 0 && (
+                <p>
+                  Bonus: wager <strong>{formatXof(bonusWagerLeft)}</strong> more ({bonusMultiplier}× rule) to
+                  convert bonus to withdrawable cash.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-4">
             <Select
               label="Provider"
@@ -315,11 +386,21 @@ export default function WalletPage() {
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
             />
+            {withdrawPreview && !withdrawPreview.playthroughMet && (
+              <p className="text-sm text-amber-200">
+                Early withdrawal: {formatXof(withdrawPreview.fee)} fee — you receive{" "}
+                {formatXof(withdrawPreview.payoutAmount)}.
+                {withdrawPreview.bonusForfeited > 0 &&
+                  ` Bonus ${formatXof(withdrawPreview.bonusForfeited)} will be forfeited.`}
+              </p>
+            )}
             <Button className="w-full" disabled={busy} onClick={submitMobileWithdrawal}>
               {busy ? "Processing…" : "Withdraw via ModemPay"}
             </Button>
             <p className="text-xs text-slate-500">
-              Only cash balance can be withdrawn. Bonus balance is for Aviator &amp; Crash bets.
+              Only cash balance can be withdrawn. Bonus balance is for Aviator &amp; Crash bets. Withdrawing
+              before playing {Math.round((settings.depositPlaythroughRate ?? 0.8) * 100)}% of deposits costs a{" "}
+              {Math.round((settings.earlyWithdrawalFeeRate ?? 0.15) * 100)}% fee and forfeits any bonus.
             </p>
           </div>
         </Card>

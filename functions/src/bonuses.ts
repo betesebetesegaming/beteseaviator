@@ -5,6 +5,7 @@ import {
   type Settings,
   walletWrite,
 } from "./helpers";
+import { recordBonusWageringRequirement, playthroughRates, type PlaythroughWallet } from "./wagering";
 
 export type BonusKind = "firstDeposit" | "weeklyCrash" | "weekend";
 
@@ -56,7 +57,7 @@ export function applyDepositBonuses(
   tx: FirebaseFirestore.Transaction,
   args: {
     uid: string;
-    wallet: { balance: number; bonusBalance: number; frozen: boolean; exists: boolean };
+    wallet: PlaythroughWallet;
     depositAmount: number;
     depositRef: string;
     depositAt: Date;
@@ -101,6 +102,8 @@ export function applyDepositBonuses(
         depositAmount: args.depositAmount,
       },
     });
+    const { bonusMultiplier } = playthroughRates(args.settings);
+    recordBonusWageringRequirement(tx, args.uid, args.wallet, bonus.amount, bonusMultiplier);
   }
 
   if (Object.keys(userUpdates).length > 0) {

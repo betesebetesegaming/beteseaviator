@@ -19,6 +19,7 @@ import {
   type ProfileData,
 } from "./helpers";
 import { applyDepositBonuses } from "./bonuses";
+import { applyEarlyWithdrawalPenalties, recordDepositPlaythrough } from "./wagering";
 
 // Per-provider webhook secrets. FAIL CLOSED: while a secret is unset, that
 // provider's webhooks are rejected and nobody can fake a deposit confirmation.
@@ -104,12 +105,29 @@ export const requestWithdrawal = onCall(async (req) => {
   const ref = db.collection("paymentRequests").doc();
   await db.runTransaction(async (tx) => {
     const wallet = await walletRead(tx, uid);
+    const early = applyEarlyWithdrawalPenalties(tx, uid, wallet, amount, settings, ref.id);
+    if (!early.playthroughMet && early.payoutAmount < settings.minWithdrawal) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Payout after early withdrawal fee would be below minimum. Play more or withdraw a larger amount."
+      );
+    }
     walletWrite(tx, wallet, {
       uid,
       amount: -amount,
       type: "withdrawal",
-      description: "Withdrawal",
-      meta: { provider, phone, requestId: ref.id },
+      description: early.playthroughMet
+        ? "Withdrawal"
+        : `Withdrawal — early fee ${early.fee} GMD`,
+      meta: {
+        provider,
+        phone,
+        requestId: ref.id,
+        earlyWithdrawal: !early.playthroughMet,
+        fee: early.fee,
+        payoutAmount: early.payoutAmount,
+        bonusForfeited: early.bonusForfeited,
+      },
     });
     tx.set(ref, {
       userId: uid,
@@ -117,6 +135,10 @@ export const requestWithdrawal = onCall(async (req) => {
       userRole: profile.role,
       type: "withdrawal",
       amount,
+      payoutAmount: early.payoutAmount,
+      earlyWithdrawalFee: early.fee,
+      bonusForfeited: early.bonusForfeited,
+      playthroughMet: early.playthroughMet,
       provider,
       status: "pending",
       providerRef: null,
@@ -155,6 +177,8 @@ async function settleDepositPaid(requestId: string, source: string): Promise<voi
       meta: { requestId, source },
       ignoreFrozen: true,
     });
+
+    recordDepositPlaythrough(tx, r.userId, wallet, r.amount);
 
     applyDepositBonuses(tx, {
       uid: r.userId,

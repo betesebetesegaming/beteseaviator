@@ -32,6 +32,9 @@ export default function AdminSettingsPage() {
           bonuses: mergeBonusSettings(data.bonuses),
           apiProviderName: data.apiProviderName ?? DEFAULT_SETTINGS.apiProviderName,
           apiProviderRate: data.apiProviderRate ?? DEFAULT_SETTINGS.apiProviderRate,
+          depositPlaythroughRate: data.depositPlaythroughRate ?? DEFAULT_SETTINGS.depositPlaythroughRate,
+          earlyWithdrawalFeeRate: data.earlyWithdrawalFeeRate ?? DEFAULT_SETTINGS.earlyWithdrawalFeeRate,
+          bonusWagerMultiplier: data.bonusWagerMultiplier ?? DEFAULT_SETTINGS.bonusWagerMultiplier,
         });
       }
     });
@@ -62,6 +65,12 @@ export default function AdminSettingsPage() {
       return toast.error("Super agent rate must be between 0 and 1 (e.g. 0.03 = 3%).");
     if (settings.apiProviderRate < 0 || settings.apiProviderRate > 1)
       return toast.error("API provider rate must be between 0 and 1 (e.g. 0.15 = 15%).");
+    if ((settings.depositPlaythroughRate ?? 0.8) < 0 || (settings.depositPlaythroughRate ?? 0.8) > 1)
+      return toast.error("Deposit play-through must be between 0 and 1 (e.g. 0.8 = 80%).");
+    if ((settings.earlyWithdrawalFeeRate ?? 0.15) < 0 || (settings.earlyWithdrawalFeeRate ?? 0.15) > 1)
+      return toast.error("Early withdrawal fee must be between 0 and 1 (e.g. 0.15 = 15%).");
+    if ((settings.bonusWagerMultiplier ?? 3) < 1)
+      return toast.error("Bonus wager multiplier must be at least 1.");
     setBusy(true);
     try {
       await adminSaveSettings({ ...settings });
@@ -125,6 +134,34 @@ export default function AdminSettingsPage() {
             type="number"
             step="0.01"
             {...num("superAgentRate")}
+          />
+        </div>
+      </Card>
+
+      <Card className="mb-5">
+        <h2 className="mb-4 font-semibold">Withdrawal &amp; bonus wagering</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Players must wager a fraction of deposits before free withdrawal. Early withdrawal charges a fee and
+          forfeits bonus. Bonus must be wagered multiple times before it becomes cash.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Input
+            label="Deposit play-through (0.8 = 80%)"
+            type="number"
+            step="0.01"
+            {...num("depositPlaythroughRate")}
+          />
+          <Input
+            label="Early withdrawal fee (0.15 = 15%)"
+            type="number"
+            step="0.01"
+            {...num("earlyWithdrawalFeeRate")}
+          />
+          <Input
+            label="Bonus wager multiplier (3 = 3×)"
+            type="number"
+            step="1"
+            {...num("bonusWagerMultiplier")}
           />
         </div>
       </Card>

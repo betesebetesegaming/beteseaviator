@@ -14,7 +14,8 @@ import {
   type ModemPayPayoutNetwork,
 } from '../modempay';
 import { adminDb } from '../adminModem';
-import { db, bumpDailyStats, bumpPlatformStats, getSettings, todayIso, walletRead, walletWrite } from '../helpers';
+import { db, bumpDailyStats, bumpPlatformStats, getSettings, round2, todayIso, walletRead, walletWrite } from '../helpers';
+import { applyEarlyWithdrawalPenalties, evaluateEarlyWithdrawal, parsePlaythroughWallet } from '../wagering';
 import { syncAviatorWalletCredit } from '../walletSync';
 import {
   patchDepositOnRtdb,
@@ -326,9 +327,24 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
       res.status(403).json({ error: 'Wallet is frozen. Contact customer service.' });
       return;
     }
-    if (Number(walletSnap.data()?.balance ?? 0) < amount) {
+    const walletPreview = parsePlaythroughWallet(walletSnap.data(), walletSnap.exists);
+    if (walletPreview.balance < amount) {
       await failWithdrawalWithoutHold(requestId, customerId, 'Insufficient balance.');
       res.status(400).json({ error: 'Insufficient balance.' });
+      return;
+    }
+
+    const earlyPreview = evaluateEarlyWithdrawal(walletPreview, amount, settings);
+    if (!earlyPreview.playthroughMet && earlyPreview.payoutAmount < settings.minWithdrawal) {
+      const remaining = Math.max(
+        0,
+        round2(earlyPreview.requiredWager - earlyPreview.wagerProgress)
+      );
+      const msg =
+        `Play ${remaining} GMD more (${Math.round((settings.depositPlaythroughRate ?? 0.8) * 100)}% of deposits) for a free withdrawal, ` +
+        `or withdraw at least ${Math.ceil(settings.minWithdrawal / (1 - (settings.earlyWithdrawalFeeRate ?? 0.15)))} GMD to cover the early fee.`;
+      await failWithdrawalWithoutHold(requestId, customerId, msg);
+      res.status(400).json({ error: msg });
       return;
     }
 
@@ -336,6 +352,7 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
     const processedById = body.processedById || 'MODEMPAY_PAYOUT';
     const processedByName = body.processedByName || 'ModemPay Payout';
     const payoutLabel = method === 'wave' ? 'Wave' : 'AfriMoney';
+    let payoutAmount = amount;
 
     // Hold cash balance on wallets/{uid} — same ledger the app displays and bets use.
     try {
@@ -351,12 +368,28 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
         if (wallet.frozen) throw new Error('Wallet is frozen.');
         if (wallet.balance < amount) throw new Error('Insufficient balance.');
 
+        const early = applyEarlyWithdrawalPenalties(tx, customerId, wallet, amount, settings, requestId);
+        payoutAmount = early.payoutAmount;
+
+        if (!early.playthroughMet && payoutAmount < settings.minWithdrawal) {
+          throw new Error('Payout after early withdrawal fee is below minimum.');
+        }
+
         walletWrite(tx, wallet, {
           uid: customerId,
           amount: -amount,
           type: 'withdrawal',
-          description: `Withdrawal hold (${requestId})`,
-          meta: { externalRef: requestId, source: 'modempay' },
+          description: early.playthroughMet
+            ? `Withdrawal hold (${requestId})`
+            : `Withdrawal hold — early fee ${early.fee} GMD (${requestId})`,
+          meta: {
+            externalRef: requestId,
+            source: 'modempay',
+            earlyWithdrawal: !early.playthroughMet,
+            fee: early.fee,
+            payoutAmount,
+            bonusForfeited: early.bonusForfeited,
+          },
         });
 
         bumpPlatformStats(tx, { totalWithdrawals: amount });
@@ -371,6 +404,10 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
           processed_by: processedById,
           processed_by_name: processedByName,
           processing_at: new Date().toISOString(),
+          payout_amount: payoutAmount,
+          early_withdrawal_fee: early.fee,
+          bonus_forfeited: early.bonusForfeited,
+          playthrough_met: early.playthroughMet,
         });
       });
       holdCompleted = true;
@@ -391,7 +428,7 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
     }).catch(err => logger.warn('RTDB withdrawal processing sync failed', err));
 
     const result = await createTransfer({
-      amount,
+      amount: payoutAmount,
       recipient: {
         name: recipientName,
         phone: cleanPhone,

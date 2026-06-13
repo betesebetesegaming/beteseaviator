@@ -16,6 +16,7 @@ import {
   bumpPlatformStats,
   bumpAgentGgr,
 } from "./helpers";
+import { applyBetWagering } from "./wagering";
 
 const BETTING_MS = 6_000; // betting window
 const CRASHED_MS = 4_000; // crash display before next round
@@ -343,6 +344,7 @@ export const placeBet = onCall(async (req) => {
 
   await db.runTransaction(async (tx) => {
     const wallet = await walletRead(tx, uid);
+    const fromBonus = Math.min(wallet.bonusBalance, betAmount);
     walletWrite(tx, wallet, {
       uid,
       amount: -betAmount,
@@ -350,6 +352,7 @@ export const placeBet = onCall(async (req) => {
       description: "Aviator bet",
       meta: { gameId, roundId: round.roundId, sessionId: sessionRef.id },
     });
+    applyBetWagering(tx, uid, wallet, betAmount, fromBonus, settings);
     tx.set(sessionRef, {
       playerId: uid,
       gameId,

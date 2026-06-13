@@ -32,6 +32,14 @@ export interface Wallet {
   currency: "GMD";
   frozen: boolean;
   updatedAt: Timestamp | null;
+  /** Sum of deposits not yet played through for free withdrawal. */
+  pendingDepositTotal?: number;
+  /** GMD wagered toward deposit play-through. */
+  depositWagerProgress?: number;
+  /** Bonus must be wagered this much before converting to cash. */
+  bonusWagerRequired?: number;
+  /** GMD wagered from bonus balance toward conversion. */
+  bonusWagerProgress?: number;
 }
 
 export type TransactionType =
@@ -166,6 +174,12 @@ export interface PlatformSettings {
   minWithdrawal: number;
   minAutoCashout: number;
   maxAutoCashout: number;
+  /** Fraction of deposits that must be wagered before free withdrawal (0.8 = 80%). */
+  depositPlaythroughRate?: number;
+  /** Fee on early withdrawal before play-through (0.15 = 15%). */
+  earlyWithdrawalFeeRate?: number;
+  /** Bonus must be wagered this many times before becoming cash. */
+  bonusWagerMultiplier?: number;
   providers: Record<PaymentProvider, boolean>;
   bonuses?: BonusSettings;
 }
@@ -192,6 +206,9 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   minWithdrawal: 500,
   minAutoCashout: 1.01,
   maxAutoCashout: 100,
+  depositPlaythroughRate: 0.8,
+  earlyWithdrawalFeeRate: 0.15,
+  bonusWagerMultiplier: 3,
   providers: { wave: true, afrimoney: true, aps: true, qmoney: true },
   bonuses: DEFAULT_BONUS_SETTINGS,
 };
