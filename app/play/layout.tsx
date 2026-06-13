@@ -1,10 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LogIn, UserPlus, Wallet, LogOut } from "lucide-react";
+import { LogIn, UserPlus, Wallet, LogOut, UserCircle } from "lucide-react";
 import { useAuth, homeFor } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
 import { formatXof } from "@/lib/format";
@@ -24,8 +24,23 @@ function PlayAuthFromQuery() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { openAuth } = useAuthModal();
+  const { fbUser, profile, loading } = useAuth();
+  const handledRef = useRef(false);
 
   useEffect(() => {
+    if (loading || handledRef.current) return;
+
+    const isPlayer =
+      !!profile && profile.role === "player" && profile.status === "active";
+
+    if (isPlayer) return;
+
+    if (fbUser && !profile) {
+      handledRef.current = true;
+      openAuth("complete");
+      return;
+    }
+
     const signup = searchParams.get("signup");
     let ref = searchParams.get("ref")?.toLowerCase().trim() || null;
 
@@ -33,11 +48,13 @@ function PlayAuthFromQuery() {
       ref = parseAgentSlugFromHost(window.location.hostname);
     }
 
-    if (signup || ref) {
+    if (signup === "1") {
+      handledRef.current = true;
       openAuth("register", ref);
-      router.replace(ref ? `/play?ref=${encodeURIComponent(ref)}` : "/play", { scroll: false });
+      const next = ref ? `/play?ref=${encodeURIComponent(ref)}` : "/play";
+      router.replace(next, { scroll: false });
     }
-  }, [searchParams, openAuth, router]);
+  }, [searchParams, openAuth, router, loading, fbUser, profile]);
 
   return null;
 }
@@ -107,6 +124,26 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
                   <LogOut size={16} />
                 </button>
               </>
+            ) : needsProfile ? (
+              <>
+                <span className="hidden rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-200 sm:inline">
+                  Finish setup
+                </span>
+                <button
+                  type="button"
+                  onClick={() => openAuth("complete")}
+                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+                >
+                  <UserCircle size={16} /> Complete account
+                </button>
+                <button
+                  onClick={logout}
+                  className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white"
+                  title="Logout"
+                >
+                  <LogOut size={16} />
+                </button>
+              </>
             ) : (
               <>
                 <span className="hidden rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-200 sm:inline">
@@ -114,7 +151,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
                 </span>
                 <button
                   type="button"
-                  onClick={() => openAuth(needsProfile ? "complete" : "login")}
+                  onClick={() => openAuth("login")}
                   className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium hover:bg-slate-700"
                 >
                   <LogIn size={16} /> Sign in

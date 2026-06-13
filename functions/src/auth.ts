@@ -64,7 +64,18 @@ export const completeRegistration = onCall(async (req) => {
     const userRef = db.doc(`users/${uid}`);
     const phoneRef = db.doc(`phones/${phone}`);
     const [userSnap, phoneSnap] = await Promise.all([tx.get(userRef), tx.get(phoneRef)]);
-    if (userSnap.exists) throw new HttpsError("already-exists", "Profile already exists.");
+
+    if (userSnap.exists) {
+      const existing = userSnap.data() as ProfileData & { phone?: string };
+      if (existing.phone === phone) {
+        return;
+      }
+      throw new HttpsError(
+        "already-exists",
+        "Profile already exists. Sign out and sign in with the correct account."
+      );
+    }
+
     if (phoneSnap.exists && phoneSnap.data()!.uid !== uid) {
       throw new HttpsError("already-exists", "This phone number is already registered.");
     }

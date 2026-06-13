@@ -15,7 +15,7 @@ import { LogIn, UserPlus } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useAuth, homeFor } from "@/lib/auth-context";
 import { completeRegistration, errorMessage } from "@/lib/api";
-import { normalizePhone, phoneToEmail } from "@/lib/format";
+import { normalizePhone, phoneToEmail } from "@/lib/phone";
 import {
   PHONE_HINT,
   PHONE_LABEL,
@@ -144,8 +144,11 @@ export function AuthModal({
     try {
       await signInWithEmailAndPassword(auth, phoneToEmail(normalized), password);
       toast.success("Welcome back!");
+      if (!profile) {
+        setMode("complete");
+      }
     } catch {
-      toast.error("Invalid credentials.");
+      toast.error("Invalid phone or password.");
     } finally {
       setBusy(false);
     }
@@ -162,19 +165,38 @@ export function AuthModal({
     if (password !== confirm) return toast.error("Passwords do not match.");
     setBusy(true);
     try {
-      await createUserWithEmailAndPassword(auth, phoneToEmail(normalized), password);
-      await completeRegistration({
+      const authEmail = phoneToEmail(normalized);
+      const registrationPayload = {
         name: name.trim(),
         phone: normalized,
         ref: refCode,
         ...(email.trim() ? { email: email.trim().toLowerCase() } : {}),
-      });
+      };
+
+      try {
+        await createUserWithEmailAndPassword(auth, authEmail, password);
+      } catch (e: unknown) {
+        const code = (e as { code?: string }).code;
+        if (code !== "auth/email-already-in-use") throw e;
+        // Auth exists but profile may be missing — sign in and finish setup.
+        await signInWithEmailAndPassword(auth, authEmail, password);
+      }
+
+      await completeRegistration(registrationPayload);
       await auth.currentUser?.getIdToken(true);
       toast.success("Account created!");
     } catch (e) {
       const msg = errorMessage(e);
-      if (msg.includes("email-already-in-use")) {
-        toast.error("This phone number is already registered.");
+      if (
+        msg.includes("email-already-in-use") ||
+        msg.includes("already registered") ||
+        msg.includes("already-exists")
+      ) {
+        toast.error("This phone is already registered. Sign in with your password.");
+        setMode("login");
+      } else if (msg.includes("Invalid credentials") || msg.includes("wrong-password")) {
+        toast.error("This phone is already registered. Sign in with your password.");
+        setMode("login");
       } else {
         toast.error(msg);
       }
@@ -306,6 +328,9 @@ export function AuthModal({
 
       {mode === "complete" ? (
         <div className="space-y-4">
+          <p className="text-sm text-amber-100">
+            One last step — confirm your name and phone to unlock your real-money wallet.
+          </p>
           <Input label="Full Name" value={name} onChange={(e) => setName(e.target.value)} />
           <CustomerPhoneFields
             phoneCountry={phoneCountry}

@@ -30,10 +30,15 @@ type Props = {
 };
 
 export function CrashGameView({ game }: Props) {
-  const { fbUser, profile, wallet } = useAuth();
+  const { fbUser, profile, wallet, loading } = useAuth();
   const { openAuth } = useAuthModal();
 
+  const needsProfile = !!fbUser && !profile && !loading;
   const isPlayer = !!profile && profile.role === "player" && profile.status === "active";
+
+  const promptAuth = useCallback(() => {
+    openAuth(needsProfile ? "complete" : "register");
+  }, [needsProfile, openAuth]);
 
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [round, setRound] = useState<LiveRound | null>(null);
@@ -103,7 +108,7 @@ export function CrashGameView({ game }: Props) {
 
   const doPlaceBet = useCallback(async () => {
     if (!isPlayer) {
-      openAuth("register");
+      promptAuth();
       return;
     }
     if (frozen) {
@@ -124,11 +129,11 @@ export function CrashGameView({ game }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [isPlayer, frozen, canBet, game.id, amountNum, autoNum, openAuth]);
+  }, [isPlayer, frozen, canBet, game.id, amountNum, autoNum, promptAuth]);
 
   const doCashout = useCallback(async () => {
     if (!isPlayer) {
-      openAuth("register");
+      promptAuth();
       return;
     }
     if (!session || busy) return;
@@ -140,9 +145,15 @@ export function CrashGameView({ game }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [session, busy, isPlayer, openAuth]);
+  }, [session, busy, isPlayer, promptAuth]);
 
-  const betLabel = phase === "betting" ? (isPlayer ? "Bet" : "Sign up") : "Next round…";
+  const betLabel = phase === "betting"
+    ? isPlayer
+      ? "Bet"
+      : needsProfile
+        ? "Complete account"
+        : "Sign up"
+    : "Next round…";
 
   return (
     <div className="space-y-4">

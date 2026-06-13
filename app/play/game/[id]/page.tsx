@@ -14,9 +14,10 @@ import { Spinner } from "@/components/ui";
 export default function GamePage() {
   const params = useParams<{ id: string }>();
   const gameId = params.id;
-  const { profile } = useAuth();
+  const { profile, fbUser, loading } = useAuth();
   const [game, setGame] = useState<Game | null>(null);
 
+  const needsProfile = !!fbUser && !profile && !loading;
   const isPlayer = !!profile && profile.role === "player" && profile.status === "active";
 
   useEffect(() => {
@@ -42,8 +43,17 @@ export default function GamePage() {
         <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
           <Eye size={16} className="shrink-0" />
           <span>
-            You&apos;re watching in <strong>demo mode</strong> — rounds are live. Sign up when
-            you&apos;re ready to bet with real GMD.
+            {needsProfile ? (
+              <>
+                You&apos;re signed in — <strong>complete your profile</strong> to bet with real GMD
+                (use the &quot;Complete account&quot; button above).
+              </>
+            ) : (
+              <>
+                You&apos;re watching in <strong>demo mode</strong> — rounds are live. Sign up when
+                you&apos;re ready to bet with real GMD.
+              </>
+            )}
           </span>
         </div>
       )}
