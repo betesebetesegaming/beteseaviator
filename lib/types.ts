@@ -202,7 +202,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   apiProviderName: "API Provider",
   minBet: 10,
   maxBet: 100_000,
-  minDeposit: 100,
+  minDeposit: 50,
   minWithdrawal: 500,
   minAutoCashout: 1.01,
   maxAutoCashout: 100,

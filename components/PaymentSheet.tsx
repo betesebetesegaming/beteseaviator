@@ -89,7 +89,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   onClose,
   user,
   initialAmount,
-  minDeposit = 100,
+  minDeposit = 50,
   frozen = false,
   onDepositRequest,
 }) => {
