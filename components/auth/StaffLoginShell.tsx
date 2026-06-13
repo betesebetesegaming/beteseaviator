@@ -8,7 +8,7 @@ type Props = {
   badge: string;
   badgeColor?: string;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
 };
@@ -39,7 +39,7 @@ export function StaffLoginShell({
             {badge}
           </p>
           <h1 className="mt-2 text-2xl font-bold text-white">{title}</h1>
-          <p className="mt-2 max-w-sm text-sm text-slate-400">{subtitle}</p>
+          {subtitle ? <p className="mt-2 max-w-sm text-sm text-slate-400">{subtitle}</p> : null}
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl backdrop-blur-sm sm:p-8">
