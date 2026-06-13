@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firestore";
-import { adminSaveSettings, errorMessage } from "@/lib/api";
+import { adminRebuildPlatformStats, adminSaveSettings, errorMessage } from "@/lib/api";
 import {
   DEFAULT_SETTINGS,
   PROVIDER_LABELS,
@@ -19,6 +19,7 @@ import { Button, Card, Input } from "@/components/ui";
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [busy, setBusy] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
 
   useEffect(() => {
     return onSnapshot(doc(db, "settings", "platform"), (snap) => {
@@ -29,6 +30,8 @@ export default function AdminSettingsPage() {
           ...data,
           providers: { ...DEFAULT_SETTINGS.providers, ...(data.providers ?? {}) },
           bonuses: mergeBonusSettings(data.bonuses),
+          apiProviderName: data.apiProviderName ?? DEFAULT_SETTINGS.apiProviderName,
+          apiProviderRate: data.apiProviderRate ?? DEFAULT_SETTINGS.apiProviderRate,
         });
       }
     });
@@ -57,6 +60,8 @@ export default function AdminSettingsPage() {
       return toast.error("Sub agent rate must be between 0 and 1 (e.g. 0.05 = 5%).");
     if (settings.superAgentRate < 0 || settings.superAgentRate > 1)
       return toast.error("Super agent rate must be between 0 and 1 (e.g. 0.03 = 3%).");
+    if (settings.apiProviderRate < 0 || settings.apiProviderRate > 1)
+      return toast.error("API provider rate must be between 0 and 1 (e.g. 0.15 = 15%).");
     setBusy(true);
     try {
       await adminSaveSettings({ ...settings });
@@ -68,12 +73,48 @@ export default function AdminSettingsPage() {
     }
   }
 
+  async function rebuildStats() {
+    setRebuilding(true);
+    try {
+      const res = await adminRebuildPlatformStats({});
+      toast.success(
+        `Stats rebuilt — GGR ${res.ggr} GMD, deposits ${res.totalDeposits}, withdrawals ${res.totalWithdrawals}.`
+      );
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setRebuilding(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="mb-1 text-xl font-bold">Platform Settings</h1>
       <p className="mb-6 text-sm text-slate-400">
         Commission rates, game limits and payment providers.
       </p>
+
+      <Card className="mb-5">
+        <h2 className="mb-4 font-semibold">API provider commission (share of GGR)</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Set the game/API provider name and what percent of total GGR (bets minus wins) you owe
+          them. The admin dashboard shows the calculated amount due.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Provider name"
+            value={settings.apiProviderName ?? ""}
+            onChange={(e) => setSettings({ ...settings, apiProviderName: e.target.value })}
+          />
+          <Input
+            label="GGR commission rate (0.15 = 15%)"
+            type="number"
+            step="0.01"
+            value={String(settings.apiProviderRate ?? 0)}
+            onChange={(e) => setSettings({ ...settings, apiProviderRate: Number(e.target.value) })}
+          />
+        </div>
+      </Card>
 
       <Card className="mb-5">
         <h2 className="mb-4 font-semibold">Commission rates (share of GGR)</h2>
@@ -153,6 +194,14 @@ export default function AdminSettingsPage() {
 
       <Button className="w-full" onClick={save} disabled={busy}>
         {busy ? "Saving…" : "Save Settings"}
+      </Button>
+      <Button
+        variant="secondary"
+        className="mt-3 w-full"
+        onClick={rebuildStats}
+        disabled={rebuilding}
+      >
+        {rebuilding ? "Rebuilding…" : "Rebuild dashboard totals from ledger"}
       </Button>
     </div>
   );

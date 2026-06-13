@@ -157,6 +157,9 @@ export interface BonusSettings {
 export interface PlatformSettings {
   subAgentRate: number; // e.g. 0.05
   superAgentRate: number; // e.g. 0.03
+  /** API / game provider share of GGR (e.g. 0.15 = 15%). */
+  apiProviderRate: number;
+  apiProviderName: string;
   minBet: number;
   maxBet: number;
   minDeposit: number;
@@ -181,6 +184,8 @@ import { DEFAULT_BONUS_SETTINGS } from "./bonuses";
 export const DEFAULT_SETTINGS: PlatformSettings = {
   subAgentRate: 0.05,
   superAgentRate: 0.03,
+  apiProviderRate: 0.15,
+  apiProviderName: "API Provider",
   minBet: 10,
   maxBet: 100_000,
   minDeposit: 100,

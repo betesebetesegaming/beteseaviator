@@ -30,6 +30,7 @@ export {
   adminSaveSettings,
   adminSaveLobbyPromos,
   adminRefreshDailyDemos,
+  adminRebuildPlatformStats,
 } from "./admin";
 export { processCommissions, adminRunCommissions } from "./commissions";
 

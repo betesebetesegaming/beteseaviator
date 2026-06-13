@@ -132,6 +132,20 @@ export const adminRefreshDailyDemos = call<
   { ok: true; date: string; accounts: unknown[] }
 >("adminRefreshDailyDemos");
 
+export const adminRebuildPlatformStats = call<
+  Record<string, never>,
+  {
+    ok: true;
+    customerCount: number;
+    agentCount: number;
+    totalBets: number;
+    totalWins: number;
+    totalDeposits: number;
+    totalWithdrawals: number;
+    ggr: number;
+  }
+>("adminRebuildPlatformStats");
+
 export type OperationsHubResponse = {
   scope: "platform" | "network";
   role: Role;

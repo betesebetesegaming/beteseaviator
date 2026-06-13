@@ -214,6 +214,7 @@ export const adminSaveSettings = onCall(async (req) => {
   const numericKeys = [
     "subAgentRate",
     "superAgentRate",
+    "apiProviderRate",
     "minBet",
     "maxBet",
     "minDeposit",
@@ -230,6 +231,19 @@ export const adminSaveSettings = onCall(async (req) => {
   }
   if ((clean.subAgentRate as number) > 1 || (clean.superAgentRate as number) > 1) {
     throw new HttpsError("invalid-argument", "Rates are fractions, e.g. 0.05 = 5%.");
+  }
+  if ((clean.apiProviderRate as number | undefined) !== undefined && (clean.apiProviderRate as number) > 1) {
+    throw new HttpsError("invalid-argument", "API provider rate must be a fraction, e.g. 0.15 = 15%.");
+  }
+  if (data.apiProviderRate !== undefined) {
+    const rate = Number(data.apiProviderRate);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 1) {
+      throw new HttpsError("invalid-argument", "API provider rate must be between 0 and 1.");
+    }
+    clean.apiProviderRate = rate;
+  }
+  if (data.apiProviderName !== undefined) {
+    clean.apiProviderName = String(data.apiProviderName).trim().slice(0, 80) || "API Provider";
   }
   if (data.providers && typeof data.providers === "object") {
     const providers: Record<string, boolean> = {};
@@ -286,6 +300,70 @@ export const adminSaveSettings = onCall(async (req) => {
 
   await db.doc("settings/platform").set(clean, { merge: true });
   return { ok: true };
+});
+
+/** Rebuild stats/platform counters from the transactions ledger (admin repair tool). */
+export const adminRebuildPlatformStats = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+
+  let totalBets = 0;
+  let totalWins = 0;
+  let totalDeposits = 0;
+  let totalWithdrawals = 0;
+
+  const snap = await db.collection("transactions").get();
+  for (const doc of snap.docs) {
+    const type = String(doc.data().type || "");
+    const amount = Math.abs(Number(doc.data().amount) || 0);
+    if (amount <= 0) continue;
+    switch (type) {
+      case "bet":
+        totalBets += amount;
+        break;
+      case "win":
+        totalWins += amount;
+        break;
+      case "deposit":
+        totalDeposits += amount;
+        break;
+      case "withdrawal":
+        totalWithdrawals += amount;
+        break;
+      default:
+        break;
+    }
+  }
+
+  const customers = await db.collection("users").where("role", "==", "player").count().get();
+  const agents = await db
+    .collection("users")
+    .where("role", "in", ["super_agent", "sub_agent"])
+    .count()
+    .get();
+
+  await db.doc("stats/platform").set(
+    {
+      customerCount: customers.data().count,
+      agentCount: agents.data().count,
+      totalBets,
+      totalWins,
+      totalDeposits,
+      totalWithdrawals,
+      rebuiltAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return {
+    ok: true,
+    customerCount: customers.data().count,
+    agentCount: agents.data().count,
+    totalBets,
+    totalWins,
+    totalDeposits,
+    totalWithdrawals,
+    ggr: Math.max(0, totalBets - totalWins),
+  };
 });
 
 /** Lobby banner ads — images + text shown on /play carousel. */

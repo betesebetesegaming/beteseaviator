@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
+import { collection, doc, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { onValue, ref } from "firebase/database";
 import {
   Users,
@@ -15,6 +15,7 @@ import {
   Activity,
   Award,
   WalletCards,
+  Percent,
 } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { rtdb } from "@/lib/rtdb";
@@ -22,6 +23,12 @@ import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
 import { roleLabel } from "@/lib/staff-nav";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
+import {
+  aggregateTransactionTotals,
+  apiProviderCommissionDue,
+  ggrFromTotals,
+} from "@/lib/platformFinancials";
+import { DEFAULT_SETTINGS, type PlatformSettings, type WalletTransaction } from "@/lib/types";
 import { Button, Card, StatCard } from "@/components/ui";
 
 interface PlatformStats {
@@ -42,6 +49,13 @@ export function StaffDashboard() {
   const agentGgr = (stats.totalBets ?? 0) - (stats.totalWins ?? 0);
 
   const [platformStats, setPlatformStats] = useState<PlatformStats>({});
+  const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
+  const [ledgerTotals, setLedgerTotals] = useState({
+    totalBets: 0,
+    totalWins: 0,
+    totalDeposits: 0,
+    totalWithdrawals: 0,
+  });
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
   const [onlineCount, setOnlineCount] = useState(0);
 
@@ -50,12 +64,27 @@ export function StaffDashboard() {
     const unsubStats = onSnapshot(doc(db, "stats", "platform"), (snap) => {
       if (snap.exists()) setPlatformStats(snap.data() as PlatformStats);
     });
-    const q = query(
-      collection(db, "paymentRequests"),
-      where("type", "==", "withdrawal"),
-      where("status", "==", "pending")
+    const unsubSettings = onSnapshot(doc(db, "settings", "platform"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as PlatformSettings;
+        setSettings({ ...DEFAULT_SETTINGS, ...data });
+      }
+    });
+    const unsubLedger = onSnapshot(
+      query(collection(db, "transactions"), orderBy("createdAt", "desc"), limit(8000)),
+      (snap) => {
+        setLedgerTotals(
+          aggregateTransactionTotals(
+            snap.docs.map((d) => ({ type: d.data().type, amount: d.data().amount }) as WalletTransaction)
+          )
+        );
+      }
     );
-    const unsubPending = onSnapshot(q, (snap) => setPendingWithdrawals(snap.size));
+    const pendingQ = query(
+      collection(db, "withdrawal_requests"),
+      where("status", "in", ["Pending", "Processing"])
+    );
+    const unsubPending = onSnapshot(pendingQ, (snap) => setPendingWithdrawals(snap.size));
     const unsubPresence = onValue(ref(rtdb, "presence"), (snap) => {
       const val = snap.val() as Record<string, { lastSeen?: number }> | null;
       if (!val) {
@@ -69,15 +98,32 @@ export function StaffDashboard() {
     });
     return () => {
       unsubStats();
+      unsubSettings();
+      unsubLedger();
       unsubPending();
       unsubPresence();
     };
   }, [isAdmin]);
 
+  const financials = useMemo(() => {
+    const totalBets = Math.max(platformStats.totalBets ?? 0, ledgerTotals.totalBets);
+    const totalWins = Math.max(platformStats.totalWins ?? 0, ledgerTotals.totalWins);
+    const totalDeposits = Math.max(platformStats.totalDeposits ?? 0, ledgerTotals.totalDeposits);
+    const totalWithdrawals = Math.max(
+      platformStats.totalWithdrawals ?? 0,
+      ledgerTotals.totalWithdrawals
+    );
+    const ggr = ggrFromTotals({ totalBets, totalWins });
+    const providerDue = apiProviderCommissionDue(ggr, settings.apiProviderRate ?? 0);
+    return { totalBets, totalWins, totalDeposits, totalWithdrawals, ggr, providerDue };
+  }, [platformStats, ledgerTotals, settings.apiProviderRate]);
+
   if (!profile) return null;
 
   if (isAdmin) {
-    const ggr = (platformStats.totalBets ?? 0) - (platformStats.totalWins ?? 0);
+    const providerName = settings.apiProviderName || "API Provider";
+    const providerPct = ((settings.apiProviderRate ?? 0) * 100).toFixed(1);
+
     return (
       <div className="space-y-8">
         <div>
@@ -96,15 +142,40 @@ export function StaffDashboard() {
           <Link href="/admin/operations?tab=live">
             <StatCard label="Live now" value={onlineCount} hint="operations hub" icon={<Radio size={20} />} />
           </Link>
-          <StatCard label="Total GGR" value={formatXof(ggr)} hint="bets minus wins" icon={<TrendingUp size={20} />} />
-          <StatCard label="Total Deposits" value={formatXof(platformStats.totalDeposits ?? 0)} icon={<Banknote size={20} />} />
-          <StatCard label="Total Withdrawals" value={formatXof(platformStats.totalWithdrawals ?? 0)} icon={<HandCoins size={20} />} />
+          <StatCard
+            label="Total GGR"
+            value={formatXof(financials.ggr)}
+            hint="bets minus wins"
+            icon={<TrendingUp size={20} />}
+          />
+          <StatCard
+            label="Total Deposits"
+            value={formatXof(financials.totalDeposits)}
+            icon={<Banknote size={20} />}
+          />
+          <StatCard
+            label="Total Withdrawals"
+            value={formatXof(financials.totalWithdrawals)}
+            icon={<HandCoins size={20} />}
+          />
           <Link href="/admin/withdrawals">
             <StatCard
               label="Pending Withdrawals"
-              value={<span className={pendingWithdrawals > 0 ? "text-amber-300" : undefined}>{pendingWithdrawals}</span>}
-              hint="review queue"
+              value={
+                <span className={pendingWithdrawals > 0 ? "text-amber-300" : undefined}>
+                  {pendingWithdrawals}
+                </span>
+              }
+              hint="ModemPay queue"
               icon={<AlertCircle size={20} />}
+            />
+          </Link>
+          <Link href="/admin/settings">
+            <StatCard
+              label={`${providerName} due`}
+              value={formatXof(financials.providerDue)}
+              hint={`${providerPct}% of GGR`}
+              icon={<Percent size={20} />}
             />
           </Link>
         </div>
@@ -130,7 +201,7 @@ export function StaffDashboard() {
           </Card>
           <Card className="p-4">
             <h2 className="mb-2 font-semibold">Platform settings</h2>
-            <p className="mb-4 text-sm text-slate-400">Bonuses, limits, promos, and demo accounts.</p>
+            <p className="mb-4 text-sm text-slate-400">API provider commission %, bonuses, limits, and promos.</p>
             <Link href="/admin/settings">
               <Button variant="secondary" className="w-full">
                 Settings

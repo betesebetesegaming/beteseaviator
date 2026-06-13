@@ -32,6 +32,8 @@ export type Provider = (typeof PROVIDERS)[number];
 export const DEFAULT_SETTINGS = {
   subAgentRate: 0.05,
   superAgentRate: 0.03,
+  apiProviderRate: 0.15,
+  apiProviderName: "API Provider",
   minBet: 10,
   maxBet: 100_000,
   minDeposit: 100,

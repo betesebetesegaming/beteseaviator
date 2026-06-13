@@ -3,7 +3,7 @@
  * `users.wallet_balance` (same field betesepmu uses).
  */
 import { applyDepositBonuses } from "./bonuses";
-import { db, getSettings, walletRead, walletWrite } from "./helpers";
+import { bumpDailyStats, bumpPlatformStats, db, getSettings, todayIso, walletRead, walletWrite } from "./helpers";
 
 export async function syncAviatorWalletCredit(
   uid: string,
@@ -39,6 +39,9 @@ export async function syncAviatorWalletCredit(
       settings,
       userRef,
     });
+
+    bumpPlatformStats(tx, { totalDeposits: amount });
+    bumpDailyStats(tx, todayIso(depositAt), { deposits: amount });
   });
 
   return { bonuses: applied };

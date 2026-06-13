@@ -14,7 +14,7 @@ import {
   type ModemPayPayoutNetwork,
 } from '../modempay';
 import { adminDb } from '../adminModem';
-import { db, getSettings, walletRead, walletWrite } from '../helpers';
+import { db, bumpDailyStats, bumpPlatformStats, getSettings, todayIso, walletRead, walletWrite } from '../helpers';
 import { syncAviatorWalletCredit } from '../walletSync';
 import {
   patchDepositOnRtdb,
@@ -358,6 +358,9 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
           description: `Withdrawal hold (${requestId})`,
           meta: { externalRef: requestId, source: 'modempay' },
         });
+
+        bumpPlatformStats(tx, { totalWithdrawals: amount });
+        bumpDailyStats(tx, todayIso(), { withdrawals: amount });
 
         tx.update(db.collection('withdrawal_requests').doc(requestId), {
           status: 'Processing',
@@ -1261,6 +1264,11 @@ async function refundWithdrawalHold(requestId: string, customerId: string, amoun
       meta: { externalRef: requestId, source: 'modempay' },
       ignoreFrozen: true,
     });
+
+    if (status === 'Processing') {
+      bumpPlatformStats(tx, { totalWithdrawals: -amount });
+      bumpDailyStats(tx, todayIso(), { withdrawals: -amount });
+    }
 
     tx.update(db.collection('withdrawal_requests').doc(requestId), {
       status: 'Failed',
