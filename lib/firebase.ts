@@ -1,11 +1,22 @@
 import { getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, initializeAuth } from "firebase/auth";
 import { getPublicFirebaseConfig } from "./env/publicConfig";
 
 const firebaseConfig = getPublicFirebaseConfig();
 
 export const app = getApps()[0] ?? initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+
+/** Explicit local persistence — keeps sign-in on beteseaviator.com (custom domain). */
+export const auth =
+  typeof window === "undefined"
+    ? getAuth(app)
+    : (() => {
+        try {
+          return initializeAuth(app, { persistence: browserLocalPersistence });
+        } catch {
+          return getAuth(app);
+        }
+      })();
 
 /** Analytics only works in the browser; load lazily and ignore failures (ad blockers etc.). */
 export async function initAnalytics() {

@@ -4,21 +4,22 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
 import { auth, initAnalytics } from "./firebase";
+import { db } from "./firestore";
 import { loginPathFor } from "./staff-routes";
 import type { Role, UserProfile, Wallet } from "./types";
 
 interface AuthState {
-  /** Firebase auth user (null = signed out, undefined = still loading) */
   fbUser: User | null;
-  /** Firestore profile with role; null until loaded */
   profile: UserProfile | null;
   wallet: Wallet | null;
-  /** true while auth state or profile is being resolved */
+  /** True until Firebase finishes restoring persisted sign-in */
   loading: boolean;
   logout: () => Promise<void>;
 }
@@ -46,25 +47,62 @@ export function homeFor(role: Role | undefined | null): string {
 
 export { loginPathFor } from "./staff-routes";
 
+/** Wait for Firebase to restore session — avoids flashing "Demo mode" on reload. */
+const AUTH_RESTORE_MS = 1200;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [fbUser, setFbUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [authReady, setAuthReady] = useState(false);
+  const [sessionResolved, setSessionResolved] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
+
+  const lastUidRef = useRef<string | null>(null);
+  const signOutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const explicitSignOutRef = useRef(false);
 
   useEffect(() => {
     initAnalytics();
+
     return onAuthStateChanged(auth, (u) => {
-      setFbUser(u);
-      setAuthReady(true);
-      if (!u) {
-        setProfile(null);
-        setWallet(null);
-        setProfileReady(true);
-      } else {
-        setProfileReady(false);
+      if (signOutTimerRef.current) {
+        clearTimeout(signOutTimerRef.current);
+        signOutTimerRef.current = null;
       }
+
+      if (u) {
+        explicitSignOutRef.current = false;
+        const uidChanged = lastUidRef.current !== u.uid;
+        lastUidRef.current = u.uid;
+        setFbUser(u);
+        setSessionResolved(true);
+        if (uidChanged) setProfileReady(false);
+        return;
+      }
+
+      // Firebase may emit null briefly before restoring persisted session — don't sign out yet.
+      if (!explicitSignOutRef.current && lastUidRef.current) {
+        signOutTimerRef.current = setTimeout(() => {
+          if (auth.currentUser) return;
+          lastUidRef.current = null;
+          setFbUser(null);
+          setProfile(null);
+          setWallet(null);
+          setProfileReady(true);
+          setSessionResolved(true);
+        }, 400);
+        return;
+      }
+
+      lastUidRef.current = null;
+      setFbUser(null);
+      setProfile(null);
+      setWallet(null);
+      setProfileReady(true);
+
+      signOutTimerRef.current = setTimeout(() => {
+        setSessionResolved(true);
+      }, AUTH_RESTORE_MS);
     });
   }, []);
 
@@ -72,41 +110,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!fbUser) return;
 
     let cancelled = false;
-    let unsubProfile: (() => void) | undefined;
-    let unsubWallet: (() => void) | undefined;
+    const uid = fbUser.uid;
 
-    void (async () => {
-      const { doc, onSnapshot } = await import("firebase/firestore");
-      const { db } = await import("./firestore");
-      if (cancelled) return;
+    const unsubProfile = onSnapshot(
+      doc(db, "users", uid),
+      (snap) => {
+        if (cancelled) return;
+        setProfile(snap.exists() ? ({ uid: snap.id, ...snap.data() } as UserProfile) : null);
+        setProfileReady(true);
+      },
+      () => {
+        if (!cancelled) setProfileReady(true);
+      }
+    );
 
-      unsubProfile = onSnapshot(
-        doc(db, "users", fbUser.uid),
-        (snap) => {
-          setProfile(
-            snap.exists() ? ({ uid: snap.id, ...snap.data() } as UserProfile) : null
-          );
-          setProfileReady(true);
-        },
-        () => setProfileReady(true)
-      );
-      unsubWallet = onSnapshot(doc(db, "wallets", fbUser.uid), (snap) => {
-        setWallet(snap.exists() ? (snap.data() as Wallet) : null);
-      });
-    })();
+    const unsubWallet = onSnapshot(doc(db, "wallets", uid), (snap) => {
+      if (!cancelled) setWallet(snap.exists() ? (snap.data() as Wallet) : null);
+    });
 
     return () => {
       cancelled = true;
-      unsubProfile?.();
-      unsubWallet?.();
+      unsubProfile();
+      unsubWallet();
     };
-  }, [fbUser]);
+  }, [fbUser?.uid]);
 
   const logout = async () => {
+    explicitSignOutRef.current = true;
     const redirect = loginPathFor(profile?.role);
     await signOut(auth);
     if (typeof window !== "undefined") window.location.href = redirect;
   };
+
+  const loading = !sessionResolved || (!!fbUser && !profileReady);
 
   return (
     <AuthContext.Provider
@@ -114,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fbUser,
         profile,
         wallet,
-        loading: !authReady || (!!fbUser && !profileReady),
+        loading,
         logout,
       }}
     >

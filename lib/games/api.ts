@@ -5,6 +5,7 @@
 export type { CrashHistoryItem } from "./subscriptions";
 export {
   fetchGame,
+  subscribeGame,
   subscribeActiveGames,
   subscribePlatformSettings,
   subscribeGameRound,

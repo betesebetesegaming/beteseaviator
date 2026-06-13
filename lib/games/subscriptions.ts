@@ -20,9 +20,34 @@ import { DEFAULT_SETTINGS, type Game, type GameSession, type LiveRound, type Pla
 export type CrashHistoryItem = { roundId: string; crashPoint: number; at: number };
 
 export async function fetchGame(gameId: string): Promise<Game | null> {
-  const snap = await getDoc(doc(db, "games", gameId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Game;
+  const ref = doc(db, "games", gameId);
+  const timeoutMs = 8_000;
+
+  try {
+    const snap = await Promise.race([
+      getDoc(ref),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+    if (!snap) return null;
+    if (!("exists" in snap) || !snap.exists()) return null;
+    return { id: snap.id, ...snap.data() } as Game;
+  } catch {
+    return null;
+  }
+}
+
+/** Live listener — returns cached data immediately when offline cache is warm. */
+export function subscribeGame(
+  gameId: string,
+  onGame: (game: Game | null) => void
+): FsUnsubscribe {
+  return onSnapshot(
+    doc(db, "games", gameId),
+    (snap) => {
+      onGame(snap.exists() ? ({ id: snap.id, ...snap.data() } as Game) : null);
+    },
+    () => onGame(null)
+  );
 }
 
 export function subscribeActiveGames(onGames: (games: Game[]) => void): FsUnsubscribe {

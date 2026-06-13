@@ -67,7 +67,8 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
   const isPlayer =
     !!profile && profile.role === "player" && profile.status === "active";
   const walletFrozen = Boolean(wallet?.frozen);
-  const needsProfile = !!fbUser && !profile && !loading;
+  const needsProfile = !!fbUser && !profile;
+  const showGuestChrome = !loading && !fbUser;
 
   useEffect(() => {
     if (loading || !profile) return;
@@ -91,7 +92,9 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {isPlayer ? (
+            {loading && !fbUser && !profile ? (
+              <span className="text-xs text-slate-500">Checking session…</span>
+            ) : isPlayer ? (
               <>
                 <span className="hidden text-sm text-slate-400 md:inline">
                   Hi, {profile.name.split(" ")[0]}
@@ -127,7 +130,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
             ) : needsProfile ? (
               <>
                 <span className="hidden rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-200 sm:inline">
-                  Finish setup
+                  {loading ? "Loading profile…" : "Finish setup"}
                 </span>
                 <button
                   type="button"
@@ -144,7 +147,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
                   <LogOut size={16} />
                 </button>
               </>
-            ) : (
+            ) : showGuestChrome ? (
               <>
                 <span className="hidden rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-200 sm:inline">
                   Demo mode
@@ -170,7 +173,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
                   <UserPlus size={16} /> Sign up
                 </button>
               </>
-            )}
+            ) : null}
           </div>
         </div>
       </header>

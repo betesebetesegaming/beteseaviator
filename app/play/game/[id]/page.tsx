@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Eye } from "lucide-react";
-import { fetchGame } from "@/lib/games/api";
+import { subscribeGame } from "@/lib/games/api";
 import { isLobbyGame } from "@/lib/games/catalog";
 import { useAuth } from "@/lib/auth-context";
 import type { Game } from "@/lib/types";
@@ -16,15 +16,37 @@ export default function GamePage() {
   const gameId = params.id;
   const { profile, fbUser, loading } = useAuth();
   const [game, setGame] = useState<Game | null>(null);
+  const [gameLoading, setGameLoading] = useState(true);
 
   const needsProfile = !!fbUser && !profile && !loading;
   const isPlayer = !!profile && profile.role === "player" && profile.status === "active";
 
   useEffect(() => {
-    fetchGame(gameId).then(setGame);
+    setGameLoading(true);
+    const slow = window.setTimeout(() => setGameLoading(false), 10_000);
+    const unsub = subscribeGame(gameId, (g) => {
+      setGame(g);
+      setGameLoading(false);
+      window.clearTimeout(slow);
+    });
+    return () => {
+      window.clearTimeout(slow);
+      unsub();
+    };
   }, [gameId]);
 
-  if (!game) return <Spinner label="Loading game…" />;
+  if (gameLoading && !game) return <Spinner label="Loading game…" />;
+
+  if (!game) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-slate-900/70 p-8 text-center">
+        <p className="text-slate-300">Could not load this game. Check your connection and try again.</p>
+        <Link href="/play" className="mt-4 inline-block text-sm text-betese-yellow hover:underline">
+          Back to Aviator &amp; Crash games
+        </Link>
+      </div>
+    );
+  }
 
   if (!isLobbyGame(game)) {
     return (
