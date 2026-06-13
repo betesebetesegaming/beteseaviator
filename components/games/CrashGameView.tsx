@@ -23,6 +23,7 @@ import type { Game, GameSession, LiveRound, PlatformSettings } from "@/lib/types
 import { DEFAULT_SETTINGS } from "@/lib/types";
 import { CrashGameBoard, useCrashLiveState } from "./CrashGameBoard";
 import { GameBetPanel } from "./GameBetPanel";
+import { WalletFrozenNotice } from "@/components/wallet/WalletFrozenNotice";
 
 type Props = {
   game: Game;
@@ -89,8 +90,11 @@ export function CrashGameView({ game }: Props) {
   const amountNum = clampBetAmount(betAmount, settings, displayBalance);
   const autoNum = autoCashout ? Number(autoCashout) : null;
 
+  const frozen = Boolean(wallet?.frozen);
+
   const canBet =
     isPlayer &&
+    !frozen &&
     phase === "betting" &&
     !session &&
     !busy &&
@@ -100,6 +104,10 @@ export function CrashGameView({ game }: Props) {
   const doPlaceBet = useCallback(async () => {
     if (!isPlayer) {
       openAuth("register");
+      return;
+    }
+    if (frozen) {
+      toast.error("Contact customer service — your wallet is restricted.");
       return;
     }
     if (!canBet) return;
@@ -116,7 +124,7 @@ export function CrashGameView({ game }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [isPlayer, canBet, game.id, amountNum, autoNum, openAuth]);
+  }, [isPlayer, frozen, canBet, game.id, amountNum, autoNum, openAuth]);
 
   const doCashout = useCallback(async () => {
     if (!isPlayer) {
@@ -147,40 +155,46 @@ export function CrashGameView({ game }: Props) {
       />
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <GameBetPanel
-          panelIndex={1}
-          amount={amountNum}
-          onAmountChange={setBetAmount}
-          autoCashout={autoCashout}
-          onAutoCashoutChange={setAutoCashout}
-          settings={settings}
-          balance={displayBalance}
-          disabled={!!session}
-          betLabel={betLabel}
-          onBet={doPlaceBet}
-          canBet={isPlayer ? canBet : phase === "betting" && !busy}
-          showCashout={!!session && phase === "flying"}
-          liveMultiplier={liveMultiplier}
-          onCashout={doCashout}
-          cashoutBusy={busy}
-          waitingForTakeoff={!!session && phase !== "flying"}
-          nextRoundLabel="Next round…"
-        />
+        {frozen && isPlayer && !session ? (
+          <WalletFrozenNotice />
+        ) : (
+          <GameBetPanel
+            panelIndex={1}
+            amount={amountNum}
+            onAmountChange={setBetAmount}
+            autoCashout={autoCashout}
+            onAutoCashoutChange={setAutoCashout}
+            settings={settings}
+            balance={displayBalance}
+            disabled={!!session || frozen}
+            betLabel={frozen && isPlayer ? "Restricted" : betLabel}
+            onBet={doPlaceBet}
+            canBet={isPlayer ? canBet : phase === "betting" && !busy}
+            showCashout={!!session && phase === "flying"}
+            liveMultiplier={liveMultiplier}
+            onCashout={doCashout}
+            cashoutBusy={busy}
+            waitingForTakeoff={!!session && phase !== "flying"}
+            nextRoundLabel="Next round…"
+          />
+        )}
 
-        <GameBetPanel
-          panelIndex={2}
-          amount={amountNum}
-          onAmountChange={setBetAmount}
-          autoCashout={autoCashout}
-          onAutoCashoutChange={setAutoCashout}
-          settings={settings}
-          balance={displayBalance}
-          disabled
-          betLabel="Bet 2"
-          onBet={() => toast("Second bet panel coming soon", { icon: "🎮" })}
-          canBet={false}
-          nextRoundLabel="Soon"
-        />
+        {!frozen && (
+          <GameBetPanel
+            panelIndex={2}
+            amount={amountNum}
+            onAmountChange={setBetAmount}
+            autoCashout={autoCashout}
+            onAutoCashoutChange={setAutoCashout}
+            settings={settings}
+            balance={displayBalance}
+            disabled
+            betLabel="Bet 2"
+            onBet={() => toast("Second bet panel coming soon", { icon: "🎮" })}
+            canBet={false}
+            nextRoundLabel="Soon"
+          />
+        )}
       </div>
 
       <p className="text-center text-xs text-slate-500">

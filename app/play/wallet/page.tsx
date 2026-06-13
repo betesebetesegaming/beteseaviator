@@ -19,20 +19,22 @@ import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClien
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
 import { buildDepositResult, type PaymentResultPayload } from "@/lib/paymentResultPayload";
-import { formatSigned, formatDate } from "@/lib/format";
-import { subscribePlatformSettings } from "@/lib/games/api";
+import { formatSigned, formatDate, formatXof } from "@/lib/format";
+import { subscribePlatformSettings } from "@/lib/games/subscriptions";
 import { mergeBonusSettings } from "@/lib/bonuses";
 import type { PlatformSettings, WalletTransaction } from "@/lib/types";
 import { DEFAULT_SETTINGS } from "@/lib/types";
 import { PaymentSheet } from "@/components/PaymentSheet";
 import { PaymentResultModal } from "@/components/PaymentResultModal";
 import { BonusOffersPanel, WalletBalanceCards } from "@/components/wallet/WalletBonusPanel";
+import { WalletFrozenNotice } from "@/components/wallet/WalletFrozenNotice";
 import { Badge, Button, Card, EmptyState, Input, Select, TableShell, Td, Th } from "@/components/ui";
 
 type Tab = "history" | "deposit" | "withdraw";
 
 export default function WalletPage() {
   const { fbUser, profile, wallet } = useAuth();
+  const frozen = Boolean(wallet?.frozen);
   const [tab, setTab] = useState<Tab>("history");
   const [transactions, setTransactions] = useState<WalletTransaction[] | null>(null);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
@@ -43,6 +45,10 @@ export default function WalletPage() {
   const [withdrawPhone, setWithdrawPhone] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (frozen) setTab("history");
+  }, [frozen]);
 
   useEffect(() => {
     if (!fbUser) return;
@@ -71,6 +77,10 @@ export default function WalletPage() {
       externalRef: string
     ) => {
       if (!fbUser || !profile) return;
+      if (frozen) {
+        toast.error("Contact customer service — your wallet is restricted.");
+        return;
+      }
       const normalizedPhone = normalizeGambiaPhone(phone || "");
       if (!normalizedPhone) {
         toast.error(PHONE_HINT);
@@ -92,7 +102,7 @@ export default function WalletPage() {
           "Waiting for ModemPay to confirm payment before your wallet is credited.",
       });
     },
-    [fbUser, profile]
+    [fbUser, profile, frozen]
   );
 
   useEffect(() => {
@@ -144,10 +154,14 @@ export default function WalletPage() {
 
   async function submitMobileWithdrawal() {
     if (!fbUser || !profile) return;
+    if (frozen) return toast.error("Contact customer service — your wallet is restricted.");
     const normalizedPhone = normalizeGambiaPhone(withdrawPhone || profile.phone || "");
     if (!normalizedPhone) return toast.error(PHONE_HINT);
     const amt = Number(withdrawAmount);
     if (!Number.isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount.");
+    if (amt < settings.minWithdrawal) {
+      return toast.error(`Minimum withdrawal is ${formatXof(settings.minWithdrawal)}.`);
+    }
     if (amt > (wallet?.balance ?? 0)) return toast.error("Insufficient balance.");
 
     const requestId = `BETESE-WD-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
@@ -202,23 +216,24 @@ export default function WalletPage() {
       <div className="mb-5 grid gap-5 lg:grid-cols-[1fr_280px]">
         <div>
           <WalletBalanceCards wallet={wallet} />
-          {wallet?.frozen && (
-            <p className="mt-3 text-center text-xs font-semibold text-red-400">
-              Wallet frozen — betting and withdrawals are disabled.
-            </p>
+          {frozen && (
+            <div className="mt-4">
+              <WalletFrozenNotice />
+            </div>
           )}
         </div>
-        <BonusOffersPanel bonuses={mergeBonusSettings(settings.bonuses)} />
+        {!frozen && <BonusOffersPanel bonuses={mergeBonusSettings(settings.bonuses)} />}
       </div>
 
       <div className="mb-5 grid grid-cols-3 rounded-lg bg-slate-900 p-1 text-sm font-medium">
         {(["history", "deposit", "withdraw"] as Tab[]).map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => !frozen || t === "history" ? setTab(t) : undefined}
+            disabled={frozen && t !== "history"}
             className={`rounded-md py-2 capitalize transition-colors ${
               tab === t ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
-            }`}
+            } ${frozen && t !== "history" ? "cursor-not-allowed opacity-40" : ""}`}
           >
             {t}
           </button>
@@ -228,7 +243,7 @@ export default function WalletPage() {
       {tab === "history" && (
         <>
           {!transactions || transactions.length === 0 ? (
-            <EmptyState message="No transactions yet. Top up with Wave, AfriMoney, APS or QMoney via ModemPay." />
+            <EmptyState message="No transactions yet." />
           ) : (
             <TableShell>
               <thead>
@@ -262,12 +277,11 @@ export default function WalletPage() {
         </>
       )}
 
-      {tab === "deposit" && (
+      {tab === "deposit" && !frozen && (
         <Card>
           <h2 className="mb-2 font-semibold">Deposit via ModemPay</h2>
           <p className="mb-4 text-sm text-slate-400">
-            Wave, AfriMoney, APS, QMoney or card. Cash is credited on confirmation — eligible
-            deposit bonuses are added to your bonus balance automatically.
+            Minimum deposit {formatXof(settings.minDeposit)}. Wave, AfriMoney, APS, QMoney or card.
           </p>
           <Button className="w-full" onClick={() => setDepositOpen(true)}>
             Open payment methods
@@ -275,7 +289,7 @@ export default function WalletPage() {
         </Card>
       )}
 
-      {tab === "withdraw" && (
+      {tab === "withdraw" && !frozen && (
         <Card>
           <h2 className="mb-4 font-semibold">Withdraw to mobile money</h2>
           <div className="space-y-4">
@@ -295,9 +309,9 @@ export default function WalletPage() {
               onChange={(e) => setWithdrawPhone(e.target.value)}
             />
             <Input
-              label="Amount (GMD)"
+              label={`Amount (min ${formatXof(settings.minWithdrawal)})`}
               type="number"
-              min={1}
+              min={settings.minWithdrawal}
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
             />
@@ -312,7 +326,7 @@ export default function WalletPage() {
       )}
 
       <PaymentSheet
-        isOpen={depositOpen}
+        isOpen={depositOpen && !frozen}
         onClose={() => setDepositOpen(false)}
         user={{
           id: fbUser.uid,
@@ -320,6 +334,8 @@ export default function WalletPage() {
           phone: profile.phone || undefined,
           walletBalance: wallet?.balance ?? 0,
         }}
+        minDeposit={settings.minDeposit}
+        frozen={frozen}
         onDepositRequest={handleCreateDepositRequest}
       />
       <PaymentResultModal result={paymentResult} onClose={() => setPaymentResult(null)} />

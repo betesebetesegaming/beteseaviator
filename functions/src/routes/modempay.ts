@@ -14,7 +14,7 @@ import {
   type ModemPayPayoutNetwork,
 } from '../modempay';
 import { adminDb } from '../adminModem';
-import { db, walletRead, walletWrite } from '../helpers';
+import { db, getSettings, walletRead, walletWrite } from '../helpers';
 import { syncAviatorWalletCredit } from '../walletSync';
 import {
   patchDepositOnRtdb,
@@ -69,6 +69,20 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
   if (!body.externalRef) {
     res.status(400).json({ error: 'externalRef is required' });
     return;
+  }
+
+  const customerId = body.customerId ? String(body.customerId).trim() : '';
+  if (customerId) {
+    const settings = await getSettings();
+    if (!Number.isFinite(amount) || amount < settings.minDeposit) {
+      res.status(400).json({ error: `Minimum deposit is ${settings.minDeposit} GMD.` });
+      return;
+    }
+    const walletSnap = await db.doc(`wallets/${customerId}`).get();
+    if (walletSnap.exists && Boolean(walletSnap.data()?.frozen)) {
+      res.status(403).json({ error: 'Wallet is frozen. Contact customer service.' });
+      return;
+    }
   }
 
   try {
@@ -299,6 +313,25 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const settings = await getSettings();
+    if (amount < settings.minWithdrawal) {
+      await failWithdrawalWithoutHold(requestId, customerId, `Minimum withdrawal is ${settings.minWithdrawal} GMD.`);
+      res.status(400).json({ error: `Minimum withdrawal is ${settings.minWithdrawal} GMD.` });
+      return;
+    }
+
+    const walletSnap = await db.doc(`wallets/${customerId}`).get();
+    if (walletSnap.exists && Boolean(walletSnap.data()?.frozen)) {
+      await failWithdrawalWithoutHold(requestId, customerId, 'Wallet is frozen. Contact customer service.');
+      res.status(403).json({ error: 'Wallet is frozen. Contact customer service.' });
+      return;
+    }
+    if (Number(walletSnap.data()?.balance ?? 0) < amount) {
+      await failWithdrawalWithoutHold(requestId, customerId, 'Insufficient balance.');
+      res.status(400).json({ error: 'Insufficient balance.' });
+      return;
+    }
+
     const cleanPhone = recipientPhone.replace(/\D/g, '').replace(/^220/, '');
     const processedById = body.processedById || 'MODEMPAY_PAYOUT';
     const processedByName = body.processedByName || 'ModemPay Payout';
@@ -341,6 +374,7 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn('Withdrawal hold failed', { requestId, customerId, amount, err: message });
+      await failWithdrawalWithoutHold(requestId, customerId, message || 'Could not hold wallet balance for withdrawal');
       res.status(400).json({ error: message || 'Could not hold wallet balance for withdrawal' });
       return;
     }
@@ -1190,6 +1224,23 @@ async function markWithdrawalSettled(externalRef: string, payload: Record<string
     }
   } catch (err) {
     logger.warn('RTDB withdrawal complete sync failed', err);
+  }
+}
+
+async function failWithdrawalWithoutHold(requestId: string, customerId: string, reason: string) {
+  const failedAt = new Date().toISOString();
+  await adminDb.collection('withdrawal_requests').doc(requestId).set({
+    status: 'Failed',
+    failure_reason: reason,
+    failed_at: failedAt,
+  }, { merge: true }).catch(err => logger.warn('Failed to mark withdrawal failed (no hold)', { requestId, err }));
+
+  if (customerId) {
+    await patchWithdrawalOnRtdb(requestId, customerId, {
+      status: 'Failed',
+      failure_reason: reason,
+      failed_at: failedAt,
+    }).catch(err => logger.warn('RTDB withdrawal fail sync failed', err));
   }
 }
 

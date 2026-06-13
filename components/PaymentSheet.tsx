@@ -23,6 +23,8 @@ interface PaymentSheetProps {
   user: PaymentUser;
   /** Optional prefilled amount (e.g. shortfall when funding a bet) */
   initialAmount?: number;
+  minDeposit?: number;
+  frozen?: boolean;
   /** Records a pending deposit — wallet is credited only after ModemPay webhook confirmation. */
   onDepositRequest: (amount: number, method: Method, phone: string, externalRef: string) => void | Promise<void>;
 }
@@ -87,6 +89,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   onClose,
   user,
   initialAmount,
+  minDeposit = 100,
+  frozen = false,
   onDepositRequest,
 }) => {
   type Stage = 'choose' | 'enter-amount' | 'paying' | 'confirm';
@@ -211,10 +215,18 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
 
   const handlePay = async () => {
     if (!method) return;
+    if (frozen) {
+      setMessage({ ok: false, text: 'Contact customer service — your wallet is restricted.' });
+      return;
+    }
     setMessage(null);
     const numAmount = typeof amount === 'number' ? amount : Number(amount);
     if (!Number.isFinite(numAmount) || numAmount <= 0) {
       setMessage({ ok: false, text: 'Enter a valid amount.' });
+      return;
+    }
+    if (numAmount < minDeposit) {
+      setMessage({ ok: false, text: `Minimum deposit is ${minDeposit} GMD.` });
       return;
     }
     const normalizedPhone = normalizeGambiaPhone(phone);
@@ -376,7 +388,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                   onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
                   placeholder="e.g. 500"
                   className="w-full p-3 border-2 border-slate-300 rounded-xl text-lg font-black text-slate-900 bg-white placeholder:text-slate-400 focus:border-betese-green focus:ring-2 focus:ring-green-600/25 focus:outline-none"
-                  min={1}
+                  min={minDeposit}
                 />
                 <div className="mt-2 flex flex-wrap gap-2">
                   {[100, 200, 500, 1000, 2000].map((preset) => (

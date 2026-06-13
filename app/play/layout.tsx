@@ -49,6 +49,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
 
   const isPlayer =
     !!profile && profile.role === "player" && profile.status === "active";
+  const walletFrozen = Boolean(wallet?.frozen);
   const needsProfile = !!fbUser && !profile && !loading;
 
   useEffect(() => {
@@ -64,7 +65,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
         <PlayAuthFromQuery />
       </Suspense>
       <PresenceTracker />
-      {isPlayer ? <PendingDepositReconciler /> : null}
+      {isPlayer && !walletFrozen ? <PendingDepositReconciler /> : null}
       <AgentReferralBanner />
       <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/75 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
@@ -86,11 +87,17 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
                     +{formatXof(wallet?.bonusBalance ?? 0)} bonus
                   </span>
                 )}
+                {walletFrozen && (
+                  <span className="hidden rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-200 sm:inline">
+                    Contact support
+                  </span>
+                )}
                 <Link
                   href="/play/wallet"
                   className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium hover:bg-slate-700"
                 >
-                  <Wallet size={16} /> <span className="hidden sm:inline">Wallet</span>
+                  <Wallet size={16} />{" "}
+                  <span className="hidden sm:inline">{walletFrozen ? "History" : "Wallet"}</span>
                 </Link>
                 <button
                   onClick={logout}
