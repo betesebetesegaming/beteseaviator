@@ -42,6 +42,7 @@ function PlayAuthFromQuery() {
     }
 
     const signup = searchParams.get("signup");
+    const pref = searchParams.get("pref")?.toUpperCase().trim() || null;
     let ref = searchParams.get("ref")?.toLowerCase().trim() || null;
 
     if (!ref && typeof window !== "undefined") {
@@ -50,9 +51,12 @@ function PlayAuthFromQuery() {
 
     if (signup === "1") {
       handledRef.current = true;
-      openAuth("register", ref);
-      const next = ref ? `/play?ref=${encodeURIComponent(ref)}` : "/play";
-      router.replace(next, { scroll: false });
+      openAuth("register", ref, pref);
+      const params = new URLSearchParams();
+      if (ref) params.set("ref", ref);
+      if (pref) params.set("pref", pref);
+      const qs = params.toString();
+      router.replace(qs ? `/play?${qs}` : "/play", { scroll: false });
     }
   }, [searchParams, openAuth, router, loading, fbUser, profile]);
 

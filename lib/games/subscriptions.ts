@@ -78,12 +78,16 @@ export function subscribePlatformSettings(
           ...DEFAULT_SETTINGS.bonuses!.weeklyCrash,
           ...(data.bonuses?.weeklyCrash ?? {}),
         },
-        weekend: {
-          ...DEFAULT_SETTINGS.bonuses!.weekend,
-          ...(data.bonuses?.weekend ?? {}),
-        },
+      weekend: {
+        ...DEFAULT_SETTINGS.bonuses!.weekend,
+        ...(data.bonuses?.weekend ?? {}),
       },
-    });
+    },
+    playerReferral: {
+      ...DEFAULT_SETTINGS.playerReferral!,
+      ...(data.playerReferral ?? {}),
+    },
+  });
   });
 }
 

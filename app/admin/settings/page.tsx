@@ -35,6 +35,10 @@ export default function AdminSettingsPage() {
           depositPlaythroughRate: data.depositPlaythroughRate ?? DEFAULT_SETTINGS.depositPlaythroughRate,
           earlyWithdrawalFeeRate: data.earlyWithdrawalFeeRate ?? DEFAULT_SETTINGS.earlyWithdrawalFeeRate,
           bonusWagerMultiplier: data.bonusWagerMultiplier ?? DEFAULT_SETTINGS.bonusWagerMultiplier,
+          playerReferral: {
+            ...DEFAULT_SETTINGS.playerReferral!,
+            ...(data.playerReferral ?? {}),
+          },
         });
       }
     });
@@ -163,6 +167,79 @@ export default function AdminSettingsPage() {
             step="1"
             {...num("bonusWagerMultiplier")}
           />
+        </div>
+      </Card>
+
+      <Card className="mb-5">
+        <h2 className="mb-4 font-semibold">Player referral program</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Friends register via /r/CODE, deposit GMD 50+, place one bet — referrer earns bonus (launch: GMD 10).
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={settings.playerReferral?.enabled !== false}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  playerReferral: {
+                    ...DEFAULT_SETTINGS.playerReferral!,
+                    ...settings.playerReferral,
+                    enabled: e.target.checked,
+                  },
+                })
+              }
+            />
+            Referral program enabled
+          </label>
+          <Input
+            label="Referral bonus (GMD)"
+            type="number"
+            value={String(settings.playerReferral?.bonusAmount ?? 10)}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                playerReferral: {
+                  ...DEFAULT_SETTINGS.playerReferral!,
+                  ...settings.playerReferral,
+                  bonusAmount: Number(e.target.value),
+                },
+              })
+            }
+          />
+          <Input
+            label="Min friend deposit to qualify (GMD)"
+            type="number"
+            value={String(settings.playerReferral?.minQualifyingDeposit ?? 50)}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                playerReferral: {
+                  ...DEFAULT_SETTINGS.playerReferral!,
+                  ...settings.playerReferral,
+                  minQualifyingDeposit: Number(e.target.value),
+                },
+              })
+            }
+          />
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={settings.playerReferral?.requireFirstBet !== false}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  playerReferral: {
+                    ...DEFAULT_SETTINGS.playerReferral!,
+                    ...settings.playerReferral,
+                    requireFirstBet: e.target.checked,
+                  },
+                })
+              }
+            />
+            Require first real-money bet
+          </label>
         </div>
       </Card>
 

@@ -12,6 +12,10 @@ export interface UserProfile {
   parentId: string | null; // owning agent uid (players) / super agent uid (sub agents)
   agentSlug: string | null; // agent username, referral code, subdomain
   staffLoginId?: string | null; // admin username login id
+  /** Player invite code (e.g. GREGORY1A2B). */
+  referralCode?: string | null;
+  /** UID of player who referred this user. */
+  referredBy?: string | null;
   status: UserStatus;
   createdAt: Timestamp | null;
   stats?: AgentStats;
@@ -24,6 +28,9 @@ export interface AgentStats {
   totalBets?: number;
   totalWins?: number;
   commissionEarned?: number;
+  referralInvites?: number;
+  referralQualified?: number;
+  referralBonusEarned?: number;
 }
 
 export interface Wallet {
@@ -162,6 +169,13 @@ export interface BonusSettings {
   weekend: WeekendBonusSettings;
 }
 
+export interface PlayerReferralSettings {
+  enabled: boolean;
+  bonusAmount: number;
+  minQualifyingDeposit: number;
+  requireFirstBet: boolean;
+}
+
 export interface PlatformSettings {
   subAgentRate: number; // e.g. 0.05
   superAgentRate: number; // e.g. 0.03
@@ -182,6 +196,7 @@ export interface PlatformSettings {
   bonusWagerMultiplier?: number;
   providers: Record<PaymentProvider, boolean>;
   bonuses?: BonusSettings;
+  playerReferral?: PlayerReferralSettings;
 }
 
 export interface DailyStats {
@@ -211,6 +226,12 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   bonusWagerMultiplier: 3,
   providers: { wave: true, afrimoney: true, aps: true, qmoney: true },
   bonuses: DEFAULT_BONUS_SETTINGS,
+  playerReferral: {
+    enabled: true,
+    bonusAmount: 10,
+    minQualifyingDeposit: 50,
+    requireFirstBet: true,
+  },
 };
 
 export const PROVIDER_LABELS: Record<PaymentProvider, string> = {

@@ -36,9 +36,10 @@ import { PaymentSheet } from "@/components/PaymentSheet";
 import { PaymentResultModal } from "@/components/PaymentResultModal";
 import { BonusOffersPanel, WalletBalanceCards } from "@/components/wallet/WalletBonusPanel";
 import { WalletFrozenNotice } from "@/components/wallet/WalletFrozenNotice";
+import { ReferralPanel } from "@/components/wallet/ReferralPanel";
 import { Badge, Button, Card, EmptyState, Input, Select, TableShell, Td, Th } from "@/components/ui";
 
-type Tab = "history" | "deposit" | "withdraw";
+type Tab = "history" | "deposit" | "withdraw" | "refer";
 
 export default function WalletPage() {
   const { fbUser, profile, wallet } = useAuth();
@@ -271,17 +272,17 @@ export default function WalletPage() {
         {!frozen && <BonusOffersPanel bonuses={mergeBonusSettings(settings.bonuses)} />}
       </div>
 
-      <div className="mb-5 grid grid-cols-3 rounded-lg bg-slate-900 p-1 text-sm font-medium">
-        {(["history", "deposit", "withdraw"] as Tab[]).map((t) => (
+      <div className="mb-5 grid grid-cols-4 rounded-lg bg-slate-900 p-1 text-sm font-medium">
+        {(["history", "deposit", "withdraw", "refer"] as Tab[]).map((t) => (
           <button
             key={t}
-            onClick={() => !frozen || t === "history" ? setTab(t) : undefined}
-            disabled={frozen && t !== "history"}
+            onClick={() => !frozen || t === "history" || t === "refer" ? setTab(t) : undefined}
+            disabled={frozen && t !== "history" && t !== "refer"}
             className={`rounded-md py-2 capitalize transition-colors ${
               tab === t ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
             } ${frozen && t !== "history" ? "cursor-not-allowed opacity-40" : ""}`}
           >
-            {t}
+            {t === "refer" ? "Refer" : t}
           </button>
         ))}
       </div>
@@ -405,6 +406,8 @@ export default function WalletPage() {
           </div>
         </Card>
       )}
+
+      {tab === "refer" && <ReferralPanel />}
 
       <PaymentSheet
         isOpen={depositOpen && !frozen}

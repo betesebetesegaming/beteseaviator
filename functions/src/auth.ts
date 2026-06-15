@@ -14,6 +14,12 @@ import {
   type ProfileData,
   type Role,
 } from "./helpers";
+import {
+  allocatePlayerReferralCode,
+  attachPlayerReferrer,
+  normalizeReferralCode,
+  resolvePlayerReferrerUid,
+} from "./referrals";
 
 /** Web API key used to verify agent passwords through the Identity Toolkit REST API. */
 const WEB_API_KEY = defineString("WEB_API_KEY", {
@@ -29,6 +35,12 @@ export const completeRegistration = onCall(async (req) => {
   const name = String(req.data?.name ?? "").trim();
   const phone = req.data?.phone ? normalizePhone(String(req.data.phone)) : "";
   const ref = req.data?.ref ? String(req.data.ref).toLowerCase().trim() : null;
+  const pref = req.data?.pref ? normalizeReferralCode(String(req.data.pref)) : null;
+  const deviceId = req.data?.deviceId ? String(req.data.deviceId).trim().slice(0, 128) : null;
+  const signupIp =
+    (req.rawRequest?.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
+    (req.rawRequest?.headers["x-real-ip"] as string | undefined)?.trim() ||
+    null;
 
   if (!name) throw new HttpsError("invalid-argument", "Name is required.");
     if (!phone) throw new HttpsError("invalid-argument", "A valid Gambia or Senegal phone number is required.");
@@ -60,14 +72,24 @@ export const completeRegistration = onCall(async (req) => {
     }
   }
 
+  let playerReferrerUid: string | null = null;
+  if (pref) {
+    playerReferrerUid = await resolvePlayerReferrerUid(pref);
+    if (playerReferrerUid === uid) playerReferrerUid = null;
+  }
+
   await db.runTransaction(async (tx) => {
     const userRef = db.doc(`users/${uid}`);
     const phoneRef = db.doc(`phones/${phone}`);
     const [userSnap, phoneSnap] = await Promise.all([tx.get(userRef), tx.get(phoneRef)]);
 
     if (userSnap.exists) {
-      const existing = userSnap.data() as ProfileData & { phone?: string };
+      const existing = userSnap.data() as ProfileData & { phone?: string; referralCode?: string };
       if (existing.phone === phone) {
+        if (!existing.referralCode) {
+          const code = await allocatePlayerReferralCode(tx, uid, name);
+          tx.set(userRef, { referralCode: code }, { merge: true });
+        }
         return;
       }
       throw new HttpsError(
@@ -80,6 +102,8 @@ export const completeRegistration = onCall(async (req) => {
       throw new HttpsError("already-exists", "This phone number is already registered.");
     }
 
+    const referralCode = await allocatePlayerReferralCode(tx, uid, name);
+
     tx.set(userRef, {
       name,
       email,
@@ -88,6 +112,8 @@ export const completeRegistration = onCall(async (req) => {
       parentId,
       agentSlug: null,
       ancestors,
+      referredBy: playerReferrerUid,
+      referralCode,
       status: "active",
       stats: {},
       createdAt: FieldValue.serverTimestamp(),
@@ -107,6 +133,10 @@ export const completeRegistration = onCall(async (req) => {
         { stats: { customerCount: FieldValue.increment(1) } },
         { merge: true }
       );
+    }
+
+    if (playerReferrerUid && pref) {
+      await attachPlayerReferrer(tx, uid, playerReferrerUid, pref, { deviceId, signupIp });
     }
   });
 

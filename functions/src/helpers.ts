@@ -59,6 +59,12 @@ export const DEFAULT_SETTINGS = {
       sundayEndHour: 23,
     },
   },
+  playerReferral: {
+    enabled: true,
+    bonusAmount: 10,
+    minQualifyingDeposit: 50,
+    requireFirstBet: true,
+  },
 };
 
 export type Settings = typeof DEFAULT_SETTINGS;
@@ -130,6 +136,10 @@ export async function getSettings(): Promise<Settings> {
       firstDeposit: { ...DEFAULT_SETTINGS.bonuses.firstDeposit, ...(data.bonuses?.firstDeposit ?? {}) },
       weeklyCrash: { ...DEFAULT_SETTINGS.bonuses.weeklyCrash, ...(data.bonuses?.weeklyCrash ?? {}) },
       weekend: { ...DEFAULT_SETTINGS.bonuses.weekend, ...(data.bonuses?.weekend ?? {}) },
+    },
+    playerReferral: {
+      ...DEFAULT_SETTINGS.playerReferral,
+      ...(data.playerReferral ?? {}),
     },
   } as Settings;
 }

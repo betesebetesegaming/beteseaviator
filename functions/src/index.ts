@@ -35,6 +35,7 @@ export {
 export { processCommissions, adminRunCommissions } from "./commissions";
 
 export { getOperationsHub } from "./operations";
+export { getPlayerReferralDashboard } from "./referrals";
 
 /** ModemPay — same handlers as betesepmu (single Cloud Function to save quota). */
 export { modempayApi } from "./modempayApi";

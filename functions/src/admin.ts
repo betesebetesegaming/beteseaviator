@@ -307,6 +307,24 @@ export const adminSaveSettings = onCall(async (req) => {
     };
   }
 
+  if (data.playerReferral && typeof data.playerReferral === "object") {
+    const pr = data.playerReferral as Record<string, unknown>;
+    const bonusAmount = Number(pr.bonusAmount);
+    const minQualifyingDeposit = Number(pr.minQualifyingDeposit);
+    if (!Number.isFinite(bonusAmount) || bonusAmount < 0) {
+      throw new HttpsError("invalid-argument", "Invalid referral bonus amount.");
+    }
+    if (!Number.isFinite(minQualifyingDeposit) || minQualifyingDeposit < 0) {
+      throw new HttpsError("invalid-argument", "Invalid referral min qualifying deposit.");
+    }
+    clean.playerReferral = {
+      enabled: pr.enabled !== false,
+      bonusAmount,
+      minQualifyingDeposit,
+      requireFirstBet: pr.requireFirstBet !== false,
+    };
+  }
+
   await db.doc("settings/platform").set(clean, { merge: true });
   return { ok: true };
 });

@@ -20,6 +20,7 @@ import {
 } from "./helpers";
 import { applyDepositBonuses } from "./bonuses";
 import { applyEarlyWithdrawalPenalties, recordDepositPlaythrough } from "./wagering";
+import { onReferralDeposit } from "./referrals";
 
 // Per-provider webhook secrets. FAIL CLOSED: while a secret is unset, that
 // provider's webhooks are rejected and nobody can fake a deposit confirmation.
@@ -194,6 +195,7 @@ async function settleDepositPaid(requestId: string, source: string): Promise<voi
     tx.update(ref, { status: "paid", settledAt: FieldValue.serverTimestamp() });
     bumpDailyStats(tx, todayIso(), { deposits: r.amount });
     bumpPlatformStats(tx, { totalDeposits: r.amount });
+    await onReferralDeposit(tx, r.userId, r.amount, settings);
     for (const agentId of ancestors) {
       tx.set(
         db.doc(`users/${agentId}`),

@@ -16,6 +16,7 @@ import { auth } from "@/lib/firebase";
 import { useAuth, homeFor } from "@/lib/auth-context";
 import { completeRegistration, errorMessage } from "@/lib/api";
 import { normalizePhone, phoneToEmail } from "@/lib/phone";
+import { getReferralDeviceId } from "@/lib/referrals";
 import {
   PHONE_HINT,
   PHONE_LABEL,
@@ -86,12 +87,14 @@ export function AuthModal({
   onSuccess,
   initialMode = "register",
   refCode = null,
+  prefCode = null,
 }: {
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
   initialMode?: AuthModalMode;
   refCode?: string | null;
+  prefCode?: string | null;
 }) {
   const { fbUser, profile, loading } = useAuth();
   const [mode, setMode] = useState<AuthModalMode>(initialMode);
@@ -170,6 +173,8 @@ export function AuthModal({
         name: name.trim(),
         phone: normalized,
         ref: refCode,
+        pref: prefCode,
+        deviceId: getReferralDeviceId() || undefined,
         ...(email.trim() ? { email: email.trim().toLowerCase() } : {}),
       };
 
@@ -262,7 +267,13 @@ export function AuthModal({
     if (!normalized) return toast.error(PHONE_HINT);
     setBusy(true);
     try {
-      await completeRegistration({ name: name.trim(), phone: normalized, ref: refCode });
+      await completeRegistration({
+        name: name.trim(),
+        phone: normalized,
+        ref: refCode,
+        pref: prefCode,
+        deviceId: getReferralDeviceId() || undefined,
+      });
       await auth.currentUser?.getIdToken(true);
       toast.success("You're all set!");
     } catch (e) {
@@ -298,6 +309,12 @@ export function AuthModal({
         <p className="mb-3 rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-center text-xs text-sky-100 sm:mb-4">
           You&apos;re joining via agent link:{" "}
           <span className="font-bold uppercase text-sky-300">{refCode}</span>
+        </p>
+      )}
+      {prefCode && mode === "register" && (
+        <p className="mb-3 rounded-lg border border-violet-500/25 bg-violet-500/10 px-3 py-2 text-center text-xs text-violet-100 sm:mb-4">
+          Invited by friend:{" "}
+          <span className="font-bold uppercase text-violet-300">{prefCode}</span>
         </p>
       )}
 

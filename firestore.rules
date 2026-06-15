@@ -142,6 +142,23 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /referral_rewards/{rewardId} {
+      allow read: if signedIn()
+        && (resource.data.referrerId == uid() || isAdmin());
+      allow write: if false;
+    }
+
+    match /referralInvites/{inviteId} {
+      allow read: if signedIn()
+        && (resource.data.referrerId == uid() || inviteId == uid() || isAdmin());
+      allow write: if false;
+    }
+
+    match /playerRefs/{code} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

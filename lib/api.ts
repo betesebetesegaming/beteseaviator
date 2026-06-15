@@ -27,9 +27,31 @@ function call<Req, Res>(name: string) {
 // ---------- auth / profile ----------
 
 export const completeRegistration = call<
-  { name: string; phone?: string; email?: string; ref?: string | null },
+  {
+    name: string;
+    phone?: string;
+    email?: string;
+    ref?: string | null;
+    pref?: string | null;
+    deviceId?: string | null;
+  },
   { ok: true; role: Role }
 >("completeRegistration");
+
+export const getPlayerReferralDashboard = call<
+  Record<string, never>,
+  {
+    enabled: boolean;
+    bonusAmount: number;
+    minQualifyingDeposit: number;
+    requireFirstBet: boolean;
+    referralCode: string;
+    friendsInvited: number;
+    qualifiedFriends: number;
+    pendingBonuses: number;
+    totalBonusEarned: number;
+  }
+>("getPlayerReferralDashboard");
 
 /** Agent/staff username login: verifies password server-side, returns email for client sign-in. */
 export const agentLogin = call<

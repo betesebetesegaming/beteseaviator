@@ -17,6 +17,7 @@ import {
   bumpAgentGgr,
 } from "./helpers";
 import { applyBetWagering } from "./wagering";
+import { onReferralFirstBet } from "./referrals";
 
 const BETTING_MS = 6_000; // betting window
 const CRASHED_MS = 4_000; // crash display before next round
@@ -342,6 +343,13 @@ export const placeBet = onCall(async (req) => {
   const sessionRef = db.collection("gameSessions").doc();
   const date = todayIso();
 
+  const priorBetsSnap = await db
+    .collection("gameSessions")
+    .where("playerId", "==", uid)
+    .limit(1)
+    .get();
+  const isFirstBet = priorBetsSnap.empty;
+
   await db.runTransaction(async (tx) => {
     const wallet = await walletRead(tx, uid);
     const fromBonus = Math.min(wallet.bonusBalance, betAmount);
@@ -369,6 +377,10 @@ export const placeBet = onCall(async (req) => {
     bumpDailyStats(tx, date, { bets: betAmount, sessions: 1 });
     bumpPlatformStats(tx, { totalBets: betAmount });
     bumpAgentGgr(tx, profile.ancestors ?? [], uid, date, { bets: betAmount });
+
+    if (isFirstBet) {
+      await onReferralFirstBet(tx, uid, settings);
+    }
   });
 
   return { sessionId: sessionRef.id, roundId: round.roundId, hash: round.hash };

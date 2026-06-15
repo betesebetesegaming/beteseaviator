@@ -5,6 +5,7 @@
 import { applyDepositBonuses } from "./bonuses";
 import { bumpDailyStats, bumpPlatformStats, db, getSettings, todayIso, walletRead, walletWrite } from "./helpers";
 import { recordDepositPlaythrough } from "./wagering";
+import { onReferralDeposit } from "./referrals";
 
 export async function syncAviatorWalletCredit(
   uid: string,
@@ -45,6 +46,8 @@ export async function syncAviatorWalletCredit(
 
     bumpPlatformStats(tx, { totalDeposits: amount });
     bumpDailyStats(tx, todayIso(depositAt), { deposits: amount });
+
+    await onReferralDeposit(tx, uid, amount, settings);
   });
 
   return { bonuses: applied };

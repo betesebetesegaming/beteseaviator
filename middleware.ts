@@ -23,9 +23,17 @@ function parseAgentSlugFromHost(host: string): string | null {
 export function middleware(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const h = host.split(":")[0].toLowerCase();
+  const url = request.nextUrl.clone();
+
+  const playerRefMatch = url.pathname.match(/^\/r\/([A-Za-z0-9]+)\/?$/);
+  if (playerRefMatch) {
+    url.pathname = "/play";
+    url.searchParams.set("signup", "1");
+    url.searchParams.set("pref", playerRefMatch[1].toUpperCase());
+    return NextResponse.redirect(url);
+  }
 
   if (h === `admin.${AGENT_DOMAIN}`) {
-    const url = request.nextUrl.clone();
     if (!url.pathname.startsWith("/admin")) {
       url.pathname = "/admin/login";
       return NextResponse.redirect(url);
@@ -35,8 +43,6 @@ export function middleware(request: NextRequest) {
 
   const slug = parseAgentSlugFromHost(host);
   if (!slug) return NextResponse.next();
-
-  const url = request.nextUrl.clone();
 
   if (url.pathname.startsWith("/admin") || url.pathname.startsWith("/agent")) {
     return NextResponse.redirect(new URL(STAFF_LOGIN_PATH, SITE_ORIGIN));
