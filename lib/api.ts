@@ -211,9 +211,18 @@ export const getOperationsHub = call<
 >("getOperationsHub");
 
 export function errorMessage(e: unknown): string {
-  if (e && typeof e === "object" && "message" in e) {
-    const msg = String((e as { message: unknown }).message);
-    return msg.replace(/^(functions\/[\w-]+:?\s*)/, "");
+  if (e && typeof e === "object") {
+    const err = e as { code?: string; message?: unknown };
+    const msg = err.message != null ? String(err.message) : "";
+    const cleaned = msg.replace(/^(functions\/[\w-]+:?\s*)/i, "").trim();
+    if (cleaned && cleaned.toUpperCase() !== "INTERNAL") return cleaned;
+    if (err.code?.includes("internal")) {
+      return "Could not finish your profile. Please try again in a moment.";
+    }
+    if (err.code?.includes("already-exists")) {
+      return cleaned || "This phone number is already registered.";
+    }
+    if (cleaned) return cleaned;
   }
   return "Something went wrong. Please try again.";
 }

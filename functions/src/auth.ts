@@ -15,8 +15,9 @@ import {
   type Role,
 } from "./helpers";
 import {
-  allocatePlayerReferralCode,
-  attachPlayerReferrer,
+  pickPlayerReferralCode,
+  writeAttachPlayerReferrer,
+  writePlayerReferralCode,
   normalizeReferralCode,
   resolvePlayerReferrerUid,
 } from "./referrals";
@@ -78,69 +79,85 @@ export const completeRegistration = onCall(async (req) => {
     if (playerReferrerUid === uid) playerReferrerUid = null;
   }
 
-  await db.runTransaction(async (tx) => {
-    const userRef = db.doc(`users/${uid}`);
-    const phoneRef = db.doc(`phones/${phone}`);
-    const [userSnap, phoneSnap] = await Promise.all([tx.get(userRef), tx.get(phoneRef)]);
+  try {
+    await db.runTransaction(async (tx) => {
+      const userRef = db.doc(`users/${uid}`);
+      const phoneRef = db.doc(`phones/${phone}`);
+      const inviteRef = db.doc(`referralInvites/${uid}`);
+      const [userSnap, phoneSnap, inviteSnap] = await Promise.all([
+        tx.get(userRef),
+        tx.get(phoneRef),
+        playerReferrerUid && pref ? tx.get(inviteRef) : Promise.resolve(null),
+      ]);
 
-    if (userSnap.exists) {
-      const existing = userSnap.data() as ProfileData & { phone?: string; referralCode?: string };
-      if (existing.phone === phone) {
-        if (!existing.referralCode) {
-          const code = await allocatePlayerReferralCode(tx, uid, name);
-          tx.set(userRef, { referralCode: code }, { merge: true });
+      if (userSnap.exists) {
+        const existing = userSnap.data() as ProfileData & { phone?: string; referralCode?: string };
+        if (existing.phone === phone) {
+          if (!existing.referralCode) {
+            const code = await pickPlayerReferralCode(tx, uid, name);
+            writePlayerReferralCode(tx, uid, name, code);
+            tx.set(userRef, { referralCode: code }, { merge: true });
+          }
+          return;
         }
-        return;
+        throw new HttpsError(
+          "already-exists",
+          "Profile already exists. Sign out and sign in with the correct account."
+        );
       }
-      throw new HttpsError(
-        "already-exists",
-        "Profile already exists. Sign out and sign in with the correct account."
-      );
-    }
 
-    if (phoneSnap.exists && phoneSnap.data()!.uid !== uid) {
-      throw new HttpsError("already-exists", "This phone number is already registered.");
-    }
+      if (phoneSnap.exists && phoneSnap.data()!.uid !== uid) {
+        throw new HttpsError("already-exists", "This phone number is already registered.");
+      }
 
-    const referralCode = await allocatePlayerReferralCode(tx, uid, name);
+      const referralCode = await pickPlayerReferralCode(tx, uid, name);
 
-    tx.set(userRef, {
-      name,
-      email,
-      phone,
-      role: "player" satisfies Role,
-      parentId,
-      agentSlug: null,
-      ancestors,
-      referredBy: playerReferrerUid,
-      referralCode,
-      status: "active",
-      stats: {},
-      createdAt: FieldValue.serverTimestamp(),
+      writePlayerReferralCode(tx, uid, name, referralCode);
+      tx.set(userRef, {
+        name,
+        email,
+        phone,
+        role: "player" satisfies Role,
+        parentId,
+        agentSlug: null,
+        ancestors,
+        referredBy: playerReferrerUid,
+        referralCode,
+        status: "active",
+        stats: {},
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(db.doc(`wallets/${uid}`), {
+        balance: 0,
+        bonusBalance: 0,
+        currency: "GMD",
+        frozen: false,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(phoneRef, { uid });
+      tx.set(db.doc("stats/platform"), { customerCount: FieldValue.increment(1) }, { merge: true });
+      for (const agentId of ancestors) {
+        tx.set(
+          db.doc(`users/${agentId}`),
+          { stats: { customerCount: FieldValue.increment(1) } },
+          { merge: true }
+        );
+      }
+
+      if (playerReferrerUid && pref && inviteSnap && !inviteSnap.exists) {
+        writeAttachPlayerReferrer(tx, uid, playerReferrerUid, pref, { deviceId, signupIp });
+      }
     });
-    tx.set(db.doc(`wallets/${uid}`), {
-      balance: 0,
-      bonusBalance: 0,
-      currency: "GMD",
-      frozen: false,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    tx.set(phoneRef, { uid });
-    tx.set(db.doc("stats/platform"), { customerCount: FieldValue.increment(1) }, { merge: true });
-    for (const agentId of ancestors) {
-      tx.set(
-        db.doc(`users/${agentId}`),
-        { stats: { customerCount: FieldValue.increment(1) } },
-        { merge: true }
-      );
-    }
 
-    if (playerReferrerUid && pref) {
-      await attachPlayerReferrer(tx, uid, playerReferrerUid, pref, { deviceId, signupIp });
-    }
-  });
-
-  await auth.setCustomUserClaims(uid, { role: "player" });
+    await auth.setCustomUserClaims(uid, { role: "player" });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    console.error("completeRegistration failed", e);
+    throw new HttpsError(
+      "internal",
+      "Could not finish your profile. Please try again in a moment."
+    );
+  }
   return { ok: true, role: "player" };
 });
 

@@ -39,8 +39,8 @@ function referralCodeBase(name: string): string {
   return (key || "PLAYER").slice(0, 12);
 }
 
-/** Allocate a unique player referral code and index doc. */
-export async function allocatePlayerReferralCode(
+/** Find an unused player referral code (reads only — use before any transaction writes). */
+export async function pickPlayerReferralCode(
   tx: FirebaseFirestore.Transaction,
   uid: string,
   name: string
@@ -51,21 +51,37 @@ export async function allocatePlayerReferralCode(
 
   for (let i = 0; i < 8; i++) {
     const code = i === 0 ? candidate : `${base}${suffix}${i}`.slice(0, 16);
-    const ref = db.doc(`playerRefs/${code}`);
-    const snap = await tx.get(ref);
+    const snap = await tx.get(db.doc(`playerRefs/${code}`));
     if (!snap.exists || snap.data()!.uid === uid) {
-      tx.set(ref, { uid, name, active: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       return code;
     }
   }
 
-  candidate = `${base}${uid.slice(0, 6)}`.slice(0, 16);
+  return `${base}${uid.slice(0, 6)}`.slice(0, 16);
+}
+
+export function writePlayerReferralCode(
+  tx: FirebaseFirestore.Transaction,
+  uid: string,
+  name: string,
+  code: string
+): void {
   tx.set(
-    db.doc(`playerRefs/${candidate}`),
+    db.doc(`playerRefs/${code}`),
     { uid, name, active: true, updatedAt: FieldValue.serverTimestamp() },
     { merge: true }
   );
-  return candidate;
+}
+
+/** Allocate a unique player referral code and index doc (reads then writes). */
+export async function allocatePlayerReferralCode(
+  tx: FirebaseFirestore.Transaction,
+  uid: string,
+  name: string
+): Promise<string> {
+  const code = await pickPlayerReferralCode(tx, uid, name);
+  writePlayerReferralCode(tx, uid, name, code);
+  return code;
 }
 
 export async function resolvePlayerReferrerUid(code: string): Promise<string | null> {
@@ -89,24 +105,20 @@ export interface ReferralInvite {
   createdAt: FirebaseFirestore.FieldValue;
 }
 
-/** Attach player-to-player referrer at registration (inside transaction). */
-export async function attachPlayerReferrer(
+/** Attach player-to-player referrer at registration (writes only — read invite first). */
+export function writeAttachPlayerReferrer(
   tx: FirebaseFirestore.Transaction,
   referredUid: string,
   referrerUid: string,
   referralCode: string,
   opts: { deviceId?: string | null; signupIp?: string | null }
-): Promise<void> {
+): void {
   if (referrerUid === referredUid) return;
-
-  const inviteRef = db.doc(`referralInvites/${referredUid}`);
-  const existing = await tx.get(inviteRef);
-  if (existing.exists) return;
 
   const deviceId = opts.deviceId?.trim().slice(0, 128) || null;
   const signupIp = opts.signupIp?.trim().slice(0, 64) || null;
 
-  tx.set(inviteRef, {
+  tx.set(db.doc(`referralInvites/${referredUid}`), {
     referrerId: referrerUid,
     referralCode: normalizeReferralCode(referralCode),
     deviceId,
@@ -139,6 +151,23 @@ export async function attachPlayerReferrer(
     { stats: { referralInvites: FieldValue.increment(1) } },
     { merge: true }
   );
+}
+
+/** @deprecated Prefer pickPlayerReferralCode + writeAttachPlayerReferrer with reads first. */
+export async function attachPlayerReferrer(
+  tx: FirebaseFirestore.Transaction,
+  referredUid: string,
+  referrerUid: string,
+  referralCode: string,
+  opts: { deviceId?: string | null; signupIp?: string | null }
+): Promise<void> {
+  if (referrerUid === referredUid) return;
+
+  const inviteRef = db.doc(`referralInvites/${referredUid}`);
+  const existing = await tx.get(inviteRef);
+  if (existing.exists) return;
+
+  writeAttachPlayerReferrer(tx, referredUid, referrerUid, referralCode, opts);
 }
 
 /** Mark deposit milestone for referred player (inside deposit transaction). */

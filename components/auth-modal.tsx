@@ -15,7 +15,14 @@ import { LogIn, UserPlus } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useAuth, homeFor } from "@/lib/auth-context";
 import { completeRegistration, errorMessage } from "@/lib/api";
-import { normalizePhone, phoneToEmail } from "@/lib/phone";
+import {
+  displayLocalFromPhoneKey,
+  normalizePhone,
+  phoneCountryFromKey,
+  phoneKeyFromAuthEmail,
+  phoneToEmail,
+} from "@/lib/phone";
+import { isSignupOtpEnabled } from "@/lib/env/publicConfig";
 import { getReferralDeviceId } from "@/lib/referrals";
 import {
   PHONE_HINT,
@@ -112,6 +119,7 @@ export function AuthModal({
 
   const confirmRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
+  const otpEnabled = isSignupOtpEnabled();
 
   useEffect(() => {
     if (!open) return;
@@ -126,7 +134,13 @@ export function AuthModal({
     if (!open || loading) return;
     if (fbUser && !profile) {
       setMode("complete");
-      if (fbUser.displayName && !name) setName(fbUser.displayName);
+      if (fbUser.displayName) setName((n) => n || fbUser.displayName || "");
+      const key = phoneKeyFromAuthEmail(fbUser.email);
+      if (key) {
+        const country = phoneCountryFromKey(key);
+        setPhoneCountry(country);
+        setPhone((p) => p || displayLocalFromPhoneKey(key, country));
+      }
     } else if (fbUser && profile?.status === "active") {
       onSuccess?.();
       onClose();
@@ -134,7 +148,7 @@ export function AuthModal({
         window.location.href = homeFor(profile.role);
       }
     }
-  }, [open, loading, fbUser, profile, onSuccess, onClose, name]);
+  }, [open, loading, fbUser, profile, onSuccess, onClose]);
 
   async function loginWithPassword() {
     if (!isActivePhoneCountry(phoneCountry)) {
@@ -277,7 +291,13 @@ export function AuthModal({
       await auth.currentUser?.getIdToken(true);
       toast.success("You're all set!");
     } catch (e) {
-      toast.error(errorMessage(e));
+      const msg = errorMessage(e);
+      if (msg.includes("already registered") || msg.includes("already-exists")) {
+        toast.error("This phone is already registered. Sign in with your password instead.");
+        setMode("login");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -346,7 +366,8 @@ export function AuthModal({
       {mode === "complete" ? (
         <div className="space-y-4">
           <p className="text-sm text-amber-100">
-            One last step — confirm your name and phone to unlock your real-money wallet.
+            One last step — confirm your name and phone to unlock your real-money wallet. No SMS
+            code is required until mobile-operator verification is available.
           </p>
           <Input label="Full Name" value={name} onChange={(e) => setName(e.target.value)} />
           <CustomerPhoneFields
@@ -389,8 +410,13 @@ export function AuthModal({
           <Button className="w-full" onClick={registerWithPhone} disabled={busy}>
             {busy ? "Creating account…" : "Create account"}
           </Button>
+          {!otpEnabled && (
+            <p className="text-center text-xs text-slate-500">
+              Sign up with phone + password. SMS verification is not required yet.
+            </p>
+          )}
         </div>
-      ) : customerAuth === "password" ? (
+      ) : !otpEnabled || customerAuth === "password" ? (
         <div className="space-y-3">
           <CustomerPhoneFields
             phoneCountry={phoneCountry}
@@ -408,13 +434,15 @@ export function AuthModal({
           <Button className="w-full" onClick={loginWithPassword} disabled={busy}>
             {busy ? "Signing in…" : "Sign in with phone"}
           </Button>
-          <button
-            type="button"
-            onClick={() => setCustomerAuth("otp")}
-            className="block w-full text-center text-xs text-slate-400 hover:text-emerald-300"
-          >
-            Sign in with SMS code instead
-          </button>
+          {otpEnabled && (
+            <button
+              type="button"
+              onClick={() => setCustomerAuth("otp")}
+              className="block w-full text-center text-xs text-slate-400 hover:text-emerald-300"
+            >
+              Sign in with SMS code instead
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">

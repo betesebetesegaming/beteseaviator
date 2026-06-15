@@ -146,8 +146,31 @@ export function normalizePhoneE164(
   return `+${cc}${parsed.local}`;
 }
 
+const PHONE_AUTH_EMAIL_SUFFIX = "@phone.beteseaviator.com";
+
 export function phoneToEmail(phoneKey: string): string {
-  return `p${phoneKey}@phone.beteseaviator.com`;
+  return `p${phoneKey}${PHONE_AUTH_EMAIL_SUFFIX}`;
+}
+
+/** Reverse of phoneToEmail — extracts the stored phone key from a synthetic auth email. */
+export function phoneKeyFromAuthEmail(email: string | null | undefined): string | null {
+  if (!email?.startsWith("p") || !email.endsWith(PHONE_AUTH_EMAIL_SUFFIX)) return null;
+  const key = email.slice(1, -PHONE_AUTH_EMAIL_SUFFIX.length);
+  return /^\d+$/.test(key) ? key : null;
+}
+
+export function phoneCountryFromKey(key: string): PhoneCountry {
+  if (key.length === GAMBIA_LOCAL_LENGTH) return "GM";
+  if (key.startsWith(SENEGAL_COUNTRY_CODE) && key.length === 12) return "SN";
+  return "GM";
+}
+
+/** Local digits for the phone input (without country prefix). */
+export function displayLocalFromPhoneKey(key: string, country: PhoneCountry): string {
+  if (country === "SN" && key.startsWith(SENEGAL_COUNTRY_CODE)) {
+    return key.slice(SENEGAL_COUNTRY_CODE.length);
+  }
+  return key;
 }
 
 /** Gambia-only helpers (payments default). */
