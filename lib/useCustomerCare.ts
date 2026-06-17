@@ -9,6 +9,15 @@ import {
   type CustomerCareConfig,
 } from "@/lib/customerCare";
 
+/** Legacy placeholder — replaced by live BETESE support line. */
+const LEGACY_PLACEHOLDER_PHONE = "2205000000";
+
+function resolveCareDigits(stored: string | undefined, fallback: string): string {
+  const digits = digitsOnly(stored || "");
+  if (!digits || digits === LEGACY_PLACEHOLDER_PHONE) return fallback;
+  return digits;
+}
+
 export function useCustomerCare(): CustomerCareConfig {
   const [care, setCare] = useState<CustomerCareConfig>(getDefaultCustomerCare);
 
@@ -22,9 +31,11 @@ export function useCustomerCare(): CustomerCareConfig {
       const data = snap.data() as {
         customerCare?: { phone?: string; whatsapp?: string; label?: string };
       };
-      const phone = digitsOnly(data.customerCare?.phone || "") || fallback.phone;
-      const whatsapp =
-        digitsOnly(data.customerCare?.whatsapp || "") || phone || fallback.whatsapp;
+      const phone = resolveCareDigits(data.customerCare?.phone, fallback.phone);
+      const whatsapp = resolveCareDigits(
+        data.customerCare?.whatsapp,
+        phone || fallback.whatsapp
+      );
       setCare({
         phone,
         whatsapp,
