@@ -2,6 +2,7 @@
 
 import { Headphones } from "lucide-react";
 import { Card } from "@/components/ui";
+import { CustomerCareBar } from "@/components/CustomerCareBar";
 
 /** Shown when a player's wallet is frozen — no bet/deposit/withdraw actions. */
 export function WalletFrozenNotice() {
@@ -15,6 +16,9 @@ export function WalletFrozenNotice() {
         Deposits, withdrawals and betting are temporarily unavailable on your account.
       </p>
       <p className="mt-3 text-sm font-medium text-white">Please contact customer service for help.</p>
+      <div className="mt-4">
+        <CustomerCareBar />
+      </div>
     </Card>
   );
 }

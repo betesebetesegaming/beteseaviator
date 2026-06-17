@@ -325,6 +325,15 @@ export const adminSaveSettings = onCall(async (req) => {
     };
   }
 
+  if (data.customerCare && typeof data.customerCare === "object") {
+    const cc = data.customerCare as Record<string, unknown>;
+    clean.customerCare = {
+      phone: String(cc.phone ?? "").replace(/\D/g, "").slice(0, 16),
+      whatsapp: String(cc.whatsapp ?? "").replace(/\D/g, "").slice(0, 16),
+      label: String(cc.label ?? "BETESE Customer Care").trim().slice(0, 80),
+    };
+  }
+
   await db.doc("settings/platform").set(clean, { merge: true });
   return { ok: true };
 });

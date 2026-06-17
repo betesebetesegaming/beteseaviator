@@ -65,6 +65,11 @@ export const DEFAULT_SETTINGS = {
     minQualifyingDeposit: 50,
     requireFirstBet: true,
   },
+  customerCare: {
+    phone: "2205000000",
+    whatsapp: "2205000000",
+    label: "BETESE Customer Care",
+  },
 };
 
 export type Settings = typeof DEFAULT_SETTINGS;

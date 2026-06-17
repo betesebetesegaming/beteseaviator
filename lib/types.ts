@@ -176,6 +176,12 @@ export interface PlayerReferralSettings {
   requireFirstBet: boolean;
 }
 
+export interface CustomerCareSettings {
+  phone?: string;
+  whatsapp?: string;
+  label?: string;
+}
+
 export interface PlatformSettings {
   subAgentRate: number; // e.g. 0.05
   superAgentRate: number; // e.g. 0.03
@@ -197,6 +203,7 @@ export interface PlatformSettings {
   providers: Record<PaymentProvider, boolean>;
   bonuses?: BonusSettings;
   playerReferral?: PlayerReferralSettings;
+  customerCare?: CustomerCareSettings;
 }
 
 export interface DailyStats {
@@ -231,6 +238,11 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     bonusAmount: 10,
     minQualifyingDeposit: 50,
     requireFirstBet: true,
+  },
+  customerCare: {
+    phone: "2205000000",
+    whatsapp: "2205000000",
+    label: "BETESE Customer Care",
   },
 };
 

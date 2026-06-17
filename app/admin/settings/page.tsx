@@ -39,6 +39,10 @@ export default function AdminSettingsPage() {
             ...DEFAULT_SETTINGS.playerReferral!,
             ...(data.playerReferral ?? {}),
           },
+          customerCare: {
+            ...DEFAULT_SETTINGS.customerCare!,
+            ...(data.customerCare ?? {}),
+          },
         });
       }
     });
@@ -240,6 +244,60 @@ export default function AdminSettingsPage() {
             />
             Require first real-money bet
           </label>
+        </div>
+      </Card>
+
+      <Card className="mb-5">
+        <h2 className="mb-4 font-semibold">Customer care (WhatsApp / call)</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Shown on sign-up, wallet, and support screens. Use digits only with country code (e.g. 2205001234).
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Call number"
+            placeholder="2205001234"
+            value={settings.customerCare?.phone ?? ""}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                customerCare: {
+                  ...DEFAULT_SETTINGS.customerCare!,
+                  ...settings.customerCare,
+                  phone: e.target.value,
+                },
+              })
+            }
+          />
+          <Input
+            label="WhatsApp number"
+            placeholder="2205001234"
+            value={settings.customerCare?.whatsapp ?? ""}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                customerCare: {
+                  ...DEFAULT_SETTINGS.customerCare!,
+                  ...settings.customerCare,
+                  whatsapp: e.target.value,
+                },
+              })
+            }
+          />
+          <Input
+            label="Display label"
+            className="sm:col-span-2"
+            value={settings.customerCare?.label ?? ""}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                customerCare: {
+                  ...DEFAULT_SETTINGS.customerCare!,
+                  ...settings.customerCare,
+                  label: e.target.value,
+                },
+              })
+            }
+          />
         </div>
       </Card>
 

@@ -37,6 +37,8 @@ import {
 } from "@/lib/phone";
 import { Button, Input, Modal, Select } from "@/components/ui";
 import { Logo } from "@/components/logo";
+import { CustomerCareBar } from "@/components/CustomerCareBar";
+import { SignupComplianceNotice } from "@/components/SignupComplianceNotice";
 
 export type AuthModalMode = "login" | "register" | "complete";
 type CustomerAuth = "password" | "otp";
@@ -116,6 +118,7 @@ export function AuthModal({
   const [confirm, setConfirm] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   const confirmRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
@@ -127,6 +130,7 @@ export function AuthModal({
     setCustomerAuth("password");
     setOtpSent(false);
     setOtpCode("");
+    setAgeConfirmed(false);
     setPhoneCountry("GM");
   }, [open, initialMode]);
 
@@ -171,7 +175,14 @@ export function AuthModal({
     }
   }
 
+  function requireAgeConfirmation(): boolean {
+    if (ageConfirmed) return true;
+    toast.error("You must confirm you are 18 or older to sign up.");
+    return false;
+  }
+
   async function registerWithPhone() {
+    if (!requireAgeConfirmation()) return;
     if (!isActivePhoneCountry(phoneCountry)) {
       return toast.error("Gambia and Senegal are available now. Ghana & Nigeria coming soon.");
     }
@@ -261,6 +272,7 @@ export function AuthModal({
   }
 
   async function loginGoogle() {
+    if (mode === "register" && !requireAgeConfirmation()) return;
     setBusy(true);
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
@@ -273,6 +285,7 @@ export function AuthModal({
   }
 
   async function completeProfile() {
+    if (!requireAgeConfirmation()) return;
     if (!name.trim()) return toast.error("Enter your full name.");
     if (!isActivePhoneCountry(phoneCountry)) {
       return toast.error("Gambia and Senegal are available now. Ghana & Nigeria coming soon.");
@@ -365,6 +378,10 @@ export function AuthModal({
 
       {mode === "complete" ? (
         <div className="space-y-4">
+          <SignupComplianceNotice
+            ageConfirmed={ageConfirmed}
+            onAgeConfirmedChange={setAgeConfirmed}
+          />
           <p className="text-sm text-amber-100">
             One last step — confirm your name and phone to unlock your real-money wallet. No SMS
             code is required until mobile-operator verification is available.
@@ -376,12 +393,16 @@ export function AuthModal({
             phone={phone}
             onPhoneChange={setPhone}
           />
-          <Button className="w-full" onClick={completeProfile} disabled={busy}>
+          <Button className="w-full" onClick={completeProfile} disabled={busy || !ageConfirmed}>
             {busy ? "Saving…" : "Start playing for real"}
           </Button>
         </div>
       ) : mode === "register" ? (
         <div className="space-y-3">
+          <SignupComplianceNotice
+            ageConfirmed={ageConfirmed}
+            onAgeConfirmedChange={setAgeConfirmed}
+          />
           <Input label="Full Name" placeholder="Awa Diop" value={name} onChange={(e) => setName(e.target.value)} />
           <CustomerPhoneFields
             phoneCountry={phoneCountry}
@@ -407,7 +428,7 @@ export function AuthModal({
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
           />
-          <Button className="w-full" onClick={registerWithPhone} disabled={busy}>
+          <Button className="w-full" onClick={registerWithPhone} disabled={busy || !ageConfirmed}>
             {busy ? "Creating account…" : "Create account"}
           </Button>
           {!otpEnabled && (
@@ -484,11 +505,22 @@ export function AuthModal({
             or
             <div className="h-px flex-1 bg-white/10" />
           </div>
-          <Button variant="secondary" className="w-full" onClick={loginGoogle} disabled={busy}>
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={loginGoogle}
+            disabled={busy || (mode === "register" && !ageConfirmed)}
+          >
             Continue with Google
           </Button>
         </>
       )}
+
+      {mode === "login" ? (
+        <div className="mt-4">
+          <CustomerCareBar compact />
+        </div>
+      ) : null}
 
       <div id="auth-modal-recaptcha" />
     </Modal>

@@ -12,6 +12,7 @@ import { Logo } from "@/components/logo";
 import { PresenceTracker } from "@/components/PresenceTracker";
 import { LobbyBackgroundShell } from "@/components/games/LobbyBackgroundShell";
 import { AgentReferralBanner } from "@/components/games/AgentReferralBanner";
+import { CustomerCareBar } from "@/components/CustomerCareBar";
 import { parseAgentSlugFromHost } from "@/lib/agentLinks";
 
 const PendingDepositReconciler = dynamic(
@@ -182,6 +183,14 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
         </div>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+      <footer className="border-t border-white/10 px-4 py-4">
+        <div className="mx-auto max-w-7xl">
+          <CustomerCareBar compact />
+          <p className="mt-2 text-center text-[11px] text-slate-600">
+            18+ only. Please gamble responsibly.
+          </p>
+        </div>
+      </footer>
     </LobbyBackgroundShell>
   );
 }
