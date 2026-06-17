@@ -4,8 +4,8 @@ export type CustomerCareConfig = {
   label: string;
 };
 
-const DEFAULT_PHONE = "2205000000";
-const DEFAULT_WHATSAPP = "2205000000";
+const DEFAULT_PHONE = "2204176003";
+const DEFAULT_WHATSAPP = "2204176003";
 
 function readCareEnv(name: "NEXT_PUBLIC_CUSTOMER_CARE_PHONE" | "NEXT_PUBLIC_CUSTOMER_CARE_WHATSAPP"): string {
   if (typeof window !== "undefined") {

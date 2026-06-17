@@ -66,8 +66,8 @@ export const DEFAULT_SETTINGS = {
     requireFirstBet: true,
   },
   customerCare: {
-    phone: "2205000000",
-    whatsapp: "2205000000",
+    phone: "2204176003",
+    whatsapp: "2204176003",
     label: "BETESE Customer Care",
   },
 };
