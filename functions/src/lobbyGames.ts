@@ -47,6 +47,8 @@ export async function ensureNativeLobbyGames(): Promise<string[]> {
 /** Seed native lobby games only when none are active (safe for cold starts). */
 export async function ensureNativeLobbyGamesIfEmpty(): Promise<boolean> {
   const active = await db.collection("games").where("status", "==", "active").limit(1).get();
+  const { ensureQTechGameDocs } = await import("./qtech/games");
+  await ensureQTechGameDocs();
   if (!active.empty) return false;
   logger.info("No active lobby games — seeding native Aviator games");
   await ensureNativeLobbyGames();
