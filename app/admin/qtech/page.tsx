@@ -24,6 +24,33 @@ function copyText(text: string, label: string) {
   toast.success(`${label} copied`);
 }
 
+function generatePassKey(): string {
+  return crypto.randomUUID();
+}
+
+const HANDOVER_FIELDS: Array<{ label: string; value: (walletUrl: string, passKey: string) => string }> = [
+  { label: "Client company", value: () => "BETESE" },
+  { label: "Brand URL", value: () => "https://www.beteseaviator.com/play" },
+  { label: "Brand name", value: () => "BETESE Aviator" },
+  { label: "Language", value: () => "English (en_GM)" },
+  { label: "Currency", value: () => "GMD" },
+  { label: "Target market", value: () => "Gambia" },
+  { label: "Hosting", value: () => "Google Cloud Firebase (us-central1)" },
+  { label: "API type", value: () => "Common Wallet" },
+  {
+    label: "Wallet URL (staging + prod)",
+    value: (walletUrl) => walletUrl || "(deploy qtcwApi first)",
+  },
+  {
+    label: "Pass-Key (staging + prod)",
+    value: (_, passKey) => passKey || "(generate below, then save)",
+  },
+  {
+    label: "Rewards URL",
+    value: (walletUrl) => (walletUrl ? `${walletUrl}/bonus/reward` : ""),
+  },
+];
+
 function StatusRow({ ok, label }: { ok: boolean; label: string }) {
   return (
     <li className="flex items-center gap-2 text-sm">
@@ -79,7 +106,7 @@ function NativeGamesSection({
 
   return (
     <Card>
-      <h2 className="mb-1 font-semibold">5. Native BETESE games</h2>
+      <h2 className="mb-1 font-semibold">6. Native BETESE games</h2>
       <p className="mb-4 text-sm text-slate-400">
         Built-in crash engine. Deactivate these when QTech versions are live to avoid duplicate
         Aviator entries on the lobby.
@@ -276,9 +303,69 @@ export default function AdminQTechPage() {
         )}
       </Card>
 
-      {/* Section 2 — Wallet API (give URL to QTech) */}
+      {/* Handover — values to email QTech */}
       <Card>
-        <h2 className="mb-1 font-semibold">2. Wallet API — credentials</h2>
+        <h2 className="mb-1 font-semibold">2. Handover to QTech</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Copy these into the QTech handover Excel and send to your account manager. When they reply
+          with API URL, operator login, and game IDs, enter them in sections 3–5 below.
+        </p>
+        <div className="space-y-2">
+          {HANDOVER_FIELDS.map(({ label, value }) => {
+            const text = value(walletUrl, qtech.passKey ?? "");
+            return (
+              <div
+                key={label}
+                className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-white/5 bg-slate-950/40 px-3 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-slate-500">{label}</p>
+                  <p className="break-all text-sm text-slate-200">{text || "—"}</p>
+                </div>
+                {text ? (
+                  <button
+                    type="button"
+                    className="shrink-0 rounded bg-slate-800 p-1.5 text-slate-300 hover:text-white"
+                    onClick={() => copyText(text, label)}
+                  >
+                    <Copy size={14} />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            className="px-3 py-1.5 text-xs"
+            onClick={() => {
+              const block = HANDOVER_FIELDS.map(({ label, value }) => {
+                const text = value(walletUrl, qtech.passKey ?? "");
+                return `${label}: ${text}`;
+              }).join("\n");
+              copyText(block, "Full handover");
+            }}
+          >
+            Copy all fields
+          </Button>
+          <Button
+            variant="secondary"
+            className="px-3 py-1.5 text-xs"
+            onClick={() => {
+              const key = generatePassKey();
+              setQtech({ ...qtech, passKey: key });
+              toast.success("Pass-Key generated — click Save wallet credentials");
+            }}
+          >
+            Generate Pass-Key
+          </Button>
+        </div>
+      </Card>
+
+      {/* Section 3 — Wallet API (give URL to QTech) */}
+      <Card>
+        <h2 className="mb-1 font-semibold">3. Wallet API — credentials</h2>
         <p className="mb-4 text-sm text-slate-400">
           QTech calls this URL for balance, bets, wins &amp; rollbacks. Send them the wallet URL and
           your Pass-Key (they share the same secret with you).
@@ -317,9 +404,9 @@ export default function AdminQTechPage() {
         </Button>
       </Card>
 
-      {/* Section 3 — Launch API */}
+      {/* Section 4 — Launch API */}
       <Card>
-        <h2 className="mb-1 font-semibold">3. Game launch — operator API</h2>
+        <h2 className="mb-1 font-semibold">4. Game launch — operator API</h2>
         <p className="mb-4 text-sm text-slate-400">
           Calls QTech <code className="text-xs">POST /v1/games/&#123;gameId&#125;/launch-url</code> with{" "}
           <code className="text-xs">walletSessionId</code> (Common Wallet API v2.53). Auth:{" "}
@@ -376,9 +463,9 @@ export default function AdminQTechPage() {
         </Button>
       </Card>
 
-      {/* Section 4 — Enable games */}
+      {/* Section 5 — Enable games */}
       <Card>
-        <h2 className="mb-1 font-semibold">4. Enable games on /play</h2>
+        <h2 className="mb-1 font-semibold">5. Enable games on /play</h2>
         <p className="mb-4 text-sm text-slate-400">
           Enter each game&apos;s QTech catalog ID, save, then activate. Deactivate native Aviator if
           you only want the QTech version live.
@@ -461,11 +548,11 @@ export default function AdminQTechPage() {
         )}
       </Card>
 
-      {/* Section 5 — Native games */}
+      {/* Section 6 — Native games */}
       <NativeGamesSection busyGameId={busyGameId} setBusyGameId={setBusyGameId} onRefresh={refreshStatus} />
 
       <Card>
-        <h2 className="mb-2 font-semibold">Certification tester</h2>
+        <h2 className="mb-2 font-semibold">7. Certification tester</h2>
         <p className="text-sm text-slate-400">
           After Pass-Key is saved, run{" "}
           <code className="text-xs text-slate-300">docs/qtech/cw_qtcw_tester.py all</code> against

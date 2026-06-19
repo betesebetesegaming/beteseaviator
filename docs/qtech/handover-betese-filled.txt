@@ -1,0 +1,53 @@
+QTech Games Handover List — BETESE (fill into Excel and send to QTech)
+======================================================================
+
+1. Account Details
+------------------
+Client Company Name     BETESE
+Brand URL               https://www.beteseaviator.com/play
+Brand Name              BETESE Aviator
+Language                English (en_GM)
+Currency                GMD
+Target Market           Gambia
+Hosting Location        Google Cloud Firebase (us-central1)
+API Type                Common Wallet
+
+2. Access Details (IP whitelist)
+--------------------------------
+Staging — QT Back Office IP     (leave blank or add your office IP if QTech requires it)
+Staging — API IP                  Serverless (no fixed inbound IP). QTech calls our wallet URL.
+Production — QT Back Office IP    (same as staging / your office IP)
+Production — API IP               Serverless. If QTech requires a fixed outbound IP for us calling
+                                  their API, we will provide a Cloud NAT static IP on request.
+
+3. Contact Details (update with your team)
+------------------------------------------
+IT Manager Skype & Email          (your IT contact)
+Finance Manager Skype & Email     (your finance contact)
+Game Release Contact & Email      (your game / ops contact)
+Campaign Manager Contact & Email  (optional)
+
+Common Wallet — your implementation (BETESE hosts wallet)
+---------------------------------------------------------
+Staging — Base URL for QT API     https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi
+Staging — PassKey                 (choose one secret, save same value in Admin → QTech & Games)
+Production — Base URL for QT API  https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi
+Production — PassKey              (same PassKey as staging, or separate for prod if you prefer)
+
+Promotion Status URL (Staging)    Not implemented yet — N/A
+Rewards URL (Staging)               https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi/bonus/reward
+Promotion Status URL (Production) Not implemented yet — N/A
+Rewards URL (Production)            https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi/bonus/reward
+
+QT Play mobile app section        Not required for web integration — leave blank
+
+What to ask QTech to send back
+------------------------------
+- Sandbox API base URL (e.g. https://api-int.qtplatform.com)
+- Operator username + password (for GET /v1/auth/token)
+- Aviator catalog gameId (e.g. TK-...)
+- Crash catalog gameId
+- Confirmation that GMD is enabled
+- Their Pass-Key confirmation (must match what you saved on our side)
+
+After QTech replies, enter their values in Admin → QTech & Games (sections 2–4).
