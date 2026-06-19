@@ -46,3 +46,7 @@ firebase-debug.log
 functions/lib/
 functions/node_modules/
 !.env.example
+
+# QTech handover (contains Pass-Key — generate locally)
+docs/qtech/*-filled.xlsx
+docs/qtech/QTech-Games-Handover-List-BETESE-filled.xlsx

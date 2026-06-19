@@ -1,7 +1,17 @@
 QTech Games Handover List — BETESE (fill into Excel and send to QTech)
 ======================================================================
 
-1. Account Details
+Generate the filled Excel (includes a new Pass-Key each run):
+
+  node scripts/fill-handover-xlsx.mjs
+
+Output:
+  docs/qtech/QTech-Games-Handover-List-BETESE-filled.xlsx
+  (also copied to Downloads as QTech Games Handover List_BETESE-filled.xlsx)
+
+After running, save the printed Pass-Key in Admin → QTech & Games → section 3.
+
+Manual reference (same values as the script writes to column D):
 ------------------
 Client Company Name     BETESE
 Brand URL               https://www.beteseaviator.com/play
