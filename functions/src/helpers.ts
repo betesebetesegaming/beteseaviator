@@ -77,8 +77,9 @@ export const DEFAULT_SETTINGS = {
     operatorId: "",
     apiPassword: "",
     currency: "GMD",
+    country: "GM",
+    lang: "en_GM",
     lobbyUrl: "https://www.beteseaviator.com/play",
-    gameLaunchPath: "/v1/games/launch",
   },
 };
 

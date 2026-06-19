@@ -321,8 +321,9 @@ export default function AdminQTechPage() {
       <Card>
         <h2 className="mb-1 font-semibold">3. Game launch — operator API</h2>
         <p className="mb-4 text-sm text-slate-400">
-          Used when a signed-in player opens Aviator or Crash. Get these from your QTech account
-          manager (sandbox first, then production).
+          Calls QTech <code className="text-xs">POST /v1/games/&#123;gameId&#125;/launch-url</code> with{" "}
+          <code className="text-xs">walletSessionId</code> (Common Wallet API v2.53). Auth:{" "}
+          <code className="text-xs">GET /v1/auth/token</code>.
         </p>
         <label className="mb-4 flex items-center gap-2 text-sm text-slate-200">
           <input
@@ -360,9 +361,14 @@ export default function AdminQTechPage() {
             onChange={(e) => setQtech({ ...qtech, lobbyUrl: e.target.value })}
           />
           <Input
-            label="Game launch path"
-            value={qtech.gameLaunchPath ?? "/v1/games/launch"}
-            onChange={(e) => setQtech({ ...qtech, gameLaunchPath: e.target.value })}
+            label="Country code (GM)"
+            value={qtech.country ?? "GM"}
+            onChange={(e) => setQtech({ ...qtech, country: e.target.value.toUpperCase() })}
+          />
+          <Input
+            label="Language (en_GM)"
+            value={qtech.lang ?? "en_GM"}
+            onChange={(e) => setQtech({ ...qtech, lang: e.target.value })}
           />
         </div>
         <Button className="mt-4 w-full sm:w-auto" onClick={() => void saveCredentials()} disabled={savingCreds}>

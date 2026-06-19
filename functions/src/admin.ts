@@ -349,8 +349,12 @@ export const adminSaveSettings = onCall(async (req) => {
         .trim()
         .toUpperCase()
         .slice(0, 3),
+      country: String(qt.country ?? "GM")
+        .trim()
+        .toUpperCase()
+        .slice(0, 2),
+      lang: String(qt.lang ?? "en_GM").trim().slice(0, 16),
       lobbyUrl: String(qt.lobbyUrl ?? "https://www.beteseaviator.com/play").trim().slice(0, 256),
-      gameLaunchPath: String(qt.gameLaunchPath ?? "/v1/games/launch").trim().slice(0, 128),
     };
   }
 
@@ -639,8 +643,12 @@ export const adminSaveQTechSettings = onCall(async (req) => {
       .trim()
       .toUpperCase()
       .slice(0, 3),
+    country: String(qt.country ?? "GM")
+      .trim()
+      .toUpperCase()
+      .slice(0, 2),
+    lang: String(qt.lang ?? "en_GM").trim().slice(0, 16),
     lobbyUrl: String(qt.lobbyUrl ?? "https://www.beteseaviator.com/play").trim().slice(0, 256),
-    gameLaunchPath: String(qt.gameLaunchPath ?? "/v1/games/launch").trim().slice(0, 128),
   };
   await db.doc("settings/platform").set({ qtech }, { merge: true });
   const { getQTechSetupStatus } = await import("./qtech/games");

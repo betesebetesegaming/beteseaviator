@@ -1,0 +1,5845 @@
+
+
+ 
+ 
+ 
+ 
+                                                      
+ 
+ 
+ 
+ 
+ 
+ 
+Common Wallet API 
+Integration Manual v2.53 
+中心钱包接口文档 
+集成手册 版本2.53 
+ 
+ 
+
+ 
+Version Control 版本控制 
+ 
+Version 
+版本 
+Date 
+日期 
+Author 
+作者 
+Description 
+描述 
+2.0 Jan 2016 Daniel   Initial release 
+2.1 Feb 2016 Mike   New Settings section to describe the initial preparations of 
+Operator system and QT Platform. 
+2.2 Oct 2016 Daniel   Support of GET on Authentication request. 
+  Changed the Game Launcher request to be more device 
+specific. 
+  New Player Game History page. 
+  Included the creation date/time in the Withdrawal, Deposit and 
+Rollback requests. 
+2.3 Nov 2016 Daniel   Better clarification of betId in Rollback request. 
+  Extra fields in the “Game List” response. 
+2.4 May 2017 Daniel   New Rollback request. The original bet transaction id from QT 
+Platform is included. The Operator should validate the request 
+upon this id. A non-existing bet transaction must return 
+success.  
+  Added the original bet transaction id in Deposit. 
+  Changed “completed” value from boolean to string in 
+examples. 
+  Highlighted notes. 
+2.5 June 2017 Daniel   New Service API: Game Round Details 
+  Added the game client (bet history) round id in Withdrawal, 
+Deposit and Rollback requests. 
+  Corrected wrong amount type in document for 
+game-transactions, game-rounds and ngr-player results.  
+2.6 Aug 2017 Daniel   Increased maximum number of records per page when 
+retrieving game rounds and transactions from Service API. New 
+max-size is 500 per page. 
+  Possibility to search game-rounds on initiated (default) or 
+completed date. 
+  New Service API: Most Popular Games 
+2.7 Nov 2017 Daniel   Bonus details in Game Rounds, Game Round Details Service 
+API 
+  Possibility to specify bet limit per player and game upon game 
+launch 
+2.8 Mar 2018 Daniel   New Service API: Free Rounds 
+  Increased maximum number of records per page when 
+retrieving game rounds and transactions from Service API. New 
+max-size is 1000 items per page. 
+  New device type “NATIVE”.  
+  Translation corrections. 
+  Bonus details in Common Wallet API 
+2.9 Sep 2018 Daniel   Additional optional parameters in game launch request 
+◦ ipAddress 
+◦ jurisdiction 
+  Clarification of Withdrawals, Deposits, Rollbacks and Rounds. 
+  Update examples with existing and playable game. 
+  Bonus details corrections. 
+2.10 Dec 2018 Jewel   Updated Player Game History page.  
+  Maximum length of playerId: 34 characters 
+  New jurisdictions: CW (Curacao) and PH (Pagcor) 
+2.11 Apr 2019 Adrian   Adjusted the expiration time for an access token to 6 hours. 
+  Included bonusId field on the response of “Create Free Round 
+Promotion”. 
+
+  New Service APIs:  
+◦ Get Free Round Promotion 
+◦ Delete Free Round Promotion 
+2.12 May 2019 Jewel   New Game Lobby page 
+  Possible to autogenerate round options when creating free 
+round promotions 
+2.13 June 2019 Daniel   Free Round Promotions Overview (chapter 2.5) 
+  New optional Promotion Status callback method (chapter 3.6) 
+  Clarification of valid values for txnId and promoCode when 
+creating free round promotions. 
+  Possible to determine what game categories to be displayed in 
+the main navigation menu in the Game Lobby. 
+2.14 Sep 2019 Daniel   New Service API: Game Bet Values (chapter 8.2) 
+2.15 Nov 2019 Daniel   Jackpot support in Withdrawal and Deposit callbacks. 
+  New optional “gameLaunchTarget“ field in Game Lobby 
+request, to determine in what frame or window the mobile 
+game should be launched. 
+  New “gameId” query parameter is being included in the Get 
+Balance and Verify Session callbacks. 
+  Removal of “page” parameter in search request in Game 
+Transactions and Game Rounds.  
+  New “gameProviderRoundId” in the response from Game 
+Rounds. 
+2.16 Dec 2019 Daniel   Optional “displayName” field in Game Launcher and Game 
+Lobby request. 
+2.17 Jan 2020 Daniel   Possibility to create non-rejectable Free Round Promotions. 
+2.18 Mar 2020 Daniel   New mode “real_only” for game lobby, to configure the lobby 
+to launch games in real mode only. 
+  New game type “LIVE_CASINO” for game lobby. 
+2.19 Jun 2020 Daniel   Recommendation to reuse the access token and clarification 
+when to issue a new token. 
+  New game types “VIRTUAL_GAMES”, “CASUAL_GAMES” and 
+“ESPORTS” for game lobby. 
+  New Service API: Get Jackpots 
+2.20 Oct 2020 Julie   New optional Rewards callback method (chapter 3.7) 
+  Additional response parameters in Game Round Details, Game 
+Rounds and Game Transactions 
+◦ totalJpContribution 
+◦ totalJpPayout 
+  Additional game result url property in Game Round Details 
+2.21 Mar 2021 Julie   New Jurisdiction DE (Germany) 
+  New status for Free Round Promotion: Expired 
+2.22 Apr 2021 Julie   New optional response parameter “tableId” in Witdrawal, 
+Deposit and Rollback requests, Game Round Details and Game 
+Transactions 
+2.23 June 2021 Julie   Optional “tableId” field in Game Launcher request (chapter 5.1) 
+  Optional configurable menu display in Game Lobby request 
+(chapter 7.1) 
+  Additional response parameter “betId” in Game Round Details 
+for Payout transactions (chapter 8.5) 
+  Additional response parameter “betId” in Game Transactions 
+(chapter 8.6) 
+2.24 Aug 2021 Julie   Updated the Rewards callback to be mandatory 
+2.25 Oct 2021 Julie   Detailed description for Virtual Currency support. (ch 2.5) 
+  Updated the following endpoints related to Virtual Currency:  
+◦ Verify Token (ch 3.1) 
+◦ Get Balance (ch 3.2) 
+
+◦ Withdrawal (ch 3.3) 
+◦ Deposit (ch 3.4) 
+◦ Rollback (ch 3.5) 
+◦ Game Launch (ch 5.1) 
+◦ Game Lobby (ch 7.1) 
+◦ Game Round ((ch 8.4) 
+◦ Game Round Details (ch 8.5) 
+2.26 Jan 2022 Maki   Wallet-Session header parameter is now required in Deposit 
+(chapter 3.4) and Rollback (chapter 3.5) Common Wallet 
+endpoints. 
+  Replaced Game List API with the v2 endpoint (chapter 8.1) 
+2.27 Feb 2022 Julie   Corrected Sample Request for Game Transaction Service 
+2.28 May 2022 Mae   Updated Game List API to include details about the links field 
+  Add Game Images Section 
+  Add Support for Field Specific Response 
+2.29 June 2022 Geneva   Added Search feature and updated Example Request to add the 
+Search parameter (ch 7.1) 
+  Moved the walletCurrency above config parameter (ch 7.1) 
+2.30 Aug 2022 Geneva   Added section for format in Game Images (8.1.4) 
+  Added section for exitButton in Game Lobby Request (7.1) 
+  Updated the description for exit in Game Lobby Request (7.1) 
+2.31 Aug 2022 Geneva   Updated the images section to update the logo to logo-round 
+and add logo-square in Response (8.1.2) 
+  Updated example response in Response (8.1.2) 
+  Updated the type section to update the logo to logo-round and 
+add logo-square in Game Images(8.1.4) 
+  Added logo-square image and sample URL and updated 
+logo-round sample URL in Game Images(8.1.4) 
+2.32 Sept 2022 Mae   Update the example request for most popular (8.3.1) 
+2.33 Oct 2022 Julie   Update the withdrawal request to include jpContributions (3.3) 
+2.34 Dec 2022 Julie   New game type “LOTTERY” for game lobby. 
+  New virtual currencies supported: BNB, BUSD 
+2.35 Apr 2023 Geneva   Updated width section to add note (8.1.4) 
+  Added height section (8.1.4) 
+2.36 June 2023 Julie   New Service API: Jackpots Winners List 
+2.37 Sep 2023 Maki   Added Accept-Language header, translatable gameName, and 
+playerDisplayName response fields to Get Jackpot Winners API 
+(ch 8.12)  
+  Added new sortBy parameter ‘popularity’ to Game List API (ch 
+8.1) 
+2.38 Nov 2023 Carl   Added millisecond to “created” field date-time format in 
+Withdrawal Request Payload (3.3.1) 
+  Added millisecond to “created” field date-time format in 
+Deposit Request Payload (3.4.1) 
+  Added millisecond to “created” field date-time format in 
+Rollback Request Payload (3.5.1) 
+2.39 Jul 2024 Julie   Add a section for the Connect and Read Time Out (ch 2.4)  
+2.40 Jul 2024 Geneva   Updated gameTypes in Game Lobby Request (7.1) to be 
+consistent with gameTypes in Game List Response (8.1) 
+  Added section for Providers and Games in Game Lobby Request 
+(7.1) 
+2.41 Aug 2024 Julie   New game types “GAME_SHOW” and “CRASH” for game lobby. 
+
+2.42 Feb 2025 Julie / Nan   Updated Game Lobby section to add a new service API: Revoke 
+Game Lobby session 
+  Updated Create Game Lobby response (7.1) to separate game 
+lobby url and session 
+  (PAPI) Support for providerId when querying Game Rounds and 
+Game Transactions (8.4, 8.6) 
+2.43 Apr 2025 Geneva   Updated Game Lobby Request (7.1) to add content and 
+jackpotWinnersScope for configurable jackpot leaderboards. 
+2.44 Apr 2025 Geneva   Updated Game Lobby Request (7.1) to add the Single Use URL. 
+2.45 Jul 2025 Geneva   Updated Game Lobby Request (7.1) to add more details for the 
+Single Use URL 
+2.46 Aug 2025 Julie/Nan   Updated Settings (1.3) to reflect the most recent IPs supported 
+  Updated Game List (8.1) to update the maximum size and add 
+newly supported query parameters in connection with Date 
+Range 
+2.47 Nov 2025 Julie/Nan   Updated Create Game Lobby Session Request (7.1) and Game 
+Launcher Request (5.1) to add maxWinAmount for configuring 
+maxWinAmount that allows clients to define an absolute 
+monetary cap on a player's potential payout for any game 
+launched from the lobby. 
+2.48 Feb 2026 Marwhin   Updated Game List Response section (8.1.2) to expand the 
+gameLimits field with additional subfields to provide more 
+detailed information 
+2.49 Mar 2026 Rina/Doc   Updated Game List Response section (8.1.2) to include the 
+following new fields: releaseDateTime, rtp, 
+maxWinBetMultiplier, portraitOrientationSupport. 
+2.50 Mar 2026 Geneva   Updated Game Lobby Request (7.1) for RTP filtering and 
+oneClickPlay 
+  Moved gameTypes inside "filters"  
+  Moved games and providers inside filters.providersOrGames 
+  Moved singleUseUrl inside config. 
+2.51 April 2026 Doc   Added new Service API: Tournaments (8.13) 
+  Added new endpoint GET /v1/tournaments to retrieve a 
+paginated list of available tournaments. 
+  Added new endpoint GET 
+/v1/tournaments/{tournamentId}/leaderboards to retrieve 
+tournament rankings and player points. 
+2.52 May 2026 Geneva 
+  Updated Game Lobby Request (7.1) to add: 
+◦ Configuration in displaying Promos and Rewards link in 
+Player menu 
+◦ Configuration in displaying Game Limits 
+2.53 June 2026 Carl 
+  Added new response parameters bonusType and bonusAmount 
+in Game Transactions (8.6) to expose bonus-funded 
+transactions, including the TOURNAMENT_REWARD bonus type. 
+ 
+
+ 
+Contents 内容 
+1 Introduction引言 8 
+1.1 Audience读者 8 
+1.2 Terminology术语 8 
+1.3 Settings 设置 9 
+2 Overview概观 9 
+2.1 Security 安全 10 
+2.2 Wallet Sessions 钱包会话 11 
+2.3 Formats格式 11 
+2.4 Connect and Read Timeout 连接和读取超时 11 
+2.5 Withdrawals, Deposits, Rollbacks and Rounds 提款，存款，回滚 和游戏局 12 
+2.6 Wallet and Virtual Currency钱包与虚拟货币 13 
+2.7 Free Round Promotions免费游戏局活动 13 
+2.8 Idempotency幂等 15 
+2.9 Player Creation 创建玩家 15 
+2.10 Error Handling错误处理 15 
+3 Common Wallet 中心钱包 17 
+3.1 Verify Session 验证会话 17
+ 
+3.2 Get Balance 获取余额 19
+ 
+3.3 Withdrawal 提款 21 
+3.4 Deposit 存款 28 
+3.5 Rollback 回滚 33
+ 
+3.6 Promotion Status活动状态 37 
+3.7 Rewards奖金 44 
+4 Authentication 认证 47
+ 
+4.1 Retrieve an Access Token检索访问令牌 47 
+4.2 Revoke an Access Token撤销访问令牌 49
+ 
+5 Game Launcher游戏启动 50 
+5.1 Request请求 50 
+5.2 Response响应 54 
+5.3 Possible Errors 可能的错误 54 
+6 Player Game History 玩家游戏历史记录 56 
+6.1 Request请求 57 
+6.2 Response响应 58 
+6.3 Possible Errors 可能的错误 59 
+7 Game Lobby 游戏大厅 60 
+7.1 Create Game Lobby Session 创建游戏大厅会话 60 
+7.2 Revoke Game Lobby Session 撤销游戏大厅会话 70 
+8 Services 服务 72 
+8.1 Game List 游戏列表 72 
+8.2 Game Bet Values 游戏投注金额 84 
+8.3 Most Popular Games 热门游戏 87 
+8.4 Game Rounds 游戏局 90 
+8.5 Game Round Details 游戏局细节 94 
+
+8.6 Game Transactions游戏交易 98 
+8.7 NGR per player 每个玩家的NGR 102 
+8.8 Create Free Round Promotion 创建免费游戏局 107 
+8.9 Get Free Round Promotion 获取免费游戏局 111 
+8.10 Delete a Free Round Promotion 删除免费游戏局 117 
+8.11 Get Jackpots 获取奖池 119 
+8.12 Get Jackpot Winners 获取奖池赢家 122 
+8.13 Tournament 锦标赛 127 
+ 
+
+1 Introduction引言 
+This document describes the Common Wallet endpoints, which the Operator needs to implement to be 
+able to receive direct withdrawal and deposit requests from the Game to the player wallet in the Operator 
+system.  
+ 
+The document is applicable for Operators where the game transactions, bets and payouts, are being 
+processed in the Operator system.  
+ 
+本文档介绍了中心钱包终端，其中运营商需要在运营商系统中实现为能够接收从游戏中直接提款和存款的请求到玩家钱包。 
+该文件适用于游戏交易，赌注和支出，都在运营商系统处理的情况。 
+1.1 Audience读者 
+This document is suitable for System/Solution Architects, Software Developers, Technical Project 
+Managers and Technical Business Analysts. 
+该文件适用于系统／方案架构师，软件开发，技术项目经理和技术业务分析师。 
+ 
+1.2 Terminology术语 
+Term词 Definition定义 
+Common Wallet 
+中心钱包 
+The definition of a “Common Wallet” is when all game- and player-interactions are being 
+processed in the Operator system. 
+”中心钱包”的定义是，当所有的游戏与玩家的交互作用都在运营商系统中处理。 
+QT 
+QT 
+QTech, a B2B casino game provider gateway. 
+Qtech, 一个B2B的赌场游戏供应商。 
+QT Platform 
+QT平台 
+The casino provider system, hosted by QT. 
+该赌场提供的系统由QT host. 
+Operator 
+运营商 
+A casino operator, providing online casino services to players. The operator holds the B2C 
+gaming license. 
+一个赌场运营商，为玩家提供在线赌场服务。运营商拥有了B2C博彩牌照。 
+Operator Wallet 
+运营商钱包 
+The player's wallet within Operator system. 
+运营商系统内的玩家的钱包。 
+Player 
+玩家 
+A customer who has a player account at the Operator system. 
+拥有在运营商系统中的玩家账户的客户。 
+Tournament 
+锦标赛 
+A competitive event organized by QTech or a Game Provider, where players compete for prizes 
+based on their gameplay performance. 
+由QTech或游戏提供商组织的竞技赛事，玩家根据游戏表现参与竞争并争夺奖品。 
+Leaderboard 
+排行榜 
+A ranked list of players in a tournament, ordered by accumulated points. 
+锦标赛中的玩家排名列表，按照累计积分进行排序。 
+Organizer 
+主办方 
+The entity that created the tournament. Either QTECH (internal) or GAME_PROVIDER 
+(external). 
+创建该锦标赛的实体。可以是 QTECH（内部）或 GAME_PROVIDER（外部）。 
+Hierarchy 
+层级结构 
+The operator tree structure. A parent operator can view tournaments and leaderboard data for 
+its child operators. 
+运营商层级结构。父级运营商可以查看其子级运营商的锦标赛和排行榜数据。 
+ 
+ 
+
+1.3 Settings 设置 
+We need to make some initial preparations to enable the communication between the QT Platform and 
+the Operator system. The setup is needed in all environments, such as in integration (test) and 
+production environment. 
+我们需要做一些初步的准备工作以方便QT平台和运营商系统之间的通信。设置需要在各种环境中，例如在集成（试验）和生
+产环境。 
+Term词 
+Description 
+Account An Operator account needs to be created by QT.  
+运营商的账号需要由QT创建。 
+API User  An API user will be provided by QT. The Operator system needs the user to be able to launch a 
+game and to access the Services API in the QT Platform. 
+API的用户需要由QT提供，运营商系统需要用这个用户来启动游戏并且进入QT平台的服务API. 
+Verify Session Url The Operator must provide the url of the implemented verify-session endpoint.  
+运营商必须提供有效的的实现验证会话端点的URL。 
+For example: https://wallet.operator.com/qt/accounts/{playerId}/session 
+Get Balance Url The Operator must provide the url of the implemented get-balance endpoint.  
+运营商必须提供有效的实现获取余额端点的URL。 
+For example: https://wallet.operator.com/qt/accounts/{playerId}/balance 
+Withdrawal Url The Operator must provide the url of the implemented withdrawal endpoint.  
+运营商必须提供有效的实现提款端点的URL。 
+For example: https://wallet.operator.com/qt/transactions 
+Deposit Url The Operator must provide the url of the implemented deposit endpoint.  
+运营商必须提供有效的实现存款端点的URL。 
+For example: https://wallet.operator.com/qt/transactions 
+Rollback Url The Operator must provide the url of the implemented rollback endpoint.  
+运营商必须提供有效的实现回滚端点的URL。 
+For example: https://wallet.operator.com/qt/transactions/rollback 
+Promotion Status 
+Url 
+The Operator must provide the url of the implemented promotion status endpoint.  
+运营方须提供已部署的促销状态接口的访问地址（URL） 
+For example: https://wallet.operator.com/bonus/status 
+Pass Key The Operator and QT must agree to a secret passphrase which will authenticate the requests 
+between the QT Platform and the Operator system. The pass-key is going to be passed as a 
+header parameter in all Common Wallet requests. 
+运营商和QT必须同意一个秘密口令，这将验证QT平台和运营系统之间的请求。该密匙将被作为头参数在中心
+钱包请求中传递。 
+IP Whitelisting 
+IP 白名单 
+The outgoing IP address of the Operator system and the location of the backoffice users must 
+be whitelisted in QT environment. 
+运营商系统中传出的 IP 地址以及用户登录后台的 IP 地址必须在 QT 环境白名单内。 
+ 
+The Operator needs to whitelist the following IP addresses, so that QT platform can access the 
+implemented common wallet endpoints. 
+运营商需要将以下 IP 地址列入白名单，以便 QT 平台可以访问已实现的中心钱包端点。 
+ 
+INT (staging): 3.1.243.244, 46.137.204.242 
+集成 (测试):  3.1.243.244, 46.137.204.242 
+ 
+PROD: 52.77.32.26, 54.169.140.105, 34.241.71.150, 18.162.217.103, 18.184.243.189, 
+34.243.156.16 
+正式: 52.77.32.26, 54.169.140.105, 34.241.71.150, 18.162.217.103, 18.184.243.189, 34.243.156.16 
+
+2 Overview概观 
+ 
+The diagram shows a simplified overview of the interactions between the Player, Game, QT Platform and 
+the Operator System, for a normal game round. 
+该图呈现对于一个正常的游戏局，玩家，游戏，QT平台和运营商系统之间交互的简单概述。 
+ 
+2.1 Security 安全 
+The communication between the QT Platform and the Operator system must be secured (https), trusted 
+(IP security) and authenticated. The authentication is being performed with a secret key, which is shared 
+between the QT Platform and the Operator system. The key is being passed from QT Platform as a 
+header parameter “Pass-Key” and must be verified in the Operator system for each call. 
+在QT平台和运营系统之间的通信必须是安全（HTTPS），信任（IP安全）和认证。密钥，它是在QT平台和操作员的系统之间共
+享执行的认证。关键是从QT平台通过为头参数“传递的关键”，必须在操作员系统中每个呼叫进行验证。 
+ 
+Format格式 
+Pass-Key: {pass_key} 
+Example案例 
+Pass-Key: 76236f90-dc9c-36d7-9e78-3e716d5ecf92 
+ 
+ 
+
+2.2 Wallet Sessions 钱包会话 
+A wallet session id is being used as a player authorization in the interactions between the QT Platform 
+and the Operator system. The wallet session must be created by the Operator system and be passed as a 
+parameter (walletSessionId) when retrieving the game launch url. The same session id will then be 
+passed as a header parameter in the wallet operations to the Operator system.  
+钱包会话 ID 被用来作为一个玩家的认证，在 QT 平台和运营商系统之间交互。钱包会话必须在运营商系统中创建并且以作
+为参数传递(钱包的 SessionID)来检索游戏启动的 URL。相同的会话 ID 将作为一个头参数在钱包运作中传递到运营商系统
+中。 
+ 
+Format格式 
+Wallet-Session: {session_id} 
+Example案例 
+Wallet-Session: d0e72683-3d74-34c7-82c6-6d3d190cd55b 
+ 
+It is the responsibility of the Operator system to validate the wallet session id for the operations where 
+it's required. 
+运营商系统负责验证所需操作中的钱包会话 id 。 
+ 
+ 
+2.3 Formats格式 
+The Common Wallet endpoints in Operator system must be exposed as RESTful web services with JSON 
+as the data-interchange format and with the character encoding UTF-8.  
+ 
+The currency code in all requests and responses, must be expressed as 3-letters code according to 
+standard ISO 4217. For example “CNY”.  
+ 
+The country code must be presented as 2-letter code according to standard ISO 3166-1 alpha-2. For 
+example “CN”. 
+ 
+The language code must be presented as a combination of the 2-letter language code (ISO 639-1) and 
+the 2-letter country code (ISO 3166-1 alpha-2). For example “zh_CN”. 
+ 
+The date and time within the QT Platform is being presented in CST (China Standard Time) according to 
+standard ISO 8601. The time is presented in “military time”, i.e. 24-hours clock. 
+在运营商系统中的中心钱包端点必须暴露与JSON REST Web服务的数据交换格式和字符编码UTF-8。 
+在所有请求和响应的货币代码，必须根据标准ISO4217例如“CNY”被表示为3-字母代码。 
+国家代码必须符合标准ISO3166-1α-2被呈现为双字母代码。例如，“CN”。 
+语言代码必须作为的2字母的语言代码（ISO639-1）和2个字母的国家代码（ISO3166-1α-2）的组合。例如“zh_CN”。 
+符合标准 ISO 8601的时间显示在“军用时间”，即24小时时钟QT平台中的日期和时间被呈现在CST(中国标准时间）。 
+ 
+Format格式 
+YYYY-MM-DDThh:mm:ss 
+Example案例 
+2015-09-10T13:14:51 
+ 
+2.4 Connect and Read Timeout 
+连接和读取超时
+ 
+The QT Platform's HTTP connect timeout is set at 3 seconds. Read timeout is 5 seconds. If a request to 
+the operator exceeds these timeout parameters, the transaction will be aborted. Any applicable 
+transaction will be rollbacked or retried if necessary. 
+QT 平台的 HTTP 连接超时设置为 3 秒。读取超时为 5 秒。如果对操作员的请求超出这些超时参数，则事务将被中止。如有
+必要，任何适用的事务都将回滚或重试。
+ 
+
+2.5 Withdrawals, Deposits, Rollbacks and Rounds 提款，存款，回滚 和游
+戏局 
+Withdrawals (bets), deposits (wins) and rollbacks (refunds) are bound together with the same unique 
+round id. Each round can contain several withdrawals, deposits and rollbacks. The transaction id used for 
+withdrawals, deposits and rollbacks is unique. The sequence of the requests differs from game to game 
+and from different game types. The following sequences must be supported. 
+提款（投注），存款（赢奖）和回滚（退款）与同一个且是唯一的游戏局ID绑定在一起。每个游戏局可以包含几次提款，存款和回
+滚，每个提款，存款和回滚的交易ID是唯一的。请求的顺序因不同游戏和游戏类型而异。必须支持以下顺序。 
+ 
+Example 1 (Loss) 
+Withdrawal (amount=10, roundId=1, completed=true) 
+ 
+Example 2 (Loss) 
+Withdrawal (amount=10, roundId=2, completed=false) 
+Deposit (amount=0, roundId=2, completed=true) 
+ 
+Example 3 (Loss) 
+Withdrawal (amount=10, roundId=3, completed=false) 
+Withdrawal (amount=10, roundId=3, completed=false) 
+Deposit (amount=0, roundId=3, completed=true) 
+ 
+Example 4 (Win) 
+Withdrawal (amount=10, roundId=4, completed=false) 
+Deposit (amount=100, roundId=4, completed=true) 
+ 
+Example 5 (Win) 
+Withdrawal (amount=10, roundId=5) 
+Withdrawal (amount=10, roundId=5) 
+Deposit (amount=70, roundId=5, completed=true) 
+ 
+Example 6 (Win) 
+Withdrawal (amount=10, roundId=6, completed=false) 
+Deposit (amount=10, roundId=6, completed=false)  
+Deposit (amount=4, roundId=6, completed=false)  
+Deposit (amount=5, roundId=6, completed=true) 
+ 
+Example 7 (Rollback) 
+Withdrawal (amount=10, roundId=7, completed=false) 
+Rollback (amount=10, roundId=7, completed=true) 
+ 
+Example 8 (Rollback) 
+Withdrawal (amount=10, roundId=8, completed=false) 
+Withdrawal (amount=5, roundId=8, completed=false) 
+Rollback (amount=5, roundId=8, completed=false)  
+Deposit (amount=x, roundId=8, completed=true) 
+ 
+ 
+
+2.6 Wallet and Virtual Currency钱包与虚拟货币 
+The QT Platform accepts virtual currencies as player wallet currency. The Operator can choose the 
+currency its player will use. Operator system should recognise and accept the walletCurrency and 
+conversion rate object as valid parameters for wallet operations.  
+The following are the supported virtual currencies: BTC (Bitcoin), ETH (Ethereum), XRP (Ripple), LTC 
+(Litecoin), BCH (Bitcoin Cash), BNB (Binance Coin), BUSD (Binance USD) . Since these currencies are 
+volatile in nature, the conversion rates that QT Platform offer comes from a trusted third party exchange 
+rates provider that we fetch on a regular basis.  
+QT 平台接受虚拟货币作为玩家钱包货币。运营商可以选择其玩家将使用的货币。运营商系统应识别并接受 
+walletCurrency 和兑换率对象作为钱包操作的有效参数。
+ 
+ 
+以下是支持的虚拟货币：BTC（比特币）、ETH（以太坊）、XRP（瑞波币）、LTC（莱特币）、BCH（比特币现金）、BNB（币安
+币）、BUSD（币安美元）。由于这些货币本质上是不稳定的，QT 平台提供的兑换率来自我们定期获取的值得信赖的第三方
+汇率提供商。 
+Players will be able to use a virtual currency in the wallet and play the game in a common (ISO) 
+currency, with a given conversion rate to convert the amounts in the transactions and requests to the 
+player wallet.  This conversion rate should be accepted by the player and will be used for the whole game 
+session.  
+玩家将能够在钱包中使用虚拟货币并以通用 (ISO) 货币玩游戏，并以给定的转换率将交易金额和请求中的金额转换到玩家
+钱包。这个转化率应该被玩家接受，并将用于整个游戏会话。 
+2.7 Free Round Promotions免费游戏局活动 
+The QT platform supports two types of free round promotions; Fixed or Flexible.  
+A Fixed promotion is where the operator decides a fixed number of rounds and amount for a certain 
+player and promotion.  
+A Flexible promotion is where the operator can automatically generate different round options for the 
+player to choose from, based on the rewarded bonus amount. This option gives more flexibility for the 
+player, to select a round option that best matches his/her bet strategy. 
+QT 平台支持两种类型的免费游戏局：预设定的或者可调整的 
+预设定的免费游戏局是指运营商为指定的玩家和活动，选择预定的游戏局数量和每局的投注额。 
+可调整的免费游戏局是指运营商可以根据奖励的金额自动生成不同的游戏局选项供玩家选择。这个选项可以为玩家提供更
+大的灵活性，选择最符合他/她的投注策略的游戏局选项。 
+
+ 
+To create free round promotions, the operator can either use the campaign tool in Back Office or use our API, as 
+explained in chapter “Create Free Round Promotion 创建免费游戏局”.  
+运营商可以使用QT后台的活动工具或者通过API来创建免费游戏局，在API文档8.8章节“CreateFreeRoundPromotion创建
+免费游戏局 ” 有详细说明。 
+2.7.1 Free Round Result 免费游戏局活动结果 
+The result of a played free round promotion will be delivered in one or several game rounds, where each 
+round will start with a 0-amount withdrawal transaction followed by one or several deposit transactions. 
+The bonus type and the promotion code, which was given when creating the promotion, will be passed in 
+every withdrawal and deposit transaction. 
+For example – a player has been promoted with 2 free rounds with a bet amount of 20.00 CNY per round, 
+with promotion code “123”. 
+一个完成的免费游戏局活动的结果会作为一个游戏局或者分成多个游戏局来传递。每个游戏局会以一个金额为0的提款交
+易开始，后面会有一个或多个存款交易。 
+示例： 一个玩家得到2局免费游戏活动，每局游戏的投注金额为20元，免费游戏局活动代码为“123” 
+Example Result Sequence 1 – multiple rounds per promotion 
+Round 1 
+Withdrawal (amount=0.00, bonusAmount=20.00, roundId=1, bonusType="FREE_ROUND", 
+bonusPromoCode="123", completed=false) 
+Deposit (amount=0.00, roundId=1, bonusType="FREE_ROUND", bonusPromoCode="123", 
+completed=true) 
+Round 2 
+Withdrawal (amount=0.00, bonusAmount=20.00, roundId=2, bonusType="FREE_ROUND", 
+bonusPromoCode="123", completed=false) 
+Deposit (amount=5.00 roundId=2, bonusType="FREE_ROUND", bonusPromoCode="1233445", 
+completed=true) 
+Example Result Sequence 2 – single round per promotion 
+Round 1 
+Withdrawal (amount=0.00, bonusAmount=20.00, roundId=1, bonusType="FREE_ROUND", 
+bonusPromoCode="123", completed=false) 
+Deposit (amount=5.00, roundId=1, bonusType="FREE_ROUND", bonusPromoCode="123", 
+completed=true) 
+2.7.2 Free Round Status 免费游戏局活动的状态 
+The status of a certain promotion can be displayed in the Back Office or be requested from the API, as described in “Get 
+Free Round Promotion 获取免费游戏局”, or by implementing the status callback method, as described in “Promotion 
+Status活动状态”. 
+A Free Round Promotion can be in one of the following states: 
+指定免费游戏局活动的状态可以在QT后台中显示，或者通过API请求获取。在API请求时可参考章节8.9 
+GetFreeRoundPromotion 获取免费游戏局，或者参考章节3.6 PromotionStatus 活动状态，部署实现status callback的方法。 
+免费游戏局可以处于以下的状态： 
+Status Description 
+PROMOTED The operator has assigned the free round to the player. 
+运营商已将免费游戏局分配给玩家。 
+CLAIMED The player has activated the promotion by launching the game and selecting a specific round 
+option. 
+玩家通过选择特定的局数选项接受免费游戏局。 
+
+IN_PROGRESS The player has started to play the free rounds, ie at least one free round has been completed. 
+玩家已开始使用免费游戏局，并至少完成一轮免费局。 
+COMPLETED The player has completed all the free rounds in the promotion. 
+玩家已完成免费游戏局的所有局数。 
+DELETED The promotion was deleted by the operator. 
+运营商删除免费游戏局。 
+CANCELLED The promotion was rejected by the player. 
+玩家拒绝免费游戏局。 
+FAILED The creation of the promotion failed on the game server. 
+创建免费游戏局失败。 
+EXPIRED The validity period of the promotion has lapsed since the time when it was claimed.  
+由于已经被认领，促销活动的有效期已过。 
+ 
+The status of a Free Round Promotion can have the following transitions:  
+免费游戏局的状态可以包含以下内容： 
+PROMOTED   CLAIMED   IN_PROGRESS   COMPLETED 
+PROMOTED   CLAIMED   IN_PROGRESS   EXPIRED 
+PROMOTED   CLAIMED   FAILED   PROMOTED 
+PROMOTED   CLAIMED   EXPIRED 
+PROMOTED   DELETED 
+PROMOTED   CANCELLED 
+2.8 Idempotency幂等 
+The transactional methods of the Common Wallet endpoints must be idempotent, meaning same 
+transaction, deposit, withdrawal or rollback can be retried in case of error but the retry must not result to 
+new transaction in Operator system. A retry must return the original response. 
+中心钱包端点的交易方法必须是幂等，这意味着在发生错误的情况下可以重试相同的交易，存款，提款或回滚，但重试不会
+导致运营商系统中产生新的交易。 重试必须返回原始响应。 
+ 
+2.9 Player Creation 创建玩家 
+A “shadow” Player gets automatically created in QT Platform when launching a game, as described in “Game Launcher
+游戏启动”. 
+一个“shadow”玩家会在启动游戏时自动在 QT 平台生成，如“Game Launcher 游戏启动”章节中所述。 
+ 
+2.10 Error Handling错误处理 
+Sometimes errors can happen during a request. In case of an error, the response must be reflected both 
+in the header (HTTP status code) and with a response body, containing an error code and message. All 
+errors will return HTTP status code 4xx or 5xx. 
+有时在请求期间可能发生错误。 在发生错误的情况下，该响应必须同时在头部（HTTP状态码）和响应主体（包含错误代码
+与信息）中体现。 所有错误将返回HTTP状态码4xx或5xx。  
+ 
+ 
+ 
+Each API definition will explain in detail what possible errors (http status, code and message) that can 
+occur. 
+每个API定义将会详细解释可能出现的错误（http status, code and message)。 
+
+ 
+ 
+ 
+
+3 Common Wallet 中心钱包 
+This chapter describes the seven (7) endpoints; “Verify Session”, “Get Balance”, “Deposit”, “Withdrawal”, 
+“Rollback”, “Promotion Status” and “Rewards” which the Operator system must implement to support 
+Common Wallet. 
+本章描述七
+个(7)端点; “验证会话”，“获取余额”，“存款”，“取款”,“回滚”,”活动状态”和”奖金”，运营商系统必须实现这些端点以
+支持中心钱包。 
+ 
+ 
+ 
+3.1 Verify Session 验证会话 
+Every time a player launches a game, the player session will be validated and verified in the Operator 
+system. The Operator must implement this endpoint to support game launches.   
+每次玩家启动游戏时，玩家会话将在运营商系统中进行确认和验证。 运营商必须实现此端点以支持游戏启动。 
+ 
+3.1.1 Request请求 
+Request URL 请求链接 
+https://wallet.operator.com/accounts/{playerId}/session?gameId={gameId} 
+HTTP Method HTTP方法 
+GET 
+Header Parameters 头参数 
+Name Description Require
+d 
+Type Sample 
+Wallet-Session 
+The Operator generated player session token. This is the same 
+session id as given when retrieving the game launch url. 运营商生
+成的玩家会话令牌。这是在检索游戏启动 url 时给出的相同会话 id。 
+Yes String 568dbe0a57f5d3
+3d34b22d0e 
+Pass-Key 
+The shared secret pass-key.共享的密钥。 
+Yes String 76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Path Parameters 
+Name Description Require
+d 
+Type Sample 
+playerId 
+The unique identifier of the player within the Operator system.在运
+营商系统中玩家唯一的标识符。 
+Yes String test1234 
+ 
+Query Parameters 
+Name Description Require
+d 
+Type Sample 
+gameId 
+QT Platform game id. QT平台游戏id. 
+Yes String TK-froggrog 
+Example Request 
+ 
+
+3.1.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Require
+d 
+Type Sample 
+balance The balance of the player, expressed in decimals. For fiat, 
+the maximum decimal places is 2. While for virtual 
+currencies, the maximum decimal places is 8.  
+玩家的余额，以小数表示。对于真实货币，最大小数位为 2。而对于虚
+拟货币，最大小数位为 8。 
+Yes Decimal 8880.00 
+currency The currency of the player wallet as a 3-letter code 
+according to ISO 4217 when in fiat or the virtual currency 
+code set.    
+玩家钱包的货币为符合 ISO 4217 的 3 字母代码，在使用法定货币或
+虚拟货币代码集时，需符合此标准。 
+Yes String CNY 
+ 
+Example Response – Success (Fiat Currency) 
+ 
+ 
+Example Response – Success (Virtual Currency) 
+ 
+3.1.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+INVALID_TOKEN 400 
+Missing, invalid or expired player (wallet) session token.缺失，无效或过期的玩家（钱
+包）会话令牌。 
+ACCOUNT_BLOCKED 403 
+The player account is blocked. 该玩家的账户被锁住。 
+LOGIN_FAILED 401 
+The given pass-key is incorrect.给定的密钥不正确。 
+UNKNOWN_ERROR 500 
+Unexpected error. 意外的错误 
+ 
+Example Response - Error 
+ 
+ 
+
+3.2 Get Balance 获取余额 
+The “Get Balance” endpoint is being called from time-to-time update the balance within the game. The 
+Operator must implement this endpoint to return the player's latest balance. 
+“获取余额”端点在实时更新游戏中的余额时被调用。运营商必须实现此端点以返回玩家的最新余额。 
+ 
+ 
+3.2.1 Request请求 
+Request URL 
+https://wallet.operator.com/accounts/{playerId}/balance?gameId={gameId} 
+HTTP Method 
+GET 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Wallet-Session 
+The Operator generated player session token. This is the same 
+session id as given when retrieving the game launch url. 运营商生
+成的玩家会话令牌。这是在检索游戏启动 url 时给出的相同会话 id。 
+No String 568dbe0a57f5d3
+3d34b22d0e 
+Pass-Key 
+The shared secret pass-key.共享的密钥。 
+Yes String 76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Path Parameters 
+Name Description Require
+d 
+Type Sample 
+playerId 
+The unique identifier of the player within the Operator system.在运
+营商系统中玩家的id是唯一的。 
+Yes String test1234 
+ 
+Query Parameters 
+Name Description Require
+d 
+Type Sample 
+gameId 
+QT Platform game id. QT平台游戏id. 
+No String TK-froggrog 
+ 
+Example Request 
+ 
+3.2.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Require
+d 
+Type Sample 
+
+balance The balance of the player, expressed in decimals. For fiat, 
+the maximum decimal places is 2. While for virtual 
+currencies, the maximum decimal places is 8.  
+玩家的余额，以小数表示。对于真实货币，最大小数位为 2。而对于虚
+拟货币，最大小数位为 8。 
+Yes Decimal 8880.00 
+currency The currency of the player wallet as a 3-letter code 
+according to ISO 4217 when in fiat or the virtual currency 
+code set.    
+玩家钱包的货币为符合 ISO 4217 的 3 字母代码，在使用法定货币或
+虚拟货币代码集时，需符合此标准。 
+Yes String CNY 
+ 
+Example Response – Success (Fiat Currency) 
+ 
+ 
+Example Response – Success (Virtual Currency) 
+ 
+ 
+3.2.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+REQUEST_DECLINED 400 
+General error. If request could not be processed. 请求无法被进行。 
+LOGIN_FAILED 401 
+The given pass-key is incorrect. 所给的密钥不正确 
+UNKNOWN_ERROR 500 
+Unexpected error. 意外的错误 
+ 
+Example Response - Error 
+ 
+ 
+3.3 Withdrawal 提款 
+When placing a bet in a game, the bet amount will be withdrawn from the player's balance in the 
+Operator system. The Operator system needs to expose an endpoint to support withdrawals from a given 
+player's account.  
+当下注在一场游戏时，投注金额将会从运营商系统玩家的余额中提取。运营商系统需要公开一个端点来支持从所给玩家账户
+中提款。 
+ 
+
+ 
+3.3.1 Request请求 
+Request URL 
+https://wallet.operator.com/transactions 
+HTTP Method 
+POST 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Wallet-Session 
+The Operator generated player session token. This is the same 
+session id as given when retrieving the game launch url. 运营商生
+成的玩家会话令牌。这是在检索游戏启动 url 时给出的相同会话 id。 
+Yes String 568dbe0a57f5d3
+3d34b22d0e 
+Pass-Key 
+The shared secret pass-key.共享的密钥。 
+Yes String 76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Payload Parameters 
+Name Description Require
+d 
+Type Sample 
+txnType The transaction type. Only DEBIT is valid for withdrawals.交
+易类型。只有DEBIT为有效提款。 
+Yes String DEBIT 
+txnId 
+The game transaction id from the QT Platform. 游戏交易id来自QT
+平台。 
+Yes String 5693761657f5d
+346ec6749a1 
+playerId 
+The player id supplied by the Operator.由运营商提供的玩家ID。 
+Yes String test123 
+roundId 
+The game round id (hand id) supplied by the QT Platform.游戏局id 
+由QT平台提供 
+Yes String 568cc92f57f5d3
+3b95846124 
+amount 
+The bet amount 投注金额 
+Yes Decimal 80.00 
+currency The currency of the player wallet as a 3-letter code 
+according to ISO 4217 when in fiat or the virtual currency 
+code set.    
+玩家钱包的货币为符合 ISO 4217 的 3 字母代码，在使用法定货币或
+虚拟货币代码集时，需符合此标准。 
+Yes String CNY 
+bonusBetAmo
+unt 
+The bonus bet amount. If provided, the withdrawal 
+amount will be 0.00, since it's a bonus round. 
+奖金投注金额。 如果提供，投注金额将为0.00，因为这是一个奖金游
+戏局。 
+No Decimal 10.00 
+bonusType Determines whether the withdrawal request is part of a 
+bonus round. Valid values are  
+FREE_ROUND 
+FEATURE_TRIGGER 
+确定提款请求是否是奖金游戏局部分。有效值是 
+FREE_ROUND 
+No String FREE_ROUND 
+
+FEATURE_TRIGGER 
+bonusPromoC
+ode 
+An optional tracking code for bonus rounds, which was 
+registered when creating the promotion. 
+奖金游戏局非必需的追踪代码，在活动创建时已注册。 
+No String FirstDeposit 
+jpContribution
+s 
+The jackpot contributions per jackpot pool.  
+每个奖池的奖金贡献。 
+No Array [ 
+       { 
+          "id" :  
+"BPG-royal", 
+          "amount": 
+0.0001, 
+          "balance" : 
+2069 
+       } 
+      ] 
+jpContribution
+s[].id 
+QT jackpot pool id. This is a unique id of the jackpot pool 
+where the contribution amount applies to. 
+QT奖池ID。这是奖池贡献金额适用的奖金池的唯一 ID 
+Yes String BPG-royal 
+jpContribution
+s[].amount 
+The contribution amount. 
+奖池贡献金额。 
+Yes Decimal 0.0001 
+ 
+jpContribution
+s[].balance  
+The current balance of the jackpot pool.  
+奖池的当前余额。 
+Yes Decimal 2069 
+ 
+conversionRat
+e 
+The conversion rate used for this round.  
+This is only valid for virtual currency game session.  
+本游戏局使用的汇率。这仅对虚拟货币游戏会话有效。 
+No Object - 
+conversionRat
+e.pair 
+The pair of currencies for the conversion of game currency 
+to wallet currency.  
+游戏币兑换钱包币的货币对 
+Yes String BTC/USD 
+conversionRat
+e.rate 
+The rate used between the game currency and wallet 
+currency. The maximum number of decimal places is 8.  
+游戏币和钱包币之间使用的汇率。最大小数位数为 8。 
+Yes Decimal 
+ 
+34691.5948495 
+gameId 
+QT Platform game id. QT平台游戏id. 
+Yes String TK-froggrog 
+device The device type of the player. Valid values are MOBILE, 
+DESKTOP or NATIVE. 玩家的设备类型。有效值为MOBILE, 
+DESKTOP 或 NATIVE。 
+No String MOBILE 
+clientType The client type of the game. Valid values are FLASH or 
+HTML5. 游戏的类型，有效值是FLASH或者HTML5. 
+No String HTML5 
+clientRoundId 
+The round id given in the bet history within the game client. 在游戏
+客户端投注历史中给出的游戏局ID。 
+No String 123456 
+category 
+The category of the game, expressed as a path. 游戏的类别，表示
+为路径。 
+No String CASINO/SLOT/5
+REEL 
+created The date and time when the WITHDRAWAL transaction 
+was created, expressed as  
+“YYYY-MM-DDThh:mm:ss.SSS+hh:mm[TimeZone]”. 
+创建WITHDRAWAL事务的日期和时间，表示为 
+“YYYY-MM-DDThh:mm:ss.SSS+hh:mm[TimeZone]”。 
+Yes String 2023-10-22T20:
+34:59.703+08:0
+0[Asia/Shanghai
+] 
+completed 
+Determines whether the game round is finished.决定游戏局是否完
+成。 
+Yes String False 
+tableId A unique key per table ID in Live Casino games 
+真人视讯游戏中每个tableID的唯一key 
+No String Poker001 
+ 
+Example Request – Fiat 
+
+ 
+Example Request – Virtual Currency  
+ 
+ 
+
+ 
+
+Example Request – In Progress 
+ 
+ 
+Example Request – Free Round (promotion) 
+
+ 
+ 
+
+3.3.2 Response响应 
+HTTP Status Code 
+201 Created 
+Response Parameters 
+Name Description Require
+d 
+Type Sample 
+balance The balance of the player, expressed in decimals. For fiat, 
+the maximum decimal places is 2. While for virtual 
+currencies, the maximum decimal places is 8.  
+玩家的余额，以小数表示。对于真实货币，最大小数位为 2。而对于虚
+拟货币，最大小数位为 8。 
+Yes Decimal 8880.00 
+referenceId 
+The operator unique identifier of the wallet transaction.钱包交易中
+玩家的id是唯一的。 
+Yes String 123456 
+ 
+Example Response - Success 
+ 
+ 
+3.3.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+REQUEST_DECLINED 400 
+General error. If request could not be processed. 请求无法被进行。 
+INVALID_TOKEN 400 
+Missing, invalid or expired player (wallet) session token.缺失，无效或过期的玩家（钱
+包）会话令牌。 
+INSUFFICIENT_FUNDS 400 
+If the requested DEBIT amount is higher than the player's balance within the Operator 
+system. 如果请求的DEBIT额度高于玩家的余额在运营商的系统中。 
+LIMIT_EXCEEDED 400 
+The game limit for the player has been exceeded. No bets allowed. 玩家的游戏限制已
+经被超越，不允许投注。 
+ACCOUNT_BLOCKED 403 
+The player account is blocked. 该玩家的账户被锁住。 
+LOGIN_FAILED 401 
+The given pass-key is incorrect. 所给的密钥是不正确的。 
+UNKNOWN_ERROR 500 
+Unexpected error. 意外的错误 
+ 
+Example Response - Error 
+ 
+ 
+ 
+
+3.4 Deposit 存款 
+In case of winning, the payout amount will be deposited to the player's balance in the Operator system. 
+The Operator system needs to expose an endpoint to handle deposits to a given player's account.  
+如果中奖，支出金额将存入在运营商系统玩家的余额。运营商系统需要公开一个端点以处理存款到某个玩家的账户。 
+ 
+ 
+3.4.1 Request请求 
+Request URL 
+https://wallet.operator.com/transactions 
+HTTP Method 
+POST 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Wallet-Session 
+The Operator generated player session token. This is the same 
+session id as given when retrieving the game launch url. 运营商生
+成的玩家会话令牌。这是在检索游戏启动 url 时给出的相同会话 id。 
+Yes String 568dbe0a57f5d3
+3d34b22d0e 
+Pass-Key 
+The shared secret pass-key. 共享的密钥。 
+Yes String 76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Payload Parameters 
+Name Description Require
+d 
+Type Sample 
+txnType The transaction type. Only CREDIT is valid for deposits.交易
+类型，只有CREDIT对于存款是有效的。 
+Yes String CREDIT 
+txnId 
+The QT Platform game transaction id. QT平台游戏交易id. 
+Yes String 5693761657f5d
+346ec6749a1 
+betId 
+The related bet (withdrawal) transaction id generated by QT 
+Platform. QT Platform生成的相关投注（提款）交易ID。 
+No String 568cc95f57f5d3
+3b96f379ab 
+playerId 
+The player id supplied by the Operator.玩家id由运营商提供。 
+Yes String test123 
+roundId 
+The game round id (hand id) supplied by the QT Platform.游戏局ID
+由QT平台提供。 
+Yes String 568cc92f57f5d3
+3b95846124 
+amount The total payout amount, including any jackpot or bonus 
+wins. 
+总派彩金额，包括所有的奖池和奖励的奖金。 
+Yes Decimal 80.00 
+
+currency The currency of the player wallet as a 3-letter code 
+according to ISO 4217 when in fiat or the virtual currency 
+code set.    
+玩家钱包的货币为符合 ISO 4217 的 3 字母代码，在使用法定货币或
+虚拟货币代码集时，需符合此标准。 
+Yes String CNY 
+bonusType Determines whether the withdrawal request is part of a 
+bonus round. Valid values are  
+FREE_ROUND 
+FEATURE_TRIGGER 
+确定提款请求是否是奖金游戏局部分。有效值是 
+FREE_ROUND 
+FEATURE_TRIGGER 
+No String FREE_ROUND 
+bonusPromoC
+ode 
+An optional tracking code for bonus rounds, which was 
+registered when creating the promotion. 
+奖金游戏局非必需的追踪代码，在活动创建时已注册。 
+No String FirstDeposit 
+jpPayout The jackpot win amount. This is only valid for progressive 
+jackpot games. 
+奖池奖励的金额。此参数仅对累计奖池游戏有效。 
+No Decimal 10.00 
+conversionRat
+e 
+The conversion rate used for this round.  
+This is only valid for virtual currency game session.  
+本游戏局使用的汇率。这仅对虚拟货币游戏会话有效。 
+No Object - 
+conversionRat
+e.pair 
+The pair of currencies for the conversion of game currency 
+to wallet currency.  
+游戏币兑换钱包币的货币对 
+Yes String BTC/USD 
+conversionRat
+e.rate 
+The rate used between the game currency and wallet 
+currency. The maximum number of decimal places is 8.  
+游戏币和钱包币之间使用的汇率。最大小数位数为 8。 
+Yes Decimal 
+ 
+34691.5948495 
+gameId 
+QT Platform game id。QT平台游戏id。 
+Yes String TK-froggrog 
+device The device type of the player. Valid values are MOBILE, 
+DESKTOP or NATIVE. 玩家的设备类型。有效值为MOBILE, 
+DESKTOP 或 NATIVE。 
+No String MOBILE 
+clientType The client type of the game. Valid values are FLASH or 
+HTML5.游戏的类型，有效值为FLASH 或者HTML5. 
+No String HTML5 
+clientRoundId 
+The round id given in the bet history within the game client. 在游戏
+客户端投注历史中给出的游戏局ID。 
+No String 123456 
+category 
+The category of the game, expressed as a path. 游戏的类别，表示
+为路径。 
+No String CASINO/SLOT/5
+REEL 
+created The date and time when the DEPOSIT transaction was 
+initiated, expressed as  
+“YYYY-MM-DDThh:mm:ss.SSS+hh:mm[TimeZone]”. 
+创建DEPOSIT事务的日期和时间，表示为 
+“YYYY-MM-DDThh:mm:ss.SSS+hh:mm[TimeZone]”。 
+Yes String 2023-10-22T20:
+34:59.703+08:0
+0[Asia/Shanghai
+] 
+completed 
+Determines whether the game round is finished.决定游戏局是否完
+成。 
+Yes String True 
+tableId A unique key per table ID in Live Casino games 
+真人视讯游戏中每个tableID的唯一key 
+No String poker001 
+ 
+Example Request – Completed (Fiat)  
+
+ 
+Example Request – Completed (Virtual Currency)  
+ 
+ 
+ 
+
+Example Request – In Progress 
+ 
+ 
+Example Request – Free Round (promotion) 
+ 
+ 
+ 
+
+3.4.2 Response响应 
+HTTP Status Code 
+201 Created 
+Response Parameters 
+Name Description Require
+d 
+Type Sample 
+balance The balance of the player, expressed in decimals. For fiat, 
+the maximum decimal places is 2. While for virtual 
+currencies, the maximum decimal places is 8.  
+玩家的余额，以小数表示。对于真实货币，最大小数位为 2。而对于虚
+拟货币，最大小数位为 8。 
+Yes Decimal 8880.00 
+referenceId 
+The operator unique identifier of the wallet transaction.钱包交易中
+运营商的ID是唯一的 
+Yes String 123456 
+ 
+Example Response - Success 
+ 
+ 
+3.4.3 Possible Errors 
+Code HTTP 
+Status 
+Description 
+REQUEST_DECLINED 400 
+General error. If request could not be processed. 请求无法被进行。 
+LOGIN_FAILED 401 
+The given pass-key is incorrect.给定的密钥不正确。 
+UNKNOWN_ERROR 500 
+Unexpected error. 意外的错误 
+ 
+Example Response - Error 
+ 
+ 
+ 
+
+3.5 Rollback 回滚 
+Sometimes things can go wrong. For example, if the player gets disconnected from the game server or if 
+there are any the wallet miscommunications. In case of these rare errors, a cancellation can be issued to 
+rollback the last bet to return the bet amount to the player's account. The Operator system must support 
+rollback requests. 
+有时候可能会出现一些错误。例如，玩家与服务器断开连接，或者存在钱包通信错误。在出现这些错误的情况下，可以回滚
+玩家最后的投注，将投注金额返还到玩家的账户。运营商系统必须支持回滚请求。 
+ 
+ 
+3.5.1 Request请求 
+Request URL 
+https://wallet.operator.com/transactions/rollback 
+HTTP Method 
+POST 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Wallet-Session 
+The Operator generated player session token. This is the same 
+session id as given when retrieving the game launch url. 运营商生
+成的玩家会话令牌。这是在检索游戏启动 url 时给出的相同会话 id。 
+Yes String 568dbe0a57f5d3
+3d34b22d0e 
+Pass-Key 
+The shared secret pass-key. 共享的密钥。 
+Yes String 76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Payload Parameters 
+Name Description Require
+d 
+Type Sample 
+betId 
+The original bet (withdrawal) transaction id generated by QT 
+Platform. Operator must use this value to check if the original bet 
+transaction exists or not. QT Platform生成的原始投注（提款）交易ID
+，运营商必须使用此值来检查原始投注交易是否存在。 
+Yes String 5693761657f5d
+346ec6749a1 
+txnId 
+The QT Platform id of the rollback transaction. 回滚交易的QT平台
+id。 
+Yes String 5694757d57f5d
+348c35dbcfe 
+playerId 
+The player id supplied by the Operator. 玩家ID是由运营商提供。 
+Yes String test123 
+roundId 
+The game round id (hand id) supplied by the QT Platform.游戏局id
+是由QT平台提供。 
+Yes String 568cc92f57f5d3
+3b95846124 
+amount 
+The rollback amount. 回滚额度 
+Yes Decimal 80.00 
+
+currency The currency of the player wallet as a 3-letter code 
+according to ISO 4217 when in fiat or the virtual currency 
+code set.    
+玩家钱包的货币为符合 ISO 4217 的 3 字母代码，在使用法定货币或
+虚拟货币代码集时，需符合此标准。 
+Yes String CNY 
+conversionRat
+e 
+The conversion rate used for this round.  
+This is only valid for virtual currency game session.  
+本游戏局使用的汇率。这仅对虚拟货币游戏会话有效。 
+No Object - 
+conversionRat
+e.pair 
+The pair of currencies for the conversion of game currency 
+to wallet currency.  
+游戏币兑换钱包币的货币对 
+Yes String BTC/USD 
+conversionRat
+e.rate 
+The rate used between the game currency and wallet 
+currency. The maximum number of decimal places is 8.  
+游戏币和钱包币之间使用的汇率。最大小数位数为 8。 
+Yes Decimal 
+ 
+34691.5948495 
+gameId 
+QT Platform game id. QT平台游戏ID. 
+Yes String TK-froggrog 
+device The device type of the player. Valid values are MOBILE, 
+DESKTOP or NATIVE. 玩家的设备类型。有效值为MOBILE, 
+DESKTOP 或 NATIVE。 
+No String MOBILE 
+clientType The client type of the game. Valid values are FLASH or 
+HTML5.游戏的类型，有效值为FLASH 或者HTML5. 
+No String HTML5 
+clientRoundId 
+The round id given in the bet history within the game client. 在游戏
+客户端投注历史中给出的游戏局ID。 
+No String 123456 
+category 
+The category of the game, expressed as a path. 游戏的类别，表示
+为路径。 
+No String CASINO/SLOT/5
+REEL 
+created The date and time when the ROLLBACK transaction was 
+created, expressed as  
+“YYYY-MM-DDThh:mm:ss.SSS+hh:mm[TimeZone]”. 
+创建ROLLBACK事务的日期和时间，表示为 
+“YYYY-MM-DDThh:mm:ss.SSS+hh:mm[TimeZone]”。 
+Yes String 2023-10-22T20:
+34:59.703+08:0
+0[Asia/Shanghai
+] 
+completed 
+Determines whether the game round is finished.决定游戏局是否完
+成。 
+Yes String True 
+tableId A unique key per table ID in Live Casino games 
+真人视讯游戏中每个tableID的唯一key 
+No String poker001 
+ 
+ 
+
+Example Request – Fiat  
+ 
+ 
+Example Request – Virtual Currency  
+ 
+ 
+ 
+ 
+ 
+
+3.5.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Require
+d 
+Type Sample 
+balance The balance of the player, expressed in decimals. For fiat, 
+the maximum decimal places is 2. While for virtual 
+currencies, the maximum decimal places is 8.  
+玩家的余额，以小数表示。对于真实货币，最大小数位为 2。而对于虚
+拟货币，最大小数位为 8。 
+Yes Decimal 8880.00 
+referenceId 
+The operator unique identifier of the wallet transaction.钱包交易的
+运营商唯一的id. 
+No String 123456 
+ 
+Example Response – Transaction Found - Success 
+ 
+ 
+Example Response – Transaction Not Found – Success 
+ 
+ 
+3.5.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+REQUEST_DECLINED 400 
+General error. If request could not be processed. 请求无法被进行。 
+LOGIN_FAILED 401 
+The given pass-key is incorrect. 所给密钥是不正确的。 
+UNKNOWN_ERROR 500 
+Unexpected error. 意外的错误 
+ 
+Example Response - Error 
+ 
+ 
+ 
+
+3.6 Promotion Status活动状态 
+The Promotion Status method is related to free round promotions and is optional to implement. If 
+implemented and registered in Back Office, our platform will push information of (free round) promotion 
+status transitions, such as when a promotion is 
+活动状态的获取方法与免费游戏局活动相关联，运营商可以选择是否部署。如果在QT后台部署和注册，我们的平台将推送
+（免费游戏局）活动状态交易的信息，例如活动何时开始 
+Status Description 
+PROMOTED The operator has assigned the free round to the player. 
+运营商已将免费游戏局分配给玩家。 
+CLAIMED The player has activated the promotion by launching the game and selecting a specific round 
+option. 
+玩家通过选择特定的局数选项接受免费游戏局。 
+IN_PROGRESS The player has started to play the free rounds, ie at least one free round has been completed. 
+玩家已开始使用免费游戏局，并至少完成一轮免费局。 
+COMPLETED The player has completed all the free rounds in the promotion. 
+玩家已完成免费游戏局的所有局数。 
+DELETED The promotion was deleted by the operator. 
+运营商删除免费游戏局。 
+CANCELLED The promotion was rejected by the player. 
+玩家拒绝免费游戏局。 
+FAILED The creation of the promotion failed on the game server. 
+创建免费游戏局失败。 
+EXPIRED The validity period of the promotion has lapsed since the time when it was claimed.  
+由于已经被认领，促销活动的有效期已过。 
+ 
+The status of a Free Round Promotion can have the following transitions:  
+免费游戏局的状态可以包含以下内容： 
+PROMOTED   CLAIMED   IN_PROGRESS   COMPLETED 
+PROMOTED   CLAIMED   IN_PROGRESS   EXPIRED 
+PROMOTED   CLAIMED   FAILED   PROMOTED 
+PROMOTED   CLAIMED   EXPIRED 
+PROMOTED   DELETED 
+PROMOTED   CANCELLED 
+ 
+ 
+ 
+
+3.6.1 Request请求 
+Request URL 
+https://wallet.operator.com/bonus/status 
+HTTP Method 
+POST 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Pass-Key The shared secret pass-key.  
+共享的密钥。 
+Yes String 76236f90-dc9c-3
+6d7-9e78-3e716
+d5ecf92 
+ 
+Payload Parameters 
+Name Description Type Sample 
+bonusId The unique identifier of the promotion. 
+免费游戏局的唯一标识符。 
+String keyops-acfe23cf
+e4f2 
+playerId The unique player identifier in the operator system. 
+在运营商系统中玩家唯一的标识符。 
+String 45465 
+gameIds The list of games in which this free round is playable. 
+支持免费游戏局的列表。 
+Array QS-goldlab,ELK-
+djwild 
+totalBetValue The total value of the promotion. 
+免费游戏局总数值。 
+Decimal 100.00 
+totalPayout The total payout of the promotion. 
+免费游戏局总出款。 
+Decimal 50.00 
+roundOptions The list of numbers of rounds offered to player. Each number 
+in the list is equal to totalBetValue divided by legal bet amount 
+for the given game without remainder. Maximum of 9 round 
+options.  
+提供给玩家的免费游戏局数量，列表中的每个数字等于totalBetValue除以
+给定游戏的合法投注金额，且没有余额。 最多选项为9局。 
+Array 1,2,4,8 
+currency The currency of the free round promotion. It matches the 
+player currency. 
+免费游戏局的货币与玩家货币相匹配。 
+String CNY 
+promoCode The optional promotion code for tracking purposes. 
+用于追踪免费游戏局的活动代码。 
+String ABC 
+status 
+The status of the free round promotion. The other response parameters 
+returned depend on the status of the free round promotion. The value of 
+this parameter can either be PROMOTED, CLAIMED, IN_PROGRESS, 
+COMPLETED, DELETED, CANCELLED or FAILED. 
+免费游戏局的状态。返回的响应参数取决于游戏局的状态。此参数的值
+可以是PROMOTED，CLAIMED，IN_PROGRESS，COMPLETED， 
+DELETED，CANCELLED或FAILED。 
+String CLAIMED 
+validityDays The number of days the promotion is valid after it has been 
+claimed by the player.  
+玩家认领免费游戏局后的有效天数。 
+Number 7 
+promotedDateTime The date and time when the promotion was given to the 
+player. Format is comprised of ISO-8601 compatible date time 
+format followed by the time zone equal to Time-Zone request 
+header, in square brackets. 
+提供给玩家免费游戏局的日期和时间，格式由ISO-8601兼容日期时间格
+式组成，方括号时区与请求头参数时区一致。 
+String 2019-03-14T16:
+44:41.087+08:0
+0[Asia/Shanghai
+] 
+claimedDateTime The date and time when the promotion was claimed by the 
+player. Format is comprised of ISO-8601 compatible date time 
+format followed by the time zone equal to Time-Zone request 
+header, in square brackets. 
+玩家认领免费游戏局的日期和时间。 格式由ISO-8601兼容日期时间格式
+String 2019-03-14T16:
+52:41.087+08:0
+0[Asia/Shanghai
+] 
+
+组成，方括号时区与请求头参数时区一致。 
+failedDateTime The date and time when a promotion operation failed due to 
+error. Format is comprised of ISO-8601 compatible date time 
+format followed by the time zone equal to Time-Zone request 
+header, in square brackets. 
+免费游戏局因错误导致失败的日期和时间。 格式由ISO-8601兼容日期时
+间格式组成，方括号时区与请求头参数时区一致。 
+String 2019-03-14T17:
+52:41.087+08:0
+0[Asia/Shanghai
+] 
+completedDateTime The date and time when all free rounds in the promotion was 
+completed by the player. Format is comprised of ISO-8601 
+compatible date time format followed by the time zone equal 
+to Time-Zone request header, in square brackets. 
+玩家已经完成免费游戏局的日期和时间。格式由 ISO-8601 兼容日期时
+间格式组成,方括号时区与请求头参数时区一致。 
+String 2019-03-14T17:
+45:41.087+08:0
+0[Asia/Shanghai
+] 
+cancelledDateTime The date and time when the promotion was rejected by the 
+player. Format is comprised of ISO-8601 compatible date time 
+format followed by the time zone equal to Time-Zone request 
+header, in square brackets. 
+玩家拒绝免费游戏局的日期和时间。格式由ISO-8601兼容日期时间格式
+组成，方括号时区与请求头参数时区一致。 
+String 2019-03-14T17:
+11:41.087+08:0
+0[Asia/Shanghai
+] 
+deletedDateTime The date and time when the promotion was deleted by the 
+operator. Format is comprised of ISO-8601 compatible date 
+time format followed by the time zone equal to Time-Zone 
+request header, in square brackets. 
+运营商删除玩家免费游戏局的日期和时间。格式由 ISO-8601 兼容日期
+时间格式组成,方括号时区与请求头参数时区一致。 
+String 2019-03-14T17:
+11:41.087+08:0
+0[Asia/Shanghai
+] 
+expiredDateTime The date and time when the validity period of the promotion 
+has lapsed since it was claimed by the player. Format is 
+comprised of ISO-8601 compatible date time format followed 
+by the time zone equal to Time-Zone request header, in 
+square brackets. 
+促销活动过期失效的日期和时间，由于已经被认领此促销活动的有效期已
+过。格式由 ISO-8601 兼容日期时间格式组成,方括号时区与请求头参数
+时区一致。 
+String 2019-03-14T17:
+11:41.087+08:0
+0[Asia/Shanghai
+] 
+claimedRoundOption The selected round option of the player. 
+玩家选择游戏局数的选项。 
+Number 1 
+claimedGameId The unique identifier of the game, provided by QT, in which 
+the player activated (claimed) the promotion. 
+当玩家认领免费游戏局后，由 QT 提供的游戏唯一的标识符。 
+String QS-goldlab 
+ 
+ 
+
+Example Request – PROMOTED 
+ 
+ 
+Example Request – CLAIMED 
+ 
+ 
+ 
+
+Example Request – IN_PROGRESS 
+ 
+ 
+Example Request – COMPLETED 
+ 
+ 
+ 
+
+Example Request – DELETED 
+ 
+Example Request – CANCELLED 
+ 
+ 
+ 
+
+Example Request – FAILED 
+ 
+ 
+Example Request – EXPIRED 
+ 
+ 
+3.6.2 Response响应 
+HTTP Status Code 
+204 No Content 
+ 
+
+3.6.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+REQUEST_DECLINED 400 
+General error. If request could not be processed. 请求无法被进行。 
+LOGIN_FAILED 401 
+The given pass-key is incorrect. 所给密钥是不正确的。 
+UNKNOWN_ERROR 500 
+Unexpected error. 意外的错误 
+ 
+Example Response - Error 
+ 
+ 
+3.7 Rewards奖金 
+The Rewards callback is related to wins outside the regular games. If implemented and registered in Back 
+Office, the QT Platform will have the possibility to push rewards to a player, which the player has won in 
+any of QTech’s competitions, contests, tournaments or any other campaign which has been approved by 
+the operator. The Operator system must support this. 
+Rewards callback 与常规游戏之外的获奖相关。在后台部署实现并注册之后，如果玩家在运营商批准的由QTech举办的任何
+竞赛，比赛，锦标赛或其他促销活动中赢的奖励，我们的平台将可以直接将奖励推送给该玩家。运营商系统必须支持这一点。 
+3.7.1 Request 请求 
+Request URL 
+https://{operator-base-url}/bonus/rewards 
+HTTP Method 
+POST 
+Header Parameters  
+Name Description Require
+d 
+Type Sample 
+Pass-Key 
+The shared secret pass-key 共享的密钥。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+Content-Type 
+The content type of the request. 该请求的内容类型 
+Yes String application/json 
+ 
+Payload Parameters  
+Name Description Require
+d 
+Type Sample 
+rewardType The type of reward, contest or campaign. 
+奖金，竞赛或活动的类型。 
+Yes String TOURNAMENT_R
+EWARD 
+rewardTitle The name of the reward, contest or campaign 
+奖金，竞赛或活动的名称。 
+Yes String Thunderkick 
+Championship 
+txnId The QT Platform unique reward transaction id.  
+唯一的QT平台奖励交易ID。 
+Yes String 5693761657f5d
+3 46ec6749a1 
+playerId 
+The player id to be rewarded, supplied by the Operator.由运营商提
+供的玩家ID。 
+Yes String test123 
+amount 
+ 
+The total rewarded amount. Yes Decimal 1200.00 
+
+currency The currency of the player wallet, as a 3-letter code 
+according to ISO 4217. 
+玩家钱包的货币，是由3个字母的代码，根据ISO4217的货币。 
+Yes String CNY 
+created The date and time when the REWARD transaction was 
+initiated, expressed as 
+“YYYY-MM-DDThh:mm:ss+hh:mm\[TimeZone]”. 
+“YYYY-MM-DDThh:mm:ss+hh:mm[TimeZone]”. 
+创建REWARD事务的日期和时间，表示为 
+“YYYY-MM-DDThh：mm：ss + hh：mm [TimeZone]”。 
+Yes String 2015-10- 
+22T20:34:59.70 
+3+08:00\[Asia/S 
+hanghai] 
+  
+Example Request 
+ 
+3.7.2 Response响应 
+HTTP Status Code 
+201 Create 
+Response Parameters 
+Name Description Required Type Sample 
+balance The balance of the player, expressed with maximum 2 decimals, 
+after the payout amount has been processed. 
+在出款额度已被处理后，玩家的余额表示为最大两位小数。 
+Yes Decimal 123456.78 
+referenceId The operator unique identifier of the wallet transaction. 
+钱包交易中玩家的id是唯一的。 
+Yes String 123456 
+ 
+Example Response 
+ 
+ 
+
+3.7.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+REQUEST_DECLINED 400 
+General error. If request could not be processed. 请求无法被进行。 
+LOGIN_FAILED 401 
+The given pass-key is incorrect. 所给的密钥不正确 
+UNKNOWN_ERROR 500 
+Unexpected error. 意外的错误 
+ 
+Example Response - Error 
+ 
+ 
+
+4 Authentication 认证 
+This chapter describes how to retrieve and revoke an access token in QT Platform to be able to access the 
+Game Launcher or Services API in QT Platform. The QT Platform supports token-based authorization with 
+OAuth 2.0. 
+ 
+The retrieved access token must be passed as a header parameter in all API calls to the QT Platform.  
+ 
+本章描述如何在 QT 平台中检索和撤销访问令牌，以便能够访问 QT 平台的游戏启动和服务的API。QT 平台支持使用 
+OAuth2.0 令牌的授权。 
+检索访问令牌是必需的，必须在所有服务器对服务器调用中作为一个头参数传递到 QT 平台。 
+ 
+Format格式 
+Authorization: Bearer {access_token} 
+Example案例 
+Authorization: Bearer 76236f90-dc9c-36d7-9e78-3e716d5ecf92 
+ 
+4.1 Retrieve an Access Token检索访问令牌 
+ 
+4.1.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v1/auth/token?grant_type=password&response_type=token&username={us
+ername}&password={password} 
+HTTP Method 
+POST or GET 
+Query Parameters 
+Name Description Require
+d 
+Type Sample 
+grant_type The type of authentication. This parameter must be set to 
+“password”. 
+身份验证的类型，此参数必须设置为“password”。 
+Yes String password 
+response_type The expected type of response. This parameter must be 
+set to “token”. 
+预期响应的类型，此参数必须设置为“token”。 
+Yes String token 
+username The username of the caller, provided by QT. 
+呼叫者的用户名，由QT提供。 
+Yes String o1 
+password The password of the caller, provided by QT. 
+呼叫者的密码，由QT提供。 
+Yes String 56036ccf8e 
+ 
+ 
+Example Request 
+ 
+ 
+
+4.1.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+access_token 
+The access token to be used in all search, report and launch-url requests.在所
+有的搜索，报告和启动URL 请求中使用的访问令牌。 
+String test1234 
+expires_in The number of milliseconds after which the access token expires and 
+is no longer valid (idle time). The expiration time will be reset for 
+every use of the access token. Default is 21600000 milliseconds = 
+21600 seconds = 6 hours. 
+毫秒数之后访问令牌到期且不再有效（闲置时间）。 每次使用访问令牌时，到期
+时间将重置。 默认值是21600000毫秒= 21600秒= 6小时。 
+Number 21600000 
+ 
+Example Response - Success 
+ 
+4.1.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+VALIDATION_ERROR 422 
+This error is raised if the request could not be processed, ie if one of the fields within 
+the request are missing or is invalid.引发此错误，如果该请求不能被处理，也就是说，如
+果一个请求中的一个字段缺少或无效。 
+USER_BLOCKED 403 
+The caller/user is blocked. 呼叫者/用户被阻止。 
+LOGIN_FAILED 401 
+The given user or password is incorrect. 用户名或密码错误。 
+UNKNOWN_ERROR 500 
+Unexpected error. 意外的错误 
+QT_NOT_AVAILABLE 503 
+Service is not available. Temporary down, under maintenance. 服务不可用。临时关闭
+，正在维护期。 
+ 
+Example Response - Error 
+ 
+ 
+ 
+
+4.2 Revoke an Access Token撤销访问令牌 
+Revokes an active access token which will delete the user session within the QT Platform.  
+撤销一个活跃的访问令牌将会删除 QT 平台中的所有用户对话。 
+ 
+4.2.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v1/auth/token 
+HTTP Method 
+DELETE 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Authorization The valid access token. 
+有效的访问令牌。 
+Yes String Authorization: 
+Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Example Request 
+ 
+4.2.2 Response响应 
+HTTP Status Code 
+204 No Content 
+4.2.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+INVALID_TOKEN 401 
+Missing, invalid or expired access token. 缺失，无效或过期的访问令牌。 
+UNKNOWN_ERROR 500 
+Unexpected error. 意外的错误 
+QT_NOT_AVAILABLE 503 
+Service is not available. Temporary down, under maintenance. 服务不可用。临时关闭
+，正在维护期。 
+ 
+Example Error 
+
+5 Game Launcher游戏启动 
+Creates a player session and returns the launch URL for a specific game.  
+创建一个玩家会话，并为一个特定的游戏返回启动URL. 
+ 
+ 
+When a player wants to open a game, the Operator system must request for a game launch url in QT 
+Platform. The request contains information about the player and the game. The returned launch url is 
+player and game specific and the Operator must use that url to redirect the Player to the game. 
+当玩家想要玩游戏时，运营商系统在QT平台中请求启动链接。 该请求包含有关玩家和游戏的信息。 返回的链接是玩家特定
+的，运营商必须使用该URL将玩家重定向到该游戏。 
+ 
+5.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v1/games/{gameId}/launch-url 
+HTTP Method 
+POST 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Path Parameters 
+Name Description Require
+d 
+Type Sample 
+gameId The identifier of the game to play. This is supplied by QT. 
+开始游戏的识别码由QT提供。 
+Yes String TK-froggrog 
+ 
+ 
+ 
+Payload Parameters 
+Name Description RequireType Sample 
+
+d 
+playerId The unique identifier of the player in the Operator 
+system. The maximum length is 34 characters.  
+在运营商系统中玩家唯一的标识符。最大长度为34个字. 
+Yes String test123 
+displayName The name or nickname of the player to be displayed, 
+instead of the playerId, in multiplayer games, such as 
+Live Casino. The maximum length is 50 characters. 
+在多人游戏（例如真人视讯）中显示的玩家的名称或昵称，而不是
+playerId, 玩家名称或昵称最长不得超过50个字符 
+No String mrTest 
+currency The currency of the game, as a 3-letter code according to 
+ISO 4217. 
+玩家钱包的货币，以 3 个字母的代码表示。对于真实货币，货币代码
+取自于 ISO 4217。 
+Yes String CNY 
+country The country of the player's residence, as a 2-letter code 
+according to ISO 3166-1 alpha-2. 
+玩家的居住地根据ISO 3166-1 alpha-2 的国家，一个2个字母的代
+码。 
+Yes String CN 
+gender The gender of the player. M for male or F for female. 玩家的
+性别，M是男性或者F是女性。 
+No String M 
+birthDate 
+The birthdate of the player, expressed as YYYY-MM-DD.玩家的生
+日，表示为 YYYY-MM-DD。 
+No String 1986-01-
+01 
+lang The selected language of the game, a combination of the 
+2-letter language code (ISO 639-1) and the 2-letter 
+country code (ISO 3166-1 alpha-2). For example zh_CN. 
+游戏的选择语言的2字母语言代码的组合（ISO639-1）和2个字母的
+国家代码（ISO3166-1α-2）。例如zh_CN。 
+Yes String zh_CN 
+mode The selected mode of the game. Valid values are demo 
+for “play for fun”, or real to play with real money. 
+游戏已选择的模式。有效值为demo是“play for fun”，还是real玩真钱
+游戏。 
+Yes String real 
+device Determines which device the game will be running on. 
+Valid values are desktop or mobile. 
+确定游戏将在哪个设备上运行。 有效值为 desktop 或 mobile. 
+Yes String mobile 
+returnUrl Determines the URL of the home button in the mobile 
+games.  
+在移动端游戏中决定主页键的链接。 
+Yes/No String https://o
+perator.si
+te.com/g
+ames 
+ 
+walletSessionId 
+The session id or token, which is connected to the player account 
+in Operator system. The token will be used in all Common Wallet 
+API calls to the Operator system. This parameter is only required 
+when using Common Wallet. If not provided, the wallet in QT 
+Platform will be used. 会话 ID 或令牌，它被连接到运营商系统的玩
+家账号。令牌将用于运营商系统的所有中心钱包 API的调用。该参
+数只在使用中心钱包时才需要。如果没有提供，QT 平台中的钱包将
+被使用。 
+Yes String 7625187 
+betLimitCode Determines the bet limit for the player and game session. 
+If not provided, the default bet limit for the game is 
+applied. Available codes and bet limits: 
+1: max 30 EUR (300 CNY) 
+2: max 60 EUR (600 CNY) 
+3: max 90 EUR (900 CNY) 
+4: max 120 EUR (1200 CNY) 
+5: max 240 EUR (2400 CNY)  
+ 
+The supported games can be found in the game-list.  
+ 
+选定玩家和游戏会话的投注限额。 如果未提供，游戏会使用默认的
+投注限额。 有效的ID和投注限额： 
+No String 1 
+
+ 
+1：最高30 EUR（300 CNY） 
+2：最高60 EUR（600 CNY） 
+3：最高90 EUR（900 CNY） 
+4：最高120 EUR（1200 CNY） 
+5：最高240 EUR（2400 CNY） 
+ 
+ 可在游戏列表中找到支持的游戏。 
+maxWinAmoun
+t 
+Allows the system to cap the maximum win a player can 
+achieve for a game. When provided, the limit is enforced 
+by controlling available bet values per currency based on 
+the maxWinAmount and the Max Win exposure of the 
+given game.  
+ 
+If a certain provider does not support this feature, then the 
+parameter is ignored and game will launch normally. 
+ 
+用于配置单局游戏可赢取的最高派彩限额。当启用该参数时，系统
+将根据设定的最高派彩金额及游戏本身的最大赢奖上限，动态计算
+并限制各币种对应的有效投注范围。 
+ 
+若游戏提供商不支持此功能，该参数将被忽略，游戏将按默认参数
+正常加载。 
+No Double 100000.0
+0 
+jurisdiction The jurisdictional information of the player. The 
+“jurisdiction” is mandatory for players under UKGC or 
+Danish license due reporting requirements. Jurisdiction 
+code is two characters and valid codes are: 
+MT - Malta Gambling Authority 
+UK - UK Gambling Commission 
+GG - Alderney Gambling Control Commission 
+DK - Denmark Gambling Authority 
+GI - Gibraltar 
+RO - Romania 
+SE - Swedish Gambling Authority 
+PH – Philippine Amusement and Gaming Corporation 
+(PAGCOR) 
+CW – Curacao eGaming License 
+DE – Germany Gambling Commision  
+ 
+玩家的管辖区域信息。根据报告要求，在UKGC或者丹麦许可证下
+玩家的管辖区域是强制性的。管辖区域的代码是2个字母，有效代码
+为： 
+MT - Malta Gambling Authority 
+UK - UK Gambling Commission 
+GG - Alderney Gambling Control Commission 
+DK - Denmark Gambling Authority 
+GI - Gibraltar 
+RO - Romania 
+SE - Swedish Gambling Authority 
+PH – Philippine Amusement and Gaming Corporation 
+(PAGCOR) 
+CW – Curacao eGaming License 
+DE – Germany Gambling Commision  
+No String MT 
+ipAddress The IP address of the player. If given, the IP address will 
+be verified upon game launch as an extra security. 
+玩家的IP地址。如果给出，IP地址将在游戏启动时作为额外的安全
+验证。 
+No String 122.53.1
+86.98 
+tableId A unique key per table ID in Live Casino games 
+ 
+If given, the game will launch directly to the given table 
+id. 
+在真人视频中，每个赌桌会有一个唯一的代码。如果给出，则游戏
+会直接登录至给出ID的赌桌。 
+No String Lightning
+Roulette0
+001 
+
+walletCurrency The currency of the player wallet, as code depending on 
+how QT Platform set the virtual currency.    
+ 
+If given, the round/transaction is considered a virtual 
+currency transaction for the game session.  
+玩家钱包的货币，作为代码取决于 QT 平台如何设置虚拟货币。
+ 
+如果给出，该回合/交易被视为游戏会话的虚拟货币交易。
+ 
+No String BTC 
+ 
+Example Request (real mode) 
+ 
+ 
+Example Request (real mode – with maxWinAmount) 
+ 
+ 
+ 
+Example Request (real mode – with walletCurrency) 
+
+ 
+ 
+Example Request (demo mode - play for fun) 
+ 
+The playerId, country and the walletSessionId is not required in demo mode.  
+demo模式中不需要playerId，country和walletSessionId。 
+5.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+url 
+The game-launch URL 游戏启动URL 
+String https://gl-int.qtplatform.com/560e420c8e170730d660ff2f 
+ 
+Example Response - Success 
+ 
+ 
+5.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+INVALID_FORMAT 400 If the request could not be processed due to invalid JSON format. 
+如果请求不能进行，是由于无效JSON格式。 
+
+GAME_NOT_FOUND 404 If the game with the given id was not found.  
+如果未找到给定id的游戏。 
+GAME_NOT_AVAILABLE 422 If the game is temporarily not available. 
+如果游戏暂时不可用。 
+VALIDATION_ERROR 422 This error is raised if one of the fields within the request are missing or is 
+invalid. 
+如果请求中的字段中的一个丢失或无效此引发错误。 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+QT_NOT_AVAILABLE 503 QT Platform is not available. Temporary down, under maintenance etc. 
+QT平台不可用。临时关闭，正在维护等。 
+ 
+Example Response – Error 
+
+6 Player Game History 玩家游戏历史记录 
+The Player Game History page gives the possibility for a player to browse the history of the played game 
+rounds for the past 30 days. The Operator can integrate this page on their existing site; in an iframe, a 
+new tab or a new window.                    
+玩家游戏历史记录页面提供玩家浏览30天內玩过的游戏局记录，运营商可以使用内嵌框架(iframe)，一个新的选项卡或者 一
+个新的窗口将这个功能整合到他们已有的网站中。 
+ 
+The player can also view the game result details by clicking on a row item.  
+玩家也能查阅游戏结果 
+ 
+ 
+
+ 
+The sequence to retrieve the page url is similar to the game-launch-url sequence. The returned page URL is unique per 
+player and should be used to redirect the player to the game history page.检索页面的URL的顺序是类似game-launch-url 
+的序列。返回的页面URL是每个玩家独一无二的，应该用来重新定向玩家游戏的历史页面。 
+6.1 Request请求 
+Request URL 请求链接 
+https://{url-to-qtplatform}/v1/players/{playerId}/service-url 
+HTTP Method HTTP 方法 
+POST 
+Header Parameters 头参数 
+Name Description Require
+d 
+Type Sample 
+Content-Type The content type of the request. It must be 
+“application/json”. 
+该请求的内容类型, 它必须是“application/ json的”。 
+Yes String application/json 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Path Parameters 路径参数 
+Name Description Require
+d 
+Type Sample 
+playerId The unique identifier of the player in the Operator system. 
+The maximum length is 34 characters.  
+在运营商系统中玩家唯一的标识符。最大长度为34个字. 
+Yes String ktorres 
+ 
+ 
+
+Payload Parameters 载荷参数 
+Name Description Require
+d 
+Type Sample 
+currency The currency of the player wallet, as a 3-letter code 
+according to ISO 4217.  
+玩家钱包的货币，是由3个字母的代码，根据ISO4217的货币。 
+Yes String CNY 
+country The country of the player's residence, as a 2-letter code 
+according to ISO 3166-1 alpha-2. 
+玩家的居住地根据ISO 3166-1 alpha-2 的国家，一个2个字母的代
+码。 
+Yes String CN 
+gender The gender of the player. M for male or F for female. 玩家的
+性别，M是男性或者F是女性。 
+No String M 
+birthDate 
+The birthdate of the player, expressed as YYYY-MM-DD.玩家的生
+日，表示为 YYYY-MM-DD。 
+No String 1986-01-01 
+lang The preferred language of the page, a combination of the 
+2-letter language code (ISO 639-1) and the 2-letter 
+country code (ISO 3166-1 alpha-2). For example zh_CN. 
+页面的首选语言，两个字母的语言代码的组合（ISO 639-1）和2个字
+母的国家代码（ISO 3166-1alpha-2）。例如zh_CN。 
+No String zh_CN 
+timeZone 
+The time zone of the player. 玩家的时区。 
+No String Asia/Shanghai 
+ 
+Example Request - Success 
+ 
+6.2 Response响应 
+HTTP Status Code HTTP状态代码 
+200 OK 
+Response Parameters 参数反应 
+Name Description Type Sample 
+url 
+The URL to game history page. 到游戏历
+史页面的链接。 
+String https://ps-int.qtplatform.com/560e420c8e170730d660ff2f 
+ 
+Example Response - Success 
+ 
+ 
+
+6.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+INVALID_FORMAT 400 If the request could not be processed due to invalid JSON format. 
+如果请求不能进行，是由于无效JSON格式。 
+VALIDATION_ERROR 422 This error is raised if one of the fields within the request are missing or is 
+invalid. 
+如果请求中的字段中的一个丢失或无效此引发错误。 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+QT_NOT_AVAILABLE 503 QT Platform is not available. Temporary down, under maintenance etc. 
+QT平台不可用。临时关闭，正在维护等。 
+ 
+Example Response - Error 
+ 
+ 
+
+7 Game Lobby 游戏大厅 
+The Game Lobby brings new possibilities for the players to enjoy their favourite games. The advanced 
+filter and browse functionalities, personal recommendations and similarities like Spotify, Netflix and 
+Amazon, gives the players an easy and familiar way to discover new games.  
+ 
+The Operator can integrate the game lobby on their existing site; in an iframe, a new tab or in a new 
+window.  
+ 
+The sequence to retrieve the game lobby url is similar to the game-launch-url sequence. The returned 
+page URL should be used to redirect the player to the game lobby page. The game lobby url can be 
+retrieved for both demo (visitor) mode and real (signed in) mode. 
+ 
+游戏大厅给玩家带来全新方式来享受他们喜爱的游戏。与知名平台Spotify, Netflix 和 Amazon一样，高级筛选，浏览器功能，
+个人推荐和相似游戏等功能，让玩家能够用简单而熟悉的方式来发现新游戏。 
+提供商可以在现有的网站上，使用iframe，新标签页或者新窗口来集成游戏大厅。 
+ 
+检索游戏大厅链接的序列与登录游戏的链接类似。返回的页面链接应该用于将玩家重定向到游戏大厅页面。游戏大厅链接需
+要能够被试玩（访问者）模式和真实（登录）模式检索到。 
+7.1 Create Game Lobby Session 创建游戏大厅会话 
+Creates a game lobby session and returns the game lobby URL and session ID.  
+创建游戏大厅会话. 
+7.1.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v1/games/lobby-url 
+HTTP Method 
+POST 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Payload Parameters 
+Name Description Require
+d 
+Type Sample 
+playerId The unique identifier of the player in the Operator 
+system. The maximum length is 34 characters.  
+在运营商系统中玩家唯一的标识符。最大长度为34个字. 
+Yes String test123 
+displayName The name or nickname of the player to be displayed, 
+instead of the playerId, in multiplayer games, such as 
+Live Casino. The maximum length is 50 characters. 
+在多人游戏（例如真人视讯）中显示的玩家的名称或昵称，而不是
+playerId, 玩家名称或昵称最长不得超过50个字符 
+No String mrTest 
+currency The currency of the player wallet, as a 3-letter code 
+according to ISO 4217. 
+玩家钱包的货币，是由3个字母的代码，根据ISO4217的货币。 
+Yes String CNY 
+country The country of the player's residence, as a 2-letter code 
+according to ISO 3166-1 alpha-2. 
+玩家的居住地根据ISO 3166-1 alpha-2 的国家，一个2个字母的代
+码。 
+Yes String CN 
+gender The gender of the player. M for male or F for female. 玩家的
+性别，M是男性或者F是女性。 
+No String M 
+birthDate 
+The birthdate of the player, expressed as YYYY-MM-DD.玩家的生
+No String 1986-01-01 
+
+日，表示为 YYYY-MM-DD。 
+lang The selected language of the lobby and games, a 
+combination of the 2-letter language code (ISO 639-1) 
+and the 2-letter country code (ISO 3166-1 alpha-2). For 
+example zh_CN. 
+游戏大厅和游戏的语言设定必须为的 2 字母的语言代码(ISO639-1)
+和 2 个字母的国家代码(ISO3166-1α-2)的组合。例如“zh_CN”。 
+Yes String zh_CN 
+mode The playing modes of the games. Valid values are: 
+DEMO: Games can only be played “for fun”. 
+REAL_ONLY: Games can only be played with real 
+money. 
+REAL: Games can be played with real money and “for 
+fun”. 
+ 
+游戏的各种模式。 有效值为： 
+DEMO：游戏只能以试玩的模式进行。 
+REAL_ONLY：游戏只能以真钱的模式进行。 
+REAL：游戏可以以真钱或试玩的模式进行。 
+Yes String real 
+device Determines which device the game will be running on. 
+Valid values are desktop or mobile. 
+确定游戏将在哪个设备上运行。 有效值为 desktop 或 mobile. 
+Yes String mobile 
+walletSessionId The session id or token, which is connected to the player 
+account in Operator system. The token will be used in all 
+Common Wallet API calls to the Operator system.  
+会话的ID或者令牌， 用于连接玩家在运营商系统中的账户。该令牌
+将用于运营商系统所有的中心钱包API调用。 
+Yes String 7625187 
+gameLaunchTar
+get 
+Determines which frame or window the mobile game will 
+be launched in. Valid values are: 
+BLANK: Launches the game in a new tab (default). 
+SELF: Launches the game in the current frame. 
+PARENT: Launches the game in the parent frame. 
+TOP: Launches the game in the full body of the window. 
+ 
+If not provided, the default behavior will launch the game 
+in a new tab (BLANK). 
+ 
+该参数决定游戏在移动模式启动时在哪种frame或窗口打开。有效值
+为： 
+BLANK:在一个新的标签分页中启动游戏（默认）。 
+SELF:在现有的frame中启动游戏。 
+PARENT:在上级frame中启动游戏。 
+TOP:在全屏窗口中启动游戏 
+ 
+如果没有提供，则默认游戏会在一个新的分页标签启动（BLANK）。 
+No String TOP 
+betLimitCode Determines the max bet amount for the player and game 
+session. If not provided, the default max bet amount for 
+the game is applied. Available codes and bet limits: 
+1: max 30 EUR (300 CNY) 
+2: max 60 EUR (600 CNY) 
+3: max 90 EUR (900 CNY) 
+4: max 120 EUR (1200 CNY) 
+5: max 240 EUR (2400 CNY)  
+ 
+The supported games can be found in the game-list.  
+ 
+选定玩家和游戏会话的投注限额。 如果未提供，游戏会使用默认的
+投注限额。 有效的ID和投注限额： 
+1：最高30 EUR（300 CNY） 
+2：最高60 EUR（600 CNY） 
+3：最高90 EUR（900 CNY） 
+4：最高120 EUR（1200 CNY） 
+5：最高240 EUR（2400 CNY） 
+ 可在游戏列表中找到支持的游戏。 
+No String 1 
+
+jurisdiction The jurisdictional information of the player. The 
+“jurisdiction” is mandatory for players under UKGC or 
+Danish license due reporting requirements. Jurisdiction 
+code is two characters and valid codes are: 
+MT - Malta Gambling Authority 
+UK - UK Gambling Commission 
+GG - Alderney Gambling Control Commission 
+DK - Denmark Gambling Authority 
+GI - Gibraltar 
+RO - Romania 
+SE - Swedish Gambling Authority 
+PH – Philippine Amusement and Gaming Corporation 
+(PAGCOR) 
+CW – Curacao eGaming License 
+ 
+玩家的管辖区域信息。根据报告要求，在UKGC或者丹麦许可证下
+玩家的管辖区域是强制性的。管辖区域的代码是2个字母，有效代码
+为： 
+MT - Malta Gambling Authority 
+UK - UK Gambling Commission 
+GG - Alderney Gambling Control Commission 
+DK - Denmark Gambling Authority 
+GI – Gibraltar 
+RO - Romania 
+SE - Swedish Gambling Authority 
+PH – Philippine Amusement and Gaming Corporation 
+(PAGCOR) 
+CW – Curacao eGaming License 
+No String MT 
+walletCurrency The currency of the player wallet, as code depending on 
+how QT Platform set the virtual currency.    
+ 
+If given, the round/transaction is considered a virtual 
+currency transaction for the game session.  
+玩家钱包的货币，作为代码取决于 QT 平台如何设置虚拟货币。
+ 
+如果给出，该回合/交易被视为游戏会话的虚拟货币交易。 
+No String BTC 
+filters Contains optional filtering criteria used to restrict the list 
+of returned games. 
+If omitted, no filtering is applied. 
+包含用于限制返回游戏列表的可选筛选条件。如未提供，则不会应
+用任何筛选。 
+No Object  
+filters.gameTyp
+es 
+Filters games by their game type. Only games matching 
+one of the specified types are returned. Valid values: 
+SLOT 
+TABLEGAME 
+INSTANTWIN 
+BINGO 
+SCRATCHCARD 
+SHOOTING 
+CASUALGAME 
+VIRTUAL_SPORTS 
+VIRTUALGAME 
+LIVECASINO 
+ESPORTS 
+LOTTERY 
+CRASH 
+GAME_SHOW 
+ 
+If not provided, all available game categories will be 
+displayed. 
+ 
+按游戏类型筛选游戏。仅返回匹配所指定类型之一的游戏。有效值
+如下： 
+BINGO 
+CASUALGAME 
+No Array ["SLOT_GAMES", 
+"TABLE_GAMES"
+] 
+
+CRASH 
+ESPORTS 
+GAME_SHOW 
+INSTANTWIN 
+LIVECASINO 
+LOTTERY 
+SCRATCHCARD 
+SHOOTING 
+SLOT 
+SPORTS 
+TABLEGAME 
+VIDEOPOKER 
+VIRTUAL_SPORTS 
+VIRTUALGAME 
+ 
+如果不提供，则会显示所有可获得的游戏类别。 
+filters.rtp Filters games based on their RTP (Return to Player) 
+value. Games where RTP is not configured (null) are 
+always included in the response. 
+根据 RTP（玩家回报率）筛选游戏。若游戏的 RTP 未配置（null），则
+始终包含在返回结果中。 
+No Object  
+filters.rtp.min Filters games whose RTP is greater than or equal to 
+this value. 
+筛选 RTP 大于或等于该值的游戏。 
+No Decimal 90.50 
+filters.rtp.max Filters games whose RTP is less than or equal to this 
+value. 
+筛选 RTP 小于或等于该值的游戏。 
+No Decimal 98.75 
+filters.providers
+OrGames 
+Filters games by specific providers or specific games. 
+按特定供应商或特定游戏筛选游戏。 
+No Object  
+filters.providers
+OrGames 
+Filters games by specific providers or specific games. 
+按特定供应商或特定游戏筛选游戏。 
+No Object  
+filters.providers
+OrGames.provi
+ders 
+Filters games by provider. Only games from the specified 
+providers are returned. 
+按供应商筛选游戏。仅返回来自指定供应商的游戏。 
+No Array [ 
+"ELK", 
+"EVP" 
+] 
+filters.providers
+OrGames.game
+s 
+Filters games by unique identifier. Only the specified 
+games are returned. 
+按唯一标识符筛选游戏。仅返回指定的游戏。 
+No Array [ 
+"TK-arcader", 
+"HAB-12zodiacs" 
+] 
+maxWinAmoun
+t 
+Object containing the max win amount configuration 
+ 
+Allows the system to cap the maximum win a player can 
+achieve for a game. When provided, the limit is enforced 
+by controlling available bet values per currency based on 
+the maxWinAmount and the Max Win exposure of the 
+given game.  
+ 
+If a certain provider does not support this feature, then 
+the parameter is ignored and game will launch normally. 
+ 
+包含最大赢利金额配置的对象 
+ 
+用于配置单局游戏可赢取的最高派彩限额。当启用该参数时，系统
+将根据设定的最高派彩金额及游戏本身的最大赢奖上限，动态计算
+并限制各币种对应的有效投注范围。 
+ 
+若游戏提供商不支持此功能，该参数将被忽略，游戏将按默认参数
+正常加载。 
+No Object - 
+maxWinAmoun
+t.defaultAmoun
+The specific monetary value used as the ceiling for the 
+maximum potential win. This value is used by the system 
+Yes Double {“defaultAmount
+”:10000} 
+
+t to derive the maximum allowed bet.  
+ 
+指定作为派彩上限的具体金额数值。系统会利用该值推算允许的最
+大投注额。 
+config Object containing game lobby configuration options.  
+包含游戏大厅配置选项的对象。 
+No Object - 
+config.oneClick
+Play 
+Determines the behavior when a game card is clicked. 
+决定点击游戏卡片时的行为。 
+If true, the game launches immediately. 
+如果为 true，游戏将立即启动 
+ 
+If false, the user is redirected to the game details page 
+before launching. 
+如果为 false，用户将在启动游戏前被重定向至游戏详情页面。 
+No Boolean true 
+config.singleUs
+eUrl 
+Determines whether the game lobby url can be used on 
+multiple devices or not. 
+确定游戏大厅的链接是否可以在多个设备上使用。 
+By default. It is set to true and game lobby url cannot be access 
+on different browsers or devices. 
+该参数默认值为 true，此时游戏大厅链接将无法在不同浏览器或设备间
+共享访问。
+ 
+ 
+Setting it to false will allow the game lobby url to be acces on 
+different browsers or devices. 
+若需解除此限制，请将参数设为 false，即可跨浏览器或设备访问游戏大
+厅链接。
+ 
+No Boolean false 
+config.content 
+The content object gives the possibility to control the content of 
+game lobby. 
+内容选项提供了控制游戏大厅内容的可能性。 
+No Object - 
+config.content.j
+ackpotWinners
+Scope 
+Valid values are: 
+NETWORK: All jackpot winners will be displayed 
+LOCAL: Only players under your brand will be displayed 
+可选值如下： 
+网络：将显示所有奖池获奖者 
+本地：仅显示您网站下的玩家 
+If not provided, the default value is NETWORK 
+如果未设置该参数，默认值为“网络 
+No String - 
+config.displays The displays object gives the possibility for player to view 
+certain menu options, if provided.  
+显示对象使玩家可以查看某些菜单选项（如果提供）。 
+No Object - 
+config.displays.
+balance 
+Determines whether the Player’s balance will be 
+displayed or not.   
+ 
+If not provided, the default behaviour is balance will not 
+be displayed.  
+决定是否显示玩家的余额。如果未提供，则不会显示。 
+No Boolean true 
+config.displays.
+name 
+Determines whether the Player’s nickname or playerId 
+will be displayed or not.   
+ 
+If not provided, the default behaviour is name will not be 
+displayed.  
+确定是否显示玩家的昵称或玩家 ID。如果未提供，则不会显示。 
+No Boolean true 
+config.displays.
+language  
+Determines whether the language menu will be displayed 
+or not.  
+ 
+If not provided, this will not be displayed.  
+确定是否显示语言菜单。如果未提供，则不会显示。 
+No Boolean false 
+
+config.displays.
+gameHistory  
+Determines whether the game history menu will be 
+displayed or not.  
+ 
+If not provided, this will not be displayed.  
+确定是否显示游戏历史菜单。如果未提供，则不会显示。 
+No Boolean false 
+config.displays.
+exitButton 
+Determines whether the exit button will be displayed or 
+not. 
+确定是否显示退出按钮。 
+No Boolean false 
+config.displays.
+search 
+Determines whether the search will be displayed or not 
+确定是否显示搜索 
+No Boolean true 
+config.displays.
+promotions 
+Determines whether the Promos link will be displayed or 
+not in the Player menu. 
+决定是否在玩家菜单中显示“活动”链接。 
+No Boolean true 
+config.displays.
+rewards 
+Determines whether the Rewards link will be displayed or 
+not in the Player menu. 
+决定是否在玩家菜单中显示“奖励”链接。 
+No Boolean true 
+config.displays.
+gameLimits 
+The display object enables players to view certain 
+game limits, provided the corresponding parameters 
+are set. 
+显示对象允许玩家查看某些游戏限制，前提是设置了相应的参数。 
+No Object - 
+config.displays.
+gameLimits.bet
+Range 
+Determines whether the game limits will be displayed or 
+not. 
+决定是否在登陆游戏时，在游戏logo显示投注金额范围 
+No Boolean true 
+config.urls  Object containing custom urls to be used in the game 
+lobby. 
+包含要在游戏大厅中使用的自定义 url 的对象。 
+No Object - 
+config.exit Determines the URL of the exit button. 
+确定退出按钮的 URL。 
+ 
+If set, exit button will be displayed. 
+如果设置，将显示退出按钮。 
+No String https://operator.
+site.com/games 
+ 
+Example Request (real mode) 
+ 
+ 
+Example Request (real mode – with walletCurrency) 
+
+ 
+Example Request (demo mode - play for fun) 
+ 
+Example Request (OneClickPlay) 
+ 
+Example Request (Single Use URL) 
+
+ 
+Example Request (to display all games under ELK and Evoplay and Arcader and 12 zodiacs) 
+ 
+Example Request (RTP filtering) 
+ 
+
+Example Request (with maxWinAmount) 
+ 
+Example Request (with game lobby configuration) 
+ 
+The playerId, country and the walletSessionId is not required in demo mode.  
+demo模式中不需要playerId，country和walletSessionId。 
+Example Request (Configurable Jackpot Winners) 
+
+ 
+Example Request (Configurable Promos and Rewards link in Player menu and configurable display for 
+Game Limits) 
+ 
+ 
+7.1.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+url The game lobby URL, to be 
+launched in an iframe, a new tab or 
+in a new window. 
+游戏大厅的链接，能够在iframe新标签页
+或者新窗口登录。 
+String https://d3w4ipqdohvjy.cloudfront.net/zh-CN/44f88da3-7fb
+c-4ab7-a569-fa6934b60300f 
+ 
+session
+Id 
+The session ID 
+会话ID 
+String 44f88da3-7fbc-4ab7-a569-fa6934b60300f 
+ 
+Example Response - Success 
+
+ 
+7.1.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+INVALID_FORMAT 400 If the request could not be processed due to invalid JSON format. 
+如果请求不能进行，是由于无效JSON格式。 
+VALIDATION_ERROR 422 This error is raised if one of the fields within the request are missing or is 
+invalid. 
+如果请求中的字段中的一个丢失或无效此引发错误。 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+QT_NOT_AVAILABLE 503 QT Platform is not available. Temporary down, under maintenance etc. 
+QT平台不可用。临时关闭，正在维护等。 
+ 
+Example Response - Error 
+ 
+ 
+7.2 Revoke Game Lobby Session 撤销游戏大厅会话 
+This API will revoke the validity of a generated game lobby URL. This allows operators to terminate 
+sessions of players who have logged out of the system or in similar scenarios, such as players being idle 
+for a long time. 
+To use this API, a session ID must be included as part of the URL path. 
+此API将撤销生成的游戏大厅链接URL的有效性。这允许运营商终止已退出系统或类似场景（例如玩家长时间闲置）的玩家的
+会话。 
+要使用此API，必须将会话ID作为链接URL路径的一部分包含在内。 
+7.2.1 Request 请求 
+Request URL 
+DELETE https://{url-to-qtplatform}/v1/games/lobby-url/sessionId/{sessionId} 
+ 
+HTTP Method 
+DELETE 
+Path Parameters  
+Name Description Required Type Sample 
+sessionId The sessionId to be revoked. 
+要撤销的会话ID。 
+Yes String 44f88da3-7fbc-4ab7-a569-fa6
+934b60300f 
+Example Request 
+
+ 
+7.2.2 Response响应 
+HTTP Status Code 
+204 No Content 
+7.2.3 Possible Errors 可能的错误 
+ 
+Code HTTP Status Description 
+NOT_FOUND 404 Session not found. 
+未找到会话。 
+ 
+Example Response – Error 
+ 
+
+8 Services 服务 
+This chapter describes the additional services from the QT Platform. Each endpoint requires a valid access 
+token, as described in chapter 4. Authentication. 
+本章描述 QT 平台的附加服务。每个端点都需要一个有效的访问令牌,如 第4章认证 所述。 
+ 
+8.1 Game List 游戏列表 
+The Game List API gives the caller the possibility to retrieve all available games (and their current status) from the QT 
+Platform. 游戏列表 API 为呼叫者提供从 QT 平台检索所有可用游戏（和它们的当前状态）的可能性。 
+8.1.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v2/games 
+HTTP Method 
+GET 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+Time-Zone 
+The preferred timezone of the search. If not provided, the 
+“Asia/Shanghai” (CST) will be used as default. 搜索的首选时 区。
+如果没有提供，将以“亚洲/上海”(CST)作默认。 
+No String UTC or 
+Europe/Kiev 
+Accept-Langu
+age 
+The preferred language of the content in the game list. If 
+not provided, English (en-US) will be used as default. 
+游戏
+列表中内容的首选语言。 如果未提供，则默认使用英文 (en-US)。
+ 
+ 
+Accepted values: en-US zh-CN 
+ 
+No String zh-CN 
+ 
+Query Parameters 
+Name Description Required Type Sample 
+size The desired number of games to be returned per page. 
+Must not exceed 1000. If not provided, 500 items per 
+page will be used as default. 
+每页返回的游戏数量，最大不能超
+过1000。如果未提供，则默认返回500条记录。
+ 
+No 
+(defaults 
+to 500) 
+Integer 20 
+operatorId 
+Gets the games based on a specific sub-operator. If not provided, 
+the operator of the current user will be used as default. 获取基于特
+定子运营商的游戏。 如果未提供，则默认使用当前用户的运营商。 
+No String qt001 
+ 
+providers 
+Filters the result by provider or providers. Can be set as a single 
+provider or as a comma-separated provider code list. If not 
+provided, all games from available content providers will be 
+included in the result. 按单个或多个提供商过滤结果。 可以设置为
+单个提供商或逗号分隔的提供商代码列表。 如果未提供，则所有可用
+提供商的所有游戏都将包含在结果中。 
+No String BPG,TK 
+currencies 
+Filters the result by game currency or currencies. Can be set as a 
+single currency or as a comma-separated currency code list. If not 
+provided, all games with all available currencies will be included in 
+the result. 按单个或多个游戏货币过滤结果。 可以设置为单个货币或
+逗号分隔的货币代码列表。 如果未提供，所有游戏的所有可用货币将
+包括在结果中。 
+No String EUR,CNY 
+languages 
+Filters the result by language or languages. Can be set as a single 
+language or as a comma-separated language code list. If not 
+provided, all games with all available languages will be included in 
+the result. 按单个或多个语言过滤结果。 可以设置为单个语言或逗号
+分隔的语言代码列表。 如果未提供，所有游戏的可用语言都将包含在
+No String en_US,zh_CN 
+
+结果中。 
+gameTypes 
+Filters the result by game category or categories. Can be set as a 
+single category or as a comma-separated category code list. If not 
+provided, all games with all available categories will be included in 
+the result. 按单个或多个游戏类别过滤结果。 可以设置为单个类别或
+逗号分隔的类别代码列表。 如果未提供，所有可用类别的所有游戏都
+将包含在结果中。 
+ 
+Accepted Values: 
+  BINGO 
+  CASUALGAME 
+  CRASH 
+  ESPORTS 
+  GAME_SHOW 
+  INSTANTWIN 
+  LIVECASINO 
+  LOTTERY 
+  SCRATCHCARD 
+  SHOOTING 
+  SLOT 
+  SPORTS 
+  TABLEGAME 
+  VIDEOPOKER 
+  VIRTUAL_SPORTS 
+VIRTUALGAME 
+No String BINGO,SLOT 
+sortBy 
+Orders the result by name, release date, or popularity. Sorting by 
+popularity must be used with orderBy parameter ‘DESC’.  名称、发
+布日期或受欢迎程度对结果进行排序。 按受欢迎程度排序必须与 
+orderBy 参数“DESC”一起使用。 
+ 
+Accepted Values: 
+  name (default) 
+  releaseDate 
+  popularity 
+ 
+No String name 
+orderBy 
+Orders the result according to the sortBy parameter in ascending 
+or descending order. 根据 sortBy 参数对结果进行升序或降序排序。 
+ 
+Accepted Values: 
+  ASC (default) 
+  DESC 
+No String ASC 
+includeFields 
+ 
+Limit the result fields as provided in this parameter.  This 
+can be set as a single field value or comma separated 
+fields list. If not provided all result fields will be displayed. 
+限制此参数中提供的结果字段。这可以设置为单个字段值或逗号分隔
+的字段列表。如果未提供，将显示所有结果字段。
+ 
+ 
+Accepted Values: 
+  id 
+  name 
+  provider 
+  description 
+  languages 
+  currencies 
+  themes 
+  features 
+  volatility 
+  category 
+  supportedDevices 
+  clientTypes 
+  images 
+  releaseDate 
+  freeRoundSupport 
+  demoSupport 
+No String id,name, 
+description, 
+languages, 
+currencies 
+
+from Defines the start of the range to apply based on the 
+rangeFilter field. Must be in the format 
+YYYY-MM-DDTHH:mm:ss and must be less than the to 
+value. If invalid, the API returns a VALIDATION_ERROR.  
+定义基于 rangeFilter 字段应用的范围起始时间。格式必须为 
+YYYY-MM-DDTHH:mm:ss，且必须小于 to 值。
+ 
+如果无效，API 将返回 VALIDATION_ERROR。 
+No String 2025-04-29T00:
+00:00 
+to Defines the end of the range to apply based on the 
+rangeFilter field. Must be in the format 
+YYYY-MM-DDTHH:mm:ss and must be greater than the 
+from value. If a future date is provided, it will default to 
+the current server time (now()). If invalid, the API returns 
+a VALIDATION_ERROR. 
+定义基于 rangeFilter 字段应用的范围结
+束时间。格式必须为 YYYY-MM-DDTHH:mm:ss，且必须大于 from 
+值。如果提供了未来的时间，将默认使用当前服务器时间（now()）。
+如果无效，API 将返回 VALIDATION_ERROR。
+ 
+No String 2025-05-29T00:
+00:00 
+rangeFilter Specifies which field the from and to range should apply 
+to. Currently supports and default to releaseDate, and is 
+designed to support additional fields (e.g., createdAt) in 
+the future. 
+指定 from 和 to 应应用于哪个字段。目前支持并默认使
+用 releaseDate，未来也将支持其他字段（例如 createdAt）。
+ 
+No String releaseDate 
+ 
+Example Request 
+ 
+ 
+Example Request – Sorted by Popularity 
+ 
+ 
+Example Request – Sorted by RangeFilter 
+ 
+ 
+ 
+
+8.1.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+totalCount 
+The grand total number of games in the result.游戏结果的总计数。 
+ 
+String 115 
+items 
+The items array contains the game objects.该项目数组包含了游戏中的对象。 
+Array - 
+id 
+The game id, to be used when retrieving the launch url.的游戏ID，检索启动URL
+时使用。 
+String TK-froggrog 
+name 
+The game title, the friendly name.游戏名称，友好的名称 
+ 
+String Frog Grog 
+provider 
+The game provider. 游戏提供商 
+JSON { 
+“id”:”FNG”, 
+“name”:”Fantas
+ma Games” 
+} 
+description 
+The game description. 游戏描述。 
+String Wanted Dead or 
+alive: Mr. Joe 
+Boneson, 
+$50,000. Thus 
+read the sign... 
+languages 
+The supported languages, as a combination of the 2-letter language code (ISO 
+639-1) and the 2-letter country code (ISO 3166-1 alpha-2). 所支持的语言，为2
+个字母的语言代码（ISO639-1）的组合和2个字母的国家代码“（ISO 3166-1α-2）。 
+Array [ 
+{“id”:”en_US”,”n
+ame”:”English”}, 
+{“id”:”zh_CN”, 
+”name”:”Chinese
+”} 
+] 
+currencies 
+The supported currencies, as a code according to ISO 4217 or virtual 
+currencies. 支持的货币，如根据 ISO 4217 或 虚拟货币 的代码。 
+Array [ 
+{“id”:”HKD”, 
+“name”:”Hong 
+Kong Dollar”}. 
+{“id”:”USD”, 
+“name”:”United 
+States Dollar”} 
+] 
+themes 
+The themes of the game. 游戏的主题。 
+Array [{“id”:”MYTHS”, 
+“name”:”Myths”
+}, 
+{“id”:”MAGIC”, 
+“name”:”Magic”}
+] 
+features 
+The set of features included in the game. 游戏中包含的特色。 
+Array [{“id”:”FREE_SP
+INS”, 
+“name”:”Free 
+Spins”}, 
+{“id”:”BONUS_B
+UY”, 
+“name”:”Bonus 
+Buy”}] 
+volatility 
+The volatility of the game. 游戏的浮动率。 
+JSON {“id”:”H”, 
+“name”:”High”} 
+category 
+The game category presented as a path (channel/type/model). For example 
+CASINO/SLOT/5REEL.作为一个路径类游戏(channel/type/model). 例如 
+CASINO/SLOT/5REEL. 
+String CASINO/SLOT/5
+REEL 
+
+supportedDevi
+ces 
+The supported devices, such as DESKTOP and MOBILE. 
+所支持的设备如 DESKTOP 或MOBILE。 
+Array DESKTOP, 
+MOBILE 
+clientTypes The supported game platforms, such as FLASH and HTML5支持的游
+戏平台，比如Flash和HTML5 
+Array HTML5 
+demoSupport 
+Determines whether this game supports demo mode or not.确定这个游戏是否
+支持演示模式与否。 
+Boolean true 
+freeRoundSup
+port 
+Determines whether this game supports free rounds or not. 确定此游戏是否支
+持免费游戏功能。 
+Boolean true  
+ 
+portraitOrient
+atio 
+nSupport 
+Indicates whether the game supports portrait orientation. 指示游戏 
+是否支持竖屏模式。 
+Array ["MOBILE, 
+DESKTOP"] 
+images 
+Links to assets such as logo-round, logo-square and banner. 指向圆形logo、方
+形logo和横幅等素材的链接。 
+To customize image appearance, please refer to Section 8.1.4. 要自定
+义图像外观，请参阅第 8.1.4 节。 
+Array [{"type":"logo-r
+ound", 
+"url":"https://cli
+ent-int.qtlaunche
+r.com/images/?i
+d=MAV-1streetra
+cer_en_US&type
+=logo-round&ver
+sion=1”}] 
+releaseDate 
+The game release date. 游戏的发布日期。 
+String 2019-05-07T00:
+00:00.000+08:0
+0[Asia/Shanghai
+] 
+releaseDateTi
+me 
+The game release date and time. 
+在“目录“部分的“游戏版本“中配置的发布
+日期和时间。
+ 
+String 2019-05-07T00:
+00:00.000+08:0
+0[Asia/Shanghai
+] 
+rtp The Return to Player (RTP) percentage of the game. 
+游戏的玩家回报率（
+RTP）。
+ 
+Decimal 96.12 
+maxWinBetMu
+ltiplier 
+The max win multiplier relative to the player’s bet amount. 相对于玩家投注额的
+最大赢利倍数。 
+Decimal 15000.00 
+gameLimits 
+The game bet limit settings. This includes the range of available bet values and 
+maximum win amount. 游戏投注限额设置。包括可用的投注额范围和最高赢奖金
+额。 
+ JSON { 
+“limits”: [1, 5, 
+10, 50], 
+“minBet”: 1, 
+“maxBet”: 50, 
+“maxWin”: 
+10000 
+} 
+gameLimits.li
+mits 
+The list of available bet limit values for the game. 游戏可用的投注限额列表。 
+ Array [1, 5, 10, 50] 
+gameLimits.mi
+nBet 
+The minimum bet amount allowed for the game. 游戏允许的最低投注额。 
+ 
+Number 
+1 
+gameLimits.m
+axBet 
+The maximum bet amount allowed for the game. 游戏允许的最高投注额。 
+ 
+Number 
+50 
+gameLimits.m
+axWin 
+The maximum win amount possible for the game. 游戏可能赢得的最高金额。 
+ 
+Number 
+10000 
+links 
+If the number of items in the result exceeds the given or default size, the 
+search-result will be paginated. The first element in the links array will be the 
+link to the next page and so on. When the search-result has reached the last 
+page, the links element will not be displayed anymore. 如果结果中的数量超过给
+定的或默认大小，搜索结果将分页。中的第一个元素将是下一页的链接，依此类
+推。当搜索结果已经达到了最后一页，链接元素将不再显示。 
+Array - 
+
+links.href 
+The relative url to the next page. 该网址到下一页 
+String /v2/games?curs
+or=1+Street+Ra
+cer 
+links.method 
+The relation name of the link. 链接的关系名 
+String GET 
+links.rel 
+The relation name of the link. 链接的关系名 
+String next 
+links.name 
+The friendly name of the link. 链接的友好名称 
+String Next 
+ 
+ 
+
+Example Response - Success 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+Example response with filtered fields (includeFields=id,name,description,currencies,images ) 
+ 
+8.1.3 Possible Errors 
+Code HTTP 
+Status 
+Description 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+NOT_FOUND 404 The resource being searched does not exist. 
+正在搜索的资源不存在。 
+ 
+VALIDATION_ERROR 422 One or more fields are missing or is invalid. 
+一个或多个字段丢失或无效。 
+ 
+UNKNOWN_ERROR 500 Unexpected error. 
+
+意外的错误 
+QT_NOT_AVAILABLE 503 QT Platform is not available. Temporary down, under maintenance etc. 
+QT平台不可用。临时关闭，正在维护等。 
+ 
+ 
+Example Response - Error 
+ 
+ 
+8.1.4 Game Images 游戏图片 
+Game images can be customized by the following query parameters. 
+可通过以下查询参数自定义游戏图 
+ 
+Query Parameters 
+ 
+Name  Description Required Type Sample 
+id The id of the image in 
+QT Platform.  
+QT 平台中图片的id。
+ 
+Yes String RLX-moneytrain2_zh_CN 
+version The version of the 
+image in QT Platform. 
+QT 平台中图片的版本。
+  
+Yes Integer 3222530471636 
+type Determines the image 
+type.  
+确定图像类型。 
+ 
+Supported values are  
+支持的值为 
+logo-round = 
+round/circle  
+logo-round = 圆形/圆形 
+logo-square = 
+square 
+logo-square = 正方形 
+ 
+banner = rectangular 
+banner = 矩形 
+ 
+The logo-round and 
+logo-square image 
+has an aspect ratio of 
+Yes  String logo-round 
+ 
+ 
+logo-square 
+ 
+banner 
+ 
+
+1:1 and the banner 
+image has an aspect 
+ratio of 2:1 
+圆形logo和方形logo图 
+format Specify image format. 
+指定图案格式。 
+Types: 
+Banner - JPEG 
+Icon - PNG 
+类型: 
+横幅- JPEG 
+图标- PNG 
+No String AVIF. 
+Possible values 
+JPEG, PNG, WebP, AVIF 
+ 
+width Resizes the image 
+with the given width 
+(in px). 
+使用给定的宽度（以 px 为
+单位）调整图像的大小。 
+ 
+The image will be 
+scaled proportionally 
+according to the 
+image type ratio. 
+图像将根据图像类型比例
+按比例缩放。 
+ 
+Note: If width and 
+height are both 
+specified, image ratio 
+will be disregarded. 
+注意：如果同时指定了宽度
+和高度，则图像比例将被
+忽略。 
+ 
+No Integer 200 
+height Resizes the image 
+with the given height 
+(in px). 
+使用给定的高度（以像素为
+单位）调整图像的大小。 
+ 
+The image will be 
+scaled proportionally 
+according to the 
+image type ratio. 
+图像将根据图像类型比例
+按比例缩放。 
+No Integer 200 
+
+ 
+Note: If width and 
+height are both 
+specified, image ratio 
+will be disregarded. 
+注意：如果同时指定了宽度
+和高度，则图像比例将被
+忽略。 
+showIcon Inserts a watermark 
+of the game provider 
+on the upper right 
+corner of the banner 
+image. 
+在横幅图像的右上角插入
+游戏提供商的水印。 
+ 
+This parameter is only 
+available on banner 
+type images.  
+此参数仅适用于横幅类型
+图像。 
+No Boolean No value or false - no provider icon 
+on the banner 
+ 
+ 
+true -  will show provider icon 
+ 
+theme Determines the color 
+theme of the default 
+image if there is no 
+image found for the 
+specific id. 
+如果没有找到特定 id 的图
+像，则确定默认图像的颜
+色主题。 
+No String no value (default) - will return a gray 
+default image 
+ 
+ 
+dark - will return a dark default image. 
+ 
+ 
+ 
+Sample logo-round image URL with additional custom query parameters. 带有附加自定义查询参数的示例logo圆形
+图像 URL。
+ 
+https://client-int.qtlauncher.com/images/?id=RLX-moneytrain2_zh_CN&type=logo-round&version=16115
+71971493&width=100&theme=dark 
+ 
+ 
+
+ 
+Sample logo-square image URL with additional custom query parameters. 带有其他自定义查询参数的示例logo方形
+图像 URL。 
+https://client-int.qtlauncher.com/images/?id=RLX-moneytrain2_en_US&type=logo-square&version=1611
+571971493&width=100&theme=dark 
+ 
+Sample banner image url with additional custom query parameters 
+带有其他自定义查询参数的示例横
+幅图片 url
+ 
+https://client-int.qtlauncher.com/images/?id=RLX-moneytrain2_en_US&type=banner&version=32225304
+71636&showIcon=true&width=200&theme=dark 
+ 
+ 
+ 
+ 
+8.2 Game Bet Values 游戏投注金额 
+Retrieves the bet values/levels per currency for a given game.  
+检索给定的游戏中每种货币的投注金额／投注等级。 
+8.2.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v1/games/{gameId}/bet-values 
+HTTP Method 
+GET 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Path Parameters  
+Name Description Require
+d 
+Type Sample 
+gameId 
+QT Platform game id. QT平台游戏ID. 
+Yes String TK-froggrog 
+ 
+Example Request 
+ 
+8.2.2 Response响应 
+HTTP Status Code 
+
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+totalCount The total number of items, ie bet values per currency, in the result. 
+在返回结果中的项目（即每种货币的投注金额）总数。 
+String 30 
+items An array of the bet values per currency objects. 
+每种货币对应的投注金额的数组。 
+Array - 
+currency The 3-letter currency code.  
+3个字母的货币代码 
+String JPY 
+values An array of bet values, expressed as decimal, for the given currency. 
+给定货币的一系列投注金额，以十进制表示。 
+Array “1.00”,”2.00” 
+ 
+Example Response - Success 
+
+
+
+8.2.3 Possible Errors 
+Code HTTP 
+Status 
+Description 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+GAME_NOT_FOUND 404 If the game with the given id was not found.  
+如果未找到给定id的游戏。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+QT_NOT_AVAILABLE 503 QT Platform is not available. Temporary down, under maintenance etc. 
+QT平台不可用。临时关闭，正在维护等。 
+ 
+Example Response - Error 
+ 
+ 
+8.3 Most Popular Games 热门游戏 
+This endpoint gives the caller the possibility to retrieve the 50 most popular games, globally. The result is 
+sorted by the most popular games first. 
+通过此端点能让用户检索到全球排名前50的热门游戏，检索结果根据游戏热度排列。 
+8.3.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v1/games/most-popular?currencies={currencies}&size={size}&page={page
+} 
+HTTP Method 
+GET 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Query Parameters 
+Name Description Require
+d 
+Type Sample 
+currencies 
+Gives the possibility to return the list of games that are supported 
+by a certain currency. Can be set as a single currency or as a 
+comma separated currency code list. If not provided, all games 
+regardless of currency will be returned. 能够返回指定货币的游戏列
+表。可以设置为某一货币或者以逗号分隔多个货币代码，如果没有提
+供货币代码，所有游戏不论哪种货币将会被返回。 
+No String CNY,KRW 
+size 
+The desired number of records per page. Must not exceed 50. If 
+not provided, 10 records/page will be used as default.每页记录所
+需的号码，如果没有提供，10条/页将被用作默认不得超过50。 
+No Number 20 
+ 
+page 
+The page number. If not provided, it will return the first page 
+(page=0).页码。如果没有提供，它会返回第一页（page=0）。 
+No Number 3 
+ 
+
+Example Request 
+ 
+8.3.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+totalCount 
+The grand total number of games in the result.游戏结果的总计数。 
+String 50 
+items 
+The items array contains the games.该项目数组包含了游戏中的对象。 
+Array - 
+id 
+The unique game id. 唯一的游戏ID。 
+String TK-froggrog 
+links If the number of items in the result exceeds the given or default size, 
+the search-result will be paginated. The first element in the links 
+array will be the link to the next page and so on.  
+ 
+When the search-result has reached the last page, the links element 
+will not be displayed anymore. 
+如果结果中的数量超过给定的或默认大小，搜索结果将分页。链接排列中的第一
+个元素将是下一页的链接，依此类推。 
+当搜索结果已经达到了最后一页，链接元素将不再显示。 
+Array - 
+href 
+The relative url to the next page该网址到下一页 
+String /api/v1/most-po
+pular?size=20&p
+age=1&currencie
+s=CNY,JPY 
+rel 
+The relation name of the link链接的关系名 
+String next 
+name 
+The friendly name of the link链接的友好名称 
+String Next 
+method 
+The http method to use for the link.HTTP方法使用的链接。 
+String GET 
+ 
+ 
+
+Example Response - Success 
+ 
+ 
+8.3.3 Possible Errors 
+Code HTTP 
+Status 
+Description 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+VALIDATION_ERROR 422 Invalid query parameters.  
+无效的查询参数。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+QT_NOT_AVAILABLE 503 QT Platform is not available. Temporary down, under maintenance etc. 
+QT平台不可用。临时关闭，正在维护等。 
+ 
+Example Response - Error 
+ 
+ 
+
+8.4 Game Rounds 游戏局 
+The Search API gives the caller the possibility to retrieve game round details between a given date and 
+time range. 
+ 
+To be able to handle big search result, the search-result supports pagination, which will split the grand 
+total result into smaller chunks (pages). 
+ 
+搜索API可以使呼叫者检索给定日期和时间范围之间的游戏回合细节。 
+为了能够处理大搜索结果，搜索结果支持分页，这将拆分总计结果成小块（页）。 
+8.4.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v1/game-rounds?playerId={playerId}&status={status}&rangeFilter={rangeF
+ilter}&from={fromDateTime}&to={toDateTime}&size={size} 
+HTTP Method 
+GET 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+Time-Zone 
+The preferred timezone of the search. If not provided, the 
+“Asia/Shanghai” (CST) will be used as default. 搜索的首选时区。如
+果没有提供，将以“亚洲/上海”（CST）作默认。 
+No String Asia/Shanghai 
+ 
+Query Parameters 
+Name Description Require
+d 
+Type Sample 
+playerId 
+The unique identifier of the player in Operator system. If not 
+provided, the result will contain game rounds from all players. 玩家
+在运营商系统中的id是唯一的，如果没有提供，结果会包括所有玩家
+的游戏局。 
+No String test123 
+status Filters the result by game round status. Valid statuses are 
+COMPLETED, PENDING or FAILED. If not provided, the 
+result will contain game rounds with all statuses. 通过游戏局状态过
+滤结果，有效的状态是 COMPLETED, PENDING 或者FAILED。
+如果没有提供，结果会包含游戏局的所有状态。 
+No String COMPLETED 
+rangeFilter Determines whether the from and to parameters in the 
+query should be based on the initiated or completed date. 
+Valid values are INITIATED or COMPLETED. If not 
+provided, the search will be based on the initiated date. 
+决定查询游戏局时是基于起始时间和完成时间的参数。有效值为
+INITIATED或COMPLETED。如果没有提供，则默认为起始时间。 
+No String COMPLETED 
+from 
+The start date and time of the search, expressed as 
+“YYYY-MM-DDThh:mm:ss” 搜索的开始日期和时间，表示为
+“YYYY-MM-DDThh:mm:ss” 
+Yes String 2015-10-22T20:
+34:56 
+ 
+to 
+The end date and time of the search, expressed as 
+“YYYY-MM-DDThh:mm:ss”搜索的截至日期和时间，表示为
+“YYYY-MM-DDThh:mm:ss” 
+Yes String 2015-10-23T00:
+00:00 
+ 
+size 
+The desired number of records per page. Must not exceed 1000. If 
+not provided, 500 records/page will be used as default.每页记录所
+需的号码，如果没有提供，500条/页将被用作默认不得超过1000。 
+No Number 100 
+ 
+providerIds 
+Comma delimited list of providerIds. 以逗号分隔的提供商列表 
+No String BPG,EVO,NLC 
+ 
+Example Request 
+
+ 
+8.4.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+totalCount The grand total number of game rounds in the result. 
+在游戏结果中总的游戏局数。 
+Number 113 
+items The items array contains the game round objects. 
+该项目数组包含了游戏局的对象。 
+Array - 
+id 
+The unique game round id. 游戏交易id 
+String 56498d238e170
+7b38e03b9af 
+status The game round status, such as PENDING, COMPLETED or 
+FAILED.  
+游戏局的状态比如PENDING或COMPLETED或FAILED。 
+String COMPLETED 
+totalBet The total bet amount for this game round. 
+该游戏局的总投注。 
+String 25.00 
+totalPayout The total payout amount for this game round, including any 
+jackpot or bonus. 
+该游戏局的总派彩，包括所有的奖池奖金和游戏奖金。 
+String 0.00 
+totalBonusBet 
+The total bonus bet amount. 总奖金投注金额 
+String 0.00 
+currency 
+The 3-letter currency code.3个字母的货币代码 
+String CNY 
+initiated The date and time when the game round was created, 
+expressed as “YYYY-MM-DDThh:mm:ss”. 
+游戏局创建的日期和时间，表示为“YYYY-MM-DDThh:mm:ss”。 
+String 2015-10-22T20:
+34:59.703+08:0
+0[Asia/Shanghai
+] 
+completed The date and time when the game round was completed, 
+expressed as “YYYY-MM-DDThh:mm:ss”. 
+游戏局完成的日期和时间，表示为为 “YYYY-MM-DDThh:mm:ss”。 
+String 2015-10-22T20:
+35:00.536+08:0
+0[Asia/Shanghai
+] 
+playerId 
+The unique identifier of the player in Operator system.运营商系统中玩
+家账号是唯一的。 
+String daniel 
+operatorId The unique identifier of the operator in QT Platform. 
+运营商在QT平台中的唯一标识符 
+String keyops 
+device The player's device, such as MOBILE or DESKTOP 
+该玩家的设备，例如MOBILE or DESKTOP 
+String MOBILE 
+gameProvider The identifier of the game provider. 
+游戏提供者的标识符。 
+String TK 
+gameProviderRoundId The unique round id from the game provider. 
+来自提供商的独有的游戏局ID。 
+String 123456 
+gameId The identifier of the game. 
+游戏的标示符。 
+String TK-froggrog 
+gameCategory The game-category presented as a path 
+(channel/type/model), for example “CASINO/SLOT/5REEL” 
+游戏类作为一个路径（channel/type/model），例如 
+“CASINO/SLOT/5REEL” 
+String CASINO/SLOT/5
+REEL 
+gameClientType The game client platform, such as FLASH or HTML5  String HTML5 
+
+游戏客户端平台，比如Flash或HTML5 
+bonusType The bonus type, such as FREE_ROUND or 
+FEATURE_TRIGGER.  
+奖金类型，如FREE_ROUND 或 FEATURE_TRIGGER 
+String FREE_ROUND 
+totalJpContribution The total jackpot contribution amount for this game round. 
+This is only valid for progressive jackpot games. 
+该游戏局的奖池贡献，仅适用于有奖池的游戏。 
+String 0.02 
+totalJpPayout The total jackpot win amount for this game round. This is only 
+valid for progressive jackpot games. 
+该游戏局的总奖池派彩金额，仅适用于有奖池的游戏。 
+String 0.00 
+conversionRate The conversion rate used for this round.  
+This is only valid for virtual currency game session.  
+本游戏局使用的汇率。这仅对虚拟货币游戏会话有效。 
+Object - 
+conversionRate.pair The pair of currencies for the conversion of game currency to 
+wallet currency.  
+游戏币兑换钱包币的货币对 
+String BTC/USD 
+conversionRate.rate The rate used between the game currency and wallet 
+currency. The maximum number of decimal places is 8.  
+游戏币和钱包币之间使用的汇率。最大小数位数为 8。 
+Decima
+l 
+34691.5948495 
+ 
+links If the number of items in the result exceeds the given or 
+default size, the search-result will be paginated. The first 
+element in the links array will be the link to the next page and 
+so on.  
+ 
+When the search-result has reached the last page, the links 
+element will not be displayed anymore. 
+ 
+如果结果中的数量超过给定的或默认大小，搜索结果将分页。链接排列中
+的第一个元素将是下一页的链接，依此类推。 
+当搜索结果已经达到了最后一页，链接元素将不再显示。 
+Array - 
+href The relative url to the next page 
+该网址到下一页 
+String  
+/api/v1/game-ro
+unds?size=100&
+from=2016-01-0
+1T00%3A00&to
+=2016-01-25T0
+0%3A00&playerI
+d=daniel 
+rel The relation name of the link 
+链接的关系名 
+String next 
+name The friendly name of the link 
+链接的友好名称 
+String Next 
+method The http method to use for the link.HTTP 
+方法使用的链接。 
+String GET 
+ 
+ 
+
+Example Response - Success 
+
+8.4.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+VALIDATION_ERROR 422 This error is raised if one of the fields within the request are missing or is 
+invalid. 
+如果请求中的字段中的一个丢失或无效此引发错误。 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+QT_NOT_AVAILABLE 503 QT Platform is not available. Temporary down, under maintenance etc. 
+QT平台不可用。临时关闭，正在维护等。 
+ 
+Example Response - Error 
+ 
+ 
+8.5 Game Round Details 游戏局细节 
+This endpoint retrieves more details of a certain game round, including the actual game result.  
+ 
+该端点可以检索特定游戏局的更多细节，包括实际的游戏结果 
+ 
+8.5.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v1/game-rounds/{roundId} 
+HTTP Method 
+GET 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+Time-Zone 
+The preferred timezone of the search. If not provided, the 
+“Asia/Shanghai” (CST) will be used as default. 搜索的首选时区。如
+果没有提供，将以“亚洲/上海”（CST）作默认。 
+No String Asia/Shanghai 
+ 
+Path Parameters 
+Name Description Require
+d 
+Type Sample 
+roundId The round id, as identified by the QT Platform.  
+游戏局ID，由QT平台提供 
+Yes String 568a420c46e0fb
+00015c0329 
+ 
+Example Request 
+
+ 
+8.5.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+id 
+The game round id 游戏交易id 
+String 56498d238e170
+7b38e03b9af 
+status The game round status, such as PENDING, COMPLETED or 
+FAILED. 游戏局状态，如PENDING, COMPLETED或者FAILED 
+String COMPLETED 
+totalBet 
+The total bet amount for this game round. 该游戏局的总投注额 
+String 25.00 
+totalPayout The total payout amount for this game round, including any 
+jackpot or bonus. 
+该游戏局的总派彩，包括所有的奖池奖金和游戏奖金。 
+String 0.00 
+totalBonusBet 
+The total bonus bet amount. 总奖金投注金额 
+String 0.00 
+currency 
+The 3-letter currency code.3个字母的货币代码 
+String CNY 
+initiated The date and time when the game round was created, 
+expressed as “YYYY-MM-DDThh:mm:ss”. 
+本游戏局的创建日期和时间，表示为 “YYYY-MM-DDThh:mm:ss” 
+String 2015-10-22T20:
+34:59.703+08:0
+0[Asia/Shanghai
+] 
+completed The date and time when the game round was completed, 
+expressed as “YYYY-MM-DDThh:mm:ss”. 
+本游戏局的完成日期和时间，表示为 “YYYY-MM-DDThh:mm:ss” 
+String 2015-10-22T20:
+35:00.536+08:0
+0[Asia/Shanghai
+] 
+playerId 
+The unique identifier of the player in Operator system.运营商系统中玩
+家账号是唯一的。 
+String daniel 
+operatorId The unique identifier of the operator in QT Platform. 
+运营商在QT平台中的唯一标识符 
+String keyops 
+device 
+The player's device, such as MOBILE or DESKTOP该玩家的设
+备，例如MOBILE or DESKTOP 
+String MOBILE 
+gameProvider 
+The identifier of the game provider.游戏提供者的标识符。 
+String TK 
+bonusType The bonus type, such as FREE_ROUND or 
+FEATURE_TRIGGER. 
+奖金类型，如FREE_ROUND 或 FEATURE_TRIGGER 
+String FREE_ROUND 
+gameId 
+The identifier of the game. 游戏的标识符。 
+String TK-froggrog 
+gameCategory The game-category presented as a path 
+(channel/type/model), for example “CASINO/SLOT/5REEL” 
+游戏类作为一个路径（channel/type/model），例如 
+“CASINO/SLOT/5REEL” 
+String CASINO/SLOT/5
+REEL 
+gameClientType 
+The game client platform, such as FLASH or HTML5 游戏客户
+端平台，比如Flash或HTML5 
+String HTML5 
+gameClientRoundId 
+The round id given in the bet history within the game client. 在游戏客户
+端投注历史中给出的游戏局ID。 
+String 3465351 
+gameResultUrl 
+The absolute url to the result page, as displayed in the game client. 结
+果页面的绝对网址，如游戏客户端所显示的。 
+String https://... 
+gameResult The url to the result page in JSON format, as displayed in the 
+game client.  
+String https://... 
+
+游戏结果，在游戏中以JSON格式显示的页面的链接。 
+totalJpContribution The total jackpot contribution amount for this game round. 
+This is only valid for progressive jackpot games. 
+该游戏局的奖池贡献，仅适用于有奖池的游戏。 
+String 0.02 
+totalJpPayout The total jackpot win amount for this game round. This is only 
+valid for progressive jackpot games. 
+该游戏局的总奖池派彩金额，仅适用于有奖池的游戏。 
+String 0.00 
+gameTransactions The wallet transactions within the game. The transaction type 
+can be BET (withdrawal), PAYOUT (deposit) or ROLLBACK 
+(deposit). The field jpPayout refers to the jackpot win amount 
+in payout transactions while jpContribution refers to jackpot 
+contribution amount in bet transactions. This is only valid for 
+progressive jackpot games. The field betId refers to the 
+withdrawal transaction id generated by QT Platform and will 
+only be included when type is PAYOUT.   
+游戏中的钱包交易。交易类型可以是BET（提款），PAYOUT（存款）或
+ROLLBACK（存款）。字段jpPayout指派彩交易中的奖池中奖金额，而
+jpContribution指投注交易中的奖池贡献金额。仅适用于有奖池的游戏。
+QT Platform生成的相关投注（提款）交易ID。此项只会包含在PAYOUT方
+式中. 
+Array  
+tableId A unique key per table ID in Live Casino games 
+真人视讯游戏中每个tableID的唯一key 
+String Poker001 
+conversionRate The conversion rate used for this round.  
+This is only valid for virtual currency game session.  
+本游戏局使用的汇率。这仅对虚拟货币游戏会话有效。 
+Object - 
+conversionRate.pair The pair of currencies for the conversion of game currency to 
+wallet currency.  
+游戏币兑换钱包币的货币对 
+String BTC/USD 
+conversionRate.rate The rate used between the game currency and wallet 
+currency. The maximum number of decimal places is 8.  
+游戏币和钱包币之间使用的汇率。最大小数位数为 8。 
+Decima
+l 
+34691.5948495 
+ 
+ 
+ 
+
+Example Response - Success 
+
+8.5.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+NOT_FOUND 404 The round with given id could not be found. 
+没有找到给定ID的游戏局 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+QT_NOT_AVAILABLE 503 QT Platform is not available. Temporary down, under maintenance etc. 
+QT平台不可用。临时关闭，正在维护等。 
+ 
+Example Response - Error 
+ 
+ 
+8.6 Game Transactions游戏交易 
+The Search API gives the caller the possibility to find game transactions from a certain player between a 
+specified date and time range. It's possible to perform a search on a specific player, but also to perform a 
+search on all players. 
+ 
+To be able to handle big search result, the search-result supports pagination, which will split the grand 
+total result into smaller chunks (pages). 
+ 
+搜索 API 为呼叫者提供找到某个玩家在指定的日期和时间范围内的游戏交易。 
+它们既可以执行对一个特定玩家的搜索，也可以执行对所有玩家的搜索。 
+为了能够处理大搜索结果，搜索结果支持分页，这将拆分总计结果成小块（页）。 
+8.6.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v1/game-transactions?playerId={playerId}&from={fromDateTime}&to={toD
+ateTime}&size={size} 
+HTTP Method 
+GET 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+Time-Zone 
+The preferred timezone of the search. If not provided, the 
+“Asia/Shanghai” (CST) will be used as default. 搜索的首选时区。如
+果没有提供，将以“亚洲/上海”（CST）作默认。 
+No String Asia/Shanghai 
+ 
+Query Parameters 
+Name Description Require
+d 
+Type Sample 
+playerId 
+The unique identifier of the player in Operator system. If not 
+provided, the result will contain game transactions from all players. 
+No String test123 
+
+玩家在运营商系统的唯一标识符。如果没有提供，查询结果将包含来
+自所有玩家的游戏交易。 
+from 
+The start date and time of the search, expressed as 
+“YYYY-MM-DDThh:mm:ss” 搜索的开始日期和时间，表示为
+“YYYY-MM-DDThh:mm:ss” 
+Yes String 2015-10-22T20:
+34:56 
+ 
+to 
+The end date and time of the search, expressed as 
+“YYYY-MM-DDThh:mm:ss”搜索的截至日期和时间，表示为
+“YYYY-MM-DDThh:mm:ss” 
+Yes String 2015-10-23T00:
+00:00 
+ 
+size 
+The desired number of records per page. Must not exceed 1000. If 
+not provided, 500 records/page will be used as default.每页记录所
+需的号码，如果没有提供，500条/页将被用作默认不得超过1000。 
+No Number 100 
+ 
+providerIds 
+Comma delimited list of providerIds. 以逗号分隔的提供商列表 
+ 
+No String BPG,EVO,NLC 
+ 
+Example Request 
+ 
+8.6.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+totalCount 
+The grand total number of game transactions in the result.游戏交易结果
+的总计数。 
+Number 113 
+items 
+The items array contains the game transaction objects.该项目数组包含
+游戏中的交易对象。 
+Array - 
+id 
+The game transaction id 游戏交易id 
+String 56498d238e170
+7b38e03b9af 
+type The game transaction type, such as BET, PAYOUT, 
+ROLLBACK or BONUS_BET. 游戏交易类型，例如 BET、PAYOUT、
+ROLLBACK 或 BONUS_BET。  
+String BET 
+amount The transaction amount. If PAYOUT type, The total payout 
+amount for this game round, including any jackpot or bonus.  交易的金
+额，如果是PAYOUT类型，则包含所有派彩支出金额，包括奖池和奖金金
+额。 
+String 25.00 
+balance 
+The balance after the transaction was performed.进行该交易后的余
+额。 
+String 4678.00 
+currency 
+The 3-letter currency code.3个字母的货币代码 
+String CNY 
+created 
+The created date and time of the transaction, expressed as 
+“YYYY-MM-DDThh:mm:ss”. 本次交易的创建日期和时间，表示为
+“YYYY-MM-DDThh：mm：ss”。 
+String 2015-10-22T20:
+34:59.703+08:0
+0[Asia/Shanghai
+] 
+playerId 
+The unique identifier of the player in Operator system.运营商系统中玩
+家账号是唯一的。 
+String 1234 
+playerDevice 
+The player's device, such as MOBILE or DESKTOP该玩家的设
+备，例如MOBILE or DESKTOP 
+String MOBILE 
+playerGameRoundId 
+The identifier of the player game round (or hand)玩家的游戏局（或手）的
+标识符 
+String 5649921c8e170
+7b399665538 
+
+gameProvider 
+The identifier of the game provider.游戏提供者的标识符。 
+String TK 
+gameId 
+The identifier of the game.游戏的标示符。 
+String TK-froggrog 
+gameCategory The game-category presented as a path 
+(channel/type/model), for example “CASINO/SLOT/5REEL” 
+游戏类作为一个路径（channel/type/model），例如 
+“CASINO/SLOT/5REEL” 
+String CASINO/SLOT/5
+REEL 
+gameClientType 
+The game client platform, such as FLASH or HTML5 游戏客户
+端平台，比如Flash或HTML5 
+String HTML5 
+jpContribution The jackpot contribution amount in bet transactions. This is 
+only valid for progressive jackpot games. 
+该投注交易中的奖池贡献金额，仅适用于有奖池的游戏 
+String 0.0025 
+jpPayout The jackpot win amount in payout transactions. This is only 
+valid for progressive jackpot games 
+派彩交易中的奖池奖金金额，仅适用于有奖池的游戏。 
+String 25.00 
+betId 
+The related bet (withdrawal) transaction id generated by QT Platform. 
+This will only be included when type is PAYOUT. QT Platform生成的相
+关投注（提款）交易ID。此项只会包含在PAYOUT方式中.  
+String 568cc95f57f5d3
+3b96f379ab 
+bonusType 
+The bonus type applied to the transaction. Valid values are 
+FREE_ROUND and TOURNAMENT_REWARD. This will only be 
+included for bonus-funded transactions. 
+交易适用的奖金类型。有效值为 FREE_ROUND 和 
+TOURNAMENT_REWARD。此项仅在使用奖金资金的交易中返回。 
+String TOURNAMENT_R
+EWARD 
+bonusAmount 
+The bonus bet amount funded by the bonus for this transaction. This 
+will only be included for bonus-funded transactions. 
+本次交易中由奖金支付的奖金投注金额。此项仅在使用奖金资金的交易
+中返回。                                         
+String 20.00 
+links If the number of transactions in the result exceeds the given 
+or default size, the search-result will be paginated. The first 
+element in the links array will be the link to the next page and 
+so on.  
+ 
+When the search-result has reached the last page, the links 
+element will not be displayed anymore. 
+如果结果中的数量超过给定的或默认大小，搜索结果将分页。链接排列中
+的第一个元素将是下一页的链接，依此类推。 
+当搜索结果已经达到了最后一页，链接元素将不再显示。 
+Array - 
+href 
+The relative url to the next page该网址到下一页 
+String /api/v1/game-tr
+ansactions?playe
+rId=1234&from
+=2015-10-22T2
+0:34:56&to=201
+5-10-23T00:00:
+00&size=100 
+rel 
+The relation name of the link链接的关系名 
+String next 
+name 
+The friendly name of the link链接的友好名称 
+String Next 
+method 
+The http method to use for the link.HTTP方法使用的链接。 
+String GET 
+tableId A unique key per table ID in Live Casino games 
+真人视讯游戏中每个tableID的唯一key 
+String Poker001 
+ 
+ 
+
+Example Response - Success 
+ 
+ 
+
+ 
+8.6.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+VALIDATION_ERROR 422 This error is raised if one of the fields within the request are missing or is 
+invalid. 
+如果请求中的字段中的一个丢失或无效此引发错误。 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+QT_NOT_AVAILABLE 503 QT Platform is not available. Temporary down, under maintenance etc. 
+QT平台不可用。临时关闭，正在维护等。 
+ 
+Example Response - Error 
+ 
+ 
+8.7 NGR per player 每个玩家的NGR 
+The NGR report API gives the client the possibility to retrieve NGR reports per player within a given date 
+and time range. The result can include all players, a summary (grand total) of all the players or both 
+within the given date and time interval. The players are initially sorted upon the highest total bet. 
+ 
+API中的NGR报表可以检索每位玩家在一个特定的日期和时间范围内信息数据。检索结果包括所有玩家信息及汇总数据，或
+是在给定日期和时间范围内的玩家信息及汇总。检索结果按照玩家最高总投注额顺序排序。 
+8.7.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v1/ngr-player?from={fromDateTime}&to={toDateTime}&embed={embed} 
+HTTP Method 
+GET 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+
+Time-Zone 
+The preferred timezone of the search. If not provided, the 
+“Asia/Shanghai” (CST) will be used as default. 搜索的首选时区。如
+果没有提供，将以“亚洲/上海”（CST）作默认。 
+No String Asia/Shanghai 
+ 
+Query Parameters 
+Name Description Require
+d 
+Type Sample 
+from 
+The start date and time of the search, expressed as 
+“YYYY-MM-DDThh:mm:ss” 搜索的开始日期和时间，表示为
+“YYYY-MM-DDThh:mm:ss” 
+Yes String 2015-10-22T00:
+00:00 
+ 
+to 
+The end date and time of the search, expressed as 
+“YYYY-MM-DDThh:mm:ss”搜索的截至日期和时间，表示为
+“YYYY-MM-DDThh:mm:ss” 
+No String 2015-10-23T00:
+00:00 
+ 
+embed Determines what information should be included in the 
+result. Valid values is items and/or summary. The 
+default value is items. 
+ 
+If the value is items, the result will contain all players. 
+If the value is summary, the result will contain just the 
+summary. 
+If the value is items,summary, the result will contain both 
+players and summary.                                           确定什么样的信
+息应包含在结果中。有效值是项目和/或摘要。默认值是项目。 
+ 
+如果该值是一个项目，结果将包含所有玩家。 
+如果该值是摘要，结果将只包含的摘要。 
+如果该值是一个项目，摘要，结果将包含玩家和摘要。 
+No String items,summary 
+ 
+Example Request 
+ 
+ 
+8.7.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+totalCount 
+The grand total number of items (players) in the result. 在结果中的项目（玩家）
+总计数。 
+Number 12 
+requestedFor 
+The operator of the requested report。 所要求的报告的运营商。 
+String QT 
+requestedBy 
+The username of the caller, who requested the report. 发起呼叫的 用户名，来请
+求这个报告。 
+String jenny 
+from 
+The start date and time of the report。报告开始的日期和时间。 
+String 2015-08-02T16:
+00:00 
+to 
+The end date and time of the report。报告结束的日期和时间。 
+String 2015-11-02T16:
+00:00 
+summary 
+The summary contains information about the grand total numbers of all items 
+(players) in the result。 摘要包含总计数的所有项目（玩家）的结果信息 
+Object - 
+totalGames 
+The grand total unique played games总计唯一玩的游戏 
+Number 23 
+totalRounds 
+The grand total played rounds总计玩的局数 
+Number 354 
+
+totalBet 
+The grand total bet amount总计投注金额 
+String 35985.60 
+totalPayout 
+The grand total payout总计出款额 
+String 24059.60 
+totalNGR 
+The grand total NGR总计NGR 
+String 11926.00 
+currency 
+The 3 letter currency code 3个字母的货币代码 
+String CNY 
+items 
+The items array contains the player objects.该项目数组包含了玩家的对象。 
+Array - 
+playerId 
+The unique identifier of the player in Operator system.运营商系统中玩家账号是
+唯一的。 
+String daniel 
+operatorId 
+The unique identifier of the operator within QT platform 运营商在QT平台拥有唯
+一的id。 
+String keyops 
+operatorName 
+The friendly name of the operator.运营商的一个友好的名字。 
+String KeyOps 
+totalGames 
+The total unique played game 总共唯一玩过的游戏。 
+Number 5 
+totalRounds 
+The total played rounds 总共玩过的游戏局。 
+Number 43 
+totalBet 
+The total bet amount 总投注 
+String 600.00 
+totalPayout 
+The total payout amount 总出款 
+String 20.00 
+totalNGR 
+The total NGR amount 总NGR值 
+String 580.00 
+currency 
+The 3 letter currency code 3个字母的货币代码 
+String CNY 
+ 
+ 
+
+Example Response - Success 
+ 
+ 
+ 
+ 
+
+8.7.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+VALIDATION_ERROR 422 This error is raised if one of the fields within the request are missing or is 
+invalid. 
+如果请求中的字段中的一个丢失或无效此引发错误。 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+QT_NOT_AVAILABLE 503 QT Platform is not available. Temporary down, under maintenance etc. 
+QT平台不可用。临时关闭，正在维护等。 
+ 
+Example Response - Error 
+ 
+ 
+ 
+
+8.8 Create Free Round Promotion 创建免费游戏局 
+The Create Free Round Promotion method gives the operator the possibility to give players bonus money 
+to be spent on a certain game, so called gift spins. It is also possible to give player the flexibility to 
+choose the number and value of rounds from a fixed list of options, all adding up to same total value 
+(bonus money).  
+ 
+If a player has been promoted with free rounds for a certain game, a dialog will be displayed upon game 
+launch, displaying the different round options. The player has the possibility to play the free rounds 
+directly (ACTIVATE NOW), play the free rounds another time (USE LATER) or reject the promotion (NO 
+THANKS). 
+ 
+创建免费游戏局让运营商提供玩家奖金使用于某款游戏中，即赠送免费旋转。 玩家可以从指定的选项中选择局数和每局的
+投注数值，每个选项的局数投注价值相等于总数值(奖金)。 
+ 
+如果玩家在特定游戏中获得免费游戏局，将在游戏启动时显示一个对话框，显示不同的局数选项。 玩家可以选择直接使用
+免费游戏局（立即激活），稍后再使用免费游戏局（稍后再使用）或拒绝免费游戏局（拒绝）。 
+ 
+ 
+8.8.1 Request请求 
+Request URL 
+https://{url-to-qtplatform}/v1/bonus/free-rounds 
+HTTP Method 
+POST 
+Header Parameters 
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+ 
+
+Payload Parameters 载荷参数 
+Name Description Require
+d 
+Type Sample 
+txnId The id of the request for idempotent purpose. This id must 
+be unique for each promotion and must never be reused. 
+Valid characters are alphanumeric (lower or upper case), 
+underscore “_” and dash “-”. 
+为幂等目的而请求的 ID。每个免费游戏局的 ID 都必须是唯一的,不
+得重复使用。 
+Yes String acfe23cfe4f2 
+ 
+playerId The unique player identifier in the operator system. 
+在运营商系统中玩家唯一的标识符。 
+Yes String 45465 
+ 
+gameId The unique identifier of the game, provided by QT.  
+由QT提供的游戏唯一的标识符。 
+Yes String QS-goldlab 
+totalBetValue The total value of the promotion. 
+免费游戏局总数值。 
+Yes Decimal 100.00 
+roundOptions A list of numbers of rounds offered to player. Dividing 
+totalBetValue by any count on list must lead to a legal bet 
+amount for the given game without remainder. Maximum 
+of 9 round options.  
+ 
+If not provided, the system will autogenerate round 
+options for the player, up to maximum of 20 rounds per 
+option or maximum of 9 round options. 
+ 
+提供给玩家免费局数量的列表。totalBetValue除以列表内的游戏局数
+，所得的单局游戏投注额须为一个合法的投注，即相除之后没有余
+数。如果游戏局数选项大于2，玩家在启动游戏时会显示给定的免费
+局选项。游戏局的选项最多为9个。 
+ 
+如果没有提供，系统会为玩家自动生成游戏局选项，每个选项最多20
+局或者最多9个选项。 
+No Array 1,2,4,8 
+currency The currency of the free round promotion. This must 
+match the player currency. 
+免费游戏局的货币必须与玩家货币相匹配。 
+Yes String CNY 
+promoCode The optional promotion code for tracking purposes. Valid 
+characters are alphanumeric (lower or upper case), 
+underscore “_” and dash “-”. 
+用于追踪免费游戏局的活动代码。 
+No String ABC 
+validityDays The number of days the promotion is valid after it has 
+been claimed by the player. Must be a value between 1 
+and 7. If not provided, the default is 7 days. 
+玩家认领免费游戏局后的有效天数。如果没有提供，默认是7天。 
+No Number 7 
+rejectable Determines whether the promotion can be rejected by the 
+player or not. If false, the promotion dialog will not 
+include a “No Thanks” button. If true, the promotion 
+dialog will include a “No Thanks” button. If omitted, the 
+default value is true.  
+决定免费游戏局是否可以被玩家拒绝。如果值是“false”，则免费游戏
+局对话框将不包含 “拒绝” 按钮。如果值是“true”，则免费游戏局对话
+框将会包含“拒绝”按钮。如果不设置该值，则默认为“true”。 
+No Boolean true 
+ 
+ 
+
+Example Request (with roundOptions) 
+ 
+ 
+Example Request (without roundOptions) 
+ 
+ 
+8.8.2 Response响应 
+HTTP Status Code 
+201 Created 
+Response Parameters 
+Name Description Type Sample 
+txnId The same identifier as in the request. 
+与请求中的标识符相同。 
+String acfe23cfe4f2 
+bonusId The unique identifier of the promotion. 
+免费游戏局的唯一标识符。 
+String keyops-acfe23cf
+e4f2 
+ 
+Example Response - Success 
+ 
+ 
+ 
+
+8.8.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+ACCOUNT_LOCKED 403 The user or operator is locked. 
+用户或运营商被锁定。 
+BONUS_ALREADY_EXISTS 409 A free round promotion with given txnId already exists. 
+给定的txnId的免费局活动已存在。 
+VALIDATION_ERROR 422 This error is raised if one of the fields within the request are missing or is 
+invalid. 
+如果请求中的字段中的一个丢失或无效此引发错误。 
+BET_VALUE_NOT_FOUND 422 The combination total bet value and one of the number of rounds is not 
+possible for the given game. 
+总投注数值和所选的游戏局数在指定的游戏中不匹配。 
+GAME_NOT_AVAILABLE 422 The game is temporarily not available. 
+游戏暂时不可用。 
+GAME_NOT_FOUND 422 The game with the given id was not found. 
+未找到给定id的游戏。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+QT_NOT_AVAILABLE 503 QT Platform is not available. Temporary down, under maintenance etc. 
+QT平台不可用。临时关闭，正在维护等。 
+ 
+Example Response - Error 
+ 
+ 
+
+8.9 Get Free Round Promotion 获取免费游戏局 
+The Get Free Round Promotion method gives the operator the ability to retrieve the details and latest 
+status of a free round promotion for specific player.  
+A Free Round Promotion can be in one of the following states: 
+获取免费游戏局让运营商能够检索指定玩家的免费游戏局的详细信息和最新状态。 
+免费游戏局可以处于以下的状态： 
+Status Description 
+PROMOTED The operator has assigned the free round to the player. 
+运营商已将免费游戏局分配给玩家。 
+CLAIMED The player has activated the promotion by launching the game and selecting a specific round 
+option. 
+玩家通过选择特定的局数选项接受免费游戏局。 
+IN_PROGRESS The player has started to play the free rounds, ie at least one free round has been completed. 
+玩家已开始使用免费游戏局，并至少完成一轮免费局。 
+COMPLETED The player has completed all the free rounds in the promotion. 
+玩家已完成免费游戏局的所有局数。 
+DELETED The promotion was deleted by the operator. 
+运营商删除免费游戏局。 
+CANCELLED The promotion was rejected by the player. 
+玩家拒绝免费游戏局。 
+FAILED The creation of the promotion failed on the game server. 
+创建免费游戏局失败。 
+EXPIRED The validity period of the promotion has lapsed since the time when it was claimed.  
+由于已经被认领，促销活动的有效期已过。 
+ 
+The status of a Free Round Promotion can have the following transitions:  
+免费游戏局的状态可以包含以下内容： 
+PROMOTED   CLAIMED   IN_PROGRESS   COMPLETED 
+PROMOTED   CLAIMED   IN_PROGRESS   EXPIRED 
+PROMOTED   CLAIMED   FAILED   PROMOTED 
+PROMOTED   CLAIMED   EXPIRED 
+PROMOTED   DELETED 
+PROMOTED   CANCELLED 
+8.9.1 Request 请求 
+Request URL 
+https://{url-to-qtplatform}/v1/bonus/free-rounds/{bonusId}/players/{playerId} 
+HTTP Method 
+GET 
+Header Parameters  
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+Time-Zone 
+The preferred timezone of the request. If not provided, time zone 
+“Asia/Shanghai” (CST) will be used as default. 搜索的首选时区。如
+果没有提供，将以“亚洲/上海”（CST）作默认。 
+No String Asia/Shanghai 
+ 
+Path Parameters  
+
+Name Description Require
+d 
+Type Sample 
+bonusId The unique identifier of the promotion. 
+免费游戏局的唯一标识符。 
+Yes String keyops-acfe23cf
+e4f2 
+playerId The unique player identifier in the operator system. 
+在运营商系统中玩家唯一的标识符。 
+Yes String 45465 
+ 
+Example Request 
+ 
+ 
+8.9.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+bonusId The unique identifier of the promotion. 
+免费游戏局的唯一标识符。 
+String keyops-acfe23cfe4
+f2 
+playerId The unique player identifier in the operator system. 
+在运营商系统中玩家唯一的标识符。 
+String 45465 
+gameIds The list of games in which this free round is playable. 
+支持免费游戏局的列表。 
+Array QS-goldlab,ELK-dj
+wild 
+totalBetValue The total value of the promotion. 
+免费游戏局总数值。 
+Decimal 100.00 
+totalPayout The total payout of the promotion. 
+免费游戏局总出款。 
+Decimal 50.00 
+roundOptions The list of numbers of rounds offered to player. Each 
+number in the list is equal to totalBetValue divided by legal 
+bet amount for the given game without remainder. 
+Maximum of 9 round options.  
+提供给玩家的免费游戏局数量，列表中的每个数字等于totalBetValue
+除以给定游戏的合法投注金额，且没有余额。 最多选项为9局。 
+Array 1,2,4,8 
+currency The currency of the free round promotion. It matches the 
+player currency. 
+免费游戏局的货币与玩家货币相匹配。 
+String CNY 
+promoCode The optional promotion code for tracking purposes. 
+用于追踪免费游戏局的活动代码。 
+String ABC 
+status 
+The status of the free round promotion. The other response 
+parameters returned depend on the status of the free round 
+promotion. The value of this parameter can either be PROMOTED, 
+CLAIMED, IN_PROGRESS, COMPLETED, DELETED, 
+CANCELLED or FAILED. 
+免费游戏局的状态。返回的响应参数取决于游戏局的状态。此参数的
+值可以是PROMOTED，CLAIMED，IN_PROGRESS，COMPLETED
+， 
+DELETED，CANCELLED或FAILED。 
+String CLAIMED 
+validityDays The number of days the promotion is valid after it has been 
+claimed by the player.  
+玩家认领免费游戏局后的有效天数。 
+Number 7 
+promotedDateTime The date and time when the promotion was given to the 
+player. Format is comprised of ISO-8601 compatible date 
+String 2019-03-14T16:44
+:41.087+08:00[As
+
+time format followed by the time zone equal to Time-Zone 
+request header, in square brackets. 
+提供给玩家免费游戏局的日期和时间，格式由ISO-8601兼容日期时间
+格式组成，方括号时区与请求头参数时区一致。 
+ia/Shanghai] 
+claimedDateTime The date and time when the promotion was claimed by the 
+player. Format is comprised of ISO-8601 compatible date 
+time format followed by the time zone equal to Time-Zone 
+request header, in square brackets. 
+玩家认领免费游戏局的日期和时间。 格式由ISO-8601兼容日期时间
+格式组成，方括号时区与请求头参数时区一致。 
+String 2019-03-14T16:52
+:41.087+08:00[As
+ia/Shanghai] 
+failedDateTime The date and time when a promotion operation failed due 
+to error. Format is comprised of ISO-8601 compatible date 
+time format followed by the time zone equal to Time-Zone 
+request header, in square brackets. 
+免费游戏局因错误导致失败的日期和时间。 格式由ISO-8601兼容日
+期时间格式组成，方括号时区与请求头参数时区一致。 
+String 2019-03-14T17:52
+:41.087+08:00[As
+ia/Shanghai] 
+completedDateTime The date and time when all free rounds in the promotion 
+was completed by the player. Format is comprised of 
+ISO-8601 compatible date time format followed by the time 
+zone equal to Time-Zone request header, in square 
+brackets. 
+玩家已经完成免费游戏局的日期和时间。格式由 ISO-8601 兼容日期
+时间格式组成,方括号时区与请求头参数时区一致。 
+String 2019-03-14T17:45
+:41.087+08:00[As
+ia/Shanghai] 
+cancelledDateTime The date and time when the promotion was rejected by the 
+player. Format is comprised of ISO-8601 compatible date 
+time format followed by the time zone equal to Time-Zone 
+request header, in square brackets. 
+玩家拒绝免费游戏局的日期和时间。格式由ISO-8601兼容日期时间
+格式组成，方括号时区与请求头参数时区一致。 
+String 2019-03-14T17:11
+:41.087+08:00[As
+ia/Shanghai] 
+deletedDateTime The date and time when the promotion was deleted by the 
+operator. Format is comprised of ISO-8601 compatible date 
+time format followed by the time zone equal to Time-Zone 
+request header, in square brackets. 
+运营商删除玩家免费游戏局的日期和时间。格式由 ISO-8601 兼容日
+期时间格式组成,方括号时区与请求头参数时区一致。 
+String 2019-03-14T17:11
+:41.087+08:00[As
+ia/Shanghai] 
+expiredDateTime The date and time when the validity period of the 
+promotion has lapsed since it was claimed. Format is 
+comprised of ISO-8601 compatible date time format 
+followed by the time zone equal to Time-Zone request 
+header, in square brackets. 
+促销活动过期失效的日期和时间，由于已经被认领此促销活动的有效
+期已过。格式由 ISO-8601 兼容日期时间格式组成,方括号时区与请求
+头参数时区一致。 
+String 2019-03-14T17:11
+:41.087+08:00[As
+ia/Shanghai] 
+claimedRoundOption The selected round option of the player. 
+玩家选择游戏局数的选项。 
+Number 1 
+claimedGameId The unique identifier of the game, provided by QT, in which 
+the player activated (claimed) the promotion. 
+当玩家认领免费游戏局后，由 QT 提供的游戏唯一的标识符。 
+String QS-goldlab 
+ 
+ 
+
+Example Response – Success with status PROMOTED 
+ 
+ 
+ 
+Example Response – Success with status CLAIMED 
+ 
+ 
+ 
+Example Response – Success with status IN_PROGRESS 
+ 
+ 
+ 
+ 
+
+Example Response – Success with status COMPLETED 
+ 
+ 
+ 
+Example Response – Success with status DELETED 
+ 
+ 
+ 
+Example Response – Success with status CANCELLED 
+ 
+ 
+ 
+ 
+
+Example Response – Success with status FAILED 
+ 
+ 
+ 
+Example Response – Success with status EXPIRED 
+ 
+ 
+8.9.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+NOT_FOUND 404 Promotion not found. 
+未找到免费游戏局。 
+ 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+ 
+Example Response - Error 
+
+ 
+ 
+8.10 Delete a Free Round Promotion 删除免费游戏局 
+The Delete Free Round Promotion method gives the operator the possibility to delete a free round 
+promotion for specific player.  
+删除免费游戏局可以让运营商删除特定玩家的免费游戏局。  
+ 
+8.10.1 Request 请求 
+Request URL 
+https://{url-to-qtplatform}/v1/bonus/free-rounds/{bonusId}/players/{playerId} 
+HTTP Method 
+DELETE 
+Header Parameters  
+Name Description Require
+d 
+Type Sample 
+Authorization 
+The valid access token.有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Path Parameters  
+Name Description Require
+d 
+Type Sample 
+bonusId The unique identifier of the promotion. 
+免费游戏局的唯一标识符。 
+Yes String keyops-acfe23cf
+e4f2 
+playerId The unique player identifier in the operator system. 
+在运营商系统中玩家唯一的标识符。 
+Yes String 45465 
+ 
+Example Request 
+ 
+ 
+8.10.2 Response响应 
+HTTP Status Code 
+204 No Content 
+ 
+
+8.10.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+NOT_FOUND 404 Promotion not found. 
+未找到免费游戏局。 
+STATUS_CONFLICT 409 Promotion already claimed, cancelled, failed or completed. 
+免费游戏局已被认领，取消，失效或完成。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+ 
+Example Response - Error 
+ 
+ 
+ 
+
+8.11 Get Jackpots 获取奖池 
+Retrieves information from all available jackpots, including the jackpot id, games, pools and current 
+balances per currency.  
+检索所有有效奖池的信息，包括奖池id，游戏，奖金池和每种货币当前余额。 
+8.11.1 Request 请求 
+Request URL 
+https://{url-to-qtplatform}/v1/jackpots?currencies={currencies}&type={poolType} 
+HTTP Method 
+GET 
+Header Parameters  
+Name Description Require
+d 
+Type Sample 
+Authorization The valid access token. 
+有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+ 
+Query Parameters  
+Name Description Require
+d 
+Type Sample 
+currencies Filters the list of jackpot balances by the given currency or 
+currencies. Can be set as a single currency or as a comma 
+separated currency code list. If not provided, all available 
+jackpot currencies will be included in the result. 
+按给定的一种或多种货币过滤奖池余额列表。可以设置为单一货币或
+逗号分隔的货币代码列表。如果未提供，则所有可用货币的奖池都将
+包括在结果中。 
+No String CNY,EUR 
+type Returns the given pool. Valid values are GRAND, MAJOR, 
+MINOR, MINI. If not provided, all available jackpot pools 
+will be included in the result. 
+返回给定的奖池。有效值为GRAND, MAJOR, MINOR, MINI。如果没
+有提供，则会在返回结果中包含所有有效的奖池。 
+No String GRAND 
+ 
+Example Request 
+ 
+ 
+ 
+
+8.11.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+totalCount The total number of jackpots in the result. 
+结果中奖池的总数 
+Number 2 
+items The array of jackpot objects. 
+奖池项目的组。 
+Array - 
+items.id The unique identifier of the jackpot. 
+奖池id。 
+String jackpot1 
+items.games The games of a certain jackpot. 
+指定游戏的奖池。 
+Array BPG-jackpotfore
+ver 
+items.pools The pools of a certain jackpot. 
+指定奖池的奖金池。 
+Array - 
+items.pools.ty
+pe 
+The type of the jackpot pool. Valid values are GRAND, MAJOR, 
+MINOR, MINI. 
+奖池类型。有效值为GRAND, MAJOR, MINOR, MINI. 
+String GRAND 
+items.pools.ba
+lances 
+The balances of the jackpot pool per currency. 
+每种货币奖池的余额。 
+Array - 
+items.pools.ba
+lances.currenc
+y 
+The currency of a certain jackpot pool balance. 
+指定奖池余额的货币。 
+String CNY 
+items.pools.ba
+lances.amount 
+The amount of a certain jackpot pool balance. 
+指定奖池余额的金额。 
+Decimal 123456.78 
+ 
+Example Response 
+ 
+
+8.11.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+ 
+Example Response - Error 
+
+8.12 Get Jackpot Winners 获取奖池赢家 
+Retrieves information from list of winners for all available jackpot, including the jackpot won (amount), 
+game id which the jackpot was won,  and date and time when the jackpot was won.   
+从所有可用奖池的赢家列表中检索信息，包括赢得的奖池奖金（金额）、赢得奖池的游戏 ID 以及赢得奖池的日期和时间。 
+8.12.1 Request 请求 
+Request URL 
+https://{url-to-qtplatform}/v1/jackpots/{jackpotId}/winners 
+HTTP Method 
+GET 
+Header Parameters  
+Name Description Require
+d 
+Type Sample 
+Authorization The valid access token. 
+有效的访问令牌。 
+Yes String Bearer 
+76236f90-dc9c-
+36d7-9e78-3e71
+6d5ecf92 
+Time-Zone 
+ 
+The preferred timezone of the search. If not provided, the No 
+“Asia/Shanghai” (CST) will be used as default. 搜索的首选时 
+区。如果没有提供，将以“亚洲/上海”(CST)作默认。 
+No String UTC or 
+Europe/Kiev 
+Accept-Langu
+age 
+The preferred language of the game names. If not provided, 
+English (en-US) will be used as default. 
+游戏名称的首选语言。 如果未提供，将默认使用英语 (en-US)。 
+ 
+Accepted values: en-US zh-CN 
+No String zh-CN 
+ 
+Query Parameters  
+Name Description Required Type Sample 
+from The start date and time of the search, expressed as 
+“YYYY-MM-DDThh:mm:ss”  
+搜索的开始日期和时间，表示为 “YYYY-MM-DDThh:mm:ss” 
+No date 2022-04-20T00:
+00:00 
+to 
+The end date and time of the search, expressed as “YYYY- Yes 
+(defaults to now if unspecified) 
+MM-DDThh:mm:ss”搜索的截至日期和时间，表示为“YYYY-MM- 
+DDThh:mm:ss” 
+no date 2022-04-27T00:
+00:00 
+operatorId The operatorId to search (defaults to current operator and 
+all downline if unspecified) 
+要搜索的 operatorId（如果未指定,默认为当前运营商和其所有下线
+ 
+no String qt1234 
+jpType The type of the jackpot pool (defaults to all if 
+unspecified).  
+奖池的类型（如果未指定，则默认为全部）。 
+no String GRAND 
+gameId The list of games in which the jackpot is playable 
+(defaults to all if unspecified).  
+可玩奖池的游戏列表（如果未指定，则默认为所有）。 
+no String ELK-bloopers 
+jpPoolId The unique identifier of the pool of a certain jackpot. 
+指定
+奖池的唯一标识符。
+ 
+no String poolId1 
+size the page size (defaults to 100 if unspecified) 
+页面大小（如果未指定则默认为 100） 
+no Number 100 
+cursor the cursor used for pagination expressed as “<dateTime 
+in epoch long>,<jackpotWinnerId> 
+用于分页的光标表示为“<dateTime in epoch 
+long>,<jackpotWinnerId>”
+ 
+no String 1589731200000,
+MINI-5ec15f800
+0000000000000
+00 
+ 
+
+Example Request 
+ 
+8.12.2 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+totalCount 
+The grand total number of games in the result.游戏结果的总计数。 
+ 
+Number 2 
+items The array of jackpot objects. 
+奖池项目的组。 
+Array - 
+jpId The unique identifier of the jackpot. 
+奖池id。 
+String jackpot1 
+jpName The name of a certain jackpot. 
+指定奖池的名称。 
+String Jackpot Forever 
+playerId 
+ 
+The player id who won, supplied by the Operator. 
+获胜的玩家 ID，由运营商提供。 
+String qt-franz 
+playerDisplayName 
+The display name of the winner. 
+获胜者的显示名称。 
+String Franz 
+operatorId The unique identifier of the operator in QT Platform. 
+运营商在QT平台中的唯一标识符 
+String keyops 
+gameId The unique identifier of the game, provided by QT, in which the 
+player won the jackpot. 
+QT提供的游戏的唯一标识符，玩家在其中赢得了奖池。 
+ 
+String BPG-jackpotgam
+e 
+gameName The display name of the game. Game names will be translated 
+according to the provided Accept-Language header. 
+游戏的显示名称。 游戏名称将根据提供的 Accept-Language 标头进行翻
+译。 
+String Jackpot Game 
+roundId The game round id supplied by the QT Platform, in which the 
+player won the jackpot. 
+QT提供的游戏局ID，玩家在其中赢得了奖池。 
+String 5eaf83c758d777
+39bc1dce21 
+jpType The type of the jackpot pool. Valid values are GRAND, MAJOR, 
+MINOR, MINI. 
+奖池类型。有效值为GRAND, MAJOR, MINOR, MINI. 
+String MAJOR 
+jpPoolId The unique identifier of the pool of a certain jackpot. 
+指定奖池的唯一标识符。 
+ 
+String BPG-major 
+jpAmount The total jackpot win amount. 
+奖池赢奖总金额。 
+ 
+Decimal 1.00 
+currency The currency of the game, as a 3-letter code according to ISO 
+4217. 
+玩家钱包的货币，以 3 个字母的代码表示。对于真实货币，货币代码取自于 
+ISO 4217。 
+String CNY 
+dateTime The date and time when the jackpot was won by a given player Date 2020-05-18T00:
+
+Format is comprised of ISO-8601 compatible date time format 
+followed by the time zone equal to Time-Zone request header, in 
+square brackets. 
+给定玩家赢得奖池的日期和时间，格式由 ISO-8601 兼容的日期时间格式组
+成，后跟方括号中等于时区请求标头的时区。 
+00:00.000+08:0
+0[Asia/Manila] 
+providerId The unique identifier of the Provider, provided by QT.  
+提供商的唯一标识符，由 QT 提供。 
+String BPG 
+links 
+ 
+ 
+If the number of items in the result exceeds the given or default size, the 
+search-result will be paginated. The first element in the links array will be 
+the link to the next page and so on. When the search-result has reached 
+the last page, the links element will not be displayed anymore. 如果结果中
+的数量超过给定的或默认大小，搜索结果将分页。中的第一个元素将是下一
+页的链接，依此类推。当搜索结果已经达到了最后一页，链接元素将不再显
+示。 
+Array - 
+links.href 
+ 
+ 
+ 
+ 
+ 
+The relative url to the next page.  
+该网址到下一页 
+String /v1/jackpots/5ec
+dd8423f1a89025
+16f3bf3/winners
+?cursor=166781
+3304000%2CMI
+NOR-6368cf738a
+6b700001f45b81
+&size=100 
+links.method The relation name of the link.  
+链接的关系名 
+String GET 
+links.rel The relation name of the link.  
+链接的关系名 
+String next 
+links.name The friendly name of the link.  
+链接的友好名称 
+String Next 
+ 
+
+Example Response 
+ 
+ 
+
+Example Response – Translated Game Names (zh-CN) 
+ 
+8.12.3 Possible Errors 可能的错误 
+Code HTTP 
+Status 
+Description 
+INVALID_TOKEN 401 Missing, invalid or expired access token. 
+缺失，无效或过期的访问令牌。 
+UNKNOWN_ERROR 500 Unexpected error. 
+意外的错误 
+ 
+ 
+ 
+ 
+Example Response – Error 
+
+ 
+ 
+ 
+8.13 Tournament 锦标赛 
+The Tournament API endpoints, which allow an authenticated Operator to retrieve tournament 
+information and leaderboard rankings from the QT Platform 
+锦标赛 API 的各项端点，经身份验证的运营方（Operator）可通过该 API 从 QT平台获取锦标赛信息和排行榜排名数据。 
+The Tournament API provides two endpoints for retrieving tournament data: 
+• Get Tournaments — Returns a paginated list of tournaments available to the authenticated operator. 
+• Get Leaderboards — Returns leaderboard rankings for a specific tournament. 
+All communication is server-to-server, over HTTPS, using JSON as the data-interchange format with 
+UTF-8 character encoding. Date and time values are presented in ISO 8601 format. 
+锦标赛 API 提供两个用于获取锦标赛数据的端点： 
+• Get Tournaments — 返回经过身份验证的运营商可访问的锦标赛分页列表。 
+• Get Leaderboards — 返回特定锦标赛的排行榜排名数据。 
+所有通信均为服务器到服务器通信，通过 HTTPS 进行，使用 JSON 作为数据交换格式，并采用 UTF-8 字符编码。 
+Tournaments are competitive events where players accumulate points based on win conditions (e.g., Best 
+Round or Collect Points). Each tournament has an availability window defined by a start and end date, 
+and may include single (overall) prizes, daily prizes, or both. 
+锦标赛是玩家根据获胜条件（例如最佳回合或收集积分）累积积分的竞技赛事。每个锦标赛都有由开始和结束日期定义的可
+用窗口，可能包括单一（总体）奖品、每日奖品或两者兼有。 
+By default, the Get Tournaments endpoint returns only IN_PROGRESS tournaments (started before now, 
+ending after now). OPEN (future) and COMPLETED tournaments can be retrieved with explicit date 
+parameters. 
+默认情况下，Get Tournaments 端点仅返回进行中（IN_PROGRESS）的锦标赛（即已开始且尚未结束的锦标赛）。未开始（
+OPEN）和已结束（COMPLETED）的锦标赛可通过指定日期参数进行查询。 
+ 
+8.13.1 Leaderboards / 排行榜 
+Each tournament has one or more leaderboard groups depending on its availability type: 
+• Single-only: One group with type SINGLE (group 0) 
+• Daily-only: Multiple groups with type DAILY (group 1, 2, ...) 
+• Single + Daily: One OVERALL group (group 0) + multiple DAILY groups 
+Players outside the requesting operator's hierarchy have their operatorId and playerId masked (e.g., 
+al****USD). 
+每个锦标赛包含一个或多个排行榜分组，具体取决于其奖励结构： 
+• Single-only（仅单一奖励） 
+  - 仅包含 1 个分组（group 0） 
+  - 类型：SINGLE 
+• Daily-only（仅每日奖励） 
+  - 包含多个分组（group 1、2、3......） 
+  - 类型：DAILY 
+• Single + Daily（单一 + 每日奖励） 
+  - group 0：OVERALL（总排行榜） 
+  - group 1、2......：DAILY（每日排行榜） 
+超出当前请求运营商层级范围的玩家，其 operatorId 和 playerId 将被脱敏显示（例如 al****USD）。 
+ 
+
+8.13.2 Statuses / 状态 
+Tournament status is derived from availability dates at query time: 
+锦标赛状态是在查询时根据可用日期动态计算得出的： 
+Status / 状态 
+Description / 描述 
+OPEN 
+未开始 
+Tournament has not yet started (start date is in the future). 
+锦标赛尚未开始（开始日期在未来）。 
+IN_PROGRESS 
+进行中 
+Tournament is currently active (started before now, ending after now). 
+锦标赛当前处于活跃状态（已经开始，还未结束）。 
+COMPLETED 
+已结束 
+Tournament has ended (end date is in the past). 
+锦标赛已结束（结束日期在过去）。 
+INCOMPLETE 
+未完成 
+Tournament is incomplete. Always excluded from API results. 
+锦标赛未完成，将不会出现在 API 返回结果中。 
+ 
+8.13.3 Error Handling / 错误处理 
+In case of an error, the response will include an appropriate HTTP status code (4xx or 5xx) and a JSON 
+body containing an error code and message. 
+Error Response Format 
+ 
+ 
+8.13.4 Get Tournaments / 获取锦标赛 
+Returns a paginated list of tournaments available to the authenticated operator. By default, only 
+IN_PROGRESS tournaments are returned. OPEN (future) and COMPLETED tournaments can be retrieved 
+with explicit date parameters. INCOMPLETE tournaments are always excluded. 
+Results are sorted by startDateTime ascending. 
+返回经过身份验证的运营方可访问的锦标赛分页列表。 
+默认仅返回进行中（IN_PROGRESS）的锦标赛。 
+可通过指定日期参数获取未开始（OPEN）和已结束（COMPLETED）的锦标赛。 
+未完成（INCOMPLETE）的锦标赛始终不包含在返回结果中。 
+查询结果按 startDateTime 升序排序。 
+8.13.5 Request 请求 
+Request URL / 请求URL 
+https://{qtplatform}/v1/tournaments 
+HTTP Method / HTTP方法 
+GET 
+
+Header Parameters / 请求头参数 
+Name / 名称 Description / 描述 
+Required 
+/ 必需 
+Type / 
+类型 
+Sample / 示例 
+Authorization The valid access token. 
+有效的访问令牌。 
+Yes 
+是 
+String Bearer 76236... 
+Time-Zone IANA timezone identifier 
+(e.g., Asia/Tokyo, UTC). 
+Affects default date 
+calculations and response 
+date formatting. Falls back to 
+server system default when 
+not provided. 
+IANA 时区标识符（例如 
+Asia/Tokyo、UTC）。会影响默认日
+期计算和响应中的日期格式化。如
+果未提供，则使用服务器系统默认
+时区。 
+No 
+否 
+String Asia/Tokyo 
+ 
+Query Parameters / 查询参数 
+Name / 名称 Description / 描述 
+Required 
+必需 
+Sample / 示例 
+size Number of results per page. 
+Minimum: 1, Maximum: 100. 
+每页结果数。最小值：1，最大值：100。 
+No 
+否 
+10 
+cursor Cursor for fetching the next page. 
+Obtained from the links[].href in 
+a previous response. 
+用于获取下一页的游标。从先前响应的
+links[].href中获得。 
+No 
+否 
+1717516800000 
+fromStartDateTi
+me 
+Filter tournaments where 
+availability.start >= value. 
+Format: YYYY-MM-DDTHH:mm:ss. 
+No default (no lower bound on 
+start date). 
+筛选开始时间（availability.start）≥ 指定
+值 
+格式：YYYY-MM-DDTHH:mm:ss   
+默认：无（不限制开始时间下限） 
+No 
+否 
+2026-03-10T00:00:00 
+toStartDateTime Filter tournaments where 
+availability.start <= value. 
+Defaults to now() in the 
+requested timezone (only 
+already-started tournaments). 
+筛选锦标赛开始时间（availability.start）
+≤ 指定值 
+默认：当前时间（now），使用请求中的时
+区（仅返回已开始的锦标赛） 
+No 
+否 
+2026-03-17T00:00:00 
+
+fromEndDateTim
+e 
+Filter tournaments where 
+availability.end >= value. 
+Defaults to now() in the 
+requested timezone (only 
+not-yet-ended tournaments). 
+筛选锦标赛结束时间（availability.end）≥ 
+指定值 
+默认：当前时间（now），使用请求中的时
+区（仅返回尚未结束的锦标赛） 
+No 
+否 
+2026-03-10T00:00:00 
+toEndDateTime Filter tournaments where 
+availability.end <= value. No 
+default (no upper bound on end 
+date). 
+筛选锦标赛结束时间（availability.end）≤ 
+指定值 
+默认：无（不限制结束时间上限） 
+No 
+否 
+2026-03-17T00:00:00 
+operators Comma-separated operator IDs 
+to filter by. Only returns 
+tournaments assigned to these 
+operators. Operators not in the 
+requesting user's hierarchy are 
+silently ignored. Defaults to all 
+operators in the hierarchy. 
+用逗号分隔的运营商ID筛选条件。仅返
+回分配给这些运营商的锦标赛。不在当
+前请求用户层级内的运营商将被自动忽
+略。 
+默认：当前层级下的所有运营商 
+No 
+否 
+op1,op2,op3 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Example Request 
+ 
+
+8.13.6 Response响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+totalCount Total number of retrievable tournaments matching the query. 
+Adjusted for post-filtered exclusions (e.g., prize mismatch). 
+符合查询条件的可检索赛事总数。已根据筛选后的排除项（例如，奖金不匹
+配）进行调整。 
+ 
+Integer 25 
+items Array of tournament objects. 
+锦标赛对象数组。 
+Array  
+links Pagination links. Contains a next link when more results are 
+available. 
+分页链接。当有更多结果时，包含“下一页”链接。 
+Array  
+ 
+Tournament Object 
+Name Description Type Sample 
+id  Tournament ID.  
+赛事 ID。 
+String 5a6dae4e5bae
+4487a7aec940
+6099f9c5 
+details Tournament details object (see below). 
+锦标赛详情对象（见下文）。 
+Object  
+winCondition Win condition object (see below).  
+获胜条件对象（见下文） 
+Object  
+prizes Prize structure object (see below).  
+奖金结构对象（见下文）。 
+Object  
+ 
+Tournament Details Object 
+Name Description Type Sample 
+title 
+Tournament name (translated). Empty string if no translation 
+exists. 
+赛事名称（已翻译）。如果没有翻译，则为空字符串。 
+String Admiral Wilds 
+Tournament 
+海军上将荒野
+锦标赛 
+status Derived from availability dates at query time. Valid values: 
+OPEN , IN_PROGRESS , COMPLETED . 
+INCOMPLETE tournaments are excluded. 
+根据查询时的可用日期推算得出。有效值：OPEN、IN_PROGRESS、
+COMPLETED。 
+ 
+INCOMPLETE 状态的赛事不包含在内。 
+String IN_PROGRES
+S 
+operators 
+Operators this tournament is available to (filtered to requesting user's 
+hierarchy). 
+本次锦标赛面向以下运营商开放（按请求用户的层级筛选）。 
+Array ["keyops"] 
+providers Game providers included in this tournament. 
+本次锦标赛的游戏提供商包括. 
+Array ["PSG"] 
+gameIds Specific game IDs included. Empty array if all provider games 
+are included. 
+包含特定游戏 ID。如果包含所有提供商的游戏，则数组为空。 
+Array ["18P- 
+admiralwilds"
+] 
+devices Supported devices. Valid values: DESKTOP , 
+MOBILE , NATIVE . 
+支持的设备。有效值：DESKTOP , 
+MOBILE , NATIVE . 
+Array ["DESKTOP", 
+"MOBILE"] 
+
+gameTypes Game types included. Valid values: SLOT , TABLEGAME , 
+INSTANTWIN , LIVECASINO , ESPORTS , BINGO , LOTTERY . 
+包含的游戏类型。有效值：老虎机、桌面游戏、即时赢、真人赌场、电子竞
+技、宾果、彩票。 
+Array ["SLOT"] 
+organizer Tournament organizer. QTECH (internal) or 
+GAME_PROVIDER (external). 
+赛事组织方：QTECH（内部）或 GAME_PROVIDER（外部）。 
+ 
+String QTECH 
+leaderboardUrl URL to the leaderboard. null if empty or not set. 
+排行榜的URL。如果为空或未设置，则为null。 
+String null 
+isWidgetHidden Whether the tournament widget is hidden. 
+锦标赛小部件是否隐藏。 
+Boolea
+n 
+false 
+availability Availability object (see below). 
+可用性对象（见下文）。 
+Object  
+ 
+Availability Object 
+Name Description Type Sample 
+startDateTime 
+ISO 8601 start date, converted from UTC to the requested 
+timezone. Uses Z suffix for UTC, offset for other timezones 
+(e.g., +09:00 ). 
+ISO 8601 起始日期，从 UTC 转换为请求的时区。UTC 使用 Z 后缀，其
+他时区使用偏移量（例如，+09:00）。 
+String 2026-03-29T
+16:00:00Z 
+endDateTime 
+ISO 8601 end date, converted from UTC to the requested 
+timezone. 
+ISO 8601 结束日期，从 UTC 转换为所请求的时区。 
+String 2026-04-08T
+16:00:00Z 
+single Whether the tournament has a single (overall) prize. 
+比赛是否设有单一（总）奖项。 
+Boolean true 
+daily Whether the tournament has daily prizes. 
+比赛是否设有每日奖项。 
+Boolean false 
+ 
+Win Condition Object 
+Name Description Type Sample 
+campaignType 
+Win condition type. Valid values: 
+BEST_ROUND , COLLECT_POINTS . 
+获胜条件类型。有效值： 
+ 
+BEST_ROUND、COLLECT_POINTS。 
+String BEST_ROUND 
+currency 
+Currency code for the win condition. 
+获胜条件的货币代码。 
+String AED 
+minPointsRequire
+d 
+Minimum points to qualify. 0 for BEST_ROUND. 
+获得资格所需的最低分数。最佳单项成绩为 0 分。 
+Integer 0 
+minimumNumber
+OfRounds 
+Minimum rounds required. Used by BEST_ROUND. 
+所需最少轮数。由 BEST_ROUND 使用。 
+Integer 10 
+pointsConditions Array of points condition groups (see below). 
+点条件组数组（见下文）。 
+Array  
+ 
+Point Condition Group 
+Name Description Type Sample 
+applicable.gameModels 
+Game models this condition applies to. 
+此条件适用于以下游戏模型。 
+String ALL 
+conditions 
+Array of condition objects. 
+条件对象数组。 
+Array  
+ 
+
+Condition Object 
+Name Description Type Sample 
+type 
+Condition type. Valid values: BEST_ROUND_CONDITION , 
+MIN_BET_AMOUNT , MIN_WIN_AMOUNT . 
+ 
+条件类型。有效值：BEST_ROUND_CONDITION、MIN_BET_AMOUNT、
+MIN_WIN_AMOUNT。 
+String BEST_ROUN
+D_CONDITIO
+N 
+points 
+Points awarded for this condition. 
+符合此条件可获得积分。 
+Integer  
+minBetAmount Minimum bet amount (BigDecimal, scale 2). 
+最小投注金额（BigDecimal，2 位小数）。 
+String 2.00 
+maxBetAmount Maximum bet amount (BigDecimal, scale 2). 
+最大投注金额（BigDecimal，2 位小数）。 
+String 100.00 
+winAmount Minimum win amount (for MIN_WIN_AMOUNT type). 
+最低赢取金额（MIN_WIN_AMOUNT 类型）。 
+String 10.00 
+subConditions Array of sub-condition objects. Types: 
+MIN_WIN_BY_MULTIPLIER , MIN_WIN_BY_AMOUNT . 
+子条件对象数组。类型：MIN_WIN_BY_MULTIPLIER、
+MIN_WIN_BY_AMOUNT。 
+Array  
+ 
+Prizes Object 
+Prize structure varies by availability type: 
+● Single-only: singe is set 
+● Daily-only: daily is set 
+● Single + Daily: overall and daily are set 
+奖品类型 
+奖品结构因奖品类型而异： 
+● 单次奖品：单次奖品已设置 
+● 每日奖品：每日奖品已设置 
+● 单次奖品+每日奖品：总奖品和每日奖品均已设置 
+ 
+Name Description Type Sample 
+single 
+Prize group for single-only tournaments. 
+单项赛事的奖金组。 
+Object  
+daily 
+Prize group for daily prizes. 
+每日奖品分组。 
+Object  
+overall Prize group for overall prizes (when both single + daily). 
+总奖项组（包括单次奖项和每日奖项）。 
+Object  
+ 
+Prizes Group Object 
+Name Description Type Sample 
+numberOfWinners 
+Number of winners in this prize group. 
+该奖项组的获奖人数。 
+Integer 2 
+items 
+Array of prize items per currency. Multiple currencies 
+supported. 
+按货币分类的奖品列表。支持多种货币。 
+Array  
+ 
+Prizes Item Object 
+Name Description Type Sample 
+
+currency 
+Currency code. 
+货币代码。 
+String AED 
+prizePool 
+Total prize pool (BigInteger as string, no decimals). 
+奖金池总额（BigInteger 字符串，不含小数）。 
+String 15000 
+amounts Prize amounts per rank (BigInteger as string, no decimals). 
+每个排名对应的奖金金额（字符串形式的 BigInteger，不含小数）。 
+Array ["10000", 
+"5000"] 
+ 
+Pagination Link Object 
+Name Description Type Sample 
+name 
+Link name. 
+链接名称。 
+String Next 
+rel 
+Link relation. 
+链接关系。 
+String next 
+method HTTP method. 
+HTTP 方法。 
+String GET 
+href Relative URL for the next page. 
+下一页的相对 URL。 
+String /v1/tournam
+ents? 
+cursor=1717
+516800000&
+size=10 
+ 
+Example Response - IN_PROGRESS Tournaments 
+
+ 
+ 
+Example Response - Empty Result 
+ 
+ 
+
+8.13.7 Possible Errors 可能的错误 
+Code HTTP Status Description 
+VALIDATION_ERROR 
+400 
+Business validation error (e.g., 'fromStartDateTime' must be 
+before 'toStartDateTime' ). 
+业务验证错误（例如，“fromStartDateTime”必须在“toStartDateTime”之
+前）。 
+UNAUTHORIZED 
+401 
+Missing or invalid OAuth2 token. 
+OAuth2令牌缺失或无效。 
+ACCOUNT_LOCKED 403 The user or operator is locked. 
+用户或操作员已被锁定。 
+VALIDATION_ERROR 422 Annotation-based validation error (e.g., invalid date format). 
+Expected: yyyy-MM-dd'T'HH:mm:ss . 
+基于注释的验证错误（例如，无效的日期格式）。预期格式：
+yyyy-MM-dd'T'HH:mm:ss。 
+ 
+Example Error 
+ 
+ 
+8.13.8 Get Leaderboards / 获取排行榜 
+Returns leaderboard rankings for the specified tournament. Rankings include player rank, operator, player 
+ID, and points. 
+Players outside the requesting operator's hierarchy have their operatorId and playerId masked (e.g., 
+ot****er1, ja****ane). 
+The response includes one or more leaderboard groups depending on the tournament's availability type: 
+● Single-only: One group with type (group 0) 
+● Daily-only: Multiple groups with type (group 1, 2, ...) 
+● Single + Daily: One Overall group (group 0) + multiple Daily groups 
+返回指定锦标赛的排行榜排名数据。排名信息包括玩家排名、运营商、玩家ID以及积分。 
+超出当前请求运营商层级范围的玩家，其operatorId和playerId将被隐藏/掩码处理（例如 ot****er1、ja****ane）。 
+根据赛事类型，排行榜将分为一个或多个组： 
+●   单项赛：一个组（组 0） 
+● 每日赛：多个组（组 1、2 等） 
+● 单项赛 + 每日赛：一个总排名组（组 0）+ 多个每日排名组 
+ 
+8.13.9 Request 请求 
+Request URL / 请求URL 
+https://{qtplatform}/v1/tournaments/{tournamentId}/leaderboards 
+HTTP Method / HTTP方法 
+GET 
+Header Parameters / 请求头参数 
+Name / 名称 Description / 描述 Sample / 示例 
+
+Authorization The valid access token. 
+有效的访问令牌。 
+Bearer 76236... 
+ 
+Path Parameters / 路径参数 
+Name / 名称 Description / 描述 Sample / 示例 
+tournamentId The tournament ID to retrieve 
+leaderboards for. 
+用于获取排行榜的锦标赛 ID。 
+5a6dae4e5bae... 
+ 
+Example Request 
+ 
+8.13.10 Response 响应 
+HTTP Status Code 
+200 OK 
+Response Parameters 
+Name Description Type Sample 
+leaderboards Array of leaderboard group objects. 
+排行榜组对象数组。 
+Array  
+ 
+Leaderboard Group Object 
+Name Description Type Sample 
+type Leaderboard type. Valid values: SINGLE , OVERALL , DAILY . 
+排行榜类型。有效值：SINGLE、OVERALL、DAILY。 
+String SINGLE 
+group Group number. 0 for single/overall, 1+ for daily groups. 
+组号：0 代表单次/总组，1 及以上代表每日组。 
+Integer 0 
+rankings Array of ranking objects. 
+排名对象数组 
+Array  
+ 
+Leaderboard Ranking Object 
+Name Description Type Sample 
+rank Player's rank position. 
+玩家排名。 
+Intege
+r 
+1 
+operatorId Operator ID. Masked if outside requesting operator's hierarchy 
+(e.g., op****or1 ). 
+操作员 ID。如果位于请求操作员层级之外，则会进行掩码处理（例如，
+op****or1）。 
+String keyops 
+playerId Player ID. Masked if outside requesting operator's hierarchy 
+(e.g., 
+al****USD ). 
+玩家 ID。如果位于请求运营商层级之外，则会进行屏蔽（例如，al****USD
+）。 
+String alfred_USD 
+points Points accumulated. 
+累积积分。 
+Long 878874 
+
+ 
+ 
+ 
+ 
+Example Response - Single Tournament Leaderboard 
+ 
+Example Response - Single + Daily Tournament Leaderboard 
+ 
+Example Response - Masked Players (Outside Hierarchy) 
+ 
+
+ 
+Example Response - Empty Leaderboard 
+ 
+ 
+8.13.11 Possible Errors 可能的错误 
+Code / 代码 
+HTTP 
+Status 
+HTTP状态 
+Description / 描述 
+UNAUTHORIZED 401 Missing or invalid OAuth2 token. 
+缺少或无效的OAuth2令牌。 
+ACCOUNT_LOCKED 403 The user or operator is locked. 
+用户或运营商已被锁定。 
+TOURNAMENT_NOT_FOUND 404 Tournament not found. 
+未找到锦标赛。 
+ 
+Example Error 
+ 
+ 

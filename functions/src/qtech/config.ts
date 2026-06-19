@@ -7,8 +7,9 @@ export type QTechSettings = {
   operatorId: string;
   apiPassword: string;
   currency: string;
+  country: string;
+  lang: string;
   lobbyUrl: string;
-  gameLaunchPath: string;
 };
 
 /** Optional env fallbacks — primary source is Admin → QTech & Games (Firestore). */
@@ -30,7 +31,8 @@ export async function getQTechSettings(): Promise<QTechSettings> {
     operatorId: String(stored?.operatorId || env("QT_OPERATOR_ID") || defaults.operatorId || "").trim(),
     apiPassword: String(stored?.apiPassword || env("QT_API_PASSWORD") || defaults.apiPassword || "").trim(),
     currency: String(stored?.currency || defaults.currency || "GMD").trim().toUpperCase(),
+    country: String(stored?.country || defaults.country || "GM").trim().toUpperCase().slice(0, 2),
+    lang: String(stored?.lang || defaults.lang || "en_GM").trim(),
     lobbyUrl: String(stored?.lobbyUrl || defaults.lobbyUrl || "https://www.beteseaviator.com/play").trim(),
-    gameLaunchPath: String(stored?.gameLaunchPath || defaults.gameLaunchPath || "/v1/games/launch").trim(),
   };
 }

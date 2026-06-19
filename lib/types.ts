@@ -195,8 +195,9 @@ export interface QTechSettings {
   operatorId?: string;
   apiPassword?: string;
   currency?: string;
+  country?: string;
+  lang?: string;
   lobbyUrl?: string;
-  gameLaunchPath?: string;
 }
 
 export interface PlatformSettings {
@@ -269,8 +270,9 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     operatorId: "",
     apiPassword: "",
     currency: "GMD",
+    country: "GM",
+    lang: "en_GM",
     lobbyUrl: "https://www.beteseaviator.com/play",
-    gameLaunchPath: "/v1/games/launch",
   },
 };
 

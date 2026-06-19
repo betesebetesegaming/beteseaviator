@@ -29,6 +29,7 @@ app.post("/transactions/:referenceId/rollback", (req, res) => void rollbackV1Han
 app.post("/transactions/", (req, res) => void withdrawalHandler(req, res));
 app.post("/transactions", (req, res) => void depositHandler(req, res));
 app.post("/bonus/reward", (req, res) => void rewardHandler(req, res));
+app.post("/bonus/rewards", (req, res) => void rewardHandler(req, res));
 
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true, service: "betese-qtcw" });
