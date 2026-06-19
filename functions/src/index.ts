@@ -33,6 +33,7 @@ export {
   adminRebuildPlatformStats,
   adminSetGameStatus,
   adminSeedQTechGames,
+  adminEnsureLobbyGames,
   adminGetQTechSetup,
   adminSaveQTechSettings,
 } from "./admin";

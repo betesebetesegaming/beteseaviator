@@ -32,6 +32,9 @@ app.post("/bonus/reward", (req, res) => void rewardHandler(req, res));
 app.post("/bonus/rewards", (req, res) => void rewardHandler(req, res));
 
 app.get("/health", (_req, res) => {
+  void import("./lobbyGames")
+    .then(({ ensureNativeLobbyGamesIfEmpty }) => ensureNativeLobbyGamesIfEmpty())
+    .catch(() => {});
   res.status(200).json({ ok: true, service: "betese-qtcw" });
 });
 

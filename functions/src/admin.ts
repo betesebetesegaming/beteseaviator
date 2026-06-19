@@ -610,9 +610,21 @@ export const adminSetGameStatus = onCall(async (req) => {
 export const adminSeedQTechGames = onCall(async (req) => {
   await requireRole(req, ["admin"]);
   const { ensureQTechGameDocs, getQTechSetupStatus } = await import("./qtech/games");
+  const { ensureNativeLobbyGames } = await import("./lobbyGames");
+  const nativeIds = await ensureNativeLobbyGames();
   const ids = await ensureQTechGameDocs();
   const status = await getQTechSetupStatus();
-  return { ok: true, gameIds: ids, ...status };
+  return { ok: true, nativeGameIds: nativeIds, gameIds: ids, ...status };
+});
+
+/** Restore native Aviator + Turbo on the player lobby. */
+export const adminEnsureLobbyGames = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const { ensureNativeLobbyGames } = await import("./lobbyGames");
+  const { ensureQTechGameDocs } = await import("./qtech/games");
+  const nativeIds = await ensureNativeLobbyGames();
+  await ensureQTechGameDocs();
+  return { ok: true, nativeGameIds: nativeIds };
 });
 
 /** Readiness checklist for QTech wallet + game launch. */

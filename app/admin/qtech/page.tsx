@@ -276,7 +276,7 @@ export default function AdminQTechPage() {
             Refresh status
           </Button>
           <Button className="px-3 py-1.5 text-xs" onClick={() => void seedGames()} disabled={seeding}>
-            {seeding ? "Creating…" : "Create game entries"}
+            {seeding ? "Creating…" : "Restore lobby games"}
           </Button>
         </div>
       </div>
