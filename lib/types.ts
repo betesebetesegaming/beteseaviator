@@ -80,6 +80,12 @@ export interface Game {
   provider: string;
   rtp: number;
   status: "active" | "inactive";
+  /** native = BETESE crash engine; qtech = QTech-hosted iframe game */
+  engine?: "native" | "qtech";
+  /** QTech catalog game id (required when engine is qtech) */
+  qtechGameId?: string;
+  /** Lobby tab: aviator or crash */
+  lobbyCategory?: "aviator" | "crash";
   settings: { maxMultiplier?: number; growthRate?: number };
 }
 
@@ -182,6 +188,17 @@ export interface CustomerCareSettings {
   label?: string;
 }
 
+export interface QTechSettings {
+  enabled?: boolean;
+  passKey?: string;
+  apiBaseUrl?: string;
+  operatorId?: string;
+  apiPassword?: string;
+  currency?: string;
+  lobbyUrl?: string;
+  gameLaunchPath?: string;
+}
+
 export interface PlatformSettings {
   subAgentRate: number; // e.g. 0.05
   superAgentRate: number; // e.g. 0.03
@@ -204,6 +221,7 @@ export interface PlatformSettings {
   bonuses?: BonusSettings;
   playerReferral?: PlayerReferralSettings;
   customerCare?: CustomerCareSettings;
+  qtech?: QTechSettings;
 }
 
 export interface DailyStats {
@@ -243,6 +261,16 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     phone: "2204176003",
     whatsapp: "2204176003",
     label: "BETESE Customer Care",
+  },
+  qtech: {
+    enabled: false,
+    passKey: "",
+    apiBaseUrl: "",
+    operatorId: "",
+    apiPassword: "",
+    currency: "GMD",
+    lobbyUrl: "https://www.beteseaviator.com/play",
+    gameLaunchPath: "/v1/games/launch",
   },
 };
 

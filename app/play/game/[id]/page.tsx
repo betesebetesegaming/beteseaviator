@@ -9,6 +9,7 @@ import { isLobbyGame } from "@/lib/games/catalog";
 import { useAuth } from "@/lib/auth-context";
 import type { Game } from "@/lib/types";
 import { CrashGameView } from "@/components/games/CrashGameView";
+import { QTechGameView } from "@/components/games/QTechGameView";
 import { Spinner } from "@/components/ui";
 
 export default function GamePage() {
@@ -91,7 +92,9 @@ export default function GamePage() {
         <span className="text-xs text-slate-500">RTP {Number(game.rtp).toFixed(0)}%</span>
       </div>
 
-      {game.type === "crash" ? (
+      {game.engine === "qtech" ? (
+        <QTechGameView game={game} />
+      ) : game.type === "crash" ? (
         <CrashGameView game={game} />
       ) : null}
     </div>

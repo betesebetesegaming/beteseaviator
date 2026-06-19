@@ -31,6 +31,10 @@ export {
   adminSaveLobbyPromos,
   adminRefreshDailyDemos,
   adminRebuildPlatformStats,
+  adminSetGameStatus,
+  adminSeedQTechGames,
+  adminGetQTechSetup,
+  adminSaveQTechSettings,
 } from "./admin";
 export { processCommissions, adminRunCommissions } from "./commissions";
 
@@ -39,3 +43,7 @@ export { getPlayerReferralDashboard } from "./referrals";
 
 /** ModemPay — same handlers as betesepmu (single Cloud Function to save quota). */
 export { modempayApi } from "./modempayApi";
+
+/** QTech Common Wallet API + game launch. */
+export { qtcwApi } from "./qtechApi";
+export { launchQTechGame } from "./qtech/launch";

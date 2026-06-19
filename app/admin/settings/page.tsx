@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { doc, onSnapshot } from "firebase/firestore";
+import Link from "next/link";
 import { db } from "@/lib/firestore";
 import { adminRebuildPlatformStats, adminSaveSettings, errorMessage } from "@/lib/api";
 import {
@@ -42,6 +43,10 @@ export default function AdminSettingsPage() {
           customerCare: {
             ...DEFAULT_SETTINGS.customerCare!,
             ...(data.customerCare ?? {}),
+          },
+          qtech: {
+            ...DEFAULT_SETTINGS.qtech!,
+            ...(data.qtech ?? {}),
           },
         });
       }
@@ -299,6 +304,20 @@ export default function AdminSettingsPage() {
             }
           />
         </div>
+      </Card>
+
+      <Card className="mb-5 border-emerald-500/20 bg-emerald-500/5">
+        <h2 className="mb-2 font-semibold">QTech Aviator &amp; Crash</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Wallet credentials, game launch API, and enable/disable games on the lobby are managed on
+          the dedicated QTech page.
+        </p>
+        <Link
+          href="/admin/qtech"
+          className="inline-flex rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+        >
+          Open QTech &amp; Games →
+        </Link>
       </Card>
 
       <Card className="mb-5">

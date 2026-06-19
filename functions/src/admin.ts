@@ -334,6 +334,26 @@ export const adminSaveSettings = onCall(async (req) => {
     };
   }
 
+  if (data.qtech && typeof data.qtech === "object") {
+    const qt = data.qtech as Record<string, unknown>;
+    clean.qtech = {
+      enabled: qt.enabled === true,
+      passKey: String(qt.passKey ?? "").trim().slice(0, 256),
+      apiBaseUrl: String(qt.apiBaseUrl ?? "")
+        .trim()
+        .replace(/\/+$/, "")
+        .slice(0, 256),
+      operatorId: String(qt.operatorId ?? "").trim().slice(0, 128),
+      apiPassword: String(qt.apiPassword ?? "").trim().slice(0, 256),
+      currency: String(qt.currency ?? "GMD")
+        .trim()
+        .toUpperCase()
+        .slice(0, 3),
+      lobbyUrl: String(qt.lobbyUrl ?? "https://www.beteseaviator.com/play").trim().slice(0, 256),
+      gameLaunchPath: String(qt.gameLaunchPath ?? "/v1/games/launch").trim().slice(0, 128),
+    };
+  }
+
   await db.doc("settings/platform").set(clean, { merge: true });
   return { ok: true };
 });
@@ -534,4 +554,96 @@ export const adminRefreshDailyDemos = onCall(async (req) => {
   });
 
   return { ok: true, date, accounts };
+});
+
+/** Admin toggles lobby games (Aviator/Crash via QTech or native). */
+export const adminSetGameStatus = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const gameId = String(req.data?.gameId ?? "").trim();
+  if (!gameId) throw new HttpsError("invalid-argument", "gameId is required.");
+
+  const patch: Record<string, unknown> = {};
+  if (req.data?.status !== undefined) {
+    const status = String(req.data.status);
+    if (status !== "active" && status !== "inactive") {
+      throw new HttpsError("invalid-argument", "status must be active or inactive.");
+    }
+    patch.status = status;
+  }
+  if (req.data?.name !== undefined) {
+    patch.name = String(req.data.name).trim().slice(0, 80) || "Game";
+  }
+  if (req.data?.engine !== undefined) {
+    const engine = String(req.data.engine);
+    if (engine !== "native" && engine !== "qtech") {
+      throw new HttpsError("invalid-argument", "engine must be native or qtech.");
+    }
+    patch.engine = engine;
+  }
+  if (req.data?.qtechGameId !== undefined) {
+    patch.qtechGameId = String(req.data.qtechGameId).trim().slice(0, 128);
+  }
+  if (req.data?.rtp !== undefined) {
+    const rtp = Number(req.data.rtp);
+    if (!Number.isFinite(rtp) || rtp < 0 || rtp > 100) {
+      throw new HttpsError("invalid-argument", "rtp must be between 0 and 100.");
+    }
+    patch.rtp = rtp;
+  }
+  if (Object.keys(patch).length === 0) {
+    throw new HttpsError("invalid-argument", "Nothing to update.");
+  }
+
+  const ref = db.doc(`games/${gameId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Game not found.");
+
+  await ref.set(patch, { merge: true });
+  return { ok: true };
+});
+
+/** Creates/refreshes QTech Aviator + Crash game documents in Firestore. */
+export const adminSeedQTechGames = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const { ensureQTechGameDocs, getQTechSetupStatus } = await import("./qtech/games");
+  const ids = await ensureQTechGameDocs();
+  const status = await getQTechSetupStatus();
+  return { ok: true, gameIds: ids, ...status };
+});
+
+/** Readiness checklist for QTech wallet + game launch. */
+export const adminGetQTechSetup = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const { getQTechSetupStatus } = await import("./qtech/games");
+  return getQTechSetupStatus();
+});
+
+/** Save only QTech integration settings (credentials + enable toggle). */
+export const adminSaveQTechSettings = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const data = req.data ?? {};
+  if (!data.qtech || typeof data.qtech !== "object") {
+    throw new HttpsError("invalid-argument", "qtech settings object is required.");
+  }
+  const qt = data.qtech as Record<string, unknown>;
+  const qtech = {
+    enabled: qt.enabled === true,
+    passKey: String(qt.passKey ?? "").trim().slice(0, 256),
+    apiBaseUrl: String(qt.apiBaseUrl ?? "")
+      .trim()
+      .replace(/\/+$/, "")
+      .slice(0, 256),
+    operatorId: String(qt.operatorId ?? "").trim().slice(0, 128),
+    apiPassword: String(qt.apiPassword ?? "").trim().slice(0, 256),
+    currency: String(qt.currency ?? "GMD")
+      .trim()
+      .toUpperCase()
+      .slice(0, 3),
+    lobbyUrl: String(qt.lobbyUrl ?? "https://www.beteseaviator.com/play").trim().slice(0, 256),
+    gameLaunchPath: String(qt.gameLaunchPath ?? "/v1/games/launch").trim().slice(0, 128),
+  };
+  await db.doc("settings/platform").set({ qtech }, { merge: true });
+  const { getQTechSetupStatus } = await import("./qtech/games");
+  const status = await getQTechSetupStatus();
+  return { ok: true, ...status };
 });

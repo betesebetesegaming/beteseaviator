@@ -42,8 +42,8 @@ export function GameLobby() {
   const counts = useMemo(() => {
     if (!games) return {};
     return {
-      aviator: games.filter((g) => g.id === "aviator").length,
-      crash: games.filter((g) => g.type === "crash" && g.id !== "aviator").length,
+      aviator: filterGamesByLobbyCategory(games, "aviator").length,
+      crash: filterGamesByLobbyCategory(games, "crash").length,
     } as Partial<Record<LobbyNavCategory, number>>;
   }, [games]);
 

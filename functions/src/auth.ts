@@ -432,22 +432,46 @@ export const seedPlatform = onCall(async (req) => {
     { merge: true }
   );
 
-  await db.doc("games/aviator").set({
-    name: "Aviator",
-    type: "crash",
-    provider: "BETESE",
-    rtp: 97,
-    status: "active",
-    settings: { maxMultiplier: 100, growthRate: 0.06 },
-  });
   await db.doc("games/aviator-turbo").set({
     name: "Aviator Turbo",
     type: "crash",
     provider: "BETESE",
+    engine: "native",
     rtp: 96,
     status: "active",
     settings: { maxMultiplier: 200, growthRate: 0.09 },
   });
+  await db.doc("games/aviator").set({
+    name: "Aviator",
+    type: "crash",
+    provider: "BETESE",
+    engine: "native",
+    rtp: 97,
+    status: "active",
+    settings: { maxMultiplier: 100, growthRate: 0.06 },
+  }, { merge: true });
+  await db.doc("games/qtech-aviator").set({
+    name: "Aviator",
+    type: "crash",
+    provider: "QTech",
+    engine: "qtech",
+    lobbyCategory: "aviator",
+    qtechGameId: "",
+    rtp: 97,
+    status: "inactive",
+    settings: {},
+  }, { merge: true });
+  await db.doc("games/qtech-crash").set({
+    name: "Crash",
+    type: "crash",
+    provider: "QTech",
+    engine: "qtech",
+    lobbyCategory: "crash",
+    qtechGameId: "",
+    rtp: 97,
+    status: "inactive",
+    settings: {},
+  }, { merge: true });
   created.push("settings", "games");
 
   await db.doc("settings/lobbyPromos").set({

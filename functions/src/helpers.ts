@@ -70,6 +70,16 @@ export const DEFAULT_SETTINGS = {
     whatsapp: "2204176003",
     label: "BETESE Customer Care",
   },
+  qtech: {
+    enabled: false,
+    passKey: "",
+    apiBaseUrl: "",
+    operatorId: "",
+    apiPassword: "",
+    currency: "GMD",
+    lobbyUrl: "https://www.beteseaviator.com/play",
+    gameLaunchPath: "/v1/games/launch",
+  },
 };
 
 export type Settings = typeof DEFAULT_SETTINGS;
@@ -145,6 +155,10 @@ export async function getSettings(): Promise<Settings> {
     playerReferral: {
       ...DEFAULT_SETTINGS.playerReferral,
       ...(data.playerReferral ?? {}),
+    },
+    qtech: {
+      ...DEFAULT_SETTINGS.qtech!,
+      ...(data.qtech ?? {}),
     },
   } as Settings;
 }

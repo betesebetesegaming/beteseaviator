@@ -168,6 +168,51 @@ export const adminRebuildPlatformStats = call<
   }
 >("adminRebuildPlatformStats");
 
+export const adminSetGameStatus = call<
+  {
+    gameId: string;
+    status?: "active" | "inactive";
+    name?: string;
+    engine?: "native" | "qtech";
+    qtechGameId?: string;
+    rtp?: number;
+  },
+  { ok: true }
+>("adminSetGameStatus");
+
+export type QTechSetupStatus = {
+  walletUrl: string;
+  walletReady: boolean;
+  launchReady: boolean;
+  integrationEnabled: boolean;
+  missing: string[];
+  games: Array<{
+    id: string;
+    name: string;
+    status: string;
+    qtechGameId: string;
+    lobbyCategory: string;
+    ready: boolean;
+  }>;
+};
+
+export const adminGetQTechSetup = call<Record<string, never>, QTechSetupStatus>("adminGetQTechSetup");
+
+export const adminSeedQTechGames = call<
+  Record<string, never>,
+  QTechSetupStatus & { ok: true; gameIds: string[] }
+>("adminSeedQTechGames");
+
+export const adminSaveQTechSettings = call<
+  { qtech: Record<string, unknown> },
+  QTechSetupStatus & { ok: true }
+>("adminSaveQTechSettings");
+
+export const launchQTechGame = call<
+  { gameId: string; device?: "mobile" | "desktop" },
+  { launchUrl: string; walletSession: string }
+>("launchQTechGame");
+
 export type OperationsHubResponse = {
   scope: "platform" | "network";
   role: Role;

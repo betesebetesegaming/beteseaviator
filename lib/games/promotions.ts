@@ -78,9 +78,15 @@ export function filterGamesByLobbyCategory(
 ): Game[] {
   switch (category) {
     case "aviator":
-      return games.filter((g) => g.id === "aviator");
+      return games.filter(
+        (g) => g.lobbyCategory === "aviator" || g.id === "aviator" || g.id === "qtech-aviator"
+      );
     case "crash":
-      return games.filter((g) => g.type === "crash" && g.id !== "aviator");
+      return games.filter(
+        (g) =>
+          g.lobbyCategory === "crash" ||
+          (g.type === "crash" && g.id !== "aviator" && g.id !== "qtech-aviator")
+      );
     default:
       return games;
   }

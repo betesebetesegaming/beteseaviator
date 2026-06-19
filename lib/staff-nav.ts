@@ -11,6 +11,7 @@ import {
   UserCog,
   Percent,
   UserPlus,
+  Gamepad2,
 } from "lucide-react";
 import type { Role } from "@/lib/types";
 
@@ -90,6 +91,12 @@ export const STAFF_NAV: StaffNavItem[] = [
     roles: ["admin"],
   },
   {
+    href: "/admin/qtech",
+    label: "QTech & Games",
+    icon: Gamepad2,
+    roles: ["admin"],
+  },
+  {
     href: "/admin/reports",
     label: "Reports",
     icon: BarChart3,
@@ -108,6 +115,7 @@ export const ADMIN_ONLY_PREFIXES = [
   "/admin/wallets",
   "/admin/withdrawals",
   "/admin/promotions",
+  "/admin/qtech",
   "/admin/reports",
   "/admin/settings",
 ];
