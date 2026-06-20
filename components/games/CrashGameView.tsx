@@ -89,7 +89,12 @@ export function CrashGameView({ game }: Props) {
   }, [session?.id, session?.status]);
 
   const serverNow = now + offset;
-  const { phase, liveMultiplier } = useCrashLiveState(round, serverNow);
+  const maxMultiplier = game.settings?.maxMultiplier ?? 100;
+  const growthRate = game.settings?.growthRate ?? 0.06;
+  const { phase, liveMultiplier } = useCrashLiveState(round, serverNow, {
+    maxMultiplier,
+    growthRate,
+  });
 
   const displayBalance = isPlayer ? playableBalance(wallet) : 10_000;
   const amountNum = clampBetAmount(betAmount, settings, displayBalance);
@@ -163,6 +168,8 @@ export function CrashGameView({ game }: Props) {
         serverNow={serverNow}
         gameName={game.name}
         demoMode={!isPlayer}
+        maxMultiplier={maxMultiplier}
+        growthRate={growthRate}
       />
 
       <div className="grid gap-3 lg:grid-cols-2">

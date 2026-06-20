@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Plane } from "lucide-react";
-import { multiplierAt } from "@/lib/format";
+import { liveCrashMultiplier } from "@/lib/format";
 import type { LiveRound } from "@/lib/types";
 import type { CrashHistoryItem } from "@/lib/games/api";
 
@@ -12,17 +12,28 @@ type Props = {
   serverNow: number;
   gameName?: string;
   demoMode?: boolean;
+  maxMultiplier?: number;
+  growthRate?: number;
 };
 
-export function CrashGameBoard({ round, history, serverNow, gameName, demoMode }: Props) {
+export function CrashGameBoard({
+  round,
+  history,
+  serverNow,
+  gameName,
+  demoMode,
+  maxMultiplier = 100,
+  growthRate = 0.06,
+}: Props) {
   const phase = round?.status ?? null;
   const flyingSeconds =
     round && phase === "flying" ? Math.max(0, (serverNow - round.phaseStart) / 1000) : 0;
+  const rate = round?.growthRate ?? growthRate;
   const liveMultiplier = round
     ? phase === "flying"
-      ? multiplierAt(flyingSeconds, round.growthRate)
+      ? liveCrashMultiplier(flyingSeconds, rate, maxMultiplier)
       : phase === "crashed"
-        ? (round.crashPoint ?? 1)
+        ? Math.min(round.crashPoint ?? 1, maxMultiplier)
         : 1
     : 1;
 
@@ -101,15 +112,22 @@ export function CrashGameBoard({ round, history, serverNow, gameName, demoMode }
   );
 }
 
-export function useCrashLiveState(round: LiveRound | null, serverNow: number) {
+export function useCrashLiveState(
+  round: LiveRound | null,
+  serverNow: number,
+  opts?: { maxMultiplier?: number; growthRate?: number }
+) {
+  const maxMultiplier = opts?.maxMultiplier ?? 100;
+  const growthRate = opts?.growthRate ?? 0.06;
   const phase = round?.status ?? null;
   const flyingSeconds =
     round && phase === "flying" ? Math.max(0, (serverNow - round.phaseStart) / 1000) : 0;
+  const rate = round?.growthRate ?? growthRate;
   const liveMultiplier = round
     ? phase === "flying"
-      ? multiplierAt(flyingSeconds, round.growthRate)
+      ? liveCrashMultiplier(flyingSeconds, rate, maxMultiplier)
       : phase === "crashed"
-        ? (round.crashPoint ?? 1)
+        ? Math.min(round.crashPoint ?? 1, maxMultiplier)
         : 1
     : 1;
   return { phase, flyingSeconds, liveMultiplier };

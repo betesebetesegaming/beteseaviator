@@ -176,6 +176,7 @@ export const adminSetGameStatus = call<
     engine?: "native" | "qtech";
     qtechGameId?: string;
     rtp?: number;
+    imageUrl?: string;
   },
   { ok: true }
 >("adminSetGameStatus");

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { doc, onSnapshot, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import Link from "next/link";
 import { CheckCircle2, Circle, Copy, ExternalLink, RefreshCw } from "lucide-react";
 import { db } from "@/lib/firestore";
@@ -64,84 +64,7 @@ function StatusRow({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
-const NATIVE_GAME_IDS = ["aviator", "aviator-turbo"] as const;
-
-function NativeGamesSection({
-  busyGameId,
-  setBusyGameId,
-  onRefresh,
-}: {
-  busyGameId: string | null;
-  setBusyGameId: (id: string | null) => void;
-  onRefresh: () => Promise<void>;
-}) {
-  const [native, setNative] = useState<Game[]>([]);
-
-  useEffect(() => {
-    void (async () => {
-      const rows: Game[] = [];
-      for (const id of NATIVE_GAME_IDS) {
-        const snap = await getDoc(doc(db, "games", id));
-        if (snap.exists()) rows.push({ id: snap.id, ...snap.data() } as Game);
-      }
-      setNative(rows);
-    })();
-  }, [busyGameId]);
-
-  async function toggle(game: Game) {
-    setBusyGameId(game.id);
-    try {
-      await adminSetGameStatus({
-        gameId: game.id,
-        status: game.status === "active" ? "inactive" : "active",
-      });
-      await onRefresh();
-      toast.success(`${game.name} ${game.status === "active" ? "deactivated" : "activated"}.`);
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setBusyGameId(null);
-    }
-  }
-
-  return (
-    <Card>
-      <h2 className="mb-1 font-semibold">6. Native BETESE games</h2>
-      <p className="mb-4 text-sm text-slate-400">
-        Built-in crash engine. Deactivate these when QTech versions are live to avoid duplicate
-        Aviator entries on the lobby.
-      </p>
-      {native.length === 0 ? (
-        <p className="text-sm text-slate-500">Native games not seeded yet.</p>
-      ) : (
-        <div className="space-y-2">
-          {native.map((game) => (
-            <div
-              key={game.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2"
-            >
-              <div>
-                <span className="text-sm font-medium">{game.name}</span>
-                <span className="ml-2 text-xs text-slate-500">{game.id}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge value={game.status} />
-                <Button
-                  variant="secondary"
-                  className="px-3 py-1.5 text-xs"
-                  disabled={busyGameId === game.id}
-                  onClick={() => void toggle(game)}
-                >
-                  {game.status === "active" ? "Deactivate" : "Activate"}
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
+import { LobbyGamesSection } from "@/components/admin/LobbyGamesSection";
 
 export default function AdminQTechPage() {
   const [qtech, setQtech] = useState<QTechSettings>(DEFAULT_SETTINGS.qtech!);
@@ -549,7 +472,7 @@ export default function AdminQTechPage() {
       </Card>
 
       {/* Section 6 — Native games */}
-      <NativeGamesSection busyGameId={busyGameId} setBusyGameId={setBusyGameId} onRefresh={refreshStatus} />
+      <LobbyGamesSection busyGameId={busyGameId} setBusyGameId={setBusyGameId} onRefresh={refreshStatus} />
 
       <Card>
         <h2 className="mb-2 font-semibold">7. Certification tester</h2>

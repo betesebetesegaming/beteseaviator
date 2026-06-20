@@ -27,6 +27,18 @@ export function formatMultiplier(m: number): string {
   return `x${m.toFixed(2)}`;
 }
 
+/** Cap live crash multiplier for display (avoids runaway UI when a round is stuck). */
+export function liveCrashMultiplier(
+  elapsedSeconds: number,
+  growthRate: number,
+  maxMultiplier = 100
+): number {
+  const rate = Number.isFinite(growthRate) && growthRate > 0 ? growthRate : 0.06;
+  const cap = Number.isFinite(maxMultiplier) && maxMultiplier > 1 ? maxMultiplier : 100;
+  const raw = multiplierAt(Math.max(0, elapsedSeconds), rate);
+  return Math.min(raw, cap);
+}
+
 export function formatDate(d: Date | { toDate(): Date } | null | undefined): string {
   if (!d) return "—";
   const date = d instanceof Date ? d : d.toDate();

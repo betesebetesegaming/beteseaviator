@@ -86,6 +86,8 @@ export interface Game {
   qtechGameId?: string;
   /** Lobby tab: aviator or crash */
   lobbyCategory?: "aviator" | "crash";
+  /** Custom lobby tile image (Firebase Storage URL or site path). */
+  imageUrl?: string;
   settings: { maxMultiplier?: number; growthRate?: number };
 }
 

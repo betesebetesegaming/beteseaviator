@@ -594,6 +594,10 @@ export const adminSetGameStatus = onCall(async (req) => {
     }
     patch.rtp = rtp;
   }
+  if (req.data?.imageUrl !== undefined) {
+    const imageUrl = String(req.data.imageUrl).trim().slice(0, 2048);
+    patch.imageUrl = imageUrl || FieldValue.delete();
+  }
   if (Object.keys(patch).length === 0) {
     throw new HttpsError("invalid-argument", "Nothing to update.");
   }
