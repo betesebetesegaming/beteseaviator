@@ -84,8 +84,8 @@ export interface Game {
   engine?: "native" | "qtech";
   /** QTech catalog game id (required when engine is qtech) */
   qtechGameId?: string;
-  /** Lobby tab: aviator or crash */
-  lobbyCategory?: "aviator" | "crash";
+  /** Lobby tab: aviator, crash, or instant win */
+  lobbyCategory?: "aviator" | "crash" | "instantwin";
   /** Custom lobby tile image (Firebase Storage URL or site path). */
   imageUrl?: string;
   settings: { maxMultiplier?: number; growthRate?: number };

@@ -58,19 +58,25 @@ export const PROMO_TICKER: string[] = [
   "🎁 Watch live for free — sign up to bet for real",
 ];
 
-export type LobbyNavCategory = "aviator" | "crash";
+export type LobbyNavCategory = "aviator" | "crash" | "instantwin";
 
 export type LobbyNavItem = {
   id: LobbyNavCategory;
   label: string;
-  icon: "plane" | "rocket";
+  icon: "plane" | "rocket" | "dice";
   available: boolean;
 };
 
 export const LOBBY_NAV: LobbyNavItem[] = [
   { id: "aviator", label: "Aviator Games", icon: "plane", available: true },
   { id: "crash", label: "Crash Games", icon: "rocket", available: true },
+  { id: "instantwin", label: "Instant Win", icon: "dice", available: true },
 ];
+
+/** Aviator tab: explicit category plus the legacy native/qtech Aviator ids. */
+function isAviatorGame(g: Game): boolean {
+  return g.lobbyCategory === "aviator" || g.id === "aviator" || g.id === "qtech-aviator";
+}
 
 export function filterGamesByLobbyCategory(
   games: Game[],
@@ -78,15 +84,16 @@ export function filterGamesByLobbyCategory(
 ): Game[] {
   switch (category) {
     case "aviator":
-      return games.filter(
-        (g) => g.lobbyCategory === "aviator" || g.id === "aviator" || g.id === "qtech-aviator"
-      );
+      return games.filter(isAviatorGame);
     case "crash":
+      // explicit crash category, or legacy crash games with no category assigned
       return games.filter(
         (g) =>
           g.lobbyCategory === "crash" ||
-          (g.type === "crash" && g.id !== "aviator" && g.id !== "qtech-aviator")
+          (!g.lobbyCategory && g.type === "crash" && !isAviatorGame(g))
       );
+    case "instantwin":
+      return games.filter((g) => g.lobbyCategory === "instantwin");
     default:
       return games;
   }

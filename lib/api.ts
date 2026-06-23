@@ -193,6 +193,7 @@ export type QTechSetupStatus = {
     status: string;
     qtechGameId: string;
     lobbyCategory: string;
+    imageUrl: string;
     ready: boolean;
   }>;
 };
@@ -203,6 +204,17 @@ export const adminSeedQTechGames = call<
   Record<string, never>,
   QTechSetupStatus & { ok: true; gameIds: string[] }
 >("adminSeedQTechGames");
+
+export const adminAddQTechGame = call<
+  {
+    qtechGameId: string;
+    name: string;
+    lobbyCategory: "aviator" | "crash" | "instantwin";
+    rtp?: number;
+    imageUrl?: string;
+  },
+  QTechSetupStatus & { ok: true; id: string }
+>("adminAddQTechGame");
 
 export const adminSaveQTechSettings = call<
   { qtech: Record<string, unknown> },

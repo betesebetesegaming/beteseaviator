@@ -1,8 +1,8 @@
 import type { Game } from "@/lib/types";
 
-/** Only crash-style games (Aviator, Aviator Turbo, …) appear in the lobby. */
-export function isLobbyGame(game: Pick<Game, "type">): boolean {
-  return game.type === "crash";
+/** Crash-style native games plus any QTech / categorised game appear in the lobby. */
+export function isLobbyGame(game: Pick<Game, "type" | "engine" | "lobbyCategory">): boolean {
+  return game.type === "crash" || game.engine === "qtech" || Boolean(game.lobbyCategory);
 }
 
 export function filterLobbyGames(games: Game[]): Game[] {

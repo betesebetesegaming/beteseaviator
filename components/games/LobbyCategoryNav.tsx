@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Dice5,
   Plane,
   Rocket,
   type LucideIcon,
@@ -10,6 +11,7 @@ import { LOBBY_NAV, type LobbyNavCategory } from "@/lib/games/promotions";
 const ICONS: Record<string, LucideIcon> = {
   plane: Plane,
   rocket: Rocket,
+  dice: Dice5,
 };
 
 type Props = {

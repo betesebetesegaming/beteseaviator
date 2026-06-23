@@ -73,6 +73,7 @@ export async function getQTechSetupStatus(): Promise<{
     status: string;
     qtechGameId: string;
     lobbyCategory: string;
+    imageUrl: string;
     ready: boolean;
   }>;
 }> {
@@ -93,24 +94,25 @@ export async function getQTechSetupStatus(): Promise<{
     if (!cfg.apiPassword) missing.push("API password (required when launch is enabled)");
   }
 
-  const gameSnaps = await Promise.all(
-    QTECH_GAME_TEMPLATES.map((t) => db.doc(`games/${t.id}`).get())
-  );
-
-  const games = QTECH_GAME_TEMPLATES.map((tpl, i) => {
-    const snap = gameSnaps[i];
-    const data = snap.exists ? snap.data()! : {};
-    const qtechGameId = String(data.qtechGameId ?? tpl.qtechGameId ?? "").trim();
-    const status = String(data.status ?? "inactive");
-    return {
-      id: tpl.id,
-      name: String(data.name ?? tpl.name),
-      status,
-      qtechGameId,
-      lobbyCategory: String(data.lobbyCategory ?? tpl.lobbyCategory),
-      ready: status === "active" && qtechGameId.length > 0,
-    };
-  });
+  // List ALL QTech games (the seeded Aviator/Crash templates plus any added
+  // via Admin → QTech & Games), not just the fixed templates.
+  const qtechSnap = await db.collection("games").where("engine", "==", "qtech").get();
+  const games = qtechSnap.docs
+    .map((d) => {
+      const data = d.data();
+      const qtechGameId = String(data.qtechGameId ?? "").trim();
+      const status = String(data.status ?? "inactive");
+      return {
+        id: d.id,
+        name: String(data.name ?? d.id),
+        status,
+        qtechGameId,
+        lobbyCategory: String(data.lobbyCategory ?? ""),
+        imageUrl: String(data.imageUrl ?? ""),
+        ready: status === "active" && qtechGameId.length > 0,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "beteseaviator-a05ae";
   const walletUrl = `https://us-central1-${projectId}.cloudfunctions.net/qtcwApi`;

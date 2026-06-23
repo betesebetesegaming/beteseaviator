@@ -606,8 +606,62 @@ export const adminSetGameStatus = onCall(async (req) => {
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError("not-found", "Game not found.");
 
+  // Guard: never activate a QTech game with no catalog game ID, otherwise
+  // players hit "QTech game ID is not configured" the moment they launch it.
+  if (patch.status === "active") {
+    const existing = snap.data()!;
+    const engine = (patch.engine as string | undefined) ?? existing.engine;
+    const effectiveQtechId = String(
+      (patch.qtechGameId as string | undefined) ?? existing.qtechGameId ?? ""
+    ).trim();
+    if (engine === "qtech" && !effectiveQtechId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Set the QTech game ID before activating this game."
+      );
+    }
+  }
+
   await ref.set(patch, { merge: true });
   return { ok: true };
+});
+
+/** Admin registers an additional QTech game (Aviator / Crash / Instant Win) for the lobby. */
+export const adminAddQTechGame = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const qtechGameId = String(req.data?.qtechGameId ?? "").trim().slice(0, 128);
+  const name = String(req.data?.name ?? "").trim().slice(0, 80);
+  const lobbyCategory = String(req.data?.lobbyCategory ?? "").trim();
+  const imageUrl = String(req.data?.imageUrl ?? "").trim().slice(0, 2048);
+
+  if (!qtechGameId) throw new HttpsError("invalid-argument", "QTech game ID is required.");
+  if (!name) throw new HttpsError("invalid-argument", "Game name is required.");
+  if (!["aviator", "crash", "instantwin"].includes(lobbyCategory)) {
+    throw new HttpsError("invalid-argument", "Category must be aviator, crash, or instantwin.");
+  }
+  let rtp = Number(req.data?.rtp);
+  if (!Number.isFinite(rtp) || rtp < 0 || rtp > 100) rtp = 97;
+
+  const slug = qtechGameId.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!slug) throw new HttpsError("invalid-argument", "QTech game ID is invalid.");
+  const id = `qt-${slug}`;
+
+  const patch: Record<string, unknown> = {
+    name,
+    type: "crash",
+    provider: "QTech",
+    engine: "qtech",
+    lobbyCategory,
+    qtechGameId,
+    rtp,
+    status: "inactive",
+    settings: {},
+  };
+  if (imageUrl) patch.imageUrl = imageUrl;
+  await db.doc(`games/${id}`).set(patch, { merge: true });
+
+  const { getQTechSetupStatus } = await import("./qtech/games");
+  return { ok: true, id, ...(await getQTechSetupStatus()) };
 });
 
 /** Creates/refreshes QTech Aviator + Crash game documents in Firestore. */

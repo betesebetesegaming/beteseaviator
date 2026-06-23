@@ -7,6 +7,7 @@ import Link from "next/link";
 import { CheckCircle2, Circle, Copy, ExternalLink, RefreshCw } from "lucide-react";
 import { db } from "@/lib/firestore";
 import {
+  adminAddQTechGame,
   adminGetQTechSetup,
   adminSaveQTechSettings,
   adminSeedQTechGames,
@@ -14,7 +15,7 @@ import {
   errorMessage,
   type QTechSetupStatus,
 } from "@/lib/api";
-import { DEFAULT_SETTINGS, type PlatformSettings, type QTechSettings, type Game } from "@/lib/types";
+import { DEFAULT_SETTINGS, type PlatformSettings, type QTechSettings } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Input, Spinner } from "@/components/ui";
 
 type GameDraft = { qtechGameId: string; rtp: string };
@@ -74,6 +75,13 @@ export default function AdminQTechPage() {
   const [savingCreds, setSavingCreds] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [busyGameId, setBusyGameId] = useState<string | null>(null);
+  const [addForm, setAddForm] = useState<{
+    qtechGameId: string;
+    name: string;
+    lobbyCategory: "aviator" | "crash" | "instantwin";
+    rtp: string;
+  }>({ qtechGameId: "", name: "", lobbyCategory: "crash", rtp: "97" });
+  const [adding, setAdding] = useState(false);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -174,6 +182,37 @@ export default function AdminQTechPage() {
       toast.error(errorMessage(e));
     } finally {
       setBusyGameId(null);
+    }
+  }
+
+  async function addGame() {
+    const qtechGameId = addForm.qtechGameId.trim();
+    const name = addForm.name.trim();
+    if (!qtechGameId || !name) {
+      return toast.error("Enter the QTech game ID and a display name.");
+    }
+    setAdding(true);
+    try {
+      const res = await adminAddQTechGame({
+        qtechGameId,
+        name,
+        lobbyCategory: addForm.lobbyCategory,
+        rtp: Number(addForm.rtp) || 97,
+      });
+      setStatus(res);
+      setDrafts((prev) => {
+        const next = { ...prev };
+        for (const g of res.games) {
+          next[g.id] = next[g.id] ?? { qtechGameId: g.qtechGameId, rtp: "97" };
+        }
+        return next;
+      });
+      setAddForm((f) => ({ qtechGameId: "", name: "", lobbyCategory: f.lobbyCategory, rtp: "97" }));
+      toast.success(`${name} added — click Activate below to put it live.`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -390,9 +429,58 @@ export default function AdminQTechPage() {
       <Card>
         <h2 className="mb-1 font-semibold">5. Enable games on /play</h2>
         <p className="mb-4 text-sm text-slate-400">
-          Enter each game&apos;s QTech catalog ID, save, then activate. Deactivate native Aviator if
-          you only want the QTech version live.
+          Add any QTech game by its catalog ID, choose a tab, then activate. Deactivate native
+          Aviator if you only want the QTech version live.
         </p>
+
+        {/* Add a QTech game by catalog ID */}
+        <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+          <p className="mb-3 text-sm font-semibold text-emerald-200">Add a QTech game</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label="QTech game ID"
+              placeholder="e.g. SPB-aviator"
+              value={addForm.qtechGameId}
+              onChange={(e) => setAddForm((f) => ({ ...f, qtechGameId: e.target.value }))}
+            />
+            <Input
+              label="Display name"
+              placeholder="e.g. Aviator"
+              value={addForm.name}
+              onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+            />
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-400">Lobby tab</span>
+              <select
+                className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                value={addForm.lobbyCategory}
+                onChange={(e) =>
+                  setAddForm((f) => ({
+                    ...f,
+                    lobbyCategory: e.target.value as "aviator" | "crash" | "instantwin",
+                  }))
+                }
+              >
+                <option value="aviator">Aviator</option>
+                <option value="crash">Crash</option>
+                <option value="instantwin">Instant Win</option>
+              </select>
+            </label>
+            <Input
+              label="Display RTP %"
+              type="number"
+              value={addForm.rtp}
+              onChange={(e) => setAddForm((f) => ({ ...f, rtp: e.target.value }))}
+            />
+          </div>
+          <Button
+            className="mt-3 px-3 py-1.5 text-xs"
+            onClick={() => void addGame()}
+            disabled={adding}
+          >
+            {adding ? "Adding…" : "Add game"}
+          </Button>
+        </div>
 
         {qtechGames.length === 0 ? (
           <EmptyState message='Click "Create game entries" above to add Aviator and Crash.' />

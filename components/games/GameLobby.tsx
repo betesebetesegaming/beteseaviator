@@ -44,6 +44,7 @@ export function GameLobby() {
     return {
       aviator: filterGamesByLobbyCategory(games, "aviator").length,
       crash: filterGamesByLobbyCategory(games, "crash").length,
+      instantwin: filterGamesByLobbyCategory(games, "instantwin").length,
     } as Partial<Record<LobbyNavCategory, number>>;
   }, [games]);
 
