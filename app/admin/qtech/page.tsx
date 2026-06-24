@@ -8,6 +8,7 @@ import { CheckCircle2, Circle, Copy, ExternalLink, RefreshCw } from "lucide-reac
 import { db } from "@/lib/firestore";
 import {
   adminAddQTechGame,
+  adminDeleteGame,
   adminGetQTechSetup,
   adminSaveQTechSettings,
   adminSeedQTechGames,
@@ -213,6 +214,20 @@ export default function AdminQTechPage() {
       toast.error(errorMessage(e));
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function removeGame(gameId: string, name: string) {
+    if (!window.confirm(`Remove "${name}" from the dashboard? This permanently deletes it.`)) return;
+    setBusyGameId(gameId);
+    try {
+      await adminDeleteGame({ gameId });
+      await refreshStatus();
+      toast.success(`${name} removed.`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusyGameId(null);
     }
   }
 
@@ -551,6 +566,14 @@ export default function AdminQTechPage() {
                         Preview <ExternalLink size={12} />
                       </Link>
                     ) : null}
+                    <Button
+                      variant="secondary"
+                      className="px-3 py-1.5 text-xs text-rose-300 hover:text-rose-200"
+                      disabled={busyGameId === game.id}
+                      onClick={() => void removeGame(game.id, game.name)}
+                    >
+                      Remove
+                    </Button>
                   </div>
                 </div>
               );

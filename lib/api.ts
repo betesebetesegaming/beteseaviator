@@ -216,6 +216,8 @@ export const adminAddQTechGame = call<
   QTechSetupStatus & { ok: true; id: string }
 >("adminAddQTechGame");
 
+export const adminDeleteGame = call<{ gameId: string }, { ok: true }>("adminDeleteGame");
+
 export const adminSaveQTechSettings = call<
   { qtech: Record<string, unknown> },
   QTechSetupStatus & { ok: true }

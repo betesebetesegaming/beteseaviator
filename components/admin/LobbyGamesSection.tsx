@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { collection, onSnapshot } from "firebase/firestore";
 import { Upload } from "lucide-react";
 import { db } from "@/lib/firestore";
-import { adminSetGameStatus, errorMessage } from "@/lib/api";
+import { adminDeleteGame, adminSetGameStatus, errorMessage } from "@/lib/api";
 import { filterLobbyGames } from "@/lib/games/catalog";
 import { gameLobbyImageUrl, uploadGameLobbyImage } from "@/lib/games/lobbyImages";
 import type { Game } from "@/lib/types";
@@ -104,6 +104,20 @@ export function LobbyGamesSection({ busyGameId, setBusyGameId, onRefresh }: Prop
     }
   }
 
+  async function remove(game: Game) {
+    if (!window.confirm(`Remove "${game.name}" from the dashboard? This permanently deletes it.`)) return;
+    setBusyGameId(game.id);
+    try {
+      await adminDeleteGame({ gameId: game.id });
+      await onRefresh();
+      toast.success(`${game.name} removed.`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusyGameId(null);
+    }
+  }
+
   return (
     <Card>
       <h2 className="mb-1 font-semibold">6. Lobby games — names &amp; images</h2>
@@ -181,6 +195,14 @@ export function LobbyGamesSection({ busyGameId, setBusyGameId, onRefresh }: Prop
                     onClick={() => void toggle(game)}
                   >
                     {game.status === "active" ? "Hide from lobby" : "Show on lobby"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs text-rose-300 hover:text-rose-200"
+                    disabled={busyGameId === game.id}
+                    onClick={() => void remove(game)}
+                  >
+                    Remove
                   </Button>
                 </div>
               </div>

@@ -33,6 +33,7 @@ export {
   adminRebuildPlatformStats,
   adminSetGameStatus,
   adminAddQTechGame,
+  adminDeleteGame,
   adminSeedQTechGames,
   adminEnsureLobbyGames,
   adminGetQTechSetup,

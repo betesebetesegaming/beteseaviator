@@ -664,6 +664,15 @@ export const adminAddQTechGame = onCall(async (req) => {
   return { ok: true, id, ...(await getQTechSetupStatus()) };
 });
 
+/** Admin permanently removes a game from the dashboard + lobby. */
+export const adminDeleteGame = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const gameId = String(req.data?.gameId ?? "").trim();
+  if (!gameId) throw new HttpsError("invalid-argument", "gameId is required.");
+  await db.doc(`games/${gameId}`).delete();
+  return { ok: true };
+});
+
 /** Creates/refreshes QTech Aviator + Crash game documents in Firestore. */
 export const adminSeedQTechGames = onCall(async (req) => {
   await requireRole(req, ["admin"]);
