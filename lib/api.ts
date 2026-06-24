@@ -228,6 +228,11 @@ export const launchQTechGame = call<
   { launchUrl: string; walletSession: string }
 >("launchQTechGame");
 
+export const adminPreviewQTechGame = call<
+  { qtechGameId: string; device?: "mobile" | "desktop" },
+  { launchUrl: string }
+>("adminPreviewQTechGame");
+
 export type OperationsHubResponse = {
   scope: "platform" | "network";
   role: Role;

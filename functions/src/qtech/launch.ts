@@ -137,3 +137,49 @@ export const launchQTechGame = onCall(async (req) => {
 
   return { launchUrl, walletSession };
 });
+
+/** Admin previews a QTech game in DEMO mode (no wallet session, no certification) before adding it. */
+export const adminPreviewQTechGame = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const qtechGameId = String(req.data?.qtechGameId || "").trim();
+  if (!qtechGameId) throw new HttpsError("invalid-argument", "Enter a QTech game ID to preview.");
+
+  const cfg = await getQTechSettings();
+  if (!cfg.apiBaseUrl || !cfg.operatorId || !cfg.apiPassword) {
+    throw new HttpsError("failed-precondition", "QTech API credentials are not configured.");
+  }
+
+  const deviceRaw = String(req.data?.device || "desktop").toLowerCase();
+  const device: "mobile" | "desktop" = deviceRaw === "mobile" ? "mobile" : "desktop";
+
+  const token = await getQTechAccessToken(cfg);
+  const res = await fetch(`${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(qtechGameId)}/launch-url`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      playerId: "preview",
+      currency: cfg.currency,
+      country: cfg.country,
+      lang: cfg.lang,
+      mode: "demo",
+      device,
+      returnUrl: cfg.lobbyUrl,
+    }),
+  });
+
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    logger.error("QTech preview failed", { status: res.status, body, gameId: qtechGameId });
+    throw new HttpsError(
+      "failed-precondition",
+      String(body.message || body.code || "QTech could not load this game — check the game ID.")
+    );
+  }
+  const launchUrl = String(body.url || "");
+  if (!launchUrl) throw new HttpsError("failed-precondition", "QTech preview did not return a game URL.");
+  return { launchUrl };
+});

@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { doc, onSnapshot } from "firebase/firestore";
-import Link from "next/link";
-import { CheckCircle2, Circle, Copy, ExternalLink, RefreshCw } from "lucide-react";
+import { CheckCircle2, Circle, Copy, RefreshCw } from "lucide-react";
 import { db } from "@/lib/firestore";
 import {
   adminAddQTechGame,
   adminDeleteGame,
   adminGetQTechSetup,
+  adminPreviewQTechGame,
   adminSaveQTechSettings,
   adminSeedQTechGames,
   adminSetGameStatus,
@@ -83,6 +83,8 @@ export default function AdminQTechPage() {
     rtp: string;
   }>({ qtechGameId: "", name: "", lobbyCategory: "crash", rtp: "97" });
   const [adding, setAdding] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -217,6 +219,20 @@ export default function AdminQTechPage() {
       toast.error(errorMessage(e));
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function previewGame(qtechGameId: string) {
+    const id = qtechGameId.trim();
+    if (!id) return toast.error("Enter a QTech game ID to preview.");
+    setPreviewing(true);
+    try {
+      const res = await adminPreviewQTechGame({ qtechGameId: id, device: "desktop" });
+      setPreviewUrl(res.launchUrl);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setPreviewing(false);
     }
   }
 
@@ -491,13 +507,19 @@ export default function AdminQTechPage() {
               onChange={(e) => setAddForm((f) => ({ ...f, rtp: e.target.value }))}
             />
           </div>
-          <Button
-            className="mt-3 px-3 py-1.5 text-xs"
-            onClick={() => void addGame()}
-            disabled={adding}
-          >
-            {adding ? "Adding…" : "Add game"}
-          </Button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button className="px-3 py-1.5 text-xs" onClick={() => void addGame()} disabled={adding}>
+              {adding ? "Adding…" : "Add game"}
+            </Button>
+            <Button
+              variant="secondary"
+              className="px-3 py-1.5 text-xs"
+              onClick={() => void previewGame(addForm.qtechGameId)}
+              disabled={previewing}
+            >
+              {previewing ? "Loading…" : "Preview (demo)"}
+            </Button>
+          </div>
         </div>
 
         {qtechGames.length === 0 ? (
@@ -560,15 +582,14 @@ export default function AdminQTechPage() {
                     >
                       {game.status === "active" ? "Deactivate" : "Activate on lobby"}
                     </Button>
-                    {game.status === "active" ? (
-                      <Link
-                        href={`/play/game/${game.id}`}
-                        target="_blank"
-                        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
-                      >
-                        Preview <ExternalLink size={12} />
-                      </Link>
-                    ) : null}
+                    <Button
+                      variant="secondary"
+                      className="px-3 py-1.5 text-xs"
+                      disabled={previewing}
+                      onClick={() => void previewGame(draft.qtechGameId || game.qtechGameId)}
+                    >
+                      Preview
+                    </Button>
                     <Button
                       variant="secondary"
                       className="px-3 py-1.5 text-xs text-rose-300 hover:text-rose-200"
@@ -596,6 +617,30 @@ export default function AdminQTechPage() {
           your wallet URL. See <code className="text-xs text-slate-300">docs/qtech/README.txt</code>.
         </p>
       </Card>
+
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <div
+            className="relative h-[80vh] w-full max-w-4xl overflow-hidden rounded-xl border border-white/10 bg-black"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 bg-slate-900 px-3 py-2">
+              <span className="text-xs font-semibold text-slate-300">Game preview (demo mode)</span>
+              <button
+                type="button"
+                className="rounded bg-slate-800 px-3 py-1 text-xs text-white hover:bg-slate-700"
+                onClick={() => setPreviewUrl(null)}
+              >
+                Close ✕
+              </button>
+            </div>
+            <iframe src={previewUrl} className="h-[calc(80vh-2.5rem)] w-full" title="Game preview" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
