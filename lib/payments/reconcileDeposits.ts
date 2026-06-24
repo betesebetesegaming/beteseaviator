@@ -7,6 +7,10 @@ export const RECONCILE_AFTER_MS = 20_000;
 /** How often to retry reconcile for still-pending deposits. */
 export const RECONCILE_INTERVAL_MS = 10_000;
 
+/** Stop auto-reconciling a still-Pending deposit older than this — it needs a
+ *  manual reconcile / support, not an endless retry loop hammering the API. */
+export const RECONCILE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
 /** Minimum gap between reconcile calls for the same deposit ref. */
 export const RECONCILE_THROTTLE_MS = 10_000;
 
@@ -69,6 +73,9 @@ export function sweepPendingDeposits(
 
     const ageMs = now - parseDepositTimestamp(req);
     if (ageMs < RECONCILE_AFTER_MS) continue;
+    // Too old to recover by polling — stop hammering reconcile (avoids the
+    // endless 404/Pending loop); these need a one-time manual reconcile.
+    if (ageMs > RECONCILE_MAX_AGE_MS) continue;
 
     const last = lastTried.get(req.id) || 0;
     if (now - last < RECONCILE_THROTTLE_MS) continue;

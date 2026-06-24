@@ -1386,7 +1386,16 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
   try {
     const checkoutSnap = await adminDb.collection('modempay_checkouts').doc(externalRef).get();
     if (!checkoutSnap.exists) {
-      res.status(404).json({ error: 'Checkout not found for externalRef' });
+      // No checkout marker — its write may have been lost. Do NOT hard-404: the
+      // client polls this endpoint and a 404 makes it retry forever. Try to
+      // recover the deposit from any stored webhook events, then report the
+      // resulting status with 200 so the client can stop or react.
+      await replayStoredEventsForDeposit(externalRef).catch((err) =>
+        logger.warn('reconcile replay (missing checkout) failed', { externalRef, err }),
+      );
+      const recovered = await adminDb.collection('deposit_requests').doc(externalRef).get();
+      const status = recovered.exists ? String(recovered.data()?.status || 'Pending') : 'Unknown';
+      res.json({ ok: true, status, checkoutStatus: 'missing' });
       return;
     }
 
