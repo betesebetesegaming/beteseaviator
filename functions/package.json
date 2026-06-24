@@ -12,7 +12,8 @@
     "build:watch": "tsc --watch",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "seed:sessions": "node scripts/seed-qtech-sessions.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

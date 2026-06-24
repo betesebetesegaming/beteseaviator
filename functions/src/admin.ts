@@ -661,6 +661,13 @@ export const adminAddQTechGame = onCall(async (req) => {
   if (imageUrl) patch.imageUrl = imageUrl;
   await db.doc(`games/${id}`).set(patch, { merge: true });
 
+  // When a QTech Aviator goes live, hide native duplicates on the same tab.
+  if (lobbyCategory === "aviator") {
+    for (const nativeId of ["aviator", "aviator-turbo"]) {
+      await db.doc(`games/${nativeId}`).set({ status: "inactive" }, { merge: true });
+    }
+  }
+
   const { getQTechSetupStatus } = await import("./qtech/games");
   return { ok: true, id, ...(await getQTechSetupStatus()) };
 });
@@ -672,6 +679,19 @@ export const adminDeleteGame = onCall(async (req) => {
   if (!gameId) throw new HttpsError("invalid-argument", "gameId is required.");
   await db.doc(`games/${gameId}`).delete();
   return { ok: true };
+});
+
+/** Hide built-in Aviator engine games when QTech catalog games are live. */
+export const adminDeactivateNativeLobbyGames = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const ids = ["aviator", "aviator-turbo"];
+  for (const id of ids) {
+    const ref = db.doc(`games/${id}`);
+    if ((await ref.get()).exists) {
+      await ref.set({ status: "inactive" }, { merge: true });
+    }
+  }
+  return { ok: true, deactivated: ids };
 });
 
 /** Creates/refreshes QTech Aviator + Crash game documents in Firestore. */

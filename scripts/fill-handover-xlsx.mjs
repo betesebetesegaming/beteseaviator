@@ -6,7 +6,23 @@ import XLSX from "xlsx";
 const WALLET_URL =
   "https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi";
 const REWARDS_URL = `${WALLET_URL}/bonus/reward`;
-const PASS_KEY = crypto.randomUUID();
+
+/**
+ * Single source of truth for the Pass-Key: the value deployed to the wallet
+ * (functions/.env → QT_PASS_KEY). Falls back to a fresh UUID only if unset,
+ * so the handover always matches what QTech will actually authenticate with.
+ */
+function deployedPassKey() {
+  try {
+    const env = fs.readFileSync(path.join("functions", ".env"), "utf8");
+    const m = env.match(/^QT_PASS_KEY=(.+)$/m);
+    if (m && m[1].trim()) return m[1].trim();
+  } catch {
+    /* ignore — fall back to a fresh key */
+  }
+  return crypto.randomUUID();
+}
+const PASS_KEY = deployedPassKey();
 
 const VALUES_BY_ROW = {
   4: "BETESE",
@@ -46,7 +62,7 @@ const VALUES_BY_ROW = {
 
 const src =
   process.argv[2] ||
-  "C:/Users/Dell/Downloads/QTech Games Handover List_EN (1) 12.xlsx";
+  "docs/qtech/QTech-Games-Handover-List.xlsx";
 const outDir = "docs/qtech";
 const outFile = path.join(outDir, "QTech-Games-Handover-List-BETESE-filled.xlsx");
 

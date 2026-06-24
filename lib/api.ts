@@ -218,6 +218,11 @@ export const adminAddQTechGame = call<
 
 export const adminDeleteGame = call<{ gameId: string }, { ok: true }>("adminDeleteGame");
 
+export const adminDeactivateNativeLobbyGames = call<
+  Record<string, never>,
+  { ok: true; deactivated: string[] }
+>("adminDeactivateNativeLobbyGames");
+
 export const adminSaveQTechSettings = call<
   { qtech: Record<string, unknown> },
   QTechSetupStatus & { ok: true }

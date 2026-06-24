@@ -18,34 +18,42 @@ const ICONS = {
   dice: Dices,
 } as const;
 
-function useLiveRound(gameId: string) {
+function useLiveRound(gameId: string, enabled: boolean) {
   const [round, setRound] = useState<LiveRound | null>(null);
   const [, tick] = useState(0);
 
   useEffect(() => {
+    if (!enabled) {
+      setRound(null);
+      return;
+    }
     return onValue(ref(rtdb, `rounds/${gameId}/current`), (snap) => {
       setRound(snap.val());
     });
-  }, [gameId]);
+  }, [gameId, enabled]);
 
   useEffect(() => {
-    if (round?.status !== "flying") return;
+    if (!enabled || round?.status !== "flying") return;
     const id = window.setInterval(() => tick((n) => n + 1), 500);
     return () => clearInterval(id);
-  }, [round?.status]);
+  }, [enabled, round?.status]);
 
   return round;
 }
 
 export function GameLobbyCard({ game }: { game: Game }) {
+  const isQTech = game.engine === "qtech";
   const visual = getGameLobbyVisual(game);
   const Icon = ICONS[visual.icon] ?? Plane;
-  const round = useLiveRound(game.id);
+  const round = useLiveRound(game.id, !isQTech);
   const imageUrl = gameLobbyImageUrl(game);
   const maxM = game.settings?.maxMultiplier ?? 100;
   const growth = game.settings?.growthRate ?? round?.growthRate ?? 0.06;
 
   const liveTag = (() => {
+    if (isQTech) {
+      return { label: "QTech", className: "bg-violet-600 text-white" };
+    }
     if (!round) return null;
     if (round.status === "betting") return { label: "LIVE", className: "bg-emerald-500 text-black" };
     if (round.status === "flying") {

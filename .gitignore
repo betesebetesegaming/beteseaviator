@@ -47,6 +47,13 @@ functions/lib/
 functions/node_modules/
 !.env.example
 
+# service account keys — never commit
+serviceAccountKey.json
+**/serviceAccountKey.json
+*-service-account*.json
+
 # QTech handover (contains Pass-Key — generate locally)
 docs/qtech/*-filled.xlsx
 docs/qtech/QTech-Games-Handover-List-BETESE-filled.xlsx
+# Working tester config holds the live Pass-Key — keep local; commit cw_qtcw_tester.cfg.example instead
+docs/qtech/cw_qtcw_tester.cfg

@@ -34,6 +34,7 @@ export {
   adminSetGameStatus,
   adminAddQTechGame,
   adminDeleteGame,
+  adminDeactivateNativeLobbyGames,
   adminSeedQTechGames,
   adminEnsureLobbyGames,
   adminGetQTechSetup,

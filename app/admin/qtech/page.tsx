@@ -7,6 +7,7 @@ import { CheckCircle2, Circle, Copy, RefreshCw } from "lucide-react";
 import { db } from "@/lib/firestore";
 import {
   adminAddQTechGame,
+  adminDeactivateNativeLobbyGames,
   adminDeleteGame,
   adminGetQTechSetup,
   adminPreviewQTechGame,
@@ -236,6 +237,18 @@ export default function AdminQTechPage() {
     }
   }
 
+  async function hideNativeGames() {
+    setBusyGameId("native");
+    try {
+      await adminDeactivateNativeLobbyGames({});
+      toast.success("Native Aviator & Turbo hidden from lobby.");
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusyGameId(null);
+    }
+  }
+
   async function removeGame(gameId: string, name: string) {
     if (!window.confirm(`Remove "${name}" from the dashboard? This permanently deletes it.`)) return;
     setBusyGameId(gameId);
@@ -420,7 +433,7 @@ export default function AdminQTechPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             label="QTech API base URL"
-            placeholder="https://api-int.qtech.com"
+            placeholder="https://api-int.qtplatform.com"
             className="sm:col-span-2"
             value={qtech.apiBaseUrl ?? ""}
             onChange={(e) => setQtech({ ...qtech, apiBaseUrl: e.target.value })}
@@ -463,8 +476,17 @@ export default function AdminQTechPage() {
       <Card>
         <h2 className="mb-1 font-semibold">5. Enable games on /play</h2>
         <p className="mb-4 text-sm text-slate-400">
-          Add any QTech game by its catalog ID, choose a tab, then activate. Deactivate native
-          Aviator if you only want the QTech version live.
+          Copy the <strong>Game ID</strong> from{" "}
+          <a
+            href="https://bo-int.qtplatform.com/client/main.html#/operator-games"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-400 underline"
+          >
+            QTech operator games
+          </a>
+          , add it here, upload a thumbnail in section 6, and enter API credentials in section 4.
+          Native BETESE Aviator tiles are hidden automatically when you add a QTech Aviator game.
         </p>
 
         {/* Add a QTech game by catalog ID */}
@@ -518,6 +540,14 @@ export default function AdminQTechPage() {
               disabled={previewing}
             >
               {previewing ? "Loading…" : "Preview (demo)"}
+            </Button>
+            <Button
+              variant="secondary"
+              className="px-3 py-1.5 text-xs"
+              onClick={() => void hideNativeGames()}
+              disabled={busyGameId === "native"}
+            >
+              Hide native Aviator games
             </Button>
           </div>
         </div>
