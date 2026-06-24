@@ -181,6 +181,8 @@ export async function processWithdrawal(
     }
 
     if (amount > 0) {
+      await onReferralFirstBet(tx, playerId, settings);
+
       const fromBonus = Math.min(wallet.bonusBalance, amount);
       walletWrite(tx, wallet, {
         uid: playerId,
@@ -195,7 +197,6 @@ export async function processWithdrawal(
         },
       });
       applyBetWagering(tx, playerId, wallet, amount, fromBonus, settings);
-      await onReferralFirstBet(tx, playerId, settings);
 
       const ancestors = (userSnap.data()?.ancestors as string[]) || [];
       const date = todayIso();

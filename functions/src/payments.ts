@@ -170,6 +170,8 @@ async function settleDepositPaid(requestId: string, source: string): Promise<voi
     const ancestors = (userSnap.data()?.ancestors as string[] | undefined) ?? [];
     const wallet = await walletRead(tx, r.userId);
 
+    await onReferralDeposit(tx, r.userId, r.amount, settings);
+
     walletWrite(tx, wallet, {
       uid: r.userId,
       amount: r.amount,
@@ -195,7 +197,6 @@ async function settleDepositPaid(requestId: string, source: string): Promise<voi
     tx.update(ref, { status: "paid", settledAt: FieldValue.serverTimestamp() });
     bumpDailyStats(tx, todayIso(), { deposits: r.amount });
     bumpPlatformStats(tx, { totalDeposits: r.amount });
-    await onReferralDeposit(tx, r.userId, r.amount, settings);
     for (const agentId of ancestors) {
       tx.set(
         db.doc(`users/${agentId}`),

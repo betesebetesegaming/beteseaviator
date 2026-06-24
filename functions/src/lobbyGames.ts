@@ -18,6 +18,14 @@ export const NATIVE_LOBBY_GAMES = [
     settings: { maxMultiplier: 200, growthRate: 0.09 },
     rtp: 96,
   },
+  {
+    id: "crash",
+    name: "Crash",
+    lobbyCategory: "crash" as const,
+    imageUrl: "/promotions/aviator-ad.png",
+    settings: { maxMultiplier: 150, growthRate: 0.075 },
+    rtp: 97,
+  },
 ];
 
 /** Ensures native Aviator games exist and are active on the lobby. */
@@ -47,7 +55,7 @@ export async function ensureNativeLobbyGames(): Promise<string[]> {
   return touched;
 }
 
-/** Seed native + QTech game docs when lobby is empty or core games are missing. */
+/** Upsert native + QTech game docs; seeds defaults when the lobby was never initialized. */
 export async function ensureNativeLobbyGamesIfEmpty(): Promise<{
   seeded: boolean;
   nativeGameIds: string[];
@@ -55,17 +63,16 @@ export async function ensureNativeLobbyGamesIfEmpty(): Promise<{
 }> {
   const { ensureQTechGameDocs } = await import("./qtech/games");
   const qtechGameIds = await ensureQTechGameDocs();
+  const nativeGameIds = await ensureNativeLobbyGames();
 
   const aviatorSnap = await db.doc("games/aviator").get();
-  const active = await db.collection("games").where("status", "==", "active").limit(1).get();
+  const wasEmpty = !aviatorSnap.exists;
 
-  if (aviatorSnap.exists && !active.empty) {
-    return { seeded: false, nativeGameIds: [], qtechGameIds };
+  if (wasEmpty) {
+    logger.info("Seeding native Aviator lobby games");
   }
 
-  logger.info("Seeding native Aviator lobby games");
-  const nativeGameIds = await ensureNativeLobbyGames();
-  return { seeded: true, nativeGameIds, qtechGameIds };
+  return { seeded: wasEmpty, nativeGameIds, qtechGameIds };
 }
 
 /** Force-create all lobby game documents (admin / bootstrap). */

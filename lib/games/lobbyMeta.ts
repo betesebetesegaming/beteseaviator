@@ -33,6 +33,23 @@ const GAME_OVERRIDES: Record<string, Partial<GameLobbyVisual>> = {
     icon: "rocket",
     tagline: "Faster rounds · higher multipliers",
   },
+  crash: {
+    gradient: "from-violet-600/45 via-fuchsia-600/20 to-slate-950",
+    accent: "text-violet-400",
+    icon: "rocket",
+    tagline: "Ride the multiplier — cash out in time",
+  },
+  "qtech-aviator": {
+    gradient: "from-red-600/50 via-rose-500/25 to-slate-950",
+    icon: "plane",
+    tagline: "QTech Aviator — seamless wallet",
+  },
+  "qtech-crash": {
+    gradient: "from-violet-600/45 via-indigo-600/25 to-slate-950",
+    accent: "text-indigo-400",
+    icon: "rocket",
+    tagline: "QTech Crash — seamless wallet",
+  },
 };
 
 export function getGameLobbyVisual(game: Pick<Game, "id" | "type" | "name">): GameLobbyVisual {

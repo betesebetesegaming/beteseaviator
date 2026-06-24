@@ -2,6 +2,7 @@
 
 import {
   Dice5,
+  Grid3X3,
   Plane,
   Rocket,
   type LucideIcon,
@@ -9,6 +10,7 @@ import {
 import { LOBBY_NAV, type LobbyNavCategory } from "@/lib/games/promotions";
 
 const ICONS: Record<string, LucideIcon> = {
+  grid: Grid3X3,
   plane: Plane,
   rocket: Rocket,
   dice: Dice5,

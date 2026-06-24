@@ -170,6 +170,15 @@ export async function attachPlayerReferrer(
   writeAttachPlayerReferrer(tx, referredUid, referrerUid, referralCode, opts);
 }
 
+type ReferralInviteState = ReferralInvite & { rewardStatus?: string };
+
+interface ReferralBonusPlan {
+  inviteRef: FirebaseFirestore.DocumentReference;
+  invite: ReferralInviteState;
+  fraud: string | null;
+  referrerWallet: Awaited<ReturnType<typeof walletRead>> | null;
+}
+
 /** Mark deposit milestone for referred player (inside deposit transaction). */
 export async function onReferralDeposit(
   tx: FirebaseFirestore.Transaction,
@@ -183,17 +192,26 @@ export async function onReferralDeposit(
   const inviteRef = db.doc(`referralInvites/${referredUid}`);
   const inviteSnap = await tx.get(inviteRef);
   if (!inviteSnap.exists) return;
-  const invite = inviteSnap.data() as ReferralInvite & { rewardStatus?: string };
+  const invite = inviteSnap.data() as ReferralInviteState;
   if (invite.rewardStatus !== "pending") return;
   if (invite.depositQualified) return;
+
+  const inviteAfterDeposit: ReferralInviteState = {
+    ...invite,
+    depositQualified: true,
+    qualifyingDepositAmount: round2(depositAmount),
+  };
+  const bonusPlan = !cfg.requireFirstBet
+    ? await planReferralBonusPay(tx, referredUid, settings, inviteAfterDeposit)
+    : null;
 
   tx.update(inviteRef, {
     depositQualified: true,
     qualifyingDepositAmount: round2(depositAmount),
   });
 
-  if (!cfg.requireFirstBet) {
-    await tryPayReferralBonus(tx, referredUid, settings);
+  if (bonusPlan) {
+    commitReferralBonusPay(tx, referredUid, settings, bonusPlan);
   }
 }
 
@@ -209,13 +227,18 @@ export async function onReferralFirstBet(
   const inviteRef = db.doc(`referralInvites/${referredUid}`);
   const inviteSnap = await tx.get(inviteRef);
   if (!inviteSnap.exists) return;
-  const invite = inviteSnap.data() as ReferralInvite & { rewardStatus?: string };
+  const invite = inviteSnap.data() as ReferralInviteState;
   if (invite.rewardStatus !== "pending") return;
   if (!invite.depositQualified) return;
   if (invite.firstBetQualified) return;
 
+  const inviteAfterBet: ReferralInviteState = { ...invite, firstBetQualified: true };
+  const bonusPlan = await planReferralBonusPay(tx, referredUid, settings, inviteAfterBet);
+
   tx.update(inviteRef, { firstBetQualified: true });
-  await tryPayReferralBonus(tx, referredUid, settings);
+  if (bonusPlan) {
+    commitReferralBonusPay(tx, referredUid, settings, bonusPlan);
+  }
 }
 
 async function fraudRejectReason(
@@ -253,30 +276,41 @@ async function fraudRejectReason(
   return null;
 }
 
-async function tryPayReferralBonus(
+/** Read-only phase — must run before any writes in the same transaction. */
+async function planReferralBonusPay(
   tx: FirebaseFirestore.Transaction,
   referredUid: string,
-  settings: Settings
-): Promise<void> {
+  settings: Settings,
+  invite: ReferralInviteState
+): Promise<ReferralBonusPlan | null> {
   const cfg = playerReferralSettings(settings);
-  if (!cfg.enabled || cfg.bonusAmount <= 0) return;
+  if (!cfg.enabled || cfg.bonusAmount <= 0) return null;
+  if (invite.rewardStatus !== "pending") return null;
+  if (!invite.depositQualified) return null;
+  if (cfg.requireFirstBet && !invite.firstBetQualified) return null;
 
   const inviteRef = db.doc(`referralInvites/${referredUid}`);
-  const inviteSnap = await tx.get(inviteRef);
-  if (!inviteSnap.exists) return;
-
-  const invite = inviteSnap.data() as ReferralInvite;
-  if (invite.rewardStatus !== "pending") return;
-  if (!invite.depositQualified) return;
-  if (cfg.requireFirstBet && !invite.firstBetQualified) return;
-
   const fraud = await fraudRejectReason(tx, referredUid, invite);
+  const referrerWallet = fraud ? null : await walletRead(tx, invite.referrerId);
+  return { inviteRef, invite, fraud, referrerWallet };
+}
+
+/** Write-only phase — call after planReferralBonusPay and any prerequisite writes. */
+function commitReferralBonusPay(
+  tx: FirebaseFirestore.Transaction,
+  referredUid: string,
+  settings: Settings,
+  plan: ReferralBonusPlan
+): void {
+  const cfg = playerReferralSettings(settings);
+  const { inviteRef, invite, fraud, referrerWallet } = plan;
+
   if (fraud) {
     tx.update(inviteRef, { rewardStatus: "rejected", rejectReason: fraud });
     return;
   }
+  if (!referrerWallet) return;
 
-  const referrerWallet = await walletRead(tx, invite.referrerId);
   const bonusAmount = round2(cfg.bonusAmount);
   const { bonusMultiplier } = playthroughRates(settings);
 

@@ -41,7 +41,7 @@ export const PROMO_SLIDES: PromoSlide[] = [
     accent: "text-white",
   },
   {
-    id: "welcome",
+    id: "watch-live",
     title: "Watch Aviator live — free",
     subtitle: "Sign up when you're ready to bet for real GMD",
     cta: "Play now",
@@ -58,18 +58,19 @@ export const PROMO_TICKER: string[] = [
   "🎁 Watch live for free — sign up to bet for real",
 ];
 
-export type LobbyNavCategory = "aviator" | "crash" | "instantwin";
+export type LobbyNavCategory = "all" | "aviator" | "crash" | "instantwin";
 
 export type LobbyNavItem = {
   id: LobbyNavCategory;
   label: string;
-  icon: "plane" | "rocket" | "dice";
+  icon: "grid" | "plane" | "rocket" | "dice";
   available: boolean;
 };
 
 export const LOBBY_NAV: LobbyNavItem[] = [
-  { id: "aviator", label: "Aviator Games", icon: "plane", available: true },
-  { id: "crash", label: "Crash Games", icon: "rocket", available: true },
+  { id: "all", label: "All Games", icon: "grid", available: true },
+  { id: "aviator", label: "Aviator", icon: "plane", available: true },
+  { id: "crash", label: "Crash", icon: "rocket", available: true },
   { id: "instantwin", label: "Instant Win", icon: "dice", available: true },
 ];
 
@@ -83,10 +84,11 @@ export function filterGamesByLobbyCategory(
   category: LobbyNavCategory
 ): Game[] {
   switch (category) {
+    case "all":
+      return games;
     case "aviator":
       return games.filter(isAviatorGame);
     case "crash":
-      // explicit crash category, or legacy crash games with no category assigned
       return games.filter(
         (g) =>
           g.lobbyCategory === "crash" ||
@@ -97,4 +99,22 @@ export function filterGamesByLobbyCategory(
     default:
       return games;
   }
+}
+
+const LOBBY_GAME_ORDER = ["aviator", "aviator-turbo", "crash", "qtech-aviator", "qtech-crash"];
+
+/** Consistent lobby ordering: featured native games first, then alphabetical. */
+export function sortLobbyGames(games: Game[]): Game[] {
+  return [...games].sort((a, b) => {
+    const ai = LOBBY_GAME_ORDER.indexOf(a.id);
+    const bi = LOBBY_GAME_ORDER.indexOf(b.id);
+    if (ai !== -1 || bi !== -1) {
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    }
+    if (a.engine === "native" && b.engine !== "native") return -1;
+    if (b.engine === "native" && a.engine !== "native") return 1;
+    return a.name.localeCompare(b.name);
+  });
 }

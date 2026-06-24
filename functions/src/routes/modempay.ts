@@ -31,6 +31,50 @@ import {
   type RtdbDepositRecord,
 } from '../paymentsRtdb';
 
+function serializeError(err: unknown): { message: string; stack?: string } {
+  if (err instanceof Error) return { message: err.message, stack: err.stack };
+  return { message: String(err) };
+}
+
+/** Credit wallets/{uid} when checkout completed but sync failed (idempotent via flag). */
+async function healAviatorWalletIfNeeded(
+  externalRef: string,
+  payloadAmount = 0,
+): Promise<boolean> {
+  const checkoutSnap = await adminDb.collection('modempay_checkouts').doc(externalRef).get();
+  if (!checkoutSnap.exists) return false;
+
+  const checkout = checkoutSnap.data() as {
+    status?: string;
+    aviator_wallet_synced?: boolean;
+    customer_id?: string | null;
+    credited_amount?: number;
+    amount?: number;
+  };
+  if (checkout.status !== 'completed' || checkout.aviator_wallet_synced || !checkout.customer_id) {
+    return false;
+  }
+
+  const healAmount = Number(checkout.credited_amount || checkout.amount || payloadAmount || 0);
+  if (healAmount <= 0) return false;
+
+  try {
+    await syncAviatorWalletCredit(String(checkout.customer_id), healAmount, externalRef);
+    await adminDb.collection('modempay_checkouts').doc(externalRef).set(
+      { aviator_wallet_synced: true },
+      { merge: true },
+    );
+    logger.info('Aviator wallet sync healed after deposit', { externalRef, customerId: checkout.customer_id, healAmount });
+    return true;
+  } catch (err) {
+    logger.warn('Aviator wallet sync heal failed after deposit', {
+      externalRef,
+      err: serializeError(err),
+    });
+    return false;
+  }
+}
+
 const MERCHANT_NAME = process.env.MODEMPAY_MERCHANT_NAME || 'Betese PMU';
 
 interface CheckoutBody {
@@ -860,6 +904,17 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
   let aviatorCredit = 0;
   let aviatorUid = '';
 
+  // Heal deposits where Firestore was marked completed but wallets/{uid} never credited
+  // (syncAviatorWalletCredit used to fail on Firestore read-after-write violations).
+  if (await healAviatorWalletIfNeeded(externalRef, payloadAmount)) {
+    return;
+  }
+
+  const preCheckoutSnap = await adminDb.collection('modempay_checkouts').doc(externalRef).get();
+  if (preCheckoutSnap.exists && preCheckoutSnap.data()?.status === 'completed') {
+    return;
+  }
+
   await adminDb.runTransaction(async (tx) => {
     // -----------------------------------------------------------------
     // ALL READS FIRST. Firestore transactions require every read to
@@ -1014,9 +1069,15 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
   });
 
   if (aviatorUid && aviatorCredit > 0) {
-    await syncAviatorWalletCredit(aviatorUid, aviatorCredit, externalRef).catch((err) =>
-      logger.warn('Aviator wallet sync failed after deposit', { externalRef, err }),
-    );
+    try {
+      await syncAviatorWalletCredit(aviatorUid, aviatorCredit, externalRef);
+      await adminDb.collection('modempay_checkouts').doc(externalRef).set(
+        { aviator_wallet_synced: true },
+        { merge: true },
+      );
+    } catch (err) {
+      logger.warn('Aviator wallet sync failed after deposit', { externalRef, err: serializeError(err) });
+    }
   }
 
   // Healing pass: re-read the (now-Approved) deposit_request from Firestore
@@ -1417,6 +1478,7 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
       session_id?: string | null;
       payment_link_id?: string | null;
       amount?: number;
+      credited_amount?: number;
       method?: string;
     };
     const depositSnap = await adminDb.collection('deposit_requests').doc(externalRef).get();
@@ -1461,6 +1523,11 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
     if (checkoutStatus === 'completed') {
       if (!depositSnap.exists || depositStatus === 'Pending') {
         await markDepositCompleted(externalRef, providerPayload);
+      } else {
+        await healAviatorWalletIfNeeded(
+          externalRef,
+          Number(checkout.credited_amount || checkout.amount || providerPayload.amount || 0),
+        );
       }
       res.json({ ok: true, status: 'Approved' });
       return;

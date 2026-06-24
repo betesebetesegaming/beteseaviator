@@ -454,8 +454,19 @@ export const seedPlatform = onCall(async (req) => {
     status: "active",
     settings: { maxMultiplier: 100, growthRate: 0.06 },
   }, { merge: true });
+  await db.doc("games/crash").set({
+    name: "Crash",
+    type: "crash",
+    provider: "BETESE",
+    engine: "native",
+    lobbyCategory: "crash",
+    imageUrl: "/promotions/aviator-ad.png",
+    rtp: 97,
+    status: "active",
+    settings: { maxMultiplier: 150, growthRate: 0.075 },
+  }, { merge: true });
   await db.doc("games/qtech-aviator").set({
-    name: "Aviator",
+    name: "Aviator (QTech)",
     type: "crash",
     provider: "QTech",
     engine: "qtech",
@@ -466,7 +477,7 @@ export const seedPlatform = onCall(async (req) => {
     settings: {},
   }, { merge: true });
   await db.doc("games/qtech-crash").set({
-    name: "Crash",
+    name: "Crash (QTech)",
     type: "crash",
     provider: "QTech",
     engine: "qtech",

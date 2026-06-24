@@ -3,7 +3,7 @@ import { db } from "../helpers";
 export type QTechGameTemplate = {
   id: string;
   name: string;
-  lobbyCategory: "aviator" | "crash";
+  lobbyCategory: "aviator" | "crash" | "instantwin";
   qtechGameId: string;
   rtp: number;
 };
@@ -12,17 +12,31 @@ export type QTechGameTemplate = {
 export const QTECH_GAME_TEMPLATES: QTechGameTemplate[] = [
   {
     id: "qtech-aviator",
-    name: "Aviator",
+    name: "Aviator (QTech)",
     lobbyCategory: "aviator",
     qtechGameId: "",
     rtp: 97,
   },
   {
     id: "qtech-crash",
-    name: "Crash",
+    name: "Crash (QTech)",
     lobbyCategory: "crash",
     qtechGameId: "",
     rtp: 97,
+  },
+  {
+    id: "qtech-instant-keno",
+    name: "Instant Keno",
+    lobbyCategory: "instantwin",
+    qtechGameId: "",
+    rtp: 96,
+  },
+  {
+    id: "qtech-instant-hilo",
+    name: "Hi-Lo",
+    lobbyCategory: "instantwin",
+    qtechGameId: "",
+    rtp: 96,
   },
 ];
 

@@ -352,6 +352,11 @@ export const placeBet = onCall(async (req) => {
 
   await db.runTransaction(async (tx) => {
     const wallet = await walletRead(tx, uid);
+
+    if (isFirstBet) {
+      await onReferralFirstBet(tx, uid, settings);
+    }
+
     const fromBonus = Math.min(wallet.bonusBalance, betAmount);
     walletWrite(tx, wallet, {
       uid,
@@ -377,10 +382,6 @@ export const placeBet = onCall(async (req) => {
     bumpDailyStats(tx, date, { bets: betAmount, sessions: 1 });
     bumpPlatformStats(tx, { totalBets: betAmount });
     bumpAgentGgr(tx, profile.ancestors ?? [], uid, date, { bets: betAmount });
-
-    if (isFirstBet) {
-      await onReferralFirstBet(tx, uid, settings);
-    }
   });
 
   return { sessionId: sessionRef.id, roundId: round.roundId, hash: round.hash };
@@ -457,12 +458,17 @@ export const cashout = onCall(async (req) => {
 export const pokeRound = onCall(async (req) => {
   const gameId = String(req.data?.gameId ?? "");
   if (!gameId) throw new HttpsError("invalid-argument", "gameId is required.");
+  const { ensureNativeLobbyGames } = await import("./lobbyGames");
+  await ensureNativeLobbyGames().catch(() => undefined);
   const round = await ensureRound(gameId);
   return { status: round.status, roundId: round.roundId };
 });
 
 /** Minute heartbeat: keeps rounds moving when idle and sweeps stragglers. */
 export const gameTick = onSchedule("every 1 minutes", async () => {
+  const { ensureNativeLobbyGames } = await import("./lobbyGames");
+  await ensureNativeLobbyGames().catch(() => undefined);
+
   const games = await db.collection("games").where("status", "==", "active").get();
   for (const g of games.docs) {
     try {

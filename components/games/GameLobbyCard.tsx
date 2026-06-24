@@ -70,7 +70,7 @@ export function GameLobbyCard({ game }: { game: Game }) {
   return (
     <Link
       href={gamePlayPath(game)}
-      className="group block overflow-hidden rounded-xl bg-[#1a1a1a] ring-1 ring-white/5 transition-all hover:-translate-y-0.5 hover:ring-[color-mix(in_srgb,var(--lobby-accent)_40%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lobby-accent)]"
+      className="group block overflow-hidden rounded-2xl bg-[#141414] shadow-lg shadow-black/20 ring-1 ring-white/8 transition-all hover:-translate-y-1 hover:shadow-xl hover:ring-[color-mix(in_srgb,var(--lobby-accent)_45%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lobby-accent)]"
     >
       <div className={`relative aspect-[4/3] overflow-hidden ${imageUrl ? "bg-black" : `bg-gradient-to-br ${visual.gradient}`}`}>
         {imageUrl ? (
@@ -78,30 +78,43 @@ export function GameLobbyCard({ game }: { game: Game }) {
           <img
             src={imageUrl}
             alt={game.name}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
           />
         ) : (
           <>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(255,255,0,0.15),transparent_50%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(255,255,0,0.12),transparent_55%)]" />
             <Icon
-              className={`absolute bottom-2 right-2 h-14 w-14 sm:h-16 sm:w-16 ${visual.accent} drop-shadow-lg transition-transform duration-300 group-hover:scale-110`}
+              className={`absolute bottom-3 right-3 h-16 w-16 sm:h-[4.5rem] sm:w-[4.5rem] ${visual.accent} opacity-90 drop-shadow-lg transition-transform duration-300 group-hover:scale-110`}
               strokeWidth={1.25}
             />
           </>
         )}
-        {liveTag && (
-          <span
-            className={`absolute left-2 top-2 rounded px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${liveTag.className}`}
-          >
-            {liveTag.label}
+        <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-1 p-2">
+          {liveTag ? (
+            <span
+              className={`rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide shadow-sm ${liveTag.className}`}
+            >
+              {liveTag.label}
+            </span>
+          ) : (
+            <span />
+          )}
+          <span className="rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-200 backdrop-blur-sm">
+            {isQTech ? "QTech" : game.provider}
+          </span>
+        </div>
+        {!isQTech && maxM > 0 && (
+          <span className="absolute bottom-2 left-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 backdrop-blur-sm">
+            up to x{maxM}
           </span>
         )}
       </div>
 
-      <div className="border-t border-white/5 bg-[#141414] px-2.5 py-2 sm:px-3 sm:py-2.5">
-        <p className="truncate text-sm font-bold text-[var(--lobby-accent)] group-hover:brightness-125">
+      <div className="space-y-0.5 border-t border-white/5 px-3 py-2.5">
+        <p className="truncate text-sm font-bold text-white group-hover:text-[var(--lobby-accent)]">
           {game.name}
         </p>
+        <p className="truncate text-[11px] text-slate-500">{visual.tagline}</p>
       </div>
     </Link>
   );

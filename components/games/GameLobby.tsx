@@ -5,6 +5,7 @@ import { subscribeActiveGames } from "@/lib/games/subscriptions";
 import {
   filterGamesByLobbyCategory,
   LOBBY_NAV,
+  sortLobbyGames,
   type LobbyNavCategory,
 } from "@/lib/games/promotions";
 import type { Game } from "@/lib/types";
@@ -28,7 +29,7 @@ function searchGames(games: Game[], query: string): Game[] {
 
 export function GameLobby() {
   const [games, setGames] = useState<Game[] | null>(null);
-  const [category, setCategory] = useState<LobbyNavCategory>("aviator");
+  const [category, setCategory] = useState<LobbyNavCategory>("all");
   const [search, setSearch] = useState("");
 
   useEffect(() => subscribeActiveGames(setGames), []);
@@ -36,12 +37,13 @@ export function GameLobby() {
   const filtered = useMemo(() => {
     if (!games) return [];
     const byCat = filterGamesByLobbyCategory(games, category);
-    return searchGames(byCat, search);
+    return sortLobbyGames(searchGames(byCat, search));
   }, [games, category, search]);
 
   const counts = useMemo(() => {
     if (!games) return {};
     return {
+      all: games.length,
       aviator: filterGamesByLobbyCategory(games, "aviator").length,
       crash: filterGamesByLobbyCategory(games, "crash").length,
       instantwin: filterGamesByLobbyCategory(games, "instantwin").length,
@@ -80,11 +82,13 @@ export function GameLobby() {
               ? `${sectionTitle} coming soon on BETESE.`
               : search
                 ? `No games match "${search}".`
-                : "No games in this category yet."
+                : category === "instantwin"
+                  ? "Instant Win games will appear here once QTech enables them."
+                  : "No games in this category yet."
           }
         />
       ) : (
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-3.5 md:grid-cols-4 lg:grid-cols-5">
           {filtered.map((game) => (
             <GameLobbyCard key={game.id} game={game} />
           ))}

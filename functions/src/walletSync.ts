@@ -23,6 +23,9 @@ export async function syncAviatorWalletCredit(
     const userSnap = await tx.get(userRef);
     const wallet = await walletRead(tx, uid);
 
+    // Referral reads must finish before any wallet writes (Firestore transaction rule).
+    await onReferralDeposit(tx, uid, amount, settings);
+
     walletWrite(tx, wallet, {
       uid,
       amount,
@@ -46,8 +49,6 @@ export async function syncAviatorWalletCredit(
 
     bumpPlatformStats(tx, { totalDeposits: amount });
     bumpDailyStats(tx, todayIso(depositAt), { deposits: amount });
-
-    await onReferralDeposit(tx, uid, amount, settings);
   });
 
   return { bonuses: applied };

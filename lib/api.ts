@@ -282,17 +282,21 @@ export const getOperationsHub = call<
 
 export function errorMessage(e: unknown): string {
   if (e && typeof e === "object") {
-    const err = e as { code?: string; message?: unknown };
+    const err = e as { code?: string; message?: unknown; details?: unknown };
     const msg = err.message != null ? String(err.message) : "";
     const cleaned = msg.replace(/^(functions\/[\w-]+:?\s*)/i, "").trim();
     if (cleaned && cleaned.toUpperCase() !== "INTERNAL") return cleaned;
     if (err.code?.includes("internal")) {
       return "Server error — please try again in a moment.";
     }
+    if (err.code?.includes("failed-precondition")) {
+      return cleaned || "That action is not available right now.";
+    }
     if (err.code?.includes("already-exists")) {
       return cleaned || "This phone number is already registered.";
     }
     if (cleaned) return cleaned;
   }
+  if (e instanceof Error && e.message) return e.message;
   return "Something went wrong. Please try again.";
 }
