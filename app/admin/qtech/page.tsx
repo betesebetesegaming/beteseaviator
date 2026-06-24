@@ -226,6 +226,10 @@ export default function AdminQTechPage() {
   async function previewGame(qtechGameId: string) {
     const id = qtechGameId.trim();
     if (!id) return toast.error("Enter a QTech game ID to preview.");
+    if (!status?.launchReady) {
+      const missing = status?.missing?.length ? status.missing.join(" · ") : "API credentials in section 4";
+      return toast.error(`Complete launch setup first: ${missing}`);
+    }
     setPreviewing(true);
     try {
       const res = await adminPreviewQTechGame({ qtechGameId: id, device: "desktop" });

@@ -109,6 +109,7 @@ Please confirm and provide:
 | Item | Purpose |
 |------|---------|
 | **Sandbox API base URL** | e.g. `https://api-int.qtplatform.com` — for game launch |
+| **BETESE outbound API IP (INT)** | `35.226.2.98` — whitelist this on QTech so our server can call your API |
 | **Operator username + password** | For `GET /v1/auth/token` |
 | **Aviator `gameId`** | e.g. `TK-...` |
 | **Crash `gameId`** | Catalog ID for Crash |

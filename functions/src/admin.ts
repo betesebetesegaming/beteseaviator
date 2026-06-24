@@ -727,15 +727,19 @@ export const adminSaveQTechSettings = onCall(async (req) => {
     throw new HttpsError("invalid-argument", "qtech settings object is required.");
   }
   const qt = data.qtech as Record<string, unknown>;
+  const { getQTechSettings } = await import("./qtech/config");
+  const existing = await getQTechSettings();
+  const passKeyIn = String(qt.passKey ?? "").trim().slice(0, 256);
+  const apiPasswordIn = String(qt.apiPassword ?? "").trim().slice(0, 256);
   const qtech = {
     enabled: qt.enabled === true,
-    passKey: String(qt.passKey ?? "").trim().slice(0, 256),
+    passKey: passKeyIn || existing.passKey,
     apiBaseUrl: String(qt.apiBaseUrl ?? "")
       .trim()
       .replace(/\/+$/, "")
       .slice(0, 256),
     operatorId: String(qt.operatorId ?? "").trim().slice(0, 128),
-    apiPassword: String(qt.apiPassword ?? "").trim().slice(0, 256),
+    apiPassword: apiPasswordIn || existing.apiPassword,
     currency: String(qt.currency ?? "GMD")
       .trim()
       .toUpperCase()

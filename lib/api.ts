@@ -287,7 +287,7 @@ export function errorMessage(e: unknown): string {
     const cleaned = msg.replace(/^(functions\/[\w-]+:?\s*)/i, "").trim();
     if (cleaned && cleaned.toUpperCase() !== "INTERNAL") return cleaned;
     if (err.code?.includes("internal")) {
-      return "Could not finish your profile. Please try again in a moment.";
+      return "Server error — please try again in a moment.";
     }
     if (err.code?.includes("already-exists")) {
       return cleaned || "This phone number is already registered.";

@@ -4,8 +4,26 @@ import { db, requireRole } from "../helpers";
 import { getQTechSettings } from "./config";
 import { createWalletSession } from "./session";
 
+/** Route outbound QTech API calls through Cloud NAT static IP (QTech IP whitelist). */
+const QTECH_OUTBOUND = {
+  vpcConnector: "projects/beteseaviator-a05ae/locations/us-central1/connectors/betese-qtech",
+  vpcConnectorEgressSettings: "ALL_TRAFFIC" as const,
+};
+
 type TokenCache = { token: string; expiresAt: number };
 let tokenCache: TokenCache | null = null;
+
+function qtechNetworkError(e: unknown): HttpsError {
+  const cause = e instanceof Error ? String(e.cause ?? e.message) : String(e);
+  logger.error("QTech network error", { cause });
+  const ipBlocked = /UND_ERR_SOCKET|other side closed|ECONNRESET/i.test(cause);
+  return new HttpsError(
+    "failed-precondition",
+    ipBlocked
+      ? "QTech blocked our server IP. Ask QTech to whitelist outbound IP 35.226.2.98 for qa_BETESE (INT)."
+      : "Could not reach QTech API — check https://api-int.qtplatform.com is correct."
+  );
+}
 
 /** QTech Common Wallet API v2.53 — section 4.1 Retrieve an Access Token. */
 async function getQTechAccessToken(cfg: Awaited<ReturnType<typeof getQTechSettings>>): Promise<string> {
@@ -24,15 +42,26 @@ async function getQTechAccessToken(cfg: Awaited<ReturnType<typeof getQTechSettin
   });
   const url = `${cfg.apiBaseUrl}/v1/auth/token?${params.toString()}`;
 
-  const res = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+  } catch (e) {
+    throw qtechNetworkError(e);
+  }
 
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     logger.error("QTech auth failed", { status: res.status, body });
-    throw new HttpsError("failed-precondition", "Could not authenticate with QTech.");
+    const detail = String(body.message || body.error || body.code || "").trim();
+    throw new HttpsError(
+      "failed-precondition",
+      detail
+        ? `QTech login failed: ${detail}`
+        : "Could not authenticate with QTech — check operator ID and API password."
+    );
   }
 
   const token = String(body.access_token || body.token || "");
@@ -76,15 +105,20 @@ async function fetchLaunchUrl(
     payload.displayName = args.displayName.trim().slice(0, 50);
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    throw qtechNetworkError(e);
+  }
 
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
@@ -101,7 +135,7 @@ async function fetchLaunchUrl(
 }
 
 /** Player launches a QTech-hosted Aviator/Crash game. */
-export const launchQTechGame = onCall(async (req) => {
+export const launchQTechGame = onCall(QTECH_OUTBOUND, async (req) => {
   const { uid, profile } = await requireRole(req, ["player"]);
   const gameId = String(req.data?.gameId || "").trim();
   if (!gameId) throw new HttpsError("invalid-argument", "gameId is required.");
@@ -139,7 +173,7 @@ export const launchQTechGame = onCall(async (req) => {
 });
 
 /** Admin previews a QTech game in DEMO mode (no wallet session, no certification) before adding it. */
-export const adminPreviewQTechGame = onCall(async (req) => {
+export const adminPreviewQTechGame = onCall(QTECH_OUTBOUND, async (req) => {
   await requireRole(req, ["admin"]);
   const qtechGameId = String(req.data?.qtechGameId || "").trim();
   if (!qtechGameId) throw new HttpsError("invalid-argument", "Enter a QTech game ID to preview.");
@@ -153,23 +187,28 @@ export const adminPreviewQTechGame = onCall(async (req) => {
   const device: "mobile" | "desktop" = deviceRaw === "mobile" ? "mobile" : "desktop";
 
   const token = await getQTechAccessToken(cfg);
-  const res = await fetch(`${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(qtechGameId)}/launch-url`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      playerId: "preview",
-      currency: cfg.currency,
-      country: cfg.country,
-      lang: cfg.lang,
-      mode: "demo",
-      device,
-      returnUrl: cfg.lobbyUrl,
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(qtechGameId)}/launch-url`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        playerId: "preview",
+        currency: cfg.currency,
+        country: cfg.country,
+        lang: cfg.lang,
+        mode: "demo",
+        device,
+        returnUrl: cfg.lobbyUrl,
+      }),
+    });
+  } catch (e) {
+    throw qtechNetworkError(e);
+  }
 
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
