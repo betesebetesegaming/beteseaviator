@@ -189,6 +189,7 @@ export default function AdminQTechPage() {
   async function addGame() {
     const qtechGameId = addForm.qtechGameId.trim();
     const name = addForm.name.trim();
+    const lobbyCategory = addForm.lobbyCategory;
     if (!qtechGameId || !name) {
       return toast.error("Enter the QTech game ID and a display name.");
     }
@@ -197,7 +198,7 @@ export default function AdminQTechPage() {
       const res = await adminAddQTechGame({
         qtechGameId,
         name,
-        lobbyCategory: addForm.lobbyCategory,
+        lobbyCategory,
         rtp: Number(addForm.rtp) || 97,
       });
       setStatus(res);
@@ -209,7 +210,9 @@ export default function AdminQTechPage() {
         return next;
       });
       setAddForm((f) => ({ qtechGameId: "", name: "", lobbyCategory: f.lobbyCategory, rtp: "97" }));
-      toast.success(`${name} added — click Activate below to put it live.`);
+      const tab =
+        { aviator: "Aviator", crash: "Crash", instantwin: "Instant Win" }[lobbyCategory] ?? lobbyCategory;
+      toast.success(`${name} is now LIVE on the ${tab} tab — open /play and check that tab.`);
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {

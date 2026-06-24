@@ -654,7 +654,8 @@ export const adminAddQTechGame = onCall(async (req) => {
     lobbyCategory,
     qtechGameId,
     rtp,
-    status: "inactive",
+    // Go live immediately — the admin gave a valid game ID, so show it on the lobby.
+    status: "active",
     settings: {},
   };
   if (imageUrl) patch.imageUrl = imageUrl;
