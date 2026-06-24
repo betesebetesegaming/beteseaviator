@@ -47,13 +47,34 @@ export async function ensureNativeLobbyGames(): Promise<string[]> {
   return touched;
 }
 
-/** Seed native lobby games only when none are active (safe for cold starts). */
-export async function ensureNativeLobbyGamesIfEmpty(): Promise<boolean> {
-  const active = await db.collection("games").where("status", "==", "active").limit(1).get();
+/** Seed native + QTech game docs when lobby is empty or core games are missing. */
+export async function ensureNativeLobbyGamesIfEmpty(): Promise<{
+  seeded: boolean;
+  nativeGameIds: string[];
+  qtechGameIds: string[];
+}> {
   const { ensureQTechGameDocs } = await import("./qtech/games");
-  await ensureQTechGameDocs();
-  if (!active.empty) return false;
-  logger.info("No active lobby games — seeding native Aviator games");
-  await ensureNativeLobbyGames();
-  return true;
+  const qtechGameIds = await ensureQTechGameDocs();
+
+  const aviatorSnap = await db.doc("games/aviator").get();
+  const active = await db.collection("games").where("status", "==", "active").limit(1).get();
+
+  if (aviatorSnap.exists && !active.empty) {
+    return { seeded: false, nativeGameIds: [], qtechGameIds };
+  }
+
+  logger.info("Seeding native Aviator lobby games");
+  const nativeGameIds = await ensureNativeLobbyGames();
+  return { seeded: true, nativeGameIds, qtechGameIds };
+}
+
+/** Force-create all lobby game documents (admin / bootstrap). */
+export async function seedAllLobbyGames(): Promise<{
+  nativeGameIds: string[];
+  qtechGameIds: string[];
+}> {
+  const { ensureQTechGameDocs } = await import("./qtech/games");
+  const qtechGameIds = await ensureQTechGameDocs();
+  const nativeGameIds = await ensureNativeLobbyGames();
+  return { nativeGameIds, qtechGameIds };
 }
