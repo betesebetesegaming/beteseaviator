@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import type { Request, Response } from 'express';
 import { logger } from 'firebase-functions';
 import {
@@ -621,12 +622,22 @@ async function processModemPayEvent(event: ModemPayEvent): Promise<void> {
   const eventType = String(event?.event || '');
   const payload = normalizeModemPayPayload((event?.payload || {}) as Record<string, unknown>);
 
-  // 1. Persist raw event for audit.
-  await adminDb.collection('modempay_events').add({
+  // 1. Persist raw event for audit — DEDUPED by logical event identity so
+  //    ModemPay webhook RETRIES don't each create a new doc (that bloated
+  //    modempay_events to thousands of rows). `expiresAt` drives a Firestore
+  //    TTL policy so events auto-expire instead of growing forever.
+  const resourceId = String(
+    payload.id || payload.payment_intent_id || payload.transaction_reference || payload.payment_link_id || '',
+  ).replace(/[^A-Za-z0-9_.-]/g, '_');
+  const eventKey = resourceId
+    ? `${eventType}__${resourceId}`.slice(0, 400)
+    : crypto.createHash('sha256').update(JSON.stringify({ eventType, payload })).digest('hex');
+  await adminDb.collection('modempay_events').doc(eventKey).set({
     event_type: eventType,
     payload,
     received_at: new Date().toISOString(),
-  }).catch(err => logger.warn('Failed to log modempay event', err));
+    expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+  }, { merge: true }).catch(err => logger.warn('Failed to log modempay event', err));
 
   // 2. Link payment_intent.created → BETESE ref BEFORE charge.succeeded arrives.
   if (eventType === 'payment_intent.created') {
