@@ -799,6 +799,10 @@ async function findPendingCheckoutByHints(payload: Record<string, unknown>): Pro
 
   if (!pending || pending.empty) return undefined;
 
+  // A player may legitimately pay from a DIFFERENT Wave/mobile number than the
+  // one stored on their account, so the phone is a TIEBREAKER — never a hard
+  // requirement — otherwise their deposit gets stuck and is never credited.
+  const matches: Array<{ id: string; phoneMatch: boolean }> = [];
   for (const doc of pending.docs) {
     const data = doc.data() as {
       amount?: number;
@@ -813,11 +817,26 @@ async function findPendingCheckoutByHints(payload: Record<string, unknown>): Pro
     // we set session_id at creation to the same id ModemPay returns, so a
     // matching session_id is a positive signal, not a reason to skip.
     if (intentId && data.session_id && data.session_id !== intentId && data.payment_intent_id && data.payment_intent_id !== intentId) continue;
-    const docPhone = String(data.customer_phone || '').replace(/\D/g, '').replace(/^220/, '');
     const amountMatch = !amount || Math.abs(Number(data.amount || 0) - amount) < 0.01;
-    const phoneMatch = !phone || !docPhone || docPhone.endsWith(phone) || phone.endsWith(docPhone);
-    if (amountMatch && phoneMatch) return doc.id;
+    if (!amountMatch) continue;
+    const docPhone = String(data.customer_phone || '').replace(/\D/g, '').replace(/^220/, '');
+    const phoneMatch = Boolean(phone && docPhone && (docPhone.endsWith(phone) || phone.endsWith(docPhone)));
+    matches.push({ id: doc.id, phoneMatch });
   }
+  if (matches.length === 0) return undefined;
+  // 1. Same paying number → highest confidence.
+  const byPhone = matches.find((m) => m.phoneMatch);
+  if (byPhone) return byPhone.id;
+  // 2. Paid from a different number but unambiguous: either the payload told us
+  //    the customer (so we're scoped to them) or there is a single amount match.
+  //    The credit always goes to the customer_id stored on the matched checkout,
+  //    so this can never credit a different user than the one who created it.
+  if (payloadCustomerId || matches.length === 1) return matches[0].id;
+  // 3. Several same-amount deposits from an unknown payer → don't guess.
+  logger.warn('findPendingCheckoutByHints: ambiguous amount match with mismatched phone', {
+    amount,
+    candidates: matches.length,
+  });
   return undefined;
 }
 
