@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 import { rtdb } from "@/lib/rtdb";
-import { filterLobbyGames } from "@/lib/games/catalog";
+import { filterPlayerLobbyGames } from "@/lib/games/catalog";
 import { DEFAULT_SETTINGS, type Game, type GameSession, type LiveRound, type PlatformSettings } from "@/lib/types";
 
 export type CrashHistoryItem = { roundId: string; crashPoint: number; at: number };
@@ -51,10 +51,16 @@ export function subscribeGame(
 }
 
 export function subscribeActiveGames(onGames: (games: Game[]) => void): FsUnsubscribe {
-  const q = query(collection(db, "games"), where("status", "==", "active"));
+  const q = query(
+    collection(db, "games"),
+    where("engine", "==", "qtech"),
+    where("status", "==", "active"),
+  );
   return onSnapshot(q, (snap) => {
-    const games = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Game);
-    onGames(filterLobbyGames(games));
+    const games = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }) as Game)
+      .filter((g) => !["aviator", "aviator-turbo", "crash"].includes(g.id));
+    onGames(filterPlayerLobbyGames(games));
   });
 }
 

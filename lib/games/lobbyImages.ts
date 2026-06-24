@@ -2,10 +2,7 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { storage } from "@/lib/storage";
 
 /** Static fallbacks when no custom upload is set in Firestore. */
-export const DEFAULT_LOBBY_GAME_IMAGES: Record<string, string> = {
-  aviator: "/promotions/aviator-ad.png",
-  "aviator-turbo": "/promotions/aviator-ad.png",
-};
+export const DEFAULT_LOBBY_GAME_IMAGES: Record<string, string> = {};
 
 export function gameLobbyImageUrl(game: { id: string; imageUrl?: string }): string | undefined {
   const custom = game.imageUrl?.trim();

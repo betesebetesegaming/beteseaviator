@@ -5,6 +5,7 @@ import { resolveWalletSession } from "./session";
 import {
   getBalanceForPlayer,
   parseQtechError,
+  parseQTechTxnType,
   processDeposit,
   processReward,
   processRollback,
@@ -109,6 +110,33 @@ export async function depositHandler(req: Request, res: Response): Promise<void>
     if (!(await requirePassKey(req, res))) return;
     const cfg = await getQTechSettings();
     const result = await processDeposit(req.body as Record<string, unknown>, cfg.currency);
+    sendSuccess(res, result);
+  } catch (e) {
+    handleWalletError(res, e);
+  }
+}
+
+/**
+ * QTech sends bets (DEBIT) and wins (CREDIT) to the same /transactions URL.
+ * Route by txnType — Express also treats /transactions and /transactions/ as equivalent,
+ * so separate path-based handlers caused wins to be processed as withdrawals.
+ */
+export async function transactionHandler(req: Request, res: Response): Promise<void> {
+  try {
+    if (!(await requirePassKey(req, res))) return;
+    const body = req.body as Record<string, unknown>;
+    const cfg = await getQTechSettings();
+    const txnType = parseQTechTxnType(body);
+
+    if (txnType === "CREDIT") {
+      const result = await processDeposit(body, cfg.currency);
+      sendSuccess(res, result);
+      return;
+    }
+
+    const playerId = String(body.playerId ?? "");
+    if (!(await requireSessionForWithdrawal(req, res, playerId))) return;
+    const result = await processWithdrawal(body, cfg.currency);
     sendSuccess(res, result);
   } catch (e) {
     handleWalletError(res, e);

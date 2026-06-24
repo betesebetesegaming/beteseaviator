@@ -1,76 +1,38 @@
 import { db } from "../helpers";
+import { QTECH_GAME_SEEDS, type GameSeed } from "../gameCatalog";
 
-export type QTechGameTemplate = {
-  id: string;
-  name: string;
-  lobbyCategory: "aviator" | "crash" | "instantwin";
-  qtechGameId: string;
-  rtp: number;
-};
+export type QTechGameTemplate = Pick<
+  GameSeed,
+  "id" | "name" | "lobbyCategory" | "qtechGameId" | "rtp"
+>;
 
-/** Default QTech lobby games — admin fills qtechGameId then activates. */
-export const QTECH_GAME_TEMPLATES: QTechGameTemplate[] = [
-  {
-    id: "qtech-aviator",
-    name: "Aviator (QTech)",
-    lobbyCategory: "aviator",
-    qtechGameId: "",
-    rtp: 97,
-  },
-  {
-    id: "qtech-crash",
-    name: "Crash (QTech)",
-    lobbyCategory: "crash",
-    qtechGameId: "",
-    rtp: 97,
-  },
-  {
-    id: "qtech-instant-keno",
-    name: "Instant Keno",
-    lobbyCategory: "instantwin",
-    qtechGameId: "",
-    rtp: 96,
-  },
-  {
-    id: "qtech-instant-hilo",
-    name: "Hi-Lo",
-    lobbyCategory: "instantwin",
-    qtechGameId: "",
-    rtp: 96,
-  },
-];
+/** @deprecated Use QTECH_GAME_SEEDS from gameCatalog.ts */
+export const QTECH_GAME_TEMPLATES: QTechGameTemplate[] = QTECH_GAME_SEEDS.map((g) => ({
+  id: g.id,
+  name: g.name,
+  lobbyCategory: g.lobbyCategory,
+  qtechGameId: g.qtechGameId ?? "",
+  rtp: g.rtp,
+}));
 
 export async function ensureQTechGameDocs(): Promise<string[]> {
   const touched: string[] = [];
-  for (const tpl of QTECH_GAME_TEMPLATES) {
-    const ref = db.doc(`games/${tpl.id}`);
-    const snap = await ref.get();
-    if (snap.exists) {
-      await ref.set(
-        {
-          name: tpl.name,
-          type: "crash",
-          provider: "QTech",
-          engine: "qtech",
-          lobbyCategory: tpl.lobbyCategory,
-          rtp: tpl.rtp,
-        },
-        { merge: true }
-      );
-    } else {
-      await ref.set({
-        name: tpl.name,
-        type: "crash",
-        provider: "QTech",
-        engine: "qtech",
-        lobbyCategory: tpl.lobbyCategory,
-        qtechGameId: tpl.qtechGameId,
-        rtp: tpl.rtp,
-        status: "inactive",
-        settings: {},
-      });
-    }
-    touched.push(tpl.id);
+  for (const seed of QTECH_GAME_SEEDS) {
+    const ref = db.doc(`games/${seed.id}`);
+    const patch: Record<string, unknown> = {
+      name: seed.name,
+      type: seed.type,
+      provider: seed.provider,
+      engine: seed.engine,
+      lobbyCategory: seed.lobbyCategory,
+      rtp: seed.rtp,
+      settings: seed.settings ?? {},
+      qtechGameId: seed.qtechGameId ?? "",
+      status: seed.status,
+    };
+    if (seed.imageUrl) patch.imageUrl = seed.imageUrl;
+    await ref.set(patch, { merge: true });
+    touched.push(seed.id);
   }
   return touched;
 }
@@ -108,8 +70,6 @@ export async function getQTechSetupStatus(): Promise<{
     if (!cfg.apiPassword) missing.push("API password (required when launch is enabled)");
   }
 
-  // List ALL QTech games (the seeded Aviator/Crash templates plus any added
-  // via Admin → QTech & Games), not just the fixed templates.
   const qtechSnap = await db.collection("games").where("engine", "==", "qtech").get();
   const games = qtechSnap.docs
     .map((d) => {

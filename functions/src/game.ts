@@ -458,18 +458,13 @@ export const cashout = onCall(async (req) => {
 export const pokeRound = onCall(async (req) => {
   const gameId = String(req.data?.gameId ?? "");
   if (!gameId) throw new HttpsError("invalid-argument", "gameId is required.");
-  const { ensureNativeLobbyGames } = await import("./lobbyGames");
-  await ensureNativeLobbyGames().catch(() => undefined);
   const round = await ensureRound(gameId);
   return { status: round.status, roundId: round.roundId };
 });
 
 /** Minute heartbeat: keeps rounds moving when idle and sweeps stragglers. */
 export const gameTick = onSchedule("every 1 minutes", async () => {
-  const { ensureNativeLobbyGames } = await import("./lobbyGames");
-  await ensureNativeLobbyGames().catch(() => undefined);
-
-  const games = await db.collection("games").where("status", "==", "active").get();
+  const games = await db.collection("games").where("status", "==", "active").where("engine", "==", "native").get();
   for (const g of games.docs) {
     try {
       const round = await ensureRound(g.id);

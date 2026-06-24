@@ -39,6 +39,12 @@ const GAME_OVERRIDES: Record<string, Partial<GameLobbyVisual>> = {
     icon: "rocket",
     tagline: "Ride the multiplier — cash out in time",
   },
+  "crash-turbo": {
+    gradient: "from-fuchsia-600/45 via-purple-600/25 to-slate-950",
+    accent: "text-fuchsia-400",
+    icon: "rocket",
+    tagline: "Faster crash rounds · up to x250",
+  },
   "qtech-aviator": {
     gradient: "from-red-600/50 via-rose-500/25 to-slate-950",
     icon: "plane",

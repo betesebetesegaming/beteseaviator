@@ -1,8 +1,18 @@
 import type { Game } from "@/lib/types";
 
-/** Crash-style native games plus any QTech / categorised game appear in the lobby. */
-export function isLobbyGame(game: Pick<Game, "type" | "engine" | "lobbyCategory">): boolean {
-  return game.type === "crash" || game.engine === "qtech" || Boolean(game.lobbyCategory);
+/** Player lobby: active QTech games with a real catalog game ID only. */
+export function isPlayerLobbyGame(game: Pick<Game, "engine" | "status" | "qtechGameId">): boolean {
+  if (game.engine !== "qtech" || game.status !== "active") return false;
+  return String(game.qtechGameId ?? "").trim().length > 0;
+}
+
+/** Admin dashboard + promos: QTech catalog games only. */
+export function isLobbyGame(game: Pick<Game, "engine" | "qtechGameId">): boolean {
+  return game.engine === "qtech" && String(game.qtechGameId ?? "").trim().length > 0;
+}
+
+export function filterPlayerLobbyGames(games: Game[]): Game[] {
+  return games.filter(isPlayerLobbyGame).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function filterLobbyGames(games: Game[]): Game[] {

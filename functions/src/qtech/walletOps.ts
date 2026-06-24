@@ -1,4 +1,5 @@
 import * as crypto from "crypto";
+import { logger } from "firebase-functions/v2";
 import {
   db,
   FieldValue,
@@ -43,6 +44,15 @@ export type StoredQTechTxn = {
 
 export function playableBalance(wallet: { balance: number; bonusBalance: number }): number {
   return round2(wallet.balance + wallet.bonusBalance);
+}
+
+/** QTech Common Wallet API — txnType on every bet/win request (section 3.3 / 3.4). */
+export function parseQTechTxnType(body: Record<string, unknown>): "DEBIT" | "CREDIT" {
+  const raw = String(body.txnType ?? "")
+    .trim()
+    .toUpperCase();
+  if (raw === "DEBIT" || raw === "CREDIT") return raw;
+  throw qtechError("REQUEST_DECLINED", 400, "Missing or invalid txnType (DEBIT or CREDIT required)");
 }
 
 export function payloadKey(body: Record<string, unknown>): string {
@@ -134,6 +144,11 @@ export async function processWithdrawal(
   body: Record<string, unknown>,
   currency: string
 ): Promise<{ balance: number; referenceId: string }> {
+  const txnType = parseQTechTxnType(body);
+  if (txnType !== "DEBIT") {
+    throw qtechError("REQUEST_DECLINED", 400, "Withdrawals require txnType DEBIT");
+  }
+
   const txnId = String(body.txnId ?? "");
   const playerId = String(body.playerId ?? "");
   const amount = round2(Number(body.amount));
@@ -142,6 +157,8 @@ export async function processWithdrawal(
   if (!txnId || !playerId || !Number.isFinite(amount) || amount < 0) {
     throw qtechError("REQUEST_DECLINED", 400, "Invalid withdrawal payload");
   }
+
+  logger.info("QTech withdrawal", { txnId, playerId, amount, roundId: body.roundId, gameId: body.gameId });
 
   const existing = await getStoredTxn(txnId);
   if (existing) {
@@ -214,7 +231,7 @@ export async function processWithdrawal(
       playerId,
       kind: "withdrawal",
       referenceId,
-      betId: body.txnId ? String(body.txnId) : null,
+      betId: txnId,
       roundId: body.roundId ? String(body.roundId) : null,
       amount,
       balance: balanceAfter,
@@ -236,6 +253,11 @@ export async function processDeposit(
   body: Record<string, unknown>,
   currency: string
 ): Promise<{ balance: number; referenceId: string }> {
+  const txnType = parseQTechTxnType(body);
+  if (txnType !== "CREDIT") {
+    throw qtechError("REQUEST_DECLINED", 400, "Deposits require txnType CREDIT");
+  }
+
   const txnId = String(body.txnId ?? "");
   const playerId = String(body.playerId ?? "");
   const amount = round2(Number(body.amount));
@@ -244,6 +266,15 @@ export async function processDeposit(
   if (!txnId || !playerId || !Number.isFinite(amount) || amount < 0) {
     throw qtechError("REQUEST_DECLINED", 400, "Invalid deposit payload");
   }
+
+  logger.info("QTech deposit", {
+    txnId,
+    playerId,
+    amount,
+    betId: body.betId,
+    roundId: body.roundId,
+    gameId: body.gameId,
+  });
 
   const existing = await getStoredTxn(txnId);
   if (existing) {

@@ -202,8 +202,20 @@ export const adminGetQTechSetup = call<Record<string, never>, QTechSetupStatus>(
 
 export const adminSeedQTechGames = call<
   Record<string, never>,
-  QTechSetupStatus & { ok: true; gameIds: string[] }
+  QTechSetupStatus & {
+    ok: true;
+    gameIds: string[];
+    imageSync?: { updated: string[]; skipped: string[]; missing: string[] };
+  }
 >("adminSeedQTechGames");
+
+export const adminSyncQTechGameImages = call<
+  Record<string, never>,
+  QTechSetupStatus & {
+    ok: true;
+    imageSync: { updated: string[]; skipped: string[]; missing: string[] };
+  }
+>("adminSyncQTechGameImages");
 
 export const adminAddQTechGame = call<
   {

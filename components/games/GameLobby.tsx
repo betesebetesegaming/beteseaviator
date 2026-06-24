@@ -1,95 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { subscribeActiveGames } from "@/lib/games/subscriptions";
-import {
-  filterGamesByLobbyCategory,
-  LOBBY_NAV,
-  sortLobbyGames,
-  type LobbyNavCategory,
-} from "@/lib/games/promotions";
 import type { Game } from "@/lib/types";
 import { EmptyState, Spinner } from "@/components/ui";
 import { GameLobbyCard } from "./GameLobbyCard";
-import { LobbyCategoryNav } from "./LobbyCategoryNav";
-import { LobbySearchBar } from "./LobbySearchBar";
 import { PromoBannerCarousel } from "./PromoBannerCarousel";
-
-function searchGames(games: Game[], query: string): Game[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return games;
-  return games.filter(
-    (g) =>
-      g.name.toLowerCase().includes(q) ||
-      g.provider.toLowerCase().includes(q) ||
-      g.type.toLowerCase().includes(q) ||
-      g.id.toLowerCase().includes(q)
-  );
-}
 
 export function GameLobby() {
   const [games, setGames] = useState<Game[] | null>(null);
-  const [category, setCategory] = useState<LobbyNavCategory>("all");
-  const [search, setSearch] = useState("");
 
   useEffect(() => subscribeActiveGames(setGames), []);
 
-  const filtered = useMemo(() => {
-    if (!games) return [];
-    const byCat = filterGamesByLobbyCategory(games, category);
-    return sortLobbyGames(searchGames(byCat, search));
-  }, [games, category, search]);
-
-  const counts = useMemo(() => {
-    if (!games) return {};
-    return {
-      all: games.length,
-      aviator: filterGamesByLobbyCategory(games, "aviator").length,
-      crash: filterGamesByLobbyCategory(games, "crash").length,
-      instantwin: filterGamesByLobbyCategory(games, "instantwin").length,
-    } as Partial<Record<LobbyNavCategory, number>>;
-  }, [games]);
-
-  const sectionTitle =
-    LOBBY_NAV.find((n) => n.id === category)?.label ?? "Games";
-
-  if (!games) return <Spinner label="Loading game lobby…" />;
+  if (!games) return <Spinner label="Loading games…" />;
 
   return (
     <div className="lobby-page -mx-4 space-y-5 px-4 pb-8 sm:-mx-0 sm:px-0">
-      {/* top promo banner + scrolling ticker */}
       <PromoBannerCarousel />
 
-      {/* search */}
-      <LobbySearchBar value={search} onChange={setSearch} />
-
-      {/* horizontal category icons */}
-      <LobbyCategoryNav active={category} onChange={setCategory} counts={counts} />
-
-      {/* section heading */}
-      <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2">
-        <h2 className="text-sm font-black uppercase tracking-widest text-[var(--lobby-accent)]">
-          {sectionTitle}
-        </h2>
-        <span className="text-xs text-slate-500">{filtered.length} available</span>
-      </div>
-
-      {/* game tile grid — 2–5 columns like casino lobby */}
-      {filtered.length === 0 ? (
-        <EmptyState
-          message={
-            !LOBBY_NAV.find((n) => n.id === category)?.available
-              ? `${sectionTitle} coming soon on BETESE.`
-              : search
-                ? `No games match "${search}".`
-                : category === "instantwin"
-                  ? "Instant Win games will appear here once QTech enables them."
-                  : "No games in this category yet."
-          }
-        />
+      {games.length === 0 ? (
+        <EmptyState message="No QTech games are live yet. Ask admin to add games with QTech catalog IDs." />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-3.5 md:grid-cols-4 lg:grid-cols-5">
-          {filtered.map((game) => (
+          {games.map((game) => (
             <GameLobbyCard key={game.id} game={game} />
           ))}
         </div>

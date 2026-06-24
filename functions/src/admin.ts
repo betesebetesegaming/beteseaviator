@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { logger } from "firebase-functions/v2";
 import {
   auth,
   db,
@@ -16,6 +17,12 @@ import {
   type Role,
 } from "./helpers";
 import { claimSlug, createPlayerAccount } from "./agent";
+
+/** Route outbound QTech API calls through Cloud NAT static IP (QTech IP whitelist). */
+const QTECH_OUTBOUND = {
+  vpcConnector: "projects/beteseaviator-a05ae/locations/us-central1/connectors/betese-qtech",
+  vpcConnectorEgressSettings: "ALL_TRAFFIC" as const,
+};
 
 /** Admin creates any account type with full hierarchy validation. */
 export const adminCreateUser = onCall(async (req) => {
@@ -627,7 +634,7 @@ export const adminSetGameStatus = onCall(async (req) => {
 });
 
 /** Admin registers an additional QTech game (Aviator / Crash / Instant Win) for the lobby. */
-export const adminAddQTechGame = onCall(async (req) => {
+export const adminAddQTechGame = onCall(QTECH_OUTBOUND, async (req) => {
   await requireRole(req, ["admin"]);
   const qtechGameId = String(req.data?.qtechGameId ?? "").trim().slice(0, 128);
   const name = String(req.data?.name ?? "").trim().slice(0, 80);
@@ -658,15 +665,18 @@ export const adminAddQTechGame = onCall(async (req) => {
     status: "active",
     settings: {},
   };
-  if (imageUrl) patch.imageUrl = imageUrl;
-  await db.doc(`games/${id}`).set(patch, { merge: true });
-
-  // When a QTech Aviator goes live, hide native duplicates on the same tab.
-  if (lobbyCategory === "aviator") {
-    for (const nativeId of ["aviator", "aviator-turbo"]) {
-      await db.doc(`games/${nativeId}`).set({ status: "inactive" }, { merge: true });
+  if (imageUrl) {
+    patch.imageUrl = imageUrl;
+  } else {
+    try {
+      const { fetchQTechImageForGameId } = await import("./qtech/gameList");
+      const synced = await fetchQTechImageForGameId(qtechGameId);
+      if (synced) patch.imageUrl = synced;
+    } catch (e) {
+      logger.warn("Could not fetch QTech thumbnail for new game", { qtechGameId, e });
     }
   }
+  await db.doc(`games/${id}`).set(patch, { merge: true });
 
   const { getQTechSetupStatus } = await import("./qtech/games");
   return { ok: true, id, ...(await getQTechSetupStatus()) };
@@ -681,31 +691,50 @@ export const adminDeleteGame = onCall(async (req) => {
   return { ok: true };
 });
 
-/** Hide built-in Aviator engine games when QTech catalog games are live. */
+/** Permanently deletes legacy native BETESE game docs if any remain. */
 export const adminDeactivateNativeLobbyGames = onCall(async (req) => {
   await requireRole(req, ["admin"]);
-  const ids = ["aviator", "aviator-turbo"];
-  for (const id of ids) {
+  const legacyNativeIds = ["aviator", "aviator-turbo", "crash"];
+  const deleted: string[] = [];
+  for (const id of legacyNativeIds) {
     const ref = db.doc(`games/${id}`);
     if ((await ref.get()).exists) {
-      await ref.set({ status: "inactive" }, { merge: true });
+      await ref.delete();
+      deleted.push(id);
     }
   }
-  return { ok: true, deactivated: ids };
+  return { ok: true, deactivated: deleted };
 });
 
 /** Creates/refreshes QTech Aviator + Crash game documents in Firestore. */
-export const adminSeedQTechGames = onCall(async (req) => {
+export const adminSeedQTechGames = onCall(QTECH_OUTBOUND, async (req) => {
   await requireRole(req, ["admin"]);
   const { ensureQTechGameDocs, getQTechSetupStatus } = await import("./qtech/games");
   const { seedAllLobbyGames } = await import("./lobbyGames");
+  const { syncQTechLobbyImages } = await import("./qtech/gameList");
   const seeded = await seedAllLobbyGames();
   const ids = await ensureQTechGameDocs();
+  let imageSync = { updated: [] as string[], skipped: [] as string[], missing: [] as string[] };
+  try {
+    imageSync = await syncQTechLobbyImages();
+  } catch (e) {
+    logger.warn("QTech thumbnail sync failed during seed", e);
+  }
   const status = await getQTechSetupStatus();
-  return { ok: true, ...seeded, gameIds: ids, ...status };
+  return { ok: true, ...seeded, gameIds: ids, imageSync, ...status };
 });
 
-/** Restore native Aviator + Turbo on the player lobby. */
+/** Pull official QTech CDN thumbnails into Firestore game docs. */
+export const adminSyncQTechGameImages = onCall(QTECH_OUTBOUND, async (req) => {
+  await requireRole(req, ["admin"]);
+  const { syncQTechLobbyImages } = await import("./qtech/gameList");
+  const { getQTechSetupStatus } = await import("./qtech/games");
+  const imageSync = await syncQTechLobbyImages();
+  const status = await getQTechSetupStatus();
+  return { ok: true, imageSync, ...status };
+});
+
+/** Refresh QTech lobby game documents. */
 export const adminEnsureLobbyGames = onCall(async (req) => {
   await requireRole(req, ["admin"]);
   const { seedAllLobbyGames } = await import("./lobbyGames");

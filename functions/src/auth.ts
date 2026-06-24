@@ -432,61 +432,8 @@ export const seedPlatform = onCall(async (req) => {
     { merge: true }
   );
 
-  await db.doc("games/aviator-turbo").set({
-    name: "Aviator Turbo",
-    type: "crash",
-    provider: "BETESE",
-    engine: "native",
-    lobbyCategory: "aviator",
-    imageUrl: "/promotions/aviator-ad.png",
-    rtp: 96,
-    status: "active",
-    settings: { maxMultiplier: 200, growthRate: 0.09 },
-  });
-  await db.doc("games/aviator").set({
-    name: "Aviator",
-    type: "crash",
-    provider: "BETESE",
-    engine: "native",
-    lobbyCategory: "aviator",
-    imageUrl: "/promotions/aviator-ad.png",
-    rtp: 97,
-    status: "active",
-    settings: { maxMultiplier: 100, growthRate: 0.06 },
-  }, { merge: true });
-  await db.doc("games/crash").set({
-    name: "Crash",
-    type: "crash",
-    provider: "BETESE",
-    engine: "native",
-    lobbyCategory: "crash",
-    imageUrl: "/promotions/aviator-ad.png",
-    rtp: 97,
-    status: "active",
-    settings: { maxMultiplier: 150, growthRate: 0.075 },
-  }, { merge: true });
-  await db.doc("games/qtech-aviator").set({
-    name: "Aviator (QTech)",
-    type: "crash",
-    provider: "QTech",
-    engine: "qtech",
-    lobbyCategory: "aviator",
-    qtechGameId: "",
-    rtp: 97,
-    status: "inactive",
-    settings: {},
-  }, { merge: true });
-  await db.doc("games/qtech-crash").set({
-    name: "Crash (QTech)",
-    type: "crash",
-    provider: "QTech",
-    engine: "qtech",
-    lobbyCategory: "crash",
-    qtechGameId: "",
-    rtp: 97,
-    status: "inactive",
-    settings: {},
-  }, { merge: true });
+  const { ensureQTechGameDocs } = await import("./qtech/games");
+  await ensureQTechGameDocs();
   created.push("settings", "games");
 
   await db.doc("settings/lobbyPromos").set({
@@ -496,7 +443,7 @@ export const seedPlatform = onCall(async (req) => {
         title: "Fly high with Aviator",
         subtitle: "Cash out before the crash — win real GMD on BETESE",
         cta: "Play now",
-        href: "/play/game/aviator",
+        href: "/play",
         imageUrl: "/promotions/aviator-ad.png",
         gradient: "from-red-700 via-rose-900 to-black",
         accent: "text-betese-yellow",

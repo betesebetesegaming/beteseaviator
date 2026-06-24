@@ -7,12 +7,12 @@ import { CheckCircle2, Circle, Copy, RefreshCw } from "lucide-react";
 import { db } from "@/lib/firestore";
 import {
   adminAddQTechGame,
-  adminDeactivateNativeLobbyGames,
   adminDeleteGame,
   adminGetQTechSetup,
   adminPreviewQTechGame,
   adminSaveQTechSettings,
   adminSeedQTechGames,
+  adminSyncQTechGameImages,
   adminSetGameStatus,
   errorMessage,
   type QTechSetupStatus,
@@ -76,6 +76,7 @@ export default function AdminQTechPage() {
   const [loading, setLoading] = useState(true);
   const [savingCreds, setSavingCreds] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [syncingImages, setSyncingImages] = useState(false);
   const [busyGameId, setBusyGameId] = useState<string | null>(null);
   const [addForm, setAddForm] = useState<{
     qtechGameId: string;
@@ -142,11 +143,36 @@ export default function AdminQTechPage() {
         }
         return next;
       });
-      toast.success("Aviator & Crash game entries are ready.");
+      const synced = res.imageSync?.updated?.length ?? 0;
+      toast.success(
+        synced > 0
+          ? `Lobby games ready — ${synced} thumbnail${synced === 1 ? "" : "s"} synced from QTech.`
+          : "Lobby games ready.",
+      );
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
       setSeeding(false);
+    }
+  }
+
+  async function syncThumbnails() {
+    setSyncingImages(true);
+    try {
+      const res = await adminSyncQTechGameImages({});
+      setStatus(res);
+      const { updated, missing } = res.imageSync;
+      if (updated.length === 0 && missing.length > 0) {
+        toast.error(`No thumbnails found — check API credentials and game IDs (${missing.join(", ")}).`);
+      } else if (updated.length === 0) {
+        toast.success("Thumbnails already up to date.");
+      } else {
+        toast.success(`Synced ${updated.length} game thumbnail${updated.length === 1 ? "" : "s"} from QTech.`);
+      }
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setSyncingImages(false);
     }
   }
 
@@ -241,18 +267,6 @@ export default function AdminQTechPage() {
     }
   }
 
-  async function hideNativeGames() {
-    setBusyGameId("native");
-    try {
-      await adminDeactivateNativeLobbyGames({});
-      toast.success("Native Aviator & Turbo hidden from lobby.");
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setBusyGameId(null);
-    }
-  }
-
   async function removeGame(gameId: string, name: string) {
     if (!window.confirm(`Remove "${name}" from the dashboard? This permanently deletes it.`)) return;
     setBusyGameId(gameId);
@@ -290,6 +304,14 @@ export default function AdminQTechPage() {
           </Button>
           <Button className="px-3 py-1.5 text-xs" onClick={() => void seedGames()} disabled={seeding}>
             {seeding ? "Creating…" : "Restore lobby games"}
+          </Button>
+          <Button
+            variant="secondary"
+            className="px-3 py-1.5 text-xs"
+            onClick={() => void syncThumbnails()}
+            disabled={syncingImages || !status?.launchReady}
+          >
+            {syncingImages ? "Syncing…" : "Sync QTech thumbnails"}
           </Button>
         </div>
       </div>
@@ -490,7 +512,6 @@ export default function AdminQTechPage() {
             QTech operator games
           </a>
           , add it here, upload a thumbnail in section 6, and enter API credentials in section 4.
-          Native BETESE Aviator tiles are hidden automatically when you add a QTech Aviator game.
         </p>
 
         {/* Add a QTech game by catalog ID */}
@@ -544,14 +565,6 @@ export default function AdminQTechPage() {
               disabled={previewing}
             >
               {previewing ? "Loading…" : "Preview (demo)"}
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1.5 text-xs"
-              onClick={() => void hideNativeGames()}
-              disabled={busyGameId === "native"}
-            >
-              Hide native Aviator games
             </Button>
           </div>
         </div>
@@ -644,7 +657,23 @@ export default function AdminQTechPage() {
       <LobbyGamesSection busyGameId={busyGameId} setBusyGameId={setBusyGameId} onRefresh={refreshStatus} />
 
       <Card>
-        <h2 className="mb-2 font-semibold">7. Certification tester</h2>
+        <h2 className="mb-2 font-semibold">7. Game thumbnails</h2>
+        <p className="text-sm text-slate-400">
+          Thumbnails are pulled from the QTech Game List API (<code className="text-xs">GET /v2/games</code>)
+          using banner / logo assets hosted on QTech CDN. Requires launch credentials in section 4.
+        </p>
+        <Button
+          className="mt-3 px-3 py-1.5 text-xs"
+          variant="secondary"
+          onClick={() => void syncThumbnails()}
+          disabled={syncingImages || !status?.launchReady}
+        >
+          {syncingImages ? "Syncing…" : "Sync all thumbnails from QTech"}
+        </Button>
+      </Card>
+
+      <Card>
+        <h2 className="mb-2 font-semibold">8. Certification tester</h2>
         <p className="text-sm text-slate-400">
           After Pass-Key is saved, run{" "}
           <code className="text-xs text-slate-300">docs/qtech/cw_qtcw_tester.py all</code> against
