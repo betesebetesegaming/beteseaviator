@@ -1,14 +1,19 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { gameLobbyImageUrl } from "@/lib/games/lobbyImages";
 import { qtechCdnBannerImage } from "@/lib/games/qtechImages";
 import { getGameLobbyVisual } from "@/lib/games/lobbyMeta";
-import { GameLaunchSheet } from "@/components/games/GameLaunchSheet";
 import type { Game } from "@/lib/types";
 
-export function GameLobbyCard({ game }: { game: Game }) {
+const GameLaunchSheet = dynamic(
+  () => import("@/components/games/GameLaunchSheet").then((m) => ({ default: m.GameLaunchSheet })),
+  { ssr: false },
+);
+
+export function GameLobbyCard({ game, priority = false }: { game: Game; priority?: boolean }) {
   const visual = getGameLobbyVisual(game);
   const primaryUrl = gameLobbyImageUrl(game);
   const fallbackUrl = useMemo(() => {
@@ -32,7 +37,7 @@ export function GameLobbyCard({ game }: { game: Game }) {
       <button
         type="button"
         onClick={() => setSheetOpen(true)}
-        className="group block w-full overflow-hidden rounded-2xl bg-[#141414] text-left shadow-md shadow-black/30 ring-1 ring-white/6 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:ring-white/12 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lobby-accent)]"
+        className="group block w-full overflow-hidden rounded-2xl bg-[#141414] text-left shadow-md shadow-black/30 ring-1 ring-white/6 transition-transform duration-200 hover:-translate-y-0.5 hover:ring-white/12 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lobby-accent)]"
       >
         <div
           className={`relative aspect-[3/4] overflow-hidden ${showImage ? "bg-[#1a1a1a]" : `bg-gradient-to-br ${visual.gradient}`}`}
@@ -42,8 +47,10 @@ export function GameLobbyCard({ game }: { game: Game }) {
             <img
               src={src}
               alt={game.name}
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-              loading="lazy"
+              className="h-full w-full object-cover"
+              loading={priority ? "eager" : "lazy"}
+              decoding="async"
+              fetchPriority={priority ? "high" : "auto"}
               onError={() => {
                 if (fallbackUrl && src !== fallbackUrl) {
                   setSrc(fallbackUrl);
@@ -75,7 +82,7 @@ export function GameLobbyCard({ game }: { game: Game }) {
         </div>
       </button>
 
-      <GameLaunchSheet game={game} open={sheetOpen} onClose={() => setSheetOpen(false)} />
+      {sheetOpen ? <GameLaunchSheet game={game} open={sheetOpen} onClose={() => setSheetOpen(false)} /> : null}
     </>
   );
 }

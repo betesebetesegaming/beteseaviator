@@ -1,13 +1,20 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { subscribeActiveGames } from "@/lib/games/subscriptions";
+import { readCachedLobbyGames, writeCachedLobbyGames } from "@/lib/games/lobbyCache";
+import { LobbyGameSkeleton } from "@/components/games/LobbyGameSkeleton";
 import type { Game } from "@/lib/types";
-import { EmptyState, Spinner } from "@/components/ui";
+import { EmptyState } from "@/components/ui";
 import { GameLobbyCard } from "./GameLobbyCard";
-import { PromoBannerCarousel } from "./PromoBannerCarousel";
 import { LobbyCategoryNav } from "./LobbyCategoryNav";
 import { LOBBY_NAV, type LobbyNavCategory } from "@/lib/games/promotions";
+
+const PromoBannerCarousel = dynamic(
+  () => import("./PromoBannerCarousel").then((m) => ({ default: m.PromoBannerCarousel })),
+  { ssr: false, loading: () => <div className="h-36 animate-pulse rounded-2xl bg-white/5 sm:h-44" /> },
+);
 
 type LobbySection = {
   id: LobbyNavCategory;
@@ -47,18 +54,23 @@ function buildLobbySections(games: Game[]): LobbySection[] {
 function GameGrid({ games }: { games: Game[] }) {
   return (
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-2.5 md:grid-cols-5 lg:grid-cols-6">
-      {games.map((game) => (
-        <GameLobbyCard key={game.id} game={game} />
+      {games.map((game, index) => (
+        <GameLobbyCard key={game.id} game={game} priority={index < 9} />
       ))}
     </div>
   );
 }
 
 export function GameLobby() {
-  const [games, setGames] = useState<Game[] | null>(null);
+  const [games, setGames] = useState<Game[] | null>(() => readCachedLobbyGames<Game>());
   const [category, setCategory] = useState<LobbyNavCategory>("all");
 
-  useEffect(() => subscribeActiveGames(setGames), []);
+  useEffect(() => {
+    return subscribeActiveGames((next) => {
+      setGames(next);
+      writeCachedLobbyGames(next);
+    });
+  }, []);
 
   const counts = useMemo(() => {
     if (!games) return {};
@@ -78,7 +90,7 @@ export function GameLobby() {
     return games.filter((game) => lobbyCategoryOf(game) === category);
   }, [games, category]);
 
-  if (!games) return <Spinner label="Loading games…" />;
+  const showSkeleton = !games;
 
   return (
     <div className="lobby-page -mx-4 space-y-4 px-4 pb-8 sm:-mx-0 sm:space-y-5 sm:px-0">
@@ -86,8 +98,10 @@ export function GameLobby() {
 
       <LobbyCategoryNav active={category} onChange={setCategory} counts={counts} />
 
-      {games.length === 0 ? (
-        <EmptyState message="No QTech games are live yet. Ask admin to add games with QTech catalog IDs." />
+      {showSkeleton ? (
+        <LobbyGameSkeleton />
+      ) : games.length === 0 ? (
+        <EmptyState message="No games are live yet. Check back soon." />
       ) : category === "all" ? (
         <div className="space-y-5">
           {sections.map((section) => (

@@ -1,9 +1,9 @@
 /** Public QTech launcher CDN — works without Game List API access. */
 const QTECH_CDN = "https://client.qtlauncher.com/images/";
 
-/** Placeholders from CDN are tiny; real artwork is much larger. */
-export const QTECH_BANNER_MIN_BYTES = 8_000;
-export const QTECH_LOGO_SQUARE_MIN_BYTES = 50_000;
+export const LOBBY_THUMB_WIDTH = 320;
+export const QTECH_BANNER_MIN_BYTES = 4_000;
+export const QTECH_LOGO_SQUARE_MIN_BYTES = 30_000;
 
 export type QTechLobbyImageType = "banner" | "logo-square" | "logo-round";
 
@@ -14,27 +14,27 @@ export function qtechImageLocale(lang?: string): string {
   return "en_US";
 }
 
-/** Full-color square character artwork — best for portrait lobby cards. */
+/** Fast colorful lobby banner thumbnail. */
 export function qtechCdnLobbyImage(qtechGameId: string, lang = "en_US"): string {
   const gameId = qtechGameId.trim();
   const imageKey = `${gameId}_${qtechImageLocale(lang)}`;
   const params = new URLSearchParams({
     id: imageKey,
-    type: "logo-square",
-    width: "640",
+    type: "banner",
+    width: String(LOBBY_THUMB_WIDTH),
+    showIcon: "true",
   });
   return `${QTECH_CDN}?${params.toString()}`;
 }
 
-/** Wide banner fallback when square art fails to load. */
-export function qtechCdnBannerImage(qtechGameId: string, lang = "en_US"): string {
+/** Square artwork fallback. */
+export function qtechCdnLogoImage(qtechGameId: string, lang = "en_US"): string {
   const gameId = qtechGameId.trim();
   const imageKey = `${gameId}_${qtechImageLocale(lang)}`;
   const params = new URLSearchParams({
     id: imageKey,
-    type: "banner",
-    width: "640",
-    showIcon: "true",
+    type: "logo-square",
+    width: String(LOBBY_THUMB_WIDTH),
   });
   return `${QTECH_CDN}?${params.toString()}`;
 }
