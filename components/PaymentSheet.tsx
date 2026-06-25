@@ -92,7 +92,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   onClose,
   user,
   initialAmount,
-  minDeposit = 50,
+  minDeposit = 25,
   frozen = false,
   floatingKeypad = false,
   onDepositRequest,
@@ -421,7 +421,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                   className="w-full p-3 border-2 border-slate-300 rounded-xl text-lg font-black text-slate-900 bg-white placeholder:text-slate-400 focus:border-betese-green focus:ring-2 focus:ring-green-600/25 focus:outline-none"
                 />
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {[50, 100, 200, 500, 1000].map((preset) => (
+                  {[25, 50, 100, 200, 500].map((preset) => (
                     <button
                       key={preset}
                       type="button"

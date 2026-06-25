@@ -1,0 +1,109 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { useAuthModal } from "@/lib/auth-modal-context";
+import { gameDemoPath, gamePlayPath } from "@/lib/games/paths";
+import { gameLobbyImageUrl } from "@/lib/games/lobbyImages";
+import { qtechCdnBannerImage } from "@/lib/games/qtechImages";
+import type { Game } from "@/lib/types";
+
+type Props = {
+  game: Game;
+  open: boolean;
+  onClose: () => void;
+};
+
+export function GameLaunchSheet({ game, open, onClose }: Props) {
+  const router = useRouter();
+  const { openAuth } = useAuthModal();
+  const { profile } = useAuth();
+  const isPlayer = !!profile && profile.role === "player" && profile.status === "active";
+
+  const primaryUrl = gameLobbyImageUrl(game);
+  const fallbackUrl = useMemo(() => {
+    const id = String(game.qtechGameId ?? "").trim();
+    return id ? qtechCdnBannerImage(id) : undefined;
+  }, [game.qtechGameId]);
+
+  const [src, setSrc] = useState(primaryUrl);
+
+  useEffect(() => {
+    if (!open) return;
+    setSrc(primaryUrl);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open, primaryUrl]);
+
+  if (!open) return null;
+
+  const playReal = () => {
+    onClose();
+    if (isPlayer) {
+      router.push(gamePlayPath(game));
+      return;
+    }
+    openAuth("register");
+  };
+
+  const playDemo = () => {
+    onClose();
+    router.push(gameDemoPath(game));
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden />
+
+      <div className="relative w-full max-w-md overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+          <h2 className="truncate text-base font-black text-slate-900">{game.name}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="relative aspect-[4/3] bg-[#1a1a1a]">
+          {src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={src}
+              alt={game.name}
+              className="h-full w-full object-cover"
+              onError={() => fallbackUrl && setSrc(fallbackUrl)}
+            />
+          ) : null}
+        </div>
+
+        <div className="space-y-3 p-4">
+          <button
+            type="button"
+            onClick={playReal}
+            className="w-full rounded-xl bg-[#f5e042] py-4 text-center text-sm font-black uppercase tracking-widest text-black shadow-md active:scale-[0.99]"
+          >
+            Play now
+          </button>
+          <button
+            type="button"
+            onClick={playDemo}
+            className="w-full rounded-xl bg-black py-4 text-center text-sm font-black uppercase tracking-widest text-white active:scale-[0.99]"
+          >
+            Play demo
+          </button>
+          <p className="text-center text-[11px] text-slate-500">
+            Demo is free — no wallet needed. Sign up to play with real GMD.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

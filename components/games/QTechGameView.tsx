@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
-import { errorMessage, launchQTechGame } from "@/lib/api";
+import { errorMessage, launchQTechGame, launchQTechGameDemo } from "@/lib/api";
 import type { Game } from "@/lib/types";
 import { Button, Spinner } from "@/components/ui";
 import { WalletFrozenNotice } from "@/components/wallet/WalletFrozenNotice";
@@ -13,6 +13,7 @@ import { WalletFrozenNotice } from "@/components/wallet/WalletFrozenNotice";
 type Props = {
   game: Game;
   immersive?: boolean;
+  demo?: boolean;
 };
 
 function isMobilePlayDevice(): boolean {
@@ -22,7 +23,7 @@ function isMobilePlayDevice(): boolean {
   return coarse || narrow;
 }
 
-export function QTechGameView({ game, immersive = false }: Props) {
+export function QTechGameView({ game, immersive = false, demo = false }: Props) {
   const { fbUser, profile, wallet, loading } = useAuth();
   const { openAuth } = useAuthModal();
   const [launchUrl, setLaunchUrl] = useState<string | null>(null);
@@ -34,11 +35,16 @@ export function QTechGameView({ game, immersive = false }: Props) {
   const frozen = Boolean(wallet?.frozen);
 
   const loadGame = useCallback(async () => {
-    if (!isPlayer || frozen) return;
     setLaunching(true);
     setError(null);
     try {
       const device = isMobilePlayDevice() ? "mobile" : "desktop";
+      if (demo) {
+        const res = await launchQTechGameDemo({ gameId: game.id, device });
+        setLaunchUrl(res.launchUrl);
+        return;
+      }
+      if (!isPlayer || frozen) return;
       const res = await launchQTechGame({ gameId: game.id, device });
       setLaunchUrl(res.launchUrl);
     } catch (e) {
@@ -48,11 +54,15 @@ export function QTechGameView({ game, immersive = false }: Props) {
     } finally {
       setLaunching(false);
     }
-  }, [frozen, game.id, isPlayer]);
+  }, [demo, frozen, game.id, isPlayer]);
 
   useEffect(() => {
+    if (demo) {
+      void loadGame();
+      return;
+    }
     if (isPlayer && !frozen) void loadGame();
-  }, [frozen, isPlayer, loadGame]);
+  }, [demo, frozen, isPlayer, loadGame]);
 
   useEffect(() => {
     if (!immersive) return;
@@ -71,7 +81,7 @@ export function QTechGameView({ game, immersive = false }: Props) {
     };
   }, [immersive]);
 
-  if (!fbUser || !isPlayer) {
+  if (!demo && (!fbUser || !isPlayer)) {
     return (
       <div className="rounded-xl border border-white/10 bg-slate-900/70 p-8 text-center">
         <p className="text-slate-300">
@@ -86,12 +96,12 @@ export function QTechGameView({ game, immersive = false }: Props) {
     );
   }
 
-  if (frozen) {
+  if (!demo && frozen) {
     return <WalletFrozenNotice />;
   }
 
   if (launching && !launchUrl) {
-    return <Spinner label={`Loading ${game.name}…`} />;
+    return <Spinner label={demo ? `Loading demo…` : `Loading ${game.name}…`} />;
   }
 
   if (error && !launchUrl) {
@@ -107,12 +117,17 @@ export function QTechGameView({ game, immersive = false }: Props) {
   }
 
   if (!launchUrl) {
-    return <Spinner label={`Preparing ${game.name}…`} />;
+    return <Spinner label={demo ? "Preparing demo…" : `Preparing ${game.name}…`} />;
   }
 
   if (immersive) {
     return (
       <>
+        {demo ? (
+          <div className="fixed left-1/2 top-[max(2.5rem,calc(env(safe-area-inset-top)+2rem))] z-[65] -translate-x-1/2 rounded-full bg-amber-500/90 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-black">
+            Fun mode — demo
+          </div>
+        ) : null}
         <iframe
           title={game.name}
           src={launchUrl}

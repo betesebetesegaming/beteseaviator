@@ -4,3 +4,7 @@ import type { Game } from "@/lib/types";
 export function gamePlayPath(game: Pick<Game, "id" | "type">): string {
   return `/play/game/${game.id}`;
 }
+
+export function gameDemoPath(game: Pick<Game, "id" | "type">): string {
+  return `/play/game/${game.id}?mode=demo`;
+}

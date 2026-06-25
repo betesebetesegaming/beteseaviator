@@ -245,6 +245,11 @@ export const launchQTechGame = call<
   { launchUrl: string; walletSession: string }
 >("launchQTechGame");
 
+export const launchQTechGameDemo = call<
+  { gameId: string; device?: "mobile" | "desktop" },
+  { launchUrl: string }
+>("launchQTechGameDemo");
+
 export const adminPreviewQTechGame = call<
   { qtechGameId: string; device?: "mobile" | "desktop" },
   { launchUrl: string }

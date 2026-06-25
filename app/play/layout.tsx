@@ -94,7 +94,9 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
         <PresenceTracker />
         {isPlayer && !walletFrozen ? <PendingDepositReconciler /> : null}
         <div className="game-play-root relative min-h-[100dvh] bg-black">
-          <GameFloatingBar />
+          <Suspense fallback={null}>
+            <GameFloatingBar />
+          </Suspense>
           <main className="relative">{children}</main>
         </div>
       </LobbyBackgroundShell>

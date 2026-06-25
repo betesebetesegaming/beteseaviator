@@ -1,25 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Eye } from "lucide-react";
 import { subscribeGame } from "@/lib/games/api";
 import { isPlayerLobbyGame } from "@/lib/games/catalog";
-import { useAuth } from "@/lib/auth-context";
 import type { Game } from "@/lib/types";
 import { QTechGameView } from "@/components/games/QTechGameView";
 import { Spinner } from "@/components/ui";
 
-export default function GamePage() {
+function GamePageContent() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const gameId = params.id;
-  const { profile, fbUser, loading } = useAuth();
+  const isDemo = searchParams.get("mode") === "demo";
   const [game, setGame] = useState<Game | null>(null);
   const [gameLoading, setGameLoading] = useState(true);
-
-  const needsProfile = !!fbUser && !profile && !loading;
-  const isPlayer = !!profile && profile.role === "player" && profile.status === "active";
 
   useEffect(() => {
     setGameLoading(true);
@@ -61,18 +57,17 @@ export default function GamePage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {!isPlayer && (
-        <div className="mx-2 mb-2 flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          <Eye size={14} className="shrink-0" />
-          <span>
-            {needsProfile
-              ? "Complete your profile to bet with real GMD."
-              : "Demo mode — sign up to bet with real GMD."}
-          </span>
-        </div>
-      )}
-
-      {game.engine === "qtech" ? <QTechGameView game={game} immersive /> : null}
+      {game.engine === "qtech" ? (
+        <QTechGameView game={game} immersive demo={isDemo} />
+      ) : null}
     </div>
+  );
+}
+
+export default function GamePage() {
+  return (
+    <Suspense fallback={<Spinner label="Loading game…" />}>
+      <GamePageContent />
+    </Suspense>
   );
 }

@@ -51,4 +51,4 @@ export { modempayApi } from "./modempayApi";
 
 /** QTech Common Wallet API + game launch. */
 export { qtcwApi } from "./qtechApi";
-export { launchQTechGame, adminPreviewQTechGame } from "./qtech/launch";
+export { launchQTechGame, launchQTechGameDemo, adminPreviewQTechGame } from "./qtech/launch";
