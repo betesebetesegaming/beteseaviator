@@ -47,3 +47,12 @@ export const PROMO_TICKER: string[] = [
   "💰 Instant Wave & AfriMoney deposits",
   "🎮 New games added from your QTech catalog",
 ];
+
+export type LobbyNavCategory = "all" | "aviator" | "crash" | "instantwin";
+
+export const LOBBY_NAV: Array<{ id: LobbyNavCategory; label: string; icon: string; available: boolean }> = [
+  { id: "all", label: "All", icon: "grid", available: true },
+  { id: "aviator", label: "Aviator", icon: "plane", available: true },
+  { id: "crash", label: "Crash", icon: "rocket", available: true },
+  { id: "instantwin", label: "Instant Win", icon: "dice", available: true },
+];

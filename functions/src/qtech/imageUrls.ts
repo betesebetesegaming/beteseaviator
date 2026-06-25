@@ -1,6 +1,8 @@
 /** Public QTech launcher CDN — works without Game List API access. */
 const QTECH_CDN = "https://client.qtlauncher.com/images/";
 
+export type QTechLobbyImageType = "logo-square" | "banner" | "logo-round";
+
 export function qtechImageLocale(lang?: string): string {
   const raw = String(lang ?? "en_US").trim().replace("-", "_");
   if (raw.includes("_")) return raw;
@@ -8,14 +10,23 @@ export function qtechImageLocale(lang?: string): string {
   return "en_US";
 }
 
-/** Banner image for lobby cards (4:3 crop via object-cover). */
-export function qtechCdnLobbyImage(qtechGameId: string, lang = "en_US"): string {
+/** Colorful square game artwork — preferred for lobby cards. */
+export function qtechCdnLobbyImage(
+  qtechGameId: string,
+  lang = "en_US",
+  type: QTechLobbyImageType = "logo-square",
+): string {
   const gameId = qtechGameId.trim();
   const imageKey = `${gameId}_${qtechImageLocale(lang)}`;
   const params = new URLSearchParams({
     id: imageKey,
-    type: "banner",
+    type,
     width: "640",
   });
   return `${QTECH_CDN}?${params.toString()}`;
+}
+
+/** Wide marketing banner (fallback). */
+export function qtechCdnBannerImage(qtechGameId: string, lang = "en_US"): string {
+  return qtechCdnLobbyImage(qtechGameId, lang, "banner");
 }

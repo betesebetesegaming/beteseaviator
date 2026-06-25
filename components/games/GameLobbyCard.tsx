@@ -16,13 +16,14 @@ export function GameLobbyCard({ game }: { game: Game }) {
       href={gamePlayPath(game)}
       className="group block overflow-hidden rounded-2xl bg-[#141414] shadow-lg shadow-black/20 ring-1 ring-white/8 transition-all hover:-translate-y-1 hover:shadow-xl hover:ring-[color-mix(in_srgb,var(--lobby-accent)_45%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lobby-accent)]"
     >
-      <div className={`relative aspect-[4/3] overflow-hidden ${imageUrl ? "bg-black" : `bg-gradient-to-br ${visual.gradient}`}`}>
+      <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-[#1c1c28] via-[#12121a] to-[#0a0a0f]">
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={imageUrl}
             alt={game.name}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+            className="h-full w-full object-contain p-1.5 transition-transform duration-500 group-hover:scale-[1.04]"
+            loading="lazy"
           />
         ) : (
           <>

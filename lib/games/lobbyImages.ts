@@ -1,12 +1,21 @@
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { storage } from "@/lib/storage";
+import { qtechCdnLobbyImage, upgradeQTechLobbyImageUrl } from "@/lib/games/qtechImages";
 
 /** Static fallbacks when no custom upload is set in Firestore. */
 export const DEFAULT_LOBBY_GAME_IMAGES: Record<string, string> = {};
 
-export function gameLobbyImageUrl(game: { id: string; imageUrl?: string }): string | undefined {
+export function gameLobbyImageUrl(game: {
+  id: string;
+  imageUrl?: string;
+  qtechGameId?: string;
+}): string | undefined {
   const custom = game.imageUrl?.trim();
-  if (custom) return custom;
+  if (custom) return upgradeQTechLobbyImageUrl(custom);
+
+  const qtechId = String(game.qtechGameId ?? "").trim();
+  if (qtechId) return qtechCdnLobbyImage(qtechId);
+
   return DEFAULT_LOBBY_GAME_IMAGES[game.id];
 }
 

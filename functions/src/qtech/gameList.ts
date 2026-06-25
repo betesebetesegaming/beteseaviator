@@ -25,10 +25,10 @@ type QTechGameListResponse = {
   links?: Array<{ href?: string; rel?: string }>;
 };
 
-/** Prefer wide banner for 4:3 lobby cards; fall back to square/round logos. */
+/** Prefer colorful square artwork; banner is a flat marketing fallback. */
 export function pickLobbyImageUrl(images: QTechGameImage[] | undefined): string | undefined {
   if (!images?.length) return undefined;
-  const order = ["banner", "logo-square", "logo-round"];
+  const order = ["logo-square", "logo-round", "banner"];
   for (const type of order) {
     const hit = images.find((img) => img.type === type && img.url?.trim());
     if (hit?.url) return withLobbyImageWidth(hit.url.trim());
@@ -414,7 +414,10 @@ export type SyncQTechImagesResult = {
 
 function isMissingThumbnail(url: string | undefined): boolean {
   const u = url?.trim() ?? "";
-  return !u || u.startsWith("/promotions/");
+  if (!u || u.startsWith("/promotions/")) return true;
+  // Old flat banner URLs — re-sync to colorful square artwork.
+  if (u.includes("client.qtlauncher.com") && u.includes("type=banner")) return true;
+  return false;
 }
 
 /** Writes QTech CDN thumbnail URLs onto matching Firestore `games/*` docs. */
