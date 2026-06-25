@@ -12,9 +12,10 @@ import { WalletFrozenNotice } from "@/components/wallet/WalletFrozenNotice";
 
 type Props = {
   game: Game;
+  immersive?: boolean;
 };
 
-export function QTechGameView({ game }: Props) {
+export function QTechGameView({ game, immersive = false }: Props) {
   const { fbUser, profile, wallet, loading } = useAuth();
   const { openAuth } = useAuthModal();
   const [launchUrl, setLaunchUrl] = useState<string | null>(null);
@@ -45,6 +46,15 @@ export function QTechGameView({ game }: Props) {
   useEffect(() => {
     if (isPlayer && !frozen) void loadGame();
   }, [frozen, isPlayer, loadGame]);
+
+  useEffect(() => {
+    if (!immersive) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [immersive]);
 
   if (!fbUser || !isPlayer) {
     return (
@@ -85,6 +95,29 @@ export function QTechGameView({ game }: Props) {
     return <Spinner label={`Preparing ${game.name}…`} />;
   }
 
+  if (immersive) {
+    return (
+      <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+        <iframe
+          title={game.name}
+          src={launchUrl}
+          className="h-[calc(100dvh-2.75rem)] w-full border-0 bg-black sm:h-[calc(100dvh-3rem)]"
+          allow="fullscreen; autoplay"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+        <button
+          type="button"
+          onClick={() => void loadGame()}
+          disabled={launching}
+          className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white/80 backdrop-blur-sm hover:bg-black/80 hover:text-white disabled:opacity-50"
+          title="Reload game"
+        >
+          <RefreshCw size={15} className={launching ? "animate-spin" : ""} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
@@ -97,7 +130,7 @@ export function QTechGameView({ game }: Props) {
         <iframe
           title={game.name}
           src={launchUrl}
-          className="aspect-[16/10] w-full min-h-[480px] bg-black"
+          className="aspect-[9/16] w-full min-h-[520px] bg-black sm:aspect-[16/10] sm:min-h-[480px]"
           allow="fullscreen; autoplay"
           referrerPolicy="no-referrer-when-downgrade"
         />

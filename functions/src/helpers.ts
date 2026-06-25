@@ -34,7 +34,7 @@ export const DEFAULT_SETTINGS = {
   superAgentRate: 0.03,
   apiProviderRate: 0.15,
   apiProviderName: "API Provider",
-  minBet: 10,
+  minBet: 1,
   maxBet: 100_000,
   minDeposit: 50,
   minWithdrawal: 500,

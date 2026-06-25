@@ -391,7 +391,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                   min={minDeposit}
                 />
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {[100, 200, 500, 1000, 2000].map((preset) => (
+                  {[50, 100, 200, 500, 1000].map((preset) => (
                     <button
                       key={preset}
                       type="button"

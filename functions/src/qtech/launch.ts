@@ -37,6 +37,7 @@ async function fetchLaunchUrl(
     device: args.device,
     returnUrl: cfg.lobbyUrl,
     walletSessionId: args.walletSession,
+    betLimitCode: "1",
   };
   if (args.displayName?.trim()) {
     payload.displayName = args.displayName.trim().slice(0, 50);

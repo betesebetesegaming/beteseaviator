@@ -115,6 +115,7 @@ const PARTNER_GAMES: QTechSeed[] = [
   { qtechGameId: "BTV-lucky5", name: "Lucky 5", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "BTV-baccarat", name: "Baccarat", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "BTV-roulette", name: "Roulette", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BTV-plinko", name: "Plinko", type: "slots", lobbyCategory: "instantwin" },
   // Blitzcrown (BLC)
   { qtechGameId: "BLC-crash", name: "Crash", type: "crash", lobbyCategory: "crash" },
   // KA Gaming (KAG)

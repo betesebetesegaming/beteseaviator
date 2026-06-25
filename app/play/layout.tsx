@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { Suspense, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LogIn, UserPlus, Wallet, LogOut, UserCircle } from "lucide-react";
 import { useAuth, homeFor } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
@@ -12,6 +12,7 @@ import { Logo } from "@/components/logo";
 import { PresenceTracker } from "@/components/PresenceTracker";
 import { LobbyBackgroundShell } from "@/components/games/LobbyBackgroundShell";
 import { AgentReferralBanner } from "@/components/games/AgentReferralBanner";
+import { PlayGameChrome } from "@/components/games/PlayGameChrome";
 import { CustomerCareBar } from "@/components/CustomerCareBar";
 import { parseAgentSlugFromHost } from "@/lib/agentLinks";
 
@@ -65,10 +66,12 @@ function PlayAuthFromQuery() {
 }
 
 export default function PlayLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const router = useRouter();
   const { openAuth } = useAuthModal();
   const { fbUser, profile, wallet, loading, logout } = useAuth();
 
+  const inGame = pathname?.startsWith("/play/game/");
   const isPlayer =
     !!profile && profile.role === "player" && profile.status === "active";
   const walletFrozen = Boolean(wallet?.frozen);
@@ -81,6 +84,22 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
       router.replace(homeFor(profile.role));
     }
   }, [loading, profile, router]);
+
+  if (inGame) {
+    return (
+      <LobbyBackgroundShell showPicker={false}>
+        <Suspense fallback={null}>
+          <PlayAuthFromQuery />
+        </Suspense>
+        <PresenceTracker />
+        {isPlayer && !walletFrozen ? <PendingDepositReconciler /> : null}
+        <div className="flex min-h-dvh flex-col bg-[#0b0b0b]">
+          <PlayGameChrome />
+          <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+        </div>
+      </LobbyBackgroundShell>
+    );
+  }
 
   return (
     <LobbyBackgroundShell>
@@ -104,7 +123,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
                 <span className="hidden text-sm text-slate-400 md:inline">
                   Hi, {profile.name.split(" ")[0]}
                 </span>
-                <span className="hidden rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-bold text-emerald-300 sm:inline">
+                <span className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-300 sm:px-3 sm:py-1.5 sm:text-sm">
                   {formatXof(wallet?.balance ?? 0)}
                 </span>
                 {(wallet?.bonusBalance ?? 0) > 0 && (

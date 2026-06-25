@@ -1,7 +1,7 @@
 import { DEFAULT_SETTINGS, type PlatformSettings } from "@/lib/types";
 
-export const DEFAULT_BET_STEP = 10;
-export const DEFAULT_BET_PRESETS = [100, 500, 1000, 5000];
+export const DEFAULT_BET_STEP = 1;
+export const DEFAULT_BET_PRESETS = [1, 2, 5, 10];
 
 export function clampBetAmount(
   value: number,
