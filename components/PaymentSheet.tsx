@@ -7,6 +7,7 @@ import { PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { apiUrl } from "@/lib/apiUrl";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { isTerminalDepositStatus, startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
+import { NumericKeypad } from "@/components/ui/NumericKeypad";
 
 type Method = 'AfriMoney' | 'Wave' | 'APS' | 'QMoney' | 'Card';
 
@@ -25,6 +26,8 @@ interface PaymentSheetProps {
   initialAmount?: number;
   minDeposit?: number;
   frozen?: boolean;
+  /** Show bottom numeric keypad on mobile (game deposit). */
+  floatingKeypad?: boolean;
   /** Records a pending deposit — wallet is credited only after ModemPay webhook confirmation. */
   onDepositRequest: (amount: number, method: Method, phone: string, externalRef: string) => void | Promise<void>;
 }
@@ -91,12 +94,15 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   initialAmount,
   minDeposit = 50,
   frozen = false,
+  floatingKeypad = false,
   onDepositRequest,
 }) => {
   type Stage = 'choose' | 'enter-amount' | 'paying' | 'confirm';
   const [stage, setStage] = useState<Stage>('choose');
   const [method, setMethod] = useState<Method | null>(null);
   const [amount, setAmount] = useState<number | ''>('');
+  const [amountText, setAmountText] = useState('');
+  const [keypadOpen, setKeypadOpen] = useState(false);
   const [phone, setPhone] = useState<string>(user.phone || '');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -112,6 +118,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     setStage('choose');
     setMethod(null);
     setAmount(initialAmount && initialAmount > 0 ? Math.ceil(initialAmount) : '');
+    setAmountText(initialAmount && initialAmount > 0 ? String(Math.ceil(initialAmount)) : '');
+    setKeypadOpen(false);
     setPhone(user.phone || '');
     setBusy(false);
     setMessage(null);
@@ -177,6 +185,13 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     setMethod(m);
     setStage('enter-amount');
     setMessage(null);
+    if (floatingKeypad) setKeypadOpen(true);
+  };
+
+  const syncAmountFromText = (text: string) => {
+    setAmountText(text);
+    const n = Number(text);
+    setAmount(text === '' || !Number.isFinite(n) ? '' : n);
   };
 
   const handleModemPay = async (
@@ -195,7 +210,12 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         customerName: user.name,
         customerPhone: cleanPhone,
         externalRef,
-        returnUrl: typeof window !== 'undefined' ? `${window.location.origin}/play/wallet?deposit=${externalRef}` : undefined,
+        returnUrl:
+          typeof window !== 'undefined'
+            ? floatingKeypad
+              ? `${window.location.origin}${window.location.pathname}?deposit=${externalRef}`
+              : `${window.location.origin}/play/wallet?deposit=${externalRef}`
+            : undefined,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -279,7 +299,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center" role="dialog" aria-modal="true">
+    <div className={`fixed inset-0 ${floatingKeypad ? 'z-[90]' : 'z-[70]'} flex items-end justify-center`} role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onClose} />
 
       <div
@@ -382,20 +402,33 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
               <div>
                 <label className="block text-xs font-black uppercase tracking-widest text-slate-600 mb-1">Amount (GMD)</label>
                 <input
-                  type="number"
-                  inputMode="numeric"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                  placeholder="e.g. 500"
+                  type="text"
+                  inputMode={floatingKeypad ? "none" : "decimal"}
+                  readOnly={floatingKeypad}
+                  value={floatingKeypad ? amountText : amount}
+                  onChange={(e) => {
+                    if (floatingKeypad) return;
+                    const raw = e.target.value;
+                    if (raw === '') {
+                      setAmount('');
+                      return;
+                    }
+                    const n = Number(raw);
+                    setAmount(Number.isFinite(n) ? n : '');
+                  }}
+                  onFocus={() => floatingKeypad && setKeypadOpen(true)}
+                  placeholder={`Min ${minDeposit}`}
                   className="w-full p-3 border-2 border-slate-300 rounded-xl text-lg font-black text-slate-900 bg-white placeholder:text-slate-400 focus:border-betese-green focus:ring-2 focus:ring-green-600/25 focus:outline-none"
-                  min={minDeposit}
                 />
                 <div className="mt-2 flex flex-wrap gap-2">
                   {[50, 100, 200, 500, 1000].map((preset) => (
                     <button
                       key={preset}
                       type="button"
-                      onClick={() => setAmount(preset)}
+                      onClick={() => {
+                        setAmount(preset);
+                        setAmountText(String(preset));
+                      }}
                       className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-black text-slate-800 border border-slate-200"
                     >
                       {preset} GMD
@@ -511,6 +544,14 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
             </div>
           )}
         </div>
+
+        {floatingKeypad && keypadOpen && stage === 'enter-amount' ? (
+          <NumericKeypad
+            value={amountText}
+            onChange={syncAmountFromText}
+            onDone={() => setKeypadOpen(false)}
+          />
+        ) : null}
       </div>
 
       <style>{`

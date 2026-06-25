@@ -135,3 +135,16 @@ body {
     transform: translateY(-10px) scale(1.02);
   }
 }
+
+.game-play-root {
+  height: 100dvh;
+  height: 100svh;
+  overflow: hidden;
+  touch-action: manipulation;
+}
+
+.game-iframe-full {
+  height: 100dvh;
+  height: 100svh;
+  width: 100%;
+}

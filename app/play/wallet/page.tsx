@@ -420,6 +420,7 @@ export default function WalletPage() {
         }}
         minDeposit={settings.minDeposit}
         frozen={frozen}
+        floatingKeypad
         onDepositRequest={handleCreateDepositRequest}
       />
       <PaymentResultModal result={paymentResult} onClose={() => setPaymentResult(null)} />

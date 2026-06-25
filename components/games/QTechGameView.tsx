@@ -15,6 +15,13 @@ type Props = {
   immersive?: boolean;
 };
 
+function isMobilePlayDevice(): boolean {
+  if (typeof window === "undefined") return true;
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const narrow = window.matchMedia("(max-width: 900px)").matches;
+  return coarse || narrow;
+}
+
 export function QTechGameView({ game, immersive = false }: Props) {
   const { fbUser, profile, wallet, loading } = useAuth();
   const { openAuth } = useAuthModal();
@@ -31,7 +38,7 @@ export function QTechGameView({ game, immersive = false }: Props) {
     setLaunching(true);
     setError(null);
     try {
-      const device = window.matchMedia("(min-width: 768px)").matches ? "desktop" : "mobile";
+      const device = isMobilePlayDevice() ? "mobile" : "desktop";
       const res = await launchQTechGame({ gameId: game.id, device });
       setLaunchUrl(res.launchUrl);
     } catch (e) {
@@ -49,10 +56,18 @@ export function QTechGameView({ game, immersive = false }: Props) {
 
   useEffect(() => {
     if (!immersive) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyBg = body.style.backgroundColor;
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.backgroundColor = "#000";
     return () => {
-      document.body.style.overflow = prev;
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      body.style.backgroundColor = prevBodyBg;
     };
   }, [immersive]);
 
@@ -97,24 +112,24 @@ export function QTechGameView({ game, immersive = false }: Props) {
 
   if (immersive) {
     return (
-      <div className="relative flex min-h-0 flex-1 flex-col bg-black">
+      <>
         <iframe
           title={game.name}
           src={launchUrl}
-          className="h-[calc(100dvh-2.75rem)] w-full border-0 bg-black sm:h-[calc(100dvh-3rem)]"
-          allow="fullscreen; autoplay"
+          className="game-iframe-full fixed inset-0 z-[10] h-[100dvh] w-full border-0 bg-black"
+          allow="fullscreen; autoplay; payment"
           referrerPolicy="no-referrer-when-downgrade"
         />
         <button
           type="button"
           onClick={() => void loadGame()}
           disabled={launching}
-          className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white/80 backdrop-blur-sm hover:bg-black/80 hover:text-white disabled:opacity-50"
+          className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 z-[65] flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/70 backdrop-blur-sm active:bg-black/60 disabled:opacity-40"
           title="Reload game"
         >
-          <RefreshCw size={15} className={launching ? "animate-spin" : ""} />
+          <RefreshCw size={14} className={launching ? "animate-spin" : ""} />
         </button>
-      </div>
+      </>
     );
   }
 

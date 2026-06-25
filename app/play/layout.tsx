@@ -12,7 +12,7 @@ import { Logo } from "@/components/logo";
 import { PresenceTracker } from "@/components/PresenceTracker";
 import { LobbyBackgroundShell } from "@/components/games/LobbyBackgroundShell";
 import { AgentReferralBanner } from "@/components/games/AgentReferralBanner";
-import { PlayGameChrome } from "@/components/games/PlayGameChrome";
+import { GameFloatingBar } from "@/components/games/GameFloatingBar";
 import { CustomerCareBar } from "@/components/CustomerCareBar";
 import { parseAgentSlugFromHost } from "@/lib/agentLinks";
 
@@ -93,9 +93,9 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
         </Suspense>
         <PresenceTracker />
         {isPlayer && !walletFrozen ? <PendingDepositReconciler /> : null}
-        <div className="flex min-h-dvh flex-col bg-[#0b0b0b]">
-          <PlayGameChrome />
-          <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+        <div className="game-play-root relative min-h-[100dvh] bg-black">
+          <GameFloatingBar />
+          <main className="relative">{children}</main>
         </div>
       </LobbyBackgroundShell>
     );
