@@ -1,7 +1,11 @@
 /** Public QTech launcher CDN — works without Game List API access. */
 const QTECH_CDN = "https://client.qtlauncher.com/images/";
 
-export type QTechLobbyImageType = "logo-square" | "banner" | "logo-round";
+/** Placeholders from CDN are tiny; real banners are usually >8KB. */
+export const QTECH_BANNER_MIN_BYTES = 8_000;
+export const QTECH_LOGO_SQUARE_MIN_BYTES = 50_000;
+
+export type QTechLobbyImageType = "banner" | "logo-square" | "logo-round";
 
 export function qtechImageLocale(lang?: string): string {
   const raw = String(lang ?? "en_US").trim().replace("-", "_");
@@ -10,23 +14,33 @@ export function qtechImageLocale(lang?: string): string {
   return "en_US";
 }
 
-/** Colorful square game artwork — preferred for lobby cards. */
-export function qtechCdnLobbyImage(
-  qtechGameId: string,
-  lang = "en_US",
-  type: QTechLobbyImageType = "logo-square",
-): string {
+/** Wide colorful game banner — official QTech lobby artwork. */
+export function qtechCdnLobbyImage(qtechGameId: string, lang = "en_US"): string {
   const gameId = qtechGameId.trim();
   const imageKey = `${gameId}_${qtechImageLocale(lang)}`;
   const params = new URLSearchParams({
     id: imageKey,
-    type,
+    type: "banner",
+    width: "640",
+    showIcon: "true",
+  });
+  return `${QTECH_CDN}?${params.toString()}`;
+}
+
+/** Square logo fallback when banner is unavailable. */
+export function qtechCdnLogoImage(qtechGameId: string, lang = "en_US"): string {
+  const gameId = qtechGameId.trim();
+  const imageKey = `${gameId}_${qtechImageLocale(lang)}`;
+  const params = new URLSearchParams({
+    id: imageKey,
+    type: "logo-square",
     width: "640",
   });
   return `${QTECH_CDN}?${params.toString()}`;
 }
 
-/** Wide marketing banner (fallback). */
-export function qtechCdnBannerImage(qtechGameId: string, lang = "en_US"): string {
-  return qtechCdnLobbyImage(qtechGameId, lang, "banner");
+export function isLikelyQTechPlaceholder(sizeBytes: number, type: QTechLobbyImageType): boolean {
+  if (type === "banner") return sizeBytes < QTECH_BANNER_MIN_BYTES;
+  if (type === "logo-square" || type === "logo-round") return sizeBytes < QTECH_LOGO_SQUARE_MIN_BYTES;
+  return sizeBytes < QTECH_BANNER_MIN_BYTES;
 }

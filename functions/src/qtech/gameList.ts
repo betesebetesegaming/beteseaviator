@@ -25,10 +25,10 @@ type QTechGameListResponse = {
   links?: Array<{ href?: string; rel?: string }>;
 };
 
-/** Prefer colorful square artwork; banner is a flat marketing fallback. */
+/** Prefer wide colorful banner; square logo is fallback only. */
 export function pickLobbyImageUrl(images: QTechGameImage[] | undefined): string | undefined {
   if (!images?.length) return undefined;
-  const order = ["logo-square", "logo-round", "banner"];
+  const order = ["banner", "logo-square", "logo-round"];
   for (const type of order) {
     const hit = images.find((img) => img.type === type && img.url?.trim());
     if (hit?.url) return withLobbyImageWidth(hit.url.trim());
@@ -42,6 +42,9 @@ function withLobbyImageWidth(url: string, width = 640): string {
     const parsed = new URL(url);
     if (!parsed.searchParams.has("width")) {
       parsed.searchParams.set("width", String(width));
+    }
+    if (parsed.searchParams.get("type") === "banner") {
+      parsed.searchParams.set("showIcon", "true");
     }
     return parsed.toString();
   } catch {
@@ -394,7 +397,11 @@ export async function fetchQTechGameImagesById(
     try {
       const fromApi = await fetchFromGameListApi(wantedIds);
       for (const [id, url] of fromApi) {
-        imagesById.set(id, url);
+        const isLogoOnly =
+          url.includes("type=logo-square") || url.includes("type=logo-round");
+        if (!isLogoOnly) {
+          imagesById.set(id, url);
+        }
       }
     } catch (e) {
       logger.warn("QTech Game List API unavailable — using CDN thumbnails", {
@@ -415,8 +422,11 @@ export type SyncQTechImagesResult = {
 function isMissingThumbnail(url: string | undefined): boolean {
   const u = url?.trim() ?? "";
   if (!u || u.startsWith("/promotions/")) return true;
-  // Old flat banner URLs — re-sync to colorful square artwork.
-  if (u.includes("client.qtlauncher.com") && u.includes("type=banner")) return true;
+  // Re-sync logo-only or old banner URLs to colorful banner+showIcon.
+  if (u.includes("client.qtlauncher.com")) {
+    if (u.includes("type=logo-square") || u.includes("type=logo-round")) return true;
+    if (u.includes("type=banner") && !u.includes("showIcon=true")) return true;
+  }
   return false;
 }
 

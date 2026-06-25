@@ -1,4 +1,4 @@
-/** QTech launcher CDN — colorful square game art (official provider artwork). */
+/** QTech launcher CDN — official game banner artwork. */
 const QTECH_CDN = "https://client.qtlauncher.com/images/";
 
 function qtechImageLocale(lang?: string): string {
@@ -8,36 +8,34 @@ function qtechImageLocale(lang?: string): string {
   return "en_US";
 }
 
-export type QTechLobbyImageType = "logo-square" | "banner" | "logo-round";
-
-/** Full-color square artwork — best for lobby cards. */
-export function qtechCdnLobbyImage(
-  qtechGameId: string,
-  lang = "en_US",
-  type: QTechLobbyImageType = "logo-square",
-): string {
+/** Colorful wide banner with game icon — best for lobby cards. */
+export function qtechCdnLobbyImage(qtechGameId: string, lang = "en_US"): string {
   const gameId = qtechGameId.trim();
   const imageKey = `${gameId}_${qtechImageLocale(lang)}`;
   const params = new URLSearchParams({
     id: imageKey,
-    type,
+    type: "banner",
     width: "640",
+    showIcon: "true",
   });
   return `${QTECH_CDN}?${params.toString()}`;
 }
 
-/** Upgrade old banner CDN links to colorful square artwork. */
-export function upgradeQTechLobbyImageUrl(url: string): string {
+/** Normalize any QTech CDN URL to the colorful banner format. */
+export function upgradeQTechLobbyImageUrl(url: string, qtechGameId?: string): string {
+  const id = String(qtechGameId ?? "").trim();
+  if (id) return qtechCdnLobbyImage(id);
+
   const u = url.trim();
   if (!u.includes("client.qtlauncher.com")) return u;
   try {
     const parsed = new URL(u);
-    const current = parsed.searchParams.get("type") ?? "";
-    if (current === "logo-square" || current === "logo-round") return u;
-    parsed.searchParams.set("type", "logo-square");
-    if (!parsed.searchParams.has("width")) parsed.searchParams.set("width", "640");
+    parsed.searchParams.set("type", "banner");
+    parsed.searchParams.set("showIcon", "true");
+    parsed.searchParams.set("width", "640");
+    parsed.searchParams.delete("theme");
     return parsed.toString();
   } catch {
-    return u.replace(/type=banner\b/i, "type=logo-square");
+    return u;
   }
 }

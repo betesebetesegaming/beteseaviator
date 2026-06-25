@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { gamePlayPath } from "@/lib/games/paths";
@@ -10,20 +11,25 @@ import type { Game } from "@/lib/types";
 export function GameLobbyCard({ game }: { game: Game }) {
   const visual = getGameLobbyVisual(game);
   const imageUrl = gameLobbyImageUrl(game);
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImage = Boolean(imageUrl) && !imgFailed;
 
   return (
     <Link
       href={gamePlayPath(game)}
       className="group block overflow-hidden rounded-2xl bg-[#141414] shadow-lg shadow-black/20 ring-1 ring-white/8 transition-all hover:-translate-y-1 hover:shadow-xl hover:ring-[color-mix(in_srgb,var(--lobby-accent)_45%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lobby-accent)]"
     >
-      <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-[#1c1c28] via-[#12121a] to-[#0a0a0f]">
-        {imageUrl ? (
+      <div
+        className={`relative aspect-[4/3] overflow-hidden ${showImage ? "bg-black" : `bg-gradient-to-br ${visual.gradient}`}`}
+      >
+        {showImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={imageUrl}
             alt={game.name}
-            className="h-full w-full object-contain p-1.5 transition-transform duration-500 group-hover:scale-[1.04]"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
             loading="lazy"
+            onError={() => setImgFailed(true)}
           />
         ) : (
           <>
@@ -46,4 +52,4 @@ export function GameLobbyCard({ game }: { game: Game }) {
       </div>
     </Link>
   );
-}
+};

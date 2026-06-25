@@ -10,10 +10,10 @@ export function gameLobbyImageUrl(game: {
   imageUrl?: string;
   qtechGameId?: string;
 }): string | undefined {
-  const custom = game.imageUrl?.trim();
-  if (custom) return upgradeQTechLobbyImageUrl(custom);
-
   const qtechId = String(game.qtechGameId ?? "").trim();
+  const custom = game.imageUrl?.trim();
+
+  if (custom) return upgradeQTechLobbyImageUrl(custom, qtechId || undefined);
   if (qtechId) return qtechCdnLobbyImage(qtechId);
 
   return DEFAULT_LOBBY_GAME_IMAGES[game.id];
