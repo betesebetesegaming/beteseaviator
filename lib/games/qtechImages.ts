@@ -1,4 +1,4 @@
-/** QTech launcher CDN — official game banner artwork. */
+/** QTech launcher CDN — official game artwork. */
 const QTECH_CDN = "https://client.qtlauncher.com/images/";
 
 function qtechImageLocale(lang?: string): string {
@@ -8,8 +8,20 @@ function qtechImageLocale(lang?: string): string {
   return "en_US";
 }
 
-/** Colorful wide banner with game icon — best for lobby cards. */
+/** Full-color square character artwork for portrait lobby cards. */
 export function qtechCdnLobbyImage(qtechGameId: string, lang = "en_US"): string {
+  const gameId = qtechGameId.trim();
+  const imageKey = `${gameId}_${qtechImageLocale(lang)}`;
+  const params = new URLSearchParams({
+    id: imageKey,
+    type: "logo-square",
+    width: "640",
+  });
+  return `${QTECH_CDN}?${params.toString()}`;
+}
+
+/** Wide banner fallback. */
+export function qtechCdnBannerImage(qtechGameId: string, lang = "en_US"): string {
   const gameId = qtechGameId.trim();
   const imageKey = `${gameId}_${qtechImageLocale(lang)}`;
   const params = new URLSearchParams({
@@ -21,7 +33,7 @@ export function qtechCdnLobbyImage(qtechGameId: string, lang = "en_US"): string 
   return `${QTECH_CDN}?${params.toString()}`;
 }
 
-/** Normalize any QTech CDN URL to the colorful banner format. */
+/** Normalize any QTech CDN URL to portrait lobby artwork. */
 export function upgradeQTechLobbyImageUrl(url: string, qtechGameId?: string): string {
   const id = String(qtechGameId ?? "").trim();
   if (id) return qtechCdnLobbyImage(id);
@@ -30,9 +42,9 @@ export function upgradeQTechLobbyImageUrl(url: string, qtechGameId?: string): st
   if (!u.includes("client.qtlauncher.com")) return u;
   try {
     const parsed = new URL(u);
-    parsed.searchParams.set("type", "banner");
-    parsed.searchParams.set("showIcon", "true");
+    parsed.searchParams.set("type", "logo-square");
     parsed.searchParams.set("width", "640");
+    parsed.searchParams.delete("showIcon");
     parsed.searchParams.delete("theme");
     return parsed.toString();
   } catch {

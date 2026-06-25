@@ -25,7 +25,7 @@ type Props = {
 export function LobbyCategoryNav({ active, onChange, counts }: Props) {
   return (
     <nav
-      className="lobby-scroll-x -mx-1 flex gap-1 overflow-x-auto px-1 pb-1 pt-2"
+      className="lobby-scroll-x -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 pt-1"
       aria-label="Game categories"
     >
       {LOBBY_NAV.map((item) => {
@@ -40,36 +40,19 @@ export function LobbyCategoryNav({ active, onChange, counts }: Props) {
             type="button"
             disabled={disabled}
             onClick={() => item.available && onChange(item.id)}
-            className={`flex min-w-[4.5rem] shrink-0 flex-col items-center gap-1.5 rounded-xl px-3 py-2 transition-all sm:min-w-[5.5rem] ${
+            className={`flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-xs font-bold transition-all sm:px-4 sm:text-sm ${
               disabled
                 ? "cursor-not-allowed opacity-35"
                 : isActive
-                  ? "bg-[color-mix(in_srgb,var(--lobby-accent)_15%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--lobby-accent)_40%,transparent)]"
-                  : "hover:bg-white/5"
+                  ? "bg-sky-500 text-white shadow-md shadow-sky-500/25"
+                  : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
             }`}
           >
-            <span
-              className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors ${
-                isActive
-                  ? "border-[var(--lobby-accent)] bg-[color-mix(in_srgb,var(--lobby-accent)_20%,transparent)] text-[var(--lobby-accent)]"
-                  : "border-[color-mix(in_srgb,var(--lobby-accent)_50%,transparent)] text-[color-mix(in_srgb,var(--lobby-accent)_80%,white)]"
-              }`}
-            >
-              <Icon size={20} strokeWidth={1.75} />
-            </span>
-            <span
-              className={`text-center text-[9px] font-bold uppercase leading-tight tracking-wide sm:text-[10px] ${
-                isActive ? "text-[var(--lobby-accent)]" : "text-slate-400"
-              }`}
-            >
-              {item.label}
-            </span>
-            {item.available && count !== undefined && count > 0 && (
-              <span className="text-[9px] font-semibold text-slate-600">{count} games</span>
-            )}
-            {disabled && (
-              <span className="text-[8px] font-bold uppercase text-slate-600">Soon</span>
-            )}
+            <Icon size={16} strokeWidth={2} />
+            <span>{item.label}</span>
+            {item.available && count !== undefined && count > 0 && !isActive ? (
+              <span className="text-[10px] font-semibold text-slate-500">{count}</span>
+            ) : null}
           </button>
         );
       })}

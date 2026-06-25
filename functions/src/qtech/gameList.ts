@@ -25,10 +25,10 @@ type QTechGameListResponse = {
   links?: Array<{ href?: string; rel?: string }>;
 };
 
-/** Prefer wide colorful banner; square logo is fallback only. */
+/** Prefer square character art; wide banner is fallback only. */
 export function pickLobbyImageUrl(images: QTechGameImage[] | undefined): string | undefined {
   if (!images?.length) return undefined;
-  const order = ["banner", "logo-square", "logo-round"];
+  const order = ["logo-square", "logo-round", "banner"];
   for (const type of order) {
     const hit = images.find((img) => img.type === type && img.url?.trim());
     if (hit?.url) return withLobbyImageWidth(hit.url.trim());
@@ -397,9 +397,8 @@ export async function fetchQTechGameImagesById(
     try {
       const fromApi = await fetchFromGameListApi(wantedIds);
       for (const [id, url] of fromApi) {
-        const isLogoOnly =
-          url.includes("type=logo-square") || url.includes("type=logo-round");
-        if (!isLogoOnly) {
+        const isBannerOnly = url.includes("type=banner");
+        if (!isBannerOnly) {
           imagesById.set(id, url);
         }
       }
@@ -422,10 +421,10 @@ export type SyncQTechImagesResult = {
 function isMissingThumbnail(url: string | undefined): boolean {
   const u = url?.trim() ?? "";
   if (!u || u.startsWith("/promotions/")) return true;
-  // Re-sync logo-only or old banner URLs to colorful banner+showIcon.
+  // Re-sync flat banner URLs to full square character artwork.
   if (u.includes("client.qtlauncher.com")) {
-    if (u.includes("type=logo-square") || u.includes("type=logo-round")) return true;
-    if (u.includes("type=banner") && !u.includes("showIcon=true")) return true;
+    if (u.includes("type=banner")) return true;
+    if (u.includes("type=logo-round")) return true;
   }
   return false;
 }
