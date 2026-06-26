@@ -65,19 +65,10 @@ function PlayAuthFromQuery() {
   return null;
 }
 
-export default function PlayLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+function PlayStaffRedirect() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { openAuth } = useAuthModal();
-  const { fbUser, profile, wallet, loading, logout } = useAuth();
-
-  const inGame = pathname?.startsWith("/play/game/");
-  const isPlayer =
-    !!profile && profile.role === "player" && profile.status === "active";
-  const walletFrozen = Boolean(wallet?.frozen);
-  const needsProfile = !!fbUser && !profile;
-  const showGuestChrome = !loading && !fbUser;
+  const { profile, loading } = useAuth();
 
   useEffect(() => {
     if (loading || !profile) return;
@@ -88,11 +79,27 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
     }
   }, [loading, profile, router, searchParams]);
 
+  return null;
+}
+
+export default function PlayLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { openAuth } = useAuthModal();
+  const { fbUser, profile, wallet, loading, logout } = useAuth();
+
+  const inGame = pathname?.startsWith("/play/game/");
+  const isPlayer =
+    !!profile && profile.role === "player" && profile.status === "active";
+  const walletFrozen = Boolean(wallet?.frozen);
+  const needsProfile = !!fbUser && !profile;
+  const showGuestChrome = !loading && !fbUser;
+
   if (inGame) {
     return (
       <LobbyBackgroundShell showPicker={false}>
         <Suspense fallback={null}>
           <PlayAuthFromQuery />
+          <PlayStaffRedirect />
         </Suspense>
         <PresenceTracker />
         {isPlayer && !walletFrozen ? <PendingDepositReconciler /> : null}
@@ -110,6 +117,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
     <LobbyBackgroundShell>
       <Suspense fallback={null}>
         <PlayAuthFromQuery />
+        <PlayStaffRedirect />
       </Suspense>
       <PresenceTracker />
       {isPlayer && !walletFrozen ? <PendingDepositReconciler /> : null}
