@@ -19,8 +19,10 @@ interface AuthState {
   fbUser: User | null;
   profile: UserProfile | null;
   wallet: Wallet | null;
-  /** True until Firebase finishes restoring persisted sign-in */
+  /** True until Firebase session restore finishes (capped for guests). */
   loading: boolean;
+  /** True once the users/{uid} Firestore read has completed or timed out. */
+  profileReady: boolean;
   logout: () => Promise<void>;
 }
 
@@ -29,6 +31,7 @@ const AuthContext = createContext<AuthState>({
   profile: null,
   wallet: null,
   loading: true,
+  profileReady: false,
   logout: async () => {},
 });
 
@@ -49,8 +52,10 @@ export { loginPathFor } from "./staff-routes";
 
 /** Brief wait for Firebase to restore a persisted session — avoids flashing "Demo mode". */
 const AUTH_RESTORE_MS = 500;
-/** Never block the UI longer than this if Firebase/Firestore is slow or offline. */
+/** Never block guest session restore longer than this. */
 const AUTH_MAX_WAIT_MS = 2500;
+/** Staff routes may wait a bit longer for the profile doc before giving up. */
+const PROFILE_MAX_WAIT_MS = 6000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [fbUser, setFbUser] = useState<User | null>(null);
@@ -59,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionResolved, setSessionResolved] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
   const [forceReady, setForceReady] = useState(false);
+  const [profileForceReady, setProfileForceReady] = useState(false);
 
   const lastUidRef = useRef<string | null>(null);
   const signOutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,10 +72,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const readyTimer = setTimeout(() => setForceReady(true), AUTH_MAX_WAIT_MS);
+    const profileTimer = setTimeout(() => setProfileForceReady(true), PROFILE_MAX_WAIT_MS);
     void initAnalytics();
 
     return () => {
       clearTimeout(readyTimer);
+      clearTimeout(profileTimer);
     };
   }, []);
 
@@ -152,8 +160,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") window.location.href = redirect;
   };
 
-  const sessionPending = !sessionResolved || (!!fbUser && !profileReady);
-  const loading = sessionPending && !forceReady;
+  const sessionPending = !sessionResolved;
+  const profilePending = !!fbUser && !profileReady;
+  const loading =
+    (sessionPending && !forceReady) || (profilePending && !profileForceReady);
 
   return (
     <AuthContext.Provider
@@ -162,6 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         wallet,
         loading,
+        profileReady: profileReady || profileForceReady,
         logout,
       }}
     >

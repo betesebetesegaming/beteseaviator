@@ -1,30 +1,21 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
 import { StaffLoginForm } from "@/components/auth/StaffLoginForm";
 import { StaffLoginShell } from "@/components/auth/StaffLoginShell";
 import { Spinner } from "@/components/ui";
-import { auth } from "@/lib/firebase";
 import { homeFor, useAuth } from "@/lib/auth-context";
 import { isStaffRole } from "@/lib/staff-routes";
 
 export default function StaffLoginPage() {
   const router = useRouter();
-  const { fbUser, profile, loading } = useAuth();
-  const signingOutPlayer = useRef(false);
+  const { fbUser, profile, loading, profileReady } = useAuth();
 
   useEffect(() => {
     if (loading) return;
-    if (!fbUser) {
-      signingOutPlayer.current = false;
-      return;
-    }
-    if (!profile) {
-      router.replace("/play");
-      return;
-    }
+    if (!fbUser) return;
+    if (!profileReady || !profile) return;
 
     if (profile.status !== "active") {
       router.replace("/suspended");
@@ -32,20 +23,19 @@ export default function StaffLoginPage() {
     }
 
     if (profile.role === "player") {
-      if (!signingOutPlayer.current) {
-        signingOutPlayer.current = true;
-        void signOut(auth);
-      }
+      router.replace("/play");
       return;
     }
 
     if (isStaffRole(profile.role)) {
       router.replace(homeFor(profile.role));
     }
-  }, [loading, fbUser, profile, router]);
+  }, [loading, profileReady, fbUser, profile, router]);
 
   const waitingForStaffRedirect =
-    loading || (fbUser && profile && isStaffRole(profile.role));
+    loading ||
+    (fbUser && !profileReady) ||
+    (fbUser && profile && isStaffRole(profile.role));
 
   if (waitingForStaffRedirect) {
     return (

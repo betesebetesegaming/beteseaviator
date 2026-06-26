@@ -10,16 +10,16 @@ import { Spinner } from "@/components/ui";
 export function StaffRouteAccess({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile, loading } = useAuth();
+  const { profile, loading, profileReady } = useAuth();
 
   const adminOnly = ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
-  const denied = adminOnly && profile?.role !== "admin";
+  const denied = adminOnly && !!profile && profile.role !== "admin";
 
   useEffect(() => {
-    if (loading || !profile) return;
+    if (loading || !profileReady || !profile) return;
     if (denied) router.replace("/admin");
-  }, [loading, profile, denied, router]);
+  }, [loading, profileReady, profile, denied, router]);
 
-  if (loading || denied) return <Spinner label="Loading…" />;
+  if (loading || !profileReady || denied) return <Spinner label="Loading…" />;
   return <>{children}</>;
 }

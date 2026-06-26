@@ -19,7 +19,7 @@ export function RoleGuard({
   children: ReactNode;
   loginPath: string;
 }) {
-  const { fbUser, profile, loading } = useAuth();
+  const { fbUser, profile, loading, profileReady } = useAuth();
   const router = useRouter();
 
   const permitted = !!profile && allow.includes(profile.role) && profile.status === "active";
@@ -30,9 +30,11 @@ export function RoleGuard({
       router.replace(loginPath);
       return;
     }
-    if (!profile) {
+    if (profileReady && !profile) {
+      router.replace(loginPath);
       return;
     }
+    if (!profile) return;
     if (profile.status !== "active") {
       router.replace("/suspended");
       return;
@@ -40,8 +42,9 @@ export function RoleGuard({
     if (!allow.includes(profile.role)) {
       router.replace(homeFor(profile.role));
     }
-  }, [loading, fbUser, profile, allow, router, loginPath]);
+  }, [loading, profileReady, fbUser, profile, allow, router, loginPath]);
 
-  if (loading || !permitted) return <Spinner label="Loading…" />;
+  if (loading || !profileReady) return <Spinner label="Loading…" />;
+  if (!permitted) return <Spinner label="Loading…" />;
   return <>{children}</>;
 }
