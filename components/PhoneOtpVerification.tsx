@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ArrowLeft, MessageSquare, ShieldCheck } from "lucide-react";
 import { sendSignupOtp, verifySignupOtp } from "@/lib/otpClient";
+import { formatPhoneDisplay } from "@/lib/phone";
 import { Button, Input } from "@/components/ui";
 
 const OTP_RESEND_SECONDS = 60;
@@ -50,9 +52,7 @@ export function usePhoneOtp(phone: string) {
       setOtpSent(true);
       setOtpVerified(false);
       setOtpCooldown(OTP_RESEND_SECONDS);
-      setInfo(
-        `Verification code sent. It expires in ${Math.round((result.expirySeconds || 300) / 60)} minutes.`,
-      );
+      setInfo(`Code sent to your phone. It expires in ${Math.round((result.expirySeconds || 300) / 60)} minutes.`);
       return true;
     } finally {
       setIsSending(false);
@@ -62,7 +62,7 @@ export function usePhoneOtp(phone: string) {
   const verify = async (): Promise<{ ok: boolean; error?: string }> => {
     if (otpVerified) return { ok: true };
     if (!otpSent) {
-      return { ok: false, error: 'Tap "Send verification code" first.' };
+      return { ok: false, error: "Wait for the SMS code to arrive first." };
     }
     if (!otpCode.trim() || otpCode.trim().length < 6) {
       return { ok: false, error: "Enter the 6-digit SMS verification code." };
@@ -73,7 +73,7 @@ export function usePhoneOtp(phone: string) {
       const result = await verifySignupOtp(phone, otpCode);
       if (result.ok) {
         setOtpVerified(true);
-        setInfo("Phone number verified. You can continue.");
+        setInfo("Phone verified. You can continue.");
       } else {
         setError(result.error || "Invalid verification code.");
       }
@@ -100,19 +100,28 @@ export function usePhoneOtp(phone: string) {
   };
 }
 
-export interface PhoneOtpVerificationProps {
+export interface OtpConfirmPanelProps {
   phone: string;
-  purposeLabel?: string;
   otp: ReturnType<typeof usePhoneOtp>;
+  onBack: () => void;
+  onVerified?: () => void;
   disabled?: boolean;
+  autoSend?: boolean;
+  headline?: string;
+  subline?: string;
 }
 
-export function PhoneOtpVerification({
+/** Full-step OTP confirmation UI — used inside auth popup and withdrawal flow. */
+export function OtpConfirmPanel({
   phone,
-  purposeLabel = "Verify your mobile number",
   otp,
+  onBack,
+  onVerified,
   disabled = false,
-}: PhoneOtpVerificationProps) {
+  autoSend = true,
+  headline = "Confirm your mobile number",
+  subline = "Enter the 6-digit code we send to your Africell phone.",
+}: OtpConfirmPanelProps) {
   const {
     otpCode,
     setOtpCode,
@@ -127,62 +136,156 @@ export function PhoneOtpVerification({
     verify,
   } = otp;
 
+  useEffect(() => {
+    if (!autoSend || otpVerified || otpSent || isSending || !phone.trim()) return;
+    void send();
+  }, [autoSend, phone, otpVerified, otpSent, isSending, send]);
+
+  useEffect(() => {
+    if (otpVerified) onVerified?.();
+  }, [otpVerified, onVerified]);
+
+  const displayPhone = formatPhoneDisplay(phone) || phone;
+
+  async function handleVerify() {
+    const result = await verify();
+    if (result.ok) onVerified?.();
+  }
+
   return (
-    <div className="space-y-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4">
-      <p className="text-xs font-semibold text-emerald-100">{purposeLabel}</p>
-      {error && (
-        <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">{error}</p>
-      )}
-      {info && (
-        <p className="rounded-lg border border-emerald-500/20 bg-slate-950/40 p-2 text-xs text-emerald-100">
-          {info}
-        </p>
-      )}
-      <Button
+    <div className="space-y-5 py-1">
+      <button
         type="button"
-        variant="secondary"
-        className="w-full"
-        onClick={() => {
-          void send();
-        }}
-        disabled={disabled || isSending || otpCooldown > 0 || !phone.trim() || otpVerified}
+        onClick={onBack}
+        disabled={disabled || isVerifying}
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 transition-colors hover:text-white"
       >
-        {isSending
-          ? "Sending code…"
-          : otpCooldown > 0
-            ? `Resend code in ${otpCooldown}s`
-            : otpSent
-              ? "Resend verification code"
-              : "Send verification code"}
-      </Button>
-      {otpSent && !otpVerified && (
+        <ArrowLeft size={14} /> Change phone number
+      </button>
+
+      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center">
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300">
+          {otpVerified ? <ShieldCheck size={22} /> : <MessageSquare size={22} />}
+        </div>
+        <p className="text-base font-semibold text-white">{headline}</p>
+        <p className="mt-1 text-sm text-emerald-100">{displayPhone}</p>
+        <p className="mt-2 text-xs text-slate-300">{subline}</p>
+      </div>
+
+      {error && (
+        <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</p>
+      )}
+      {info && !error && (
+        <p className="rounded-lg border border-emerald-500/20 bg-slate-950/40 p-3 text-sm text-emerald-100">{info}</p>
+      )}
+
+      {!otpVerified && (
         <>
           <Input
-            label="SMS verification code"
+            label="Verification code"
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={6}
             value={otpCode}
-            onChange={(e) => {
-              setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6));
-            }}
-            placeholder="6-digit code"
-            disabled={disabled}
+            onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            placeholder="6-digit SMS code"
+            disabled={disabled || isVerifying}
+            className="text-center text-lg tracking-[0.35em] font-semibold"
           />
+
           <Button
             type="button"
             className="w-full"
             onClick={() => {
-              void verify();
+              void handleVerify();
             }}
             disabled={disabled || isVerifying || otpCode.trim().length < 6}
           >
-            {isVerifying ? "Verifying…" : "Verify code"}
+            {isVerifying ? "Confirming…" : "Confirm code"}
+          </Button>
+
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={() => {
+              void send();
+            }}
+            disabled={disabled || isSending || otpCooldown > 0 || !phone.trim()}
+          >
+            {isSending
+              ? "Sending code…"
+              : otpCooldown > 0
+                ? `Resend code in ${otpCooldown}s`
+                : otpSent
+                  ? "Resend SMS code"
+                  : "Send SMS code"}
           </Button>
         </>
       )}
-      {otpVerified && <p className="text-xs font-semibold text-emerald-300">Phone number verified.</p>}
+
+      {otpVerified && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-300">
+          Phone verified — continuing…
+        </div>
+      )}
     </div>
+  );
+}
+
+export interface PhoneOtpVerificationProps {
+  phone: string;
+  purposeLabel?: string;
+  otp: ReturnType<typeof usePhoneOtp>;
+  disabled?: boolean;
+  morphOnComplete?: boolean;
+  phoneComplete?: boolean;
+  onMorphBack?: () => void;
+  onVerified?: () => void;
+}
+
+/** Inline or morphing OTP block — morphOnComplete swaps to full OtpConfirmPanel. */
+export function PhoneOtpVerification({
+  phone,
+  purposeLabel = "Verify your mobile number",
+  otp,
+  disabled = false,
+  morphOnComplete = false,
+  phoneComplete = false,
+  onMorphBack,
+  onVerified,
+}: PhoneOtpVerificationProps) {
+  if (morphOnComplete && phoneComplete && !otp.otpVerified) {
+    return (
+      <OtpConfirmPanel
+        phone={phone}
+        otp={otp}
+        disabled={disabled}
+        onBack={onMorphBack || (() => undefined)}
+        onVerified={onVerified}
+        headline={purposeLabel}
+      />
+    );
+  }
+
+  if (morphOnComplete && otp.otpVerified) {
+    return (
+      <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
+        {formatPhoneDisplay(phone) || phone} verified
+      </p>
+    );
+  }
+
+  return (
+    <OtpConfirmPanel
+      phone={phone}
+      otp={otp}
+      disabled={disabled}
+      onBack={onMorphBack || (() => undefined)}
+      onVerified={onVerified}
+      headline={purposeLabel}
+      autoSend={false}
+    />
   );
 }

@@ -38,10 +38,11 @@ import { PaymentResultModal } from "@/components/PaymentResultModal";
 import { BonusOffersPanel, WalletBalanceCards } from "@/components/wallet/WalletBonusPanel";
 import { WalletFrozenNotice } from "@/components/wallet/WalletFrozenNotice";
 import { ReferralPanel } from "@/components/wallet/ReferralPanel";
-import { PhoneOtpVerification, usePhoneOtp } from "@/components/PhoneOtpVerification";
+import { OtpConfirmPanel, usePhoneOtp } from "@/components/PhoneOtpVerification";
 import { Badge, Button, Card, EmptyState, Input, Select, TableShell, Td, Th } from "@/components/ui";
 
 type Tab = "history" | "deposit" | "withdraw" | "refer";
+type WithdrawStep = "form" | "otp";
 
 export default function WalletPage() {
   const { fbUser, profile, wallet } = useAuth();
@@ -56,6 +57,8 @@ export default function WalletPage() {
   const [withdrawPhone, setWithdrawPhone] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [withdrawStep, setWithdrawStep] = useState<WithdrawStep>("form");
+  const [withdrawOtpDismissed, setWithdrawOtpDismissed] = useState(false);
 
   const otpPhone = useMemo(() => {
     const raw = withdrawPhone || profile?.phone || "";
@@ -66,6 +69,39 @@ export default function WalletPage() {
 
   const requiresWithdrawalOtp = requiresMandatoryOtpPhone(otpPhone);
   const withdrawalOtp = usePhoneOtp(otpPhone);
+  const withdrawPhoneComplete = otpPhone.length === 7;
+
+  useEffect(() => {
+    setWithdrawOtpDismissed(false);
+  }, [otpPhone]);
+
+  useEffect(() => {
+    if (tab !== "withdraw") {
+      setWithdrawStep("form");
+      setWithdrawOtpDismissed(false);
+      return;
+    }
+    if (
+      requiresWithdrawalOtp &&
+      withdrawPhoneComplete &&
+      !withdrawalOtp.otpVerified &&
+      !withdrawOtpDismissed
+    ) {
+      setWithdrawStep("otp");
+    }
+  }, [tab, requiresWithdrawalOtp, withdrawPhoneComplete, withdrawalOtp.otpVerified, withdrawOtpDismissed]);
+
+  useEffect(() => {
+    if (withdrawalOtp.otpVerified && withdrawStep === "otp") {
+      setWithdrawStep("form");
+    }
+  }, [withdrawalOtp.otpVerified, withdrawStep]);
+
+  useEffect(() => {
+    if (!withdrawPhoneComplete && withdrawStep === "otp") {
+      setWithdrawStep("form");
+    }
+  }, [withdrawPhoneComplete, withdrawStep]);
 
   useEffect(() => {
     if (frozen) setTab("history");
@@ -213,13 +249,9 @@ export default function WalletPage() {
       if (!ok) return;
     }
 
-    if (requiresWithdrawalOtp) {
-      if (!withdrawalOtp.otpVerified) {
-        const verified = await withdrawalOtp.verify();
-        if (!verified.ok) {
-          return toast.error(verified.error || "SMS verification is required before withdrawal.");
-        }
-      }
+    if (requiresWithdrawalOtp && !withdrawalOtp.otpVerified) {
+      setWithdrawStep("otp");
+      return toast.error("Verify your mobile number before withdrawing.");
     }
 
     const requestId = `BETESE-WD-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
@@ -359,6 +391,26 @@ export default function WalletPage() {
 
       {tab === "withdraw" && !frozen && (
         <Card>
+          {withdrawStep === "otp" ? (
+            <>
+              <h2 className="mb-2 font-semibold">Verify withdrawal</h2>
+              <p className="mb-4 text-sm text-slate-400">
+                Confirm your mobile number before we send your payout.
+              </p>
+              <OtpConfirmPanel
+                phone={otpPhone}
+                otp={withdrawalOtp}
+                disabled={busy}
+                onBack={() => {
+                  setWithdrawOtpDismissed(true);
+                  setWithdrawStep("form");
+                }}
+                headline="Confirm payout phone"
+                subline="Enter the SMS code to authorize this withdrawal."
+              />
+            </>
+          ) : (
+            <>
           <h2 className="mb-4 font-semibold">Withdraw to mobile money</h2>
 
           {(wagerRequired > 0 || bonusWagerLeft > 0) && (
@@ -416,13 +468,23 @@ export default function WalletPage() {
                   ` Bonus ${formatXof(withdrawPreview.bonusForfeited)} will be forfeited.`}
               </p>
             )}
-            {requiresWithdrawalOtp && (
-              <PhoneOtpVerification
-                phone={otpPhone}
-                purposeLabel="SMS verification required to withdraw (mandatory)"
-                otp={withdrawalOtp}
-                disabled={busy}
-              />
+            {requiresWithdrawalOtp && withdrawalOtp.otpVerified && (
+              <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
+                Payout phone verified — you can withdraw now
+              </p>
+            )}
+            {requiresWithdrawalOtp && withdrawPhoneComplete && !withdrawalOtp.otpVerified && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() => {
+                  setWithdrawOtpDismissed(false);
+                  setWithdrawStep("otp");
+                }}
+              >
+                Verify phone to withdraw
+              </Button>
             )}
             <Button
               className="w-full"
@@ -437,6 +499,8 @@ export default function WalletPage() {
               {Math.round((settings.earlyWithdrawalFeeRate ?? 0.15) * 100)}% fee and forfeits any bonus.
             </p>
           </div>
+            </>
+          )}
         </Card>
       )}
 

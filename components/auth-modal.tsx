@@ -24,7 +24,7 @@ import {
   phoneToEmail,
 } from "@/lib/phone";
 import { isSignupOtpEnabled } from "@/lib/env/publicConfig";
-import { PhoneOtpVerification, usePhoneOtp } from "@/components/PhoneOtpVerification";
+import { OtpConfirmPanel, usePhoneOtp } from "@/components/PhoneOtpVerification";
 import { getReferralDeviceId } from "@/lib/referrals";
 import {
   PHONE_HINT,
@@ -34,7 +34,6 @@ import {
   getPhoneCountryMeta,
   isActivePhoneCountry,
   normalizePhoneE164,
-  type PhoneCountry,
   type PhoneCountryCode,
 } from "@/lib/phone";
 import { Button, Input, Modal, Select } from "@/components/ui";
@@ -44,17 +43,20 @@ import { SignupComplianceNotice } from "@/components/SignupComplianceNotice";
 
 export type AuthModalMode = "login" | "register" | "complete";
 type CustomerAuth = "password" | "otp";
+type PopupStep = "main" | "otp";
 
 function CustomerPhoneFields({
   phoneCountry,
   onCountryChange,
   phone,
   onPhoneChange,
+  disabled = false,
 }: {
   phoneCountry: PhoneCountryCode;
   onCountryChange: (c: PhoneCountryCode) => void;
   phone: string;
   onPhoneChange: (v: string) => void;
+  disabled?: boolean;
 }) {
   const meta = getPhoneCountryMeta(phoneCountry);
   const active = isActivePhoneCountry(phoneCountry);
@@ -65,6 +67,7 @@ function CustomerPhoneFields({
         label="Country"
         value={phoneCountry}
         onChange={(e) => onCountryChange(e.target.value as PhoneCountryCode)}
+        disabled={disabled}
       >
         {PHONE_COUNTRY_OPTIONS.map((c) => (
           <option key={c.code} value={c.code}>
@@ -82,6 +85,7 @@ function CustomerPhoneFields({
           placeholder={PHONE_PLACEHOLDER[phoneCountry]}
           value={phone}
           onChange={(e) => onPhoneChange(e.target.value.replace(/[^\d+\s]/g, ""))}
+          disabled={disabled}
         />
       ) : (
         <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-100">
@@ -109,6 +113,7 @@ export function AuthModal({
 }) {
   const { fbUser, profile, loading } = useAuth();
   const [mode, setMode] = useState<AuthModalMode>(initialMode);
+  const [popupStep, setPopupStep] = useState<PopupStep>("main");
   const [customerAuth, setCustomerAuth] = useState<CustomerAuth>("password");
   const [busy, setBusy] = useState(false);
 
@@ -121,34 +126,37 @@ export function AuthModal({
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [otpDismissed, setOtpDismissed] = useState(false);
 
   const confirmRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
   const otpEnabled = isSignupOtpEnabled();
   const requiresSignupOtp = phoneCountry === "GM";
+  const requiresCompleteOtp = phoneCountry === "GM";
   const signupPhonePreview = useMemo(
     () => (phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhone(phone, phoneCountry) : ""),
     [phone, phoneCountry],
   );
   const signupOtp = usePhoneOtp(signupPhonePreview);
-  const completePhonePreview = useMemo(
-    () => (phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhone(phone, phoneCountry) : ""),
-    [phone, phoneCountry],
-  );
-  const completeOtp = usePhoneOtp(completePhonePreview);
-  const requiresCompleteOtp = phoneCountry === "GM";
+  const completeOtp = usePhoneOtp(signupPhonePreview);
   const signupPhoneComplete = Boolean(
     phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhoneLocal(phone, phoneCountry) : null,
   );
 
+  const needsOtpStep =
+    (mode === "register" && requiresSignupOtp) || (mode === "complete" && requiresCompleteOtp);
+  const activeOtp = mode === "complete" ? completeOtp : signupOtp;
+
   useEffect(() => {
     if (!open) return;
     setMode(initialMode);
+    setPopupStep("main");
     setCustomerAuth("password");
     setOtpSent(false);
     setOtpCode("");
     setAgeConfirmed(false);
     setPhoneCountry("GM");
+    setOtpDismissed(false);
   }, [open, initialMode]);
 
   useEffect(() => {
@@ -170,6 +178,36 @@ export function AuthModal({
       }
     }
   }, [open, loading, fbUser, profile, onSuccess, onClose]);
+
+  useEffect(() => {
+    setOtpDismissed(false);
+  }, [phone, phoneCountry]);
+
+  useEffect(() => {
+    if (
+      !open ||
+      popupStep !== "main" ||
+      !needsOtpStep ||
+      !signupPhoneComplete ||
+      activeOtp.otpVerified ||
+      otpDismissed
+    ) {
+      return;
+    }
+    setPopupStep("otp");
+  }, [open, popupStep, needsOtpStep, signupPhoneComplete, activeOtp.otpVerified, otpDismissed]);
+
+  useEffect(() => {
+    if (activeOtp.otpVerified && popupStep === "otp") {
+      setPopupStep("main");
+    }
+  }, [activeOtp.otpVerified, popupStep]);
+
+  useEffect(() => {
+    if (!signupPhoneComplete && popupStep === "otp") {
+      setPopupStep("main");
+    }
+  }, [signupPhoneComplete, popupStep]);
 
   async function loginWithPassword() {
     if (!isActivePhoneCountry(phoneCountry)) {
@@ -209,13 +247,9 @@ export function AuthModal({
     if (password.length < 8) return toast.error("Password must be at least 8 characters.");
     if (password !== confirm) return toast.error("Passwords do not match.");
 
-    if (requiresSignupOtp) {
-      if (!signupOtp.otpVerified) {
-        const verified = await signupOtp.verify();
-        if (!verified.ok) {
-          return toast.error(verified.error || "SMS verification is required to create your account.");
-        }
-      }
+    if (requiresSignupOtp && !signupOtp.otpVerified) {
+      setPopupStep("otp");
+      return toast.error("Verify your mobile number first.");
     }
 
     setBusy(true);
@@ -235,7 +269,6 @@ export function AuthModal({
       } catch (e: unknown) {
         const code = (e as { code?: string }).code;
         if (code !== "auth/email-already-in-use") throw e;
-        // Auth exists but profile may be missing — sign in and finish setup.
         await signInWithEmailAndPassword(auth, authEmail, password);
       }
 
@@ -251,9 +284,11 @@ export function AuthModal({
       ) {
         toast.error("This phone is already registered. Sign in with your password.");
         setMode("login");
+        setPopupStep("main");
       } else if (msg.includes("Invalid credentials") || msg.includes("wrong-password")) {
         toast.error("This phone is already registered. Sign in with your password.");
         setMode("login");
+        setPopupStep("main");
       } else {
         toast.error(msg);
       }
@@ -320,13 +355,9 @@ export function AuthModal({
     const normalized = normalizePhone(phone, phoneCountry);
     if (!normalized) return toast.error(PHONE_HINT);
 
-    if (requiresCompleteOtp) {
-      if (!completeOtp.otpVerified) {
-        const verified = await completeOtp.verify();
-        if (!verified.ok) {
-          return toast.error(verified.error || "SMS verification is required to activate your wallet.");
-        }
-      }
+    if (requiresCompleteOtp && !completeOtp.otpVerified) {
+      setPopupStep("otp");
+      return toast.error("Verify your mobile number first.");
     }
 
     setBusy(true);
@@ -345,6 +376,7 @@ export function AuthModal({
       if (msg.includes("already registered") || msg.includes("already-exists")) {
         toast.error("This phone is already registered. Sign in with your password instead.");
         setMode("login");
+        setPopupStep("main");
       } else {
         toast.error(msg);
       }
@@ -353,237 +385,275 @@ export function AuthModal({
     }
   }
 
+  const showCredentials =
+    mode === "register" && (!requiresSignupOtp || signupOtp.otpVerified);
+  const showCompleteSubmit =
+    mode === "complete" && (!requiresCompleteOtp || completeOtp.otpVerified);
+
+  const modalTitle =
+    popupStep === "otp"
+      ? "Verify your number"
+      : mode === "complete"
+        ? "Finish your profile"
+        : mode === "register"
+          ? "Create account to play"
+          : "Sign in to place bets";
+
+  const modalSubtitle =
+    popupStep === "otp"
+      ? "We sent a code to your Africell phone. Enter it below to continue."
+      : mode === "complete"
+        ? "Add your phone number to deposit, bet and withdraw with real GMD."
+        : "Watch the game for free — sign up when you're ready to bet for real money.";
+
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={
-        mode === "complete"
-          ? "Finish your profile"
-          : mode === "register"
-            ? "Create account to play"
-            : "Sign in to place bets"
-      }
-    >
+    <Modal open={open} onClose={onClose} title={modalTitle}>
       <div className="mb-3 flex justify-center sm:mb-4">
         <Logo height={28} showWordmark={false} className="sm:hidden" />
         <Logo height={32} showWordmark={false} className="hidden sm:inline-flex" />
       </div>
-      <p className="mb-3 text-center text-sm text-slate-400 sm:mb-4">
-        {mode === "complete"
-          ? "Add your phone number to deposit, bet and withdraw with real GMD."
-          : "Watch the game for free — sign up when you're ready to bet for real money."}
-      </p>
+      <p className="mb-3 text-center text-sm text-slate-400 sm:mb-4">{modalSubtitle}</p>
 
-      {refCode && mode === "register" && (
-        <p className="mb-3 rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-center text-xs text-sky-100 sm:mb-4">
-          You&apos;re joining via agent link:{" "}
-          <span className="font-bold uppercase text-sky-300">{refCode}</span>
-        </p>
-      )}
-      {prefCode && mode === "register" && (
-        <p className="mb-3 rounded-lg border border-violet-500/25 bg-violet-500/10 px-3 py-2 text-center text-xs text-violet-100 sm:mb-4">
-          Invited by friend:{" "}
-          <span className="font-bold uppercase text-violet-300">{prefCode}</span>
-        </p>
-      )}
-
-      {mode !== "complete" && (
-        <div className="mb-3 grid grid-cols-2 rounded-lg bg-slate-950/70 p-1 text-sm font-medium sm:mb-4">
-          <button
-            type="button"
-            onClick={() => setMode("login")}
-            className={`flex items-center justify-center gap-1.5 rounded-md py-2 ${
-              mode === "login" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <LogIn size={14} /> Sign in
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("register")}
-            className={`flex items-center justify-center gap-1.5 rounded-md py-2 ${
-              mode === "register"
-                ? "bg-emerald-500 text-slate-950"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <UserPlus size={14} /> Sign up
-          </button>
-        </div>
-      )}
-
-      {mode === "complete" ? (
-        <div className="space-y-4">
-          <SignupComplianceNotice
-            ageConfirmed={ageConfirmed}
-            onAgeConfirmedChange={setAgeConfirmed}
-          />
-          <p className="text-sm text-amber-100">
-            One last step — confirm your name and phone to unlock your real-money wallet.
-            {requiresCompleteOtp
-              ? " Gambian numbers require SMS verification before your wallet is activated."
-              : " No SMS code is required for Senegal numbers yet."}
-          </p>
-          <Input label="Full Name" value={name} onChange={(e) => setName(e.target.value)} />
-          <CustomerPhoneFields
-            phoneCountry={phoneCountry}
-            onCountryChange={setPhoneCountry}
-            phone={phone}
-            onPhoneChange={setPhone}
-          />
-          {requiresCompleteOtp && signupPhoneComplete && (
-            <PhoneOtpVerification
-              phone={completePhonePreview}
-              purposeLabel="Step 1 — Verify your Africell mobile number (required)"
-              otp={completeOtp}
-              disabled={busy}
-            />
-          )}
-          <Button
-            className="w-full"
-            onClick={completeProfile}
-            disabled={busy || !ageConfirmed || (requiresCompleteOtp && !completeOtp.otpVerified)}
-          >
-            {busy ? "Saving…" : "Start playing for real"}
-          </Button>
-        </div>
-      ) : mode === "register" ? (
-        <div className="space-y-3">
-          <SignupComplianceNotice
-            ageConfirmed={ageConfirmed}
-            onAgeConfirmedChange={setAgeConfirmed}
-          />
-          <Input label="Full Name" placeholder="Awa Diop" value={name} onChange={(e) => setName(e.target.value)} />
-          <CustomerPhoneFields
-            phoneCountry={phoneCountry}
-            onCountryChange={setPhoneCountry}
-            phone={phone}
-            onPhoneChange={setPhone}
-          />
-          {requiresSignupOtp && signupPhoneComplete && (
-            <PhoneOtpVerification
-              phone={signupPhonePreview}
-              purposeLabel="Step 1 — Verify your Africell mobile number (required)"
-              otp={signupOtp}
-              disabled={busy}
-            />
-          )}
-          <Input
-            label="Email (optional)"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <Input
-            label="Password (min 8 characters)"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <Input
-            label="Confirm Password"
-            type="password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-          />
-          <Button
-            className="w-full"
-            onClick={registerWithPhone}
-            disabled={busy || !ageConfirmed || (requiresSignupOtp && !signupOtp.otpVerified)}
-          >
-            {busy ? "Creating account…" : "Create account"}
-          </Button>
-          {requiresSignupOtp && (
-            <p className="text-center text-xs text-slate-500">
-              Gambian sign-up requires SMS verification. Send a code, verify it, then create your account.
+      {popupStep === "otp" ? (
+        <OtpConfirmPanel
+          phone={signupPhonePreview}
+          otp={activeOtp}
+          disabled={busy}
+          onBack={() => {
+            setOtpDismissed(true);
+            setPopupStep("main");
+          }}
+          headline="Confirm your Africell number"
+          subline="Enter the 6-digit SMS code to continue."
+        />
+      ) : (
+        <>
+          {refCode && mode === "register" && (
+            <p className="mb-3 rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-center text-xs text-sky-100 sm:mb-4">
+              You&apos;re joining via agent link:{" "}
+              <span className="font-bold uppercase text-sky-300">{refCode}</span>
             </p>
           )}
-        </div>
-      ) : !otpEnabled || customerAuth === "password" ? (
-        <div className="space-y-3">
-          <CustomerPhoneFields
-            phoneCountry={phoneCountry}
-            onCountryChange={setPhoneCountry}
-            phone={phone}
-            onPhoneChange={setPhone}
-          />
-          <Input
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && loginWithPassword()}
-          />
-          <Button className="w-full" onClick={loginWithPassword} disabled={busy}>
-            {busy ? "Signing in…" : "Sign in with phone"}
-          </Button>
-          {otpEnabled && (
-            <button
-              type="button"
-              onClick={() => setCustomerAuth("otp")}
-              className="block w-full text-center text-xs text-slate-400 hover:text-emerald-300"
-            >
-              Sign in with SMS code instead
-            </button>
+          {prefCode && mode === "register" && (
+            <p className="mb-3 rounded-lg border border-violet-500/25 bg-violet-500/10 px-3 py-2 text-center text-xs text-violet-100 sm:mb-4">
+              Invited by friend:{" "}
+              <span className="font-bold uppercase text-violet-300">{prefCode}</span>
+            </p>
           )}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <CustomerPhoneFields
-            phoneCountry={phoneCountry}
-            onCountryChange={setPhoneCountry}
-            phone={phone}
-            onPhoneChange={setPhone}
-          />
-          {otpSent && (
-            <Input
-              label="SMS Code"
-              inputMode="numeric"
-              placeholder="123456"
-              value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value)}
-            />
-          )}
-          <Button className="w-full" onClick={otpSent ? confirmOtp : sendOtp} disabled={busy}>
-            {busy ? "Please wait…" : otpSent ? "Verify code" : "Send SMS code"}
-          </Button>
-          <button
-            type="button"
-            onClick={() => {
-              setCustomerAuth("password");
-              setOtpSent(false);
-            }}
-            className="block w-full text-center text-xs text-slate-400 hover:text-emerald-300"
-          >
-            Use password instead
-          </button>
-        </div>
-      )}
 
-      {mode !== "complete" && (
-        <>
-          <div className="my-4 flex items-center gap-3 text-xs text-slate-500">
-            <div className="h-px flex-1 bg-white/10" />
-            or
-            <div className="h-px flex-1 bg-white/10" />
-          </div>
-          <Button
-            variant="secondary"
-            className="w-full"
-            onClick={loginGoogle}
-            disabled={busy || (mode === "register" && !ageConfirmed)}
-          >
-            Continue with Google
-          </Button>
+          {mode !== "complete" && (
+            <div className="mb-3 grid grid-cols-2 rounded-lg bg-slate-950/70 p-1 text-sm font-medium sm:mb-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setPopupStep("main");
+                }}
+                className={`flex items-center justify-center gap-1.5 rounded-md py-2 ${
+                  mode === "login" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <LogIn size={14} /> Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("register");
+                  setPopupStep("main");
+                }}
+                className={`flex items-center justify-center gap-1.5 rounded-md py-2 ${
+                  mode === "register"
+                    ? "bg-emerald-500 text-slate-950"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <UserPlus size={14} /> Sign up
+              </button>
+            </div>
+          )}
+
+          {mode === "complete" ? (
+            <div className="space-y-4">
+              <SignupComplianceNotice
+                ageConfirmed={ageConfirmed}
+                onAgeConfirmedChange={setAgeConfirmed}
+              />
+              <Input label="Full Name" value={name} onChange={(e) => setName(e.target.value)} />
+              <CustomerPhoneFields
+                phoneCountry={phoneCountry}
+                onCountryChange={setPhoneCountry}
+                phone={phone}
+                onPhoneChange={setPhone}
+                disabled={completeOtp.otpVerified}
+              />
+              {requiresCompleteOtp && completeOtp.otpVerified && (
+                <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
+                  Mobile number verified
+                </p>
+              )}
+              {requiresCompleteOtp && signupPhoneComplete && !completeOtp.otpVerified && (
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={() => {
+                    setOtpDismissed(false);
+                    setPopupStep("otp");
+                  }}
+                >
+                  Verify phone to continue
+                </Button>
+              )}
+              {showCompleteSubmit && (
+                <Button
+                  className="w-full"
+                  onClick={completeProfile}
+                  disabled={busy || !ageConfirmed}
+                >
+                  {busy ? "Saving…" : "Start playing for real"}
+                </Button>
+              )}
+            </div>
+          ) : mode === "register" ? (
+            <div className="space-y-3">
+              <SignupComplianceNotice
+                ageConfirmed={ageConfirmed}
+                onAgeConfirmedChange={setAgeConfirmed}
+              />
+              <Input
+                label="Full Name"
+                placeholder="Awa Diop"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <CustomerPhoneFields
+                phoneCountry={phoneCountry}
+                onCountryChange={setPhoneCountry}
+                phone={phone}
+                onPhoneChange={setPhone}
+                disabled={signupOtp.otpVerified}
+              />
+              {requiresSignupOtp && signupOtp.otpVerified && (
+                <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
+                  Mobile number verified — set your password below
+                </p>
+              )}
+              {showCredentials && (
+                <>
+                  <Input
+                    label="Email (optional)"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                  <Input
+                    label="Password (min 8 characters)"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <Input
+                    label="Confirm Password"
+                    type="password"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                  />
+                  <Button className="w-full" onClick={registerWithPhone} disabled={busy || !ageConfirmed}>
+                    {busy ? "Creating account…" : "Create account"}
+                  </Button>
+                </>
+              )}
+              {requiresSignupOtp && signupPhoneComplete && !signupOtp.otpVerified && (
+                <p className="text-center text-xs text-slate-500">
+                  Enter your full Gambian mobile number — the popup will ask for your SMS code.
+                </p>
+              )}
+            </div>
+          ) : !otpEnabled || customerAuth === "password" ? (
+            <div className="space-y-3">
+              <CustomerPhoneFields
+                phoneCountry={phoneCountry}
+                onCountryChange={setPhoneCountry}
+                phone={phone}
+                onPhoneChange={setPhone}
+              />
+              <Input
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && loginWithPassword()}
+              />
+              <Button className="w-full" onClick={loginWithPassword} disabled={busy}>
+                {busy ? "Signing in…" : "Sign in with phone"}
+              </Button>
+              {otpEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setCustomerAuth("otp")}
+                  className="block w-full text-center text-xs text-slate-400 hover:text-emerald-300"
+                >
+                  Sign in with SMS code instead
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <CustomerPhoneFields
+                phoneCountry={phoneCountry}
+                onCountryChange={setPhoneCountry}
+                phone={phone}
+                onPhoneChange={setPhone}
+              />
+              {otpSent && (
+                <Input
+                  label="SMS Code"
+                  inputMode="numeric"
+                  placeholder="123456"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                />
+              )}
+              <Button className="w-full" onClick={otpSent ? confirmOtp : sendOtp} disabled={busy}>
+                {busy ? "Please wait…" : otpSent ? "Verify code" : "Send SMS code"}
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomerAuth("password");
+                  setOtpSent(false);
+                }}
+                className="block w-full text-center text-xs text-slate-400 hover:text-emerald-300"
+              >
+                Use password instead
+              </button>
+            </div>
+          )}
+
+          {mode !== "complete" && (
+            <>
+              <div className="my-4 flex items-center gap-3 text-xs text-slate-500">
+                <div className="h-px flex-1 bg-white/10" />
+                or
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={loginGoogle}
+                disabled={busy || (mode === "register" && !ageConfirmed)}
+              >
+                Continue with Google
+              </Button>
+            </>
+          )}
+
+          {mode === "login" ? (
+            <div className="mt-4">
+              <CustomerCareBar compact />
+            </div>
+          ) : null}
         </>
       )}
-
-      {mode === "login" ? (
-        <div className="mt-4">
-          <CustomerCareBar compact />
-        </div>
-      ) : null}
 
       <div id="auth-modal-recaptcha" />
     </Modal>
