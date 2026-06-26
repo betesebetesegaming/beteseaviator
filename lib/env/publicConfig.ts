@@ -138,12 +138,10 @@ export function getApiBaseUrl(): string {
 }
 
 /**
- * Gambian signup SMS OTP — enabled unless explicitly disabled via env.
- * Set NEXT_PUBLIC_SIGNUP_OTP_ENABLED=false to turn off.
+ * Gambian (+220) numbers must pass Africell SMS OTP before signup or withdrawal.
  */
-export function isSignupOtpEnabled(): boolean {
-  const enabled = readPublicEnv("NEXT_PUBLIC_SIGNUP_OTP_ENABLED");
-  return enabled !== "false";
+export function requiresMandatoryOtpPhone(phone?: string): boolean {
+  return isSmsOtpSupportedPhone(phone);
 }
 
 /** Gambian (+220) numbers can receive Africell SMS OTP. */
@@ -153,4 +151,13 @@ export function isSmsOtpSupportedPhone(phone?: string): boolean {
   if (digits.startsWith("220") && digits.length >= 10) return true;
   if (digits.length === 7) return true;
   return false;
+}
+
+/**
+ * Optional Firebase phone-auth login path. Gambian signup/withdrawal OTP is always
+ * mandatory via requiresMandatoryOtpPhone — not controlled by this flag.
+ */
+export function isSignupOtpEnabled(): boolean {
+  const enabled = readPublicEnv("NEXT_PUBLIC_SIGNUP_OTP_ENABLED");
+  return enabled !== "false";
 }

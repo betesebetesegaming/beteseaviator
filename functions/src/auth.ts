@@ -21,6 +21,7 @@ import {
   normalizeReferralCode,
   resolvePlayerReferrerUid,
 } from "./referrals";
+import { assertOtpVerifiedForPhone } from "./otpVerification";
 
 /** Web API key used to verify agent passwords through the Identity Toolkit REST API. */
 const WEB_API_KEY = defineString("WEB_API_KEY", {
@@ -45,6 +46,8 @@ export const completeRegistration = onCall(async (req) => {
 
   if (!name) throw new HttpsError("invalid-argument", "Name is required.");
     if (!phone) throw new HttpsError("invalid-argument", "A valid Gambia or Senegal phone number is required.");
+
+  await assertOtpVerifiedForPhone(phone);
 
   // contact email: explicit > real auth email (never the synthetic phone alias)
   const tokenEmail = req.auth?.token.email as string | undefined;

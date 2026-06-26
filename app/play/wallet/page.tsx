@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
   collection,
@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
-import { isSmsOtpSupportedPhone } from "@/lib/env/publicConfig";
+import { requiresMandatoryOtpPhone } from "@/lib/env/publicConfig";
 import { apiUrl } from "@/lib/apiUrl";
 import { PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
@@ -57,9 +57,15 @@ export default function WalletPage() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const withdrawalPhone = profile?.phone || "";
-  const requiresWithdrawalOtp = isSmsOtpSupportedPhone(withdrawalPhone);
-  const withdrawalOtp = usePhoneOtp(withdrawalPhone);
+  const otpPhone = useMemo(() => {
+    const raw = withdrawPhone || profile?.phone || "";
+    const normalized = normalizeGambiaPhone(raw);
+    if (normalized) return normalized.replace(/^\+220/, "").replace(/\D/g, "") || raw.replace(/\D/g, "");
+    return raw.replace(/\D/g, "");
+  }, [withdrawPhone, profile?.phone]);
+
+  const requiresWithdrawalOtp = requiresMandatoryOtpPhone(otpPhone);
+  const withdrawalOtp = usePhoneOtp(otpPhone);
 
   useEffect(() => {
     if (frozen) setTab("history");
@@ -208,9 +214,11 @@ export default function WalletPage() {
     }
 
     if (requiresWithdrawalOtp) {
-      const verified = await withdrawalOtp.verify();
-      if (!verified.ok) {
-        return toast.error(verified.error || "SMS verification required before withdrawal.");
+      if (!withdrawalOtp.otpVerified) {
+        const verified = await withdrawalOtp.verify();
+        if (!verified.ok) {
+          return toast.error(verified.error || "SMS verification is required before withdrawal.");
+        }
       }
     }
 
@@ -410,13 +418,17 @@ export default function WalletPage() {
             )}
             {requiresWithdrawalOtp && (
               <PhoneOtpVerification
-                phone={withdrawalPhone}
-                purposeLabel="SMS verification required to withdraw"
+                phone={otpPhone}
+                purposeLabel="SMS verification required to withdraw (mandatory)"
                 otp={withdrawalOtp}
                 disabled={busy}
               />
             )}
-            <Button className="w-full" disabled={busy} onClick={submitMobileWithdrawal}>
+            <Button
+              className="w-full"
+              disabled={busy || (requiresWithdrawalOtp && !withdrawalOtp.otpVerified)}
+              onClick={submitMobileWithdrawal}
+            >
               {busy ? "Processing…" : "Withdraw via ModemPay"}
             </Button>
             <p className="text-xs text-slate-500">

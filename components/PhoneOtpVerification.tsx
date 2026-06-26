@@ -12,6 +12,7 @@ export function usePhoneOtp(phone: string) {
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
@@ -63,12 +64,23 @@ export function usePhoneOtp(phone: string) {
     if (!otpSent) {
       return { ok: false, error: 'Tap "Send verification code" first.' };
     }
-    if (!otpCode.trim()) {
+    if (!otpCode.trim() || otpCode.trim().length < 6) {
       return { ok: false, error: "Enter the 6-digit SMS verification code." };
     }
-    const result = await verifySignupOtp(phone, otpCode);
-    if (result.ok) setOtpVerified(true);
-    return result;
+    setIsVerifying(true);
+    setError("");
+    try {
+      const result = await verifySignupOtp(phone, otpCode);
+      if (result.ok) {
+        setOtpVerified(true);
+        setInfo("Phone number verified. You can continue.");
+      } else {
+        setError(result.error || "Invalid verification code.");
+      }
+      return result;
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   return {
@@ -78,6 +90,7 @@ export function usePhoneOtp(phone: string) {
     otpVerified,
     otpCooldown,
     isSending,
+    isVerifying,
     error,
     info,
     send,
@@ -100,7 +113,19 @@ export function PhoneOtpVerification({
   otp,
   disabled = false,
 }: PhoneOtpVerificationProps) {
-  const { otpCode, setOtpCode, otpSent, otpVerified, otpCooldown, isSending, error, info, send } = otp;
+  const {
+    otpCode,
+    setOtpCode,
+    otpSent,
+    otpVerified,
+    otpCooldown,
+    isSending,
+    isVerifying,
+    error,
+    info,
+    send,
+    verify,
+  } = otp;
 
   return (
     <div className="space-y-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4">
@@ -120,7 +145,7 @@ export function PhoneOtpVerification({
         onClick={() => {
           void send();
         }}
-        disabled={disabled || isSending || otpCooldown > 0 || !phone.trim()}
+        disabled={disabled || isSending || otpCooldown > 0 || !phone.trim() || otpVerified}
       >
         {isSending
           ? "Sending code…"
@@ -130,25 +155,34 @@ export function PhoneOtpVerification({
               ? "Resend verification code"
               : "Send verification code"}
       </Button>
-      {otpSent && (
-        <Input
-          label="SMS verification code"
-          type="text"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-          value={otpCode}
-          onChange={(e) => {
-            setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6));
-          }}
-          placeholder="6-digit code"
-          disabled={disabled}
-        />
+      {otpSent && !otpVerified && (
+        <>
+          <Input
+            label="SMS verification code"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={otpCode}
+            onChange={(e) => {
+              setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+            }}
+            placeholder="6-digit code"
+            disabled={disabled}
+          />
+          <Button
+            type="button"
+            className="w-full"
+            onClick={() => {
+              void verify();
+            }}
+            disabled={disabled || isVerifying || otpCode.trim().length < 6}
+          >
+            {isVerifying ? "Verifying…" : "Verify code"}
+          </Button>
+        </>
       )}
       {otpVerified && <p className="text-xs font-semibold text-emerald-300">Phone number verified.</p>}
-      {!otpVerified && otpSent && (
-        <p className="text-[11px] text-slate-400">Enter the code from SMS to continue.</p>
-      )}
     </div>
   );
 }

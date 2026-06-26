@@ -147,6 +147,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /** Recent OTP verifications — Cloud Functions only. */
+    match /otp_verified/{phone} {
+      allow read, write: if false;
+    }
+
     match /referral_rewards/{rewardId} {
       allow read: if signedIn()
         && (resource.data.referrerId == uid() || isAdmin());

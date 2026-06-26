@@ -1,6 +1,6 @@
 import { apiUrl } from "./apiUrl";
 
-/** Africell gateway down, credentials missing, or other infra failure — signup may proceed without OTP. */
+/** Africell gateway down, credentials missing, or other infra failure. */
 export function isOtpGatewayUnavailableError(error?: string): boolean {
   const msg = String(error || "").toLowerCase();
   return (

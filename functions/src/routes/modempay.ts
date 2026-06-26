@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import type { Request, Response } from 'express';
+import { HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 import {
   createCheckoutSession,
@@ -18,6 +19,7 @@ import { adminDb } from '../adminModem';
 import { db, bumpDailyStats, bumpPlatformStats, getSettings, round2, todayIso, walletRead, walletWrite } from '../helpers';
 import { applyEarlyWithdrawalPenalties, evaluateEarlyWithdrawal, parsePlaythroughWallet } from '../wagering';
 import { syncAviatorWalletCredit } from '../walletSync';
+import { assertOtpVerifiedForPhone } from '../otpVerification';
 import {
   patchDepositOnRtdb,
   syncCheckoutToRtdb,
@@ -356,6 +358,17 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
     }
     if (!recipientPhone) {
       res.status(400).json({ error: 'recipientPhone is required' });
+      return;
+    }
+
+    try {
+      await assertOtpVerifiedForPhone(recipientPhone);
+    } catch (err) {
+      const msg =
+        err instanceof HttpsError
+          ? err.message
+          : 'SMS verification required before withdrawal.';
+      res.status(403).json({ error: msg });
       return;
     }
 

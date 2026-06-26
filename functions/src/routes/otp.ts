@@ -5,6 +5,7 @@ import { logger } from "firebase-functions";
 import { db } from "../helpers";
 
 const OTP_TTL_SECONDS = 300;
+const OTP_VERIFIED_TTL_SECONDS = 600;
 const OTP_LENGTH = 6;
 const MAX_ATTEMPTS = 5;
 
@@ -412,6 +413,12 @@ export async function verifyOtpHandler(req: Request, res: Response): Promise<voi
     }
 
     await ref.delete().catch(() => undefined);
+    const verifiedExpiresAt = Date.now() + OTP_VERIFIED_TTL_SECONDS * 1000;
+    await db.collection("otp_verified").doc(msisdn).set({
+      phone: msisdn,
+      verified_at: new Date().toISOString(),
+      expires_at: new Date(verifiedExpiresAt).toISOString(),
+    });
     res.json({ ok: true, verified: true, phone: msisdn });
   } catch (err) {
     logger.error("OTP verification failed", err);

@@ -125,7 +125,7 @@ export function AuthModal({
   const confirmRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
   const otpEnabled = isSignupOtpEnabled();
-  const requiresSignupOtp = phoneCountry === "GM" && otpEnabled;
+  const requiresSignupOtp = phoneCountry === "GM";
   const signupPhonePreview = useMemo(
     () => (phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhone(phone, phoneCountry) : ""),
     [phone, phoneCountry],
@@ -136,7 +136,7 @@ export function AuthModal({
     [phone, phoneCountry],
   );
   const completeOtp = usePhoneOtp(completePhonePreview);
-  const requiresCompleteOtp = phoneCountry === "GM" && otpEnabled;
+  const requiresCompleteOtp = phoneCountry === "GM";
   const signupPhoneComplete = Boolean(
     phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhoneLocal(phone, phoneCountry) : null,
   );
@@ -210,9 +210,11 @@ export function AuthModal({
     if (password !== confirm) return toast.error("Passwords do not match.");
 
     if (requiresSignupOtp) {
-      const verified = await signupOtp.verify();
-      if (!verified.ok) {
-        return toast.error(verified.error || "Invalid verification code.");
+      if (!signupOtp.otpVerified) {
+        const verified = await signupOtp.verify();
+        if (!verified.ok) {
+          return toast.error(verified.error || "SMS verification is required to create your account.");
+        }
       }
     }
 
@@ -319,9 +321,11 @@ export function AuthModal({
     if (!normalized) return toast.error(PHONE_HINT);
 
     if (requiresCompleteOtp) {
-      const verified = await completeOtp.verify();
-      if (!verified.ok) {
-        return toast.error(verified.error || "Invalid verification code.");
+      if (!completeOtp.otpVerified) {
+        const verified = await completeOtp.verify();
+        if (!verified.ok) {
+          return toast.error(verified.error || "SMS verification is required to activate your wallet.");
+        }
       }
     }
 
@@ -436,7 +440,11 @@ export function AuthModal({
               disabled={busy}
             />
           )}
-          <Button className="w-full" onClick={completeProfile} disabled={busy || !ageConfirmed}>
+          <Button
+            className="w-full"
+            onClick={completeProfile}
+            disabled={busy || !ageConfirmed || (requiresCompleteOtp && !completeOtp.otpVerified)}
+          >
             {busy ? "Saving…" : "Start playing for real"}
           </Button>
         </div>
@@ -479,12 +487,16 @@ export function AuthModal({
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
           />
-          <Button className="w-full" onClick={registerWithPhone} disabled={busy || !ageConfirmed}>
+          <Button
+            className="w-full"
+            onClick={registerWithPhone}
+            disabled={busy || !ageConfirmed || (requiresSignupOtp && !signupOtp.otpVerified)}
+          >
             {busy ? "Creating account…" : "Create account"}
           </Button>
           {requiresSignupOtp && (
             <p className="text-center text-xs text-slate-500">
-              Gambian sign-up requires SMS verification before your account is created.
+              Gambian sign-up requires SMS verification. Send a code, verify it, then create your account.
             </p>
           )}
         </div>
