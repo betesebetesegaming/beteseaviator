@@ -6,6 +6,7 @@ import { LogIn } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/api";
 import { loginStaffAccount } from "@/lib/auth-login";
+import { redirectAfterStaffLogin } from "@/lib/staff-session";
 import { Button, Input } from "@/components/ui";
 
 export function StaffLoginForm() {
@@ -23,6 +24,7 @@ export function StaffLoginForm() {
       await loginStaffAccount(id, password);
       await auth.currentUser?.getIdToken(true);
       toast.success("Welcome back!");
+      await redirectAfterStaffLogin();
     } catch (e) {
       const msg = errorMessage(e);
       if (msg.toLowerCase().includes("invalid credential") || msg.includes("auth/")) {

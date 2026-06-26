@@ -10,10 +10,16 @@ const STAFF_USERNAME_EMAILS: Record<string, string> = {
 };
 
 async function signInStaffEmail(email: string, password: string) {
-  if (auth.currentUser) {
+  const normalized = email.toLowerCase();
+  const current = auth.currentUser;
+  if (current?.email?.toLowerCase() === normalized) {
+    await signInWithEmailAndPassword(auth, normalized, password);
+    return;
+  }
+  if (current) {
     await signOut(auth);
   }
-  await signInWithEmailAndPassword(auth, email, password);
+  await signInWithEmailAndPassword(auth, normalized, password);
 }
 
 export async function loginStaffAccount(id: string, password: string) {

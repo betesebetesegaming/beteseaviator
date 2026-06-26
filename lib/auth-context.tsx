@@ -144,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const uid = fbUser.uid;
 
     void getDoc(doc(db, "users", uid)).then((snap) => {
-      if (cancelled) return;
+      if (cancelled || auth.currentUser?.uid !== uid) return;
       setProfile(snap.exists() ? ({ uid: snap.id, ...snap.data() } as UserProfile) : null);
       setProfileReady(true);
     });
@@ -152,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubProfile = onSnapshot(
       doc(db, "users", uid),
       (snap) => {
-        if (cancelled) return;
+        if (cancelled || auth.currentUser?.uid !== uid) return;
         setProfile(snap.exists() ? ({ uid: snap.id, ...snap.data() } as UserProfile) : null);
         setProfileReady(true);
       },

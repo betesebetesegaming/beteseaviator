@@ -12,10 +12,13 @@ export default function StaffLoginPage() {
   const router = useRouter();
   const { fbUser, profile, loading, profileReady } = useAuth();
 
+  const profileSettled =
+    !!fbUser && profileReady && !!profile && profile.uid === fbUser.uid;
+
   useEffect(() => {
     if (loading) return;
     if (!fbUser) return;
-    if (!profileReady || !profile || profile.uid !== fbUser.uid) return;
+    if (!profileSettled) return;
 
     if (profile.status !== "active") {
       router.replace("/suspended");
@@ -30,12 +33,12 @@ export default function StaffLoginPage() {
     if (isStaffRole(profile.role)) {
       router.replace(homeFor(profile.role));
     }
-  }, [loading, profileReady, fbUser, profile, router]);
+  }, [loading, profileSettled, fbUser, profile, router]);
 
   const waitingForStaffRedirect =
     loading ||
-    (fbUser && !profileReady) ||
-    (fbUser && profile && isStaffRole(profile.role));
+    (fbUser && !profileSettled) ||
+    (profileSettled && isStaffRole(profile.role));
 
   if (waitingForStaffRedirect) {
     return (
