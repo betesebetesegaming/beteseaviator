@@ -43,7 +43,6 @@ import { SignupComplianceNotice } from "@/components/SignupComplianceNotice";
 
 export type AuthModalMode = "login" | "register" | "complete";
 type CustomerAuth = "password" | "otp";
-type PopupStep = "main" | "otp";
 
 function CustomerPhoneFields({
   phoneCountry,
@@ -113,7 +112,6 @@ export function AuthModal({
 }) {
   const { fbUser, profile, loading } = useAuth();
   const [mode, setMode] = useState<AuthModalMode>(initialMode);
-  const [popupStep, setPopupStep] = useState<PopupStep>("main");
   const [customerAuth, setCustomerAuth] = useState<CustomerAuth>("password");
   const [busy, setBusy] = useState(false);
 
@@ -146,16 +144,16 @@ export function AuthModal({
   const needsOtpStep =
     (mode === "register" && requiresSignupOtp) || (mode === "complete" && requiresCompleteOtp);
   const activeOtp = mode === "complete" ? completeOtp : signupOtp;
+  const showOtpScreen =
+    needsOtpStep && signupPhoneComplete && !activeOtp.otpVerified && !otpDismissed;
 
   useEffect(() => {
     if (!open) return;
     setMode(initialMode);
-    setPopupStep("main");
     setCustomerAuth("password");
     setOtpSent(false);
     setOtpCode("");
     setAgeConfirmed(false);
-    setPhoneCountry("GM");
     setOtpDismissed(false);
   }, [open, initialMode]);
 
@@ -181,33 +179,7 @@ export function AuthModal({
 
   useEffect(() => {
     setOtpDismissed(false);
-  }, [phone, phoneCountry]);
-
-  useEffect(() => {
-    if (
-      !open ||
-      popupStep !== "main" ||
-      !needsOtpStep ||
-      !signupPhoneComplete ||
-      activeOtp.otpVerified ||
-      otpDismissed
-    ) {
-      return;
-    }
-    setPopupStep("otp");
-  }, [open, popupStep, needsOtpStep, signupPhoneComplete, activeOtp.otpVerified, otpDismissed]);
-
-  useEffect(() => {
-    if (activeOtp.otpVerified && popupStep === "otp") {
-      setPopupStep("main");
-    }
-  }, [activeOtp.otpVerified, popupStep]);
-
-  useEffect(() => {
-    if (!signupPhoneComplete && popupStep === "otp") {
-      setPopupStep("main");
-    }
-  }, [signupPhoneComplete, popupStep]);
+  }, [phone, phoneCountry, mode]);
 
   async function loginWithPassword() {
     if (!isActivePhoneCountry(phoneCountry)) {
@@ -248,8 +220,8 @@ export function AuthModal({
     if (password !== confirm) return toast.error("Passwords do not match.");
 
     if (requiresSignupOtp && !signupOtp.otpVerified) {
-      setPopupStep("otp");
-      return toast.error("Verify your mobile number first.");
+      setOtpDismissed(false);
+      return toast.error("Verify your mobile number with the SMS code first.");
     }
 
     setBusy(true);
@@ -284,11 +256,9 @@ export function AuthModal({
       ) {
         toast.error("This phone is already registered. Sign in with your password.");
         setMode("login");
-        setPopupStep("main");
       } else if (msg.includes("Invalid credentials") || msg.includes("wrong-password")) {
         toast.error("This phone is already registered. Sign in with your password.");
         setMode("login");
-        setPopupStep("main");
       } else {
         toast.error(msg);
       }
@@ -356,8 +326,8 @@ export function AuthModal({
     if (!normalized) return toast.error(PHONE_HINT);
 
     if (requiresCompleteOtp && !completeOtp.otpVerified) {
-      setPopupStep("otp");
-      return toast.error("Verify your mobile number first.");
+      setOtpDismissed(false);
+      return toast.error("Verify your mobile number with the SMS code first.");
     }
 
     setBusy(true);
@@ -376,7 +346,6 @@ export function AuthModal({
       if (msg.includes("already registered") || msg.includes("already-exists")) {
         toast.error("This phone is already registered. Sign in with your password instead.");
         setMode("login");
-        setPopupStep("main");
       } else {
         toast.error(msg);
       }
@@ -390,20 +359,22 @@ export function AuthModal({
   const showCompleteSubmit =
     mode === "complete" && (!requiresCompleteOtp || completeOtp.otpVerified);
 
-  const modalTitle =
-    popupStep === "otp"
-      ? "Verify your number"
-      : mode === "complete"
-        ? "Finish your profile"
-        : mode === "register"
-          ? "Create account to play"
-          : "Sign in to place bets";
+  const modalTitle = showOtpScreen
+    ? "Verify your number"
+    : mode === "complete"
+      ? "Finish your profile"
+      : mode === "register"
+        ? "Create account to play"
+        : "Sign in to place bets";
 
-  const modalSubtitle =
-    popupStep === "otp"
-      ? "We sent a code to your Africell phone. Enter it below to continue."
-      : mode === "complete"
-        ? "Add your phone number to deposit, bet and withdraw with real GMD."
+  const modalSubtitle = showOtpScreen
+    ? "We sent a 6-digit code to your Africell phone. Enter it below to continue."
+    : mode === "complete"
+      ? requiresCompleteOtp
+        ? "One last step — confirm your name and Gambian mobile number. SMS verification is required before your wallet opens."
+        : "Add your phone number to deposit, bet and withdraw with real GMD."
+      : mode === "register" && requiresSignupOtp
+        ? "Enter your details, then verify your Gambian mobile number by SMS."
         : "Watch the game for free — sign up when you're ready to bet for real money.";
 
   return (
@@ -414,17 +385,18 @@ export function AuthModal({
       </div>
       <p className="mb-3 text-center text-sm text-slate-400 sm:mb-4">{modalSubtitle}</p>
 
-      {popupStep === "otp" ? (
+      {showOtpScreen ? (
         <OtpConfirmPanel
           phone={signupPhonePreview}
           otp={activeOtp}
           disabled={busy}
-          onBack={() => {
-            setOtpDismissed(true);
-            setPopupStep("main");
-          }}
-          headline="Confirm your Africell number"
-          subline="Enter the 6-digit SMS code to continue."
+          onBack={() => setOtpDismissed(true)}
+          headline={
+            mode === "complete"
+              ? "Confirm your Africell number to finish signup"
+              : "Confirm your Africell number"
+          }
+          subline="Enter the 6-digit SMS code we sent to your phone."
         />
       ) : (
         <>
@@ -447,7 +419,7 @@ export function AuthModal({
                 type="button"
                 onClick={() => {
                   setMode("login");
-                  setPopupStep("main");
+                  setOtpDismissed(false);
                 }}
                 className={`flex items-center justify-center gap-1.5 rounded-md py-2 ${
                   mode === "login" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
@@ -459,7 +431,7 @@ export function AuthModal({
                 type="button"
                 onClick={() => {
                   setMode("register");
-                  setPopupStep("main");
+                  setOtpDismissed(false);
                 }}
                 className={`flex items-center justify-center gap-1.5 rounded-md py-2 ${
                   mode === "register"
@@ -486,22 +458,16 @@ export function AuthModal({
                 onPhoneChange={setPhone}
                 disabled={completeOtp.otpVerified}
               />
-              {requiresCompleteOtp && completeOtp.otpVerified && (
-                <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
-                  Mobile number verified
+              {requiresCompleteOtp && !signupPhoneComplete && (
+                <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  Enter your full 7-digit Gambian mobile number — the popup will switch to SMS
+                  verification automatically.
                 </p>
               )}
-              {requiresCompleteOtp && signupPhoneComplete && !completeOtp.otpVerified && (
-                <Button
-                  type="button"
-                  className="w-full"
-                  onClick={() => {
-                    setOtpDismissed(false);
-                    setPopupStep("otp");
-                  }}
-                >
-                  Verify phone to continue
-                </Button>
+              {requiresCompleteOtp && completeOtp.otpVerified && (
+                <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
+                  Mobile number verified — tap below to activate your wallet
+                </p>
               )}
               {showCompleteSubmit && (
                 <Button
