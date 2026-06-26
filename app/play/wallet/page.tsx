@@ -15,7 +15,7 @@ import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { requiresMandatoryOtpPhone } from "@/lib/env/publicConfig";
 import { apiUrl } from "@/lib/apiUrl";
-import { PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
+import { PHONE_HINT, normalizeGambiaPhone, normalizePhone } from "@/lib/gambiaPhone";
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
@@ -62,9 +62,7 @@ export default function WalletPage() {
 
   const otpPhone = useMemo(() => {
     const raw = withdrawPhone || profile?.phone || "";
-    const normalized = normalizeGambiaPhone(raw);
-    if (normalized) return normalized.replace(/^\+220/, "").replace(/\D/g, "") || raw.replace(/\D/g, "");
-    return raw.replace(/\D/g, "");
+    return normalizePhone(raw, "GM") || "";
   }, [withdrawPhone, profile?.phone]);
 
   const requiresWithdrawalOtp = requiresMandatoryOtpPhone(otpPhone);

@@ -203,3 +203,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
+
+export function profileMatchesUser(
+  profile: UserProfile | null | undefined,
+  fbUser: User | null | undefined,
+): boolean {
+  return !!fbUser && !!profile && profile.uid === fbUser.uid;
+}

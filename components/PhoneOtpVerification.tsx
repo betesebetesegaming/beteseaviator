@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, MessageSquare, ShieldCheck } from "lucide-react";
 import { sendSignupOtp, verifySignupOtp } from "@/lib/otpClient";
 import { formatPhoneDisplay } from "@/lib/phone";
@@ -35,7 +35,7 @@ export function usePhoneOtp(phone: string) {
     return () => window.clearInterval(timer);
   }, [otpCooldown]);
 
-  const send = async (): Promise<boolean> => {
+  const send = useCallback(async (): Promise<boolean> => {
     setError("");
     setInfo("");
     if (!phone.trim()) {
@@ -57,9 +57,9 @@ export function usePhoneOtp(phone: string) {
     } finally {
       setIsSending(false);
     }
-  };
+  }, [phone]);
 
-  const verify = async (): Promise<{ ok: boolean; error?: string }> => {
+  const verify = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
     if (otpVerified) return { ok: true };
     if (!otpSent) {
       return { ok: false, error: "Wait for the SMS code to arrive first." };
@@ -81,7 +81,7 @@ export function usePhoneOtp(phone: string) {
     } finally {
       setIsVerifying(false);
     }
-  };
+  }, [otpVerified, otpSent, otpCode, phone]);
 
   return {
     otpCode,
@@ -136,8 +136,16 @@ export function OtpConfirmPanel({
     verify,
   } = otp;
 
+  const autoSentRef = useRef("");
+
+  useEffect(() => {
+    autoSentRef.current = "";
+  }, [phone]);
+
   useEffect(() => {
     if (!autoSend || otpVerified || otpSent || isSending || !phone.trim()) return;
+    if (autoSentRef.current === phone) return;
+    autoSentRef.current = phone;
     void send();
   }, [autoSend, phone, otpVerified, otpSent, isSending, send]);
 

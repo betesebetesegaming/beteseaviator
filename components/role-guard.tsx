@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth, homeFor } from "@/lib/auth-context";
+import { profileMatchesUser, useAuth, homeFor } from "@/lib/auth-context";
 import type { Role } from "@/lib/types";
 import { Spinner } from "./ui";
 
@@ -22,9 +22,9 @@ export function RoleGuard({
   const { fbUser, profile, loading, profileReady } = useAuth();
   const router = useRouter();
 
-  const profileMatchesUser = !!fbUser && profile?.uid === fbUser.uid;
+  const profileMatchesUserFlag = profileMatchesUser(profile, fbUser);
   const permitted =
-    profileMatchesUser &&
+    profileMatchesUserFlag &&
     !!profile &&
     allow.includes(profile.role) &&
     profile.status === "active";
@@ -39,7 +39,7 @@ export function RoleGuard({
       router.replace(loginPath);
       return;
     }
-    if (!profile || !profileMatchesUser) return;
+    if (!profile || !profileMatchesUserFlag) return;
     if (profile.status !== "active") {
       router.replace("/suspended");
       return;
@@ -47,7 +47,7 @@ export function RoleGuard({
     if (!allow.includes(profile.role)) {
       router.replace(homeFor(profile.role));
     }
-  }, [loading, profileReady, fbUser, profile, profileMatchesUser, allow, router, loginPath]);
+  }, [loading, profileReady, fbUser, profile, profileMatchesUserFlag, allow, router, loginPath]);
 
   if (loading || !profileReady) return <Spinner label="Loading…" />;
   if (!permitted) return <Spinner label="Loading…" />;

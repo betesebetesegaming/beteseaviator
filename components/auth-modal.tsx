@@ -13,7 +13,7 @@ import {
 } from "firebase/auth";
 import { LogIn, UserPlus } from "lucide-react";
 import { auth } from "@/lib/firebase";
-import { useAuth, homeFor } from "@/lib/auth-context";
+import { useAuth, homeFor, profileMatchesUser } from "@/lib/auth-context";
 import { completeRegistration, errorMessage } from "@/lib/api";
 import {
   displayLocalFromPhoneKey,
@@ -159,7 +159,8 @@ export function AuthModal({
 
   useEffect(() => {
     if (!open || loading) return;
-    if (fbUser && !profile) {
+    const matchedProfile = profileMatchesUser(profile, fbUser) ? profile : null;
+    if (fbUser && !matchedProfile) {
       setMode("complete");
       if (fbUser.displayName) setName((n) => n || fbUser.displayName || "");
       const key = phoneKeyFromAuthEmail(fbUser.email);
@@ -168,11 +169,11 @@ export function AuthModal({
         setPhoneCountry(country);
         setPhone((p) => p || displayLocalFromPhoneKey(key, country));
       }
-    } else if (fbUser && profile?.status === "active") {
+    } else if (matchedProfile?.status === "active") {
       onSuccess?.();
       onClose();
-      if (profile.role !== "player" && typeof window !== "undefined") {
-        window.location.href = homeFor(profile.role);
+      if (matchedProfile.role !== "player" && typeof window !== "undefined") {
+        window.location.href = homeFor(matchedProfile.role);
       }
     }
   }, [open, loading, fbUser, profile, onSuccess, onClose]);
