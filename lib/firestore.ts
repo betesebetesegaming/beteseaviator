@@ -1,4 +1,23 @@
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 import { app } from "./firebase";
 
-export const db = getFirestore(app);
+function createDb() {
+  if (typeof window === "undefined") return getFirestore(app);
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
+  } catch {
+    // Already initialized (e.g. HMR in dev) — fall back to existing instance
+    return getFirestore(app);
+  }
+}
+
+export const db = createDb();

@@ -14,8 +14,8 @@ const GameLaunchSheet = dynamic(
 );
 
 export function GameLobbyCard({ game, priority = false }: { game: Game; priority?: boolean }) {
-  const visual = getGameLobbyVisual(game);
-  const primaryUrl = gameLobbyImageUrl(game);
+  const visual = useMemo(() => getGameLobbyVisual(game), [game.id, game.type]);
+  const primaryUrl = useMemo(() => gameLobbyImageUrl(game), [game.id, game.imageUrl, game.qtechGameId]);
   const fallbackUrl = useMemo(() => {
     const id = String(game.qtechGameId ?? "").trim();
     return id ? qtechCdnBannerImage(id) : undefined;
