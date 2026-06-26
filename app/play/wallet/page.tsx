@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
+import { isSmsOtpSupportedPhone } from "@/lib/env/publicConfig";
 import { apiUrl } from "@/lib/apiUrl";
 import { PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
@@ -37,6 +38,7 @@ import { PaymentResultModal } from "@/components/PaymentResultModal";
 import { BonusOffersPanel, WalletBalanceCards } from "@/components/wallet/WalletBonusPanel";
 import { WalletFrozenNotice } from "@/components/wallet/WalletFrozenNotice";
 import { ReferralPanel } from "@/components/wallet/ReferralPanel";
+import { PhoneOtpVerification, usePhoneOtp } from "@/components/PhoneOtpVerification";
 import { Badge, Button, Card, EmptyState, Input, Select, TableShell, Td, Th } from "@/components/ui";
 
 type Tab = "history" | "deposit" | "withdraw" | "refer";
@@ -54,6 +56,10 @@ export default function WalletPage() {
   const [withdrawPhone, setWithdrawPhone] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const withdrawalPhone = profile?.phone || "";
+  const requiresWithdrawalOtp = isSmsOtpSupportedPhone(withdrawalPhone);
+  const withdrawalOtp = usePhoneOtp(withdrawalPhone);
 
   useEffect(() => {
     if (frozen) setTab("history");
@@ -199,6 +205,13 @@ export default function WalletPage() {
           `A ${feePct}% fee (${formatXof(preview.fee)}) will be deducted and you receive ${formatXof(preview.payoutAmount)}.${bonusNote} Continue?`
       );
       if (!ok) return;
+    }
+
+    if (requiresWithdrawalOtp) {
+      const verified = await withdrawalOtp.verify();
+      if (!verified.ok) {
+        return toast.error(verified.error || "SMS verification required before withdrawal.");
+      }
     }
 
     const requestId = `BETESE-WD-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
@@ -394,6 +407,14 @@ export default function WalletPage() {
                 {withdrawPreview.bonusForfeited > 0 &&
                   ` Bonus ${formatXof(withdrawPreview.bonusForfeited)} will be forfeited.`}
               </p>
+            )}
+            {requiresWithdrawalOtp && (
+              <PhoneOtpVerification
+                phone={withdrawalPhone}
+                purposeLabel="SMS verification required to withdraw"
+                otp={withdrawalOtp}
+                disabled={busy}
+              />
             )}
             <Button className="w-full" disabled={busy} onClick={submitMobileWithdrawal}>
               {busy ? "Processing…" : "Withdraw via ModemPay"}

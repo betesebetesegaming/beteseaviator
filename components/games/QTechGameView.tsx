@@ -5,7 +5,13 @@ import toast from "react-hot-toast";
 import { RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
-import { errorMessage, launchQTechGame, launchQTechGameDemo } from "@/lib/api";
+import { launchQTechGame, launchQTechGameDemo, errorMessage } from "@/lib/api";
+import {
+  prefetchQTechLaunch,
+  qtechPlayDevice,
+  readCachedQTechLaunchUrl,
+  writeCachedQTechLaunchUrl,
+} from "@/lib/games/qtechLaunchCache";
 import type { Game } from "@/lib/types";
 import { Button, Spinner } from "@/components/ui";
 import { WalletFrozenNotice } from "@/components/wallet/WalletFrozenNotice";
@@ -17,16 +23,16 @@ type Props = {
 };
 
 function isMobilePlayDevice(): boolean {
-  if (typeof window === "undefined") return true;
-  const coarse = window.matchMedia("(pointer: coarse)").matches;
-  const narrow = window.matchMedia("(max-width: 900px)").matches;
-  return coarse || narrow;
+  return qtechPlayDevice() === "mobile";
 }
 
 export function QTechGameView({ game, immersive = false, demo = false }: Props) {
   const { fbUser, profile, wallet, loading } = useAuth();
   const { openAuth } = useAuthModal();
-  const [launchUrl, setLaunchUrl] = useState<string | null>(null);
+  const device = qtechPlayDevice();
+  const [launchUrl, setLaunchUrl] = useState<string | null>(() =>
+    readCachedQTechLaunchUrl(game.id, demo, device),
+  );
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,14 +44,16 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     setLaunching(true);
     setError(null);
     try {
-      const device = isMobilePlayDevice() ? "mobile" : "desktop";
+      const playDevice = isMobilePlayDevice() ? "mobile" : "desktop";
       if (demo) {
-        const res = await launchQTechGameDemo({ gameId: game.id, device });
+        const res = await launchQTechGameDemo({ gameId: game.id, device: playDevice });
+        writeCachedQTechLaunchUrl(game.id, true, res.launchUrl, playDevice);
         setLaunchUrl(res.launchUrl);
         return;
       }
       if (!isPlayer || frozen) return;
-      const res = await launchQTechGame({ gameId: game.id, device });
+      const res = await launchQTechGame({ gameId: game.id, device: playDevice });
+      writeCachedQTechLaunchUrl(game.id, false, res.launchUrl, playDevice);
       setLaunchUrl(res.launchUrl);
     } catch (e) {
       const msg = errorMessage(e);
@@ -58,11 +66,25 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
 
   useEffect(() => {
     if (demo) {
+      if (launchUrl) {
+        void prefetchQTechLaunch({ gameId: game.id, demo: true, device }).then((url) => {
+          if (url) setLaunchUrl(url);
+        });
+        return;
+      }
       void loadGame();
       return;
     }
-    if (isPlayer && !frozen) void loadGame();
-  }, [demo, frozen, isPlayer, loadGame]);
+    if (isPlayer && !frozen) {
+      if (launchUrl) {
+        void prefetchQTechLaunch({ gameId: game.id, demo: false, device }).then((url) => {
+          if (url) setLaunchUrl(url);
+        });
+        return;
+      }
+      void loadGame();
+    }
+  }, [demo, device, frozen, game.id, isPlayer, launchUrl, loadGame]);
 
   useEffect(() => {
     if (!immersive) return;
@@ -101,7 +123,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
   }
 
   if (launching && !launchUrl) {
-    return <Spinner label={demo ? `Loading demo…` : `Loading ${game.name}…`} />;
+    return <Spinner label={demo ? "Opening demo…" : `Opening ${game.name}…`} />;
   }
 
   if (error && !launchUrl) {
@@ -134,6 +156,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
           className="game-iframe-full fixed inset-0 z-[10] h-[100dvh] w-full border-0 bg-black"
           allow="fullscreen; autoplay; payment"
           referrerPolicy="no-referrer-when-downgrade"
+          loading="eager"
         />
         <button
           type="button"

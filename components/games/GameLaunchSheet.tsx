@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
 import { gameDemoPath, gamePlayPath } from "@/lib/games/paths";
+import { cacheGameDoc, prefetchQTechLaunch, qtechPlayDevice } from "@/lib/games/qtechLaunchCache";
 import { gameLobbyImageUrl } from "@/lib/games/lobbyImages";
 import { qtechCdnBannerImage } from "@/lib/games/qtechImages";
 import type { Game } from "@/lib/types";
@@ -33,17 +34,19 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     setSrc(primaryUrl);
+    cacheGameDoc(game);
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [open, primaryUrl]);
+  }, [open, primaryUrl, game]);
 
   if (!open) return null;
 
   const playReal = () => {
     onClose();
     if (isPlayer) {
+      void prefetchQTechLaunch({ gameId: game.id, demo: false, device: qtechPlayDevice() });
       router.push(gamePlayPath(game));
       return;
     }
@@ -52,6 +55,7 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
 
   const playDemo = () => {
     onClose();
+    void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
     router.push(gameDemoPath(game));
   };
 

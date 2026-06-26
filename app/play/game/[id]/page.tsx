@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { subscribeGame } from "@/lib/games/api";
+import { subscribeGame, fetchGame } from "@/lib/games/api";
+import { readCachedGameDoc } from "@/lib/games/qtechLaunchCache";
 import { isPlayerLobbyGame } from "@/lib/games/catalog";
 import type { Game } from "@/lib/types";
 import { QTechGameView } from "@/components/games/QTechGameView";
@@ -14,18 +15,28 @@ function GamePageContent() {
   const searchParams = useSearchParams();
   const gameId = params.id;
   const isDemo = searchParams.get("mode") === "demo";
-  const [game, setGame] = useState<Game | null>(null);
-  const [gameLoading, setGameLoading] = useState(true);
+  const [game, setGame] = useState<Game | null>(() => readCachedGameDoc(gameId));
+  const [gameLoading, setGameLoading] = useState(() => !readCachedGameDoc(gameId));
 
   useEffect(() => {
-    setGameLoading(true);
-    const slow = window.setTimeout(() => setGameLoading(false), 10_000);
+    let alive = true;
+    setGameLoading((prev) => prev && !readCachedGameDoc(gameId));
+    void fetchGame(gameId).then((g) => {
+      if (!alive) return;
+      if (g) setGame(g);
+      setGameLoading(false);
+    });
+    const slow = window.setTimeout(() => {
+      if (alive) setGameLoading(false);
+    }, 10_000);
     const unsub = subscribeGame(gameId, (g) => {
+      if (!alive) return;
       setGame(g);
       setGameLoading(false);
       window.clearTimeout(slow);
     });
     return () => {
+      alive = false;
       window.clearTimeout(slow);
       unsub();
     };

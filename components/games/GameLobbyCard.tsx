@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
+import { cacheGameDoc } from "@/lib/games/qtechLaunchCache";
 import { gameLobbyImageUrl } from "@/lib/games/lobbyImages";
 import { qtechCdnBannerImage } from "@/lib/games/qtechImages";
 import { getGameLobbyVisual } from "@/lib/games/lobbyMeta";
@@ -36,7 +37,10 @@ export function GameLobbyCard({ game, priority = false }: { game: Game; priority
     <>
       <button
         type="button"
-        onClick={() => setSheetOpen(true)}
+        onClick={() => {
+          cacheGameDoc(game);
+          setSheetOpen(true);
+        }}
         className="group block w-full overflow-hidden rounded-2xl bg-[#141414] text-left shadow-md shadow-black/30 ring-1 ring-white/6 transition-transform duration-200 hover:-translate-y-0.5 hover:ring-white/12 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lobby-accent)]"
       >
         <div

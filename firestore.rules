@@ -142,6 +142,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /** OTP codes — Cloud Functions only (Africell SMS verification). */
+    match /otp_codes/{phone} {
+      allow read, write: if false;
+    }
+
     match /referral_rewards/{rewardId} {
       allow read: if signedIn()
         && (resource.data.referrerId == uid() || isAdmin());

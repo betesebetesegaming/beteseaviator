@@ -138,10 +138,19 @@ export function getApiBaseUrl(): string {
 }
 
 /**
- * Gambian signup SMS OTP — hard-off until Africell SMS API is reachable from
- * Google Cloud Functions (confirmed 502). Re-enable only after Africell whitelists
- * GCP, then set NEXT_PUBLIC_SIGNUP_OTP_GATEWAY_OK=true on Vercel and redeploy.
+ * Gambian signup SMS OTP — enabled unless explicitly disabled via env.
+ * Set NEXT_PUBLIC_SIGNUP_OTP_ENABLED=false to turn off.
  */
 export function isSignupOtpEnabled(): boolean {
+  const enabled = readPublicEnv("NEXT_PUBLIC_SIGNUP_OTP_ENABLED");
+  return enabled !== "false";
+}
+
+/** Gambian (+220) numbers can receive Africell SMS OTP. */
+export function isSmsOtpSupportedPhone(phone?: string): boolean {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return false;
+  if (digits.startsWith("220") && digits.length >= 10) return true;
+  if (digits.length === 7) return true;
   return false;
 }

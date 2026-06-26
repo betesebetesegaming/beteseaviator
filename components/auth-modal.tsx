@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
   GoogleAuthProvider,
@@ -18,11 +18,13 @@ import { completeRegistration, errorMessage } from "@/lib/api";
 import {
   displayLocalFromPhoneKey,
   normalizePhone,
+  normalizePhoneLocal,
   phoneCountryFromKey,
   phoneKeyFromAuthEmail,
   phoneToEmail,
 } from "@/lib/phone";
 import { isSignupOtpEnabled } from "@/lib/env/publicConfig";
+import { PhoneOtpVerification, usePhoneOtp } from "@/components/PhoneOtpVerification";
 import { getReferralDeviceId } from "@/lib/referrals";
 import {
   PHONE_HINT,
@@ -123,6 +125,21 @@ export function AuthModal({
   const confirmRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
   const otpEnabled = isSignupOtpEnabled();
+  const requiresSignupOtp = phoneCountry === "GM" && otpEnabled;
+  const signupPhonePreview = useMemo(
+    () => (phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhone(phone, phoneCountry) : ""),
+    [phone, phoneCountry],
+  );
+  const signupOtp = usePhoneOtp(signupPhonePreview);
+  const completePhonePreview = useMemo(
+    () => (phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhone(phone, phoneCountry) : ""),
+    [phone, phoneCountry],
+  );
+  const completeOtp = usePhoneOtp(completePhonePreview);
+  const requiresCompleteOtp = phoneCountry === "GM" && otpEnabled;
+  const signupPhoneComplete = Boolean(
+    phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhoneLocal(phone, phoneCountry) : null,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -191,6 +208,14 @@ export function AuthModal({
     if (!normalized) return toast.error(PHONE_HINT);
     if (password.length < 8) return toast.error("Password must be at least 8 characters.");
     if (password !== confirm) return toast.error("Passwords do not match.");
+
+    if (requiresSignupOtp) {
+      const verified = await signupOtp.verify();
+      if (!verified.ok) {
+        return toast.error(verified.error || "Invalid verification code.");
+      }
+    }
+
     setBusy(true);
     try {
       const authEmail = phoneToEmail(normalized);
@@ -292,6 +317,14 @@ export function AuthModal({
     }
     const normalized = normalizePhone(phone, phoneCountry);
     if (!normalized) return toast.error(PHONE_HINT);
+
+    if (requiresCompleteOtp) {
+      const verified = await completeOtp.verify();
+      if (!verified.ok) {
+        return toast.error(verified.error || "Invalid verification code.");
+      }
+    }
+
     setBusy(true);
     try {
       await completeRegistration({
@@ -383,8 +416,10 @@ export function AuthModal({
             onAgeConfirmedChange={setAgeConfirmed}
           />
           <p className="text-sm text-amber-100">
-            One last step — confirm your name and phone to unlock your real-money wallet. No SMS
-            code is required until mobile-operator verification is available.
+            One last step — confirm your name and phone to unlock your real-money wallet.
+            {requiresCompleteOtp
+              ? " Gambian numbers require SMS verification before your wallet is activated."
+              : " No SMS code is required for Senegal numbers yet."}
           </p>
           <Input label="Full Name" value={name} onChange={(e) => setName(e.target.value)} />
           <CustomerPhoneFields
@@ -393,6 +428,14 @@ export function AuthModal({
             phone={phone}
             onPhoneChange={setPhone}
           />
+          {requiresCompleteOtp && signupPhoneComplete && (
+            <PhoneOtpVerification
+              phone={completePhonePreview}
+              purposeLabel="Step 1 — Verify your Africell mobile number (required)"
+              otp={completeOtp}
+              disabled={busy}
+            />
+          )}
           <Button className="w-full" onClick={completeProfile} disabled={busy || !ageConfirmed}>
             {busy ? "Saving…" : "Start playing for real"}
           </Button>
@@ -410,6 +453,14 @@ export function AuthModal({
             phone={phone}
             onPhoneChange={setPhone}
           />
+          {requiresSignupOtp && signupPhoneComplete && (
+            <PhoneOtpVerification
+              phone={signupPhonePreview}
+              purposeLabel="Step 1 — Verify your Africell mobile number (required)"
+              otp={signupOtp}
+              disabled={busy}
+            />
+          )}
           <Input
             label="Email (optional)"
             type="email"
@@ -431,9 +482,9 @@ export function AuthModal({
           <Button className="w-full" onClick={registerWithPhone} disabled={busy || !ageConfirmed}>
             {busy ? "Creating account…" : "Create account"}
           </Button>
-          {!otpEnabled && (
+          {requiresSignupOtp && (
             <p className="text-center text-xs text-slate-500">
-              Sign up with phone + password. SMS verification is not required yet.
+              Gambian sign-up requires SMS verification before your account is created.
             </p>
           )}
         </div>
