@@ -68,6 +68,7 @@ function PlayAuthFromQuery() {
 export default function PlayLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { openAuth } = useAuthModal();
   const { fbUser, profile, wallet, loading, logout } = useAuth();
 
@@ -80,10 +81,12 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (loading || !profile) return;
+    // Allow staff to preview the lobby via a referral/signup link
+    if (searchParams.get("signup") === "1") return;
     if (profile.role !== "player") {
       router.replace(homeFor(profile.role));
     }
-  }, [loading, profile, router]);
+  }, [loading, profile, router, searchParams]);
 
   if (inGame) {
     return (
