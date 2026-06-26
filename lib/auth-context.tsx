@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { auth, initAnalytics } from "./firebase";
 import { db } from "./firestore";
 import { loginPathFor } from "./staff-routes";
@@ -72,14 +72,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const readyTimer = setTimeout(() => setForceReady(true), AUTH_MAX_WAIT_MS);
-    const profileTimer = setTimeout(() => setProfileForceReady(true), PROFILE_MAX_WAIT_MS);
     void initAnalytics();
 
     return () => {
       clearTimeout(readyTimer);
-      clearTimeout(profileTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!fbUser) {
+      setProfileForceReady(false);
+      return;
+    }
+
+    setProfileForceReady(false);
+    const profileTimer = setTimeout(() => setProfileForceReady(true), PROFILE_MAX_WAIT_MS);
+    return () => clearTimeout(profileTimer);
+  }, [fbUser?.uid]);
 
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
@@ -94,7 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastUidRef.current = u.uid;
         setFbUser(u);
         setSessionResolved(true);
-        if (uidChanged) setProfileReady(false);
+        if (uidChanged) {
+          setProfileReady(false);
+          setProfile(null);
+          setWallet(null);
+        }
         return;
       }
 
@@ -129,6 +142,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
     const uid = fbUser.uid;
+
+    void getDoc(doc(db, "users", uid)).then((snap) => {
+      if (cancelled) return;
+      setProfile(snap.exists() ? ({ uid: snap.id, ...snap.data() } as UserProfile) : null);
+      setProfileReady(true);
+    });
 
     const unsubProfile = onSnapshot(
       doc(db, "users", uid),

@@ -22,7 +22,12 @@ export function RoleGuard({
   const { fbUser, profile, loading, profileReady } = useAuth();
   const router = useRouter();
 
-  const permitted = !!profile && allow.includes(profile.role) && profile.status === "active";
+  const profileMatchesUser = !!fbUser && profile?.uid === fbUser.uid;
+  const permitted =
+    profileMatchesUser &&
+    !!profile &&
+    allow.includes(profile.role) &&
+    profile.status === "active";
 
   useEffect(() => {
     if (loading) return;
@@ -34,7 +39,7 @@ export function RoleGuard({
       router.replace(loginPath);
       return;
     }
-    if (!profile) return;
+    if (!profile || !profileMatchesUser) return;
     if (profile.status !== "active") {
       router.replace("/suspended");
       return;
@@ -42,7 +47,7 @@ export function RoleGuard({
     if (!allow.includes(profile.role)) {
       router.replace(homeFor(profile.role));
     }
-  }, [loading, profileReady, fbUser, profile, allow, router, loginPath]);
+  }, [loading, profileReady, fbUser, profile, profileMatchesUser, allow, router, loginPath]);
 
   if (loading || !profileReady) return <Spinner label="Loading…" />;
   if (!permitted) return <Spinner label="Loading…" />;

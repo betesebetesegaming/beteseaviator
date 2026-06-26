@@ -1,4 +1,4 @@
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { agentLogin } from "@/lib/api";
 
@@ -9,18 +9,25 @@ const STAFF_USERNAME_EMAILS: Record<string, string> = {
   admin: "admin@beteseaviator.com",
 };
 
+async function signInStaffEmail(email: string, password: string) {
+  if (auth.currentUser) {
+    await signOut(auth);
+  }
+  await signInWithEmailAndPassword(auth, email, password);
+}
+
 export async function loginStaffAccount(id: string, password: string) {
   const trimmed = id.trim();
   const lower = trimmed.toLowerCase();
 
   if (trimmed.includes("@")) {
-    await signInWithEmailAndPassword(auth, lower, password);
+    await signInStaffEmail(lower, password);
     return;
   }
 
   const mappedEmail = STAFF_USERNAME_EMAILS[lower];
   if (mappedEmail) {
-    await signInWithEmailAndPassword(auth, mappedEmail, password);
+    await signInStaffEmail(mappedEmail, password);
     return;
   }
 
@@ -28,7 +35,7 @@ export async function loginStaffAccount(id: string, password: string) {
     username: lower,
     password,
   });
-  await signInWithEmailAndPassword(auth, email, password);
+  await signInStaffEmail(email, password);
 }
 
 /** @deprecated Use loginStaffAccount */

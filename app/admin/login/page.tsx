@@ -15,7 +15,7 @@ export default function StaffLoginPage() {
   useEffect(() => {
     if (loading) return;
     if (!fbUser) return;
-    if (!profileReady || !profile) return;
+    if (!profileReady || !profile || profile.uid !== fbUser.uid) return;
 
     if (profile.status !== "active") {
       router.replace("/suspended");

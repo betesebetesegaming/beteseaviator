@@ -68,16 +68,17 @@ function PlayAuthFromQuery() {
 function PlayStaffRedirect() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { profile, loading } = useAuth();
+  const { fbUser, profile, loading } = useAuth();
 
   useEffect(() => {
     if (loading || !profile) return;
+    if (profile.uid !== fbUser?.uid) return;
     // Allow staff to preview the lobby via a referral/signup link
     if (searchParams.get("signup") === "1") return;
     if (profile.role !== "player") {
       router.replace(homeFor(profile.role));
     }
-  }, [loading, profile, router, searchParams]);
+  }, [loading, profile, fbUser?.uid, router, searchParams]);
 
   return null;
 }
