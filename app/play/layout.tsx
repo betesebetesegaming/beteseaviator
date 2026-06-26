@@ -125,17 +125,9 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
       <AgentReferralBanner />
       <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/75 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/play">
-              <Logo height={34} />
-            </Link>
-            <Link
-              href="/play/sports"
-              className="hidden rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-1.5 text-xs font-bold text-yellow-300 hover:bg-yellow-500/20 sm:inline-flex items-center gap-1.5"
-            >
-              ⚽ Sports
-            </Link>
-          </div>
+          <Link href="/play">
+            <Logo height={34} />
+          </Link>
 
           <div className="flex items-center gap-2 sm:gap-3">
             {isPlayer ? (
