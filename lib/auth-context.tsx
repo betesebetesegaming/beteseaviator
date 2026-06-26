@@ -47,8 +47,10 @@ export function homeFor(role: Role | undefined | null): string {
 
 export { loginPathFor } from "./staff-routes";
 
-/** Wait for Firebase to restore session — avoids flashing "Demo mode" on reload. */
-const AUTH_RESTORE_MS = 1200;
+/** Brief wait for Firebase to restore a persisted session — avoids flashing "Demo mode". */
+const AUTH_RESTORE_MS = 500;
+/** Never block the UI longer than this if Firebase/Firestore is slow or offline. */
+const AUTH_MAX_WAIT_MS = 2500;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [fbUser, setFbUser] = useState<User | null>(null);
@@ -56,14 +58,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [sessionResolved, setSessionResolved] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
+  const [forceReady, setForceReady] = useState(false);
 
   const lastUidRef = useRef<string | null>(null);
   const signOutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const explicitSignOutRef = useRef(false);
 
   useEffect(() => {
-    initAnalytics();
+    const readyTimer = setTimeout(() => setForceReady(true), AUTH_MAX_WAIT_MS);
+    void initAnalytics();
 
+    return () => {
+      clearTimeout(readyTimer);
+    };
+  }, []);
+
+  useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
       if (signOutTimerRef.current) {
         clearTimeout(signOutTimerRef.current);
@@ -142,7 +152,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") window.location.href = redirect;
   };
 
-  const loading = !sessionResolved || (!!fbUser && !profileReady);
+  const sessionPending = !sessionResolved || (!!fbUser && !profileReady);
+  const loading = sessionPending && !forceReady;
 
   return (
     <AuthContext.Provider

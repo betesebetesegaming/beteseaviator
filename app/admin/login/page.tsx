@@ -21,7 +21,10 @@ export default function StaffLoginPage() {
       signingOutPlayer.current = false;
       return;
     }
-    if (!profile) return;
+    if (!profile) {
+      router.replace("/play");
+      return;
+    }
 
     if (profile.status !== "active") {
       router.replace("/suspended");
@@ -42,7 +45,7 @@ export default function StaffLoginPage() {
   }, [loading, fbUser, profile, router]);
 
   const waitingForStaffRedirect =
-    loading || (fbUser && !profile) || (fbUser && profile && isStaffRole(profile.role));
+    loading || (fbUser && profile && isStaffRole(profile.role));
 
   if (waitingForStaffRedirect) {
     return (
