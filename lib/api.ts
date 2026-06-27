@@ -155,6 +155,15 @@ export const adminSaveLobbyPromos = call<
   { ok: true }
 >("adminSaveLobbyPromos");
 
+export const adminSaveLobbyLayout = call<
+  {
+    featuredGameIds: string[];
+    manualOrder: string[];
+    sortMode: "manual" | "best_selling";
+  },
+  { ok: true }
+>("adminSaveLobbyLayout");
+
 export const adminRefreshDailyDemos = call<
   Record<string, never>,
   { ok: true; date: string; accounts: unknown[] }

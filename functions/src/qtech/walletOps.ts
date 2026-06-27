@@ -223,6 +223,21 @@ export async function processWithdrawal(
       for (const agentId of ancestors) {
         bumpAgentStats(tx, agentId, { totalBets: amount });
       }
+      const qtechGameId = String(body.gameId ?? "").trim();
+      if (qtechGameId) {
+        const { qtechGameDocId } = await import("../gameCatalog");
+        const gameDocId = qtechGameDocId(qtechGameId);
+        tx.set(
+          db.doc(`games/${gameDocId}`),
+          {
+            lobbyStats: {
+              betCount: FieldValue.increment(1),
+              betVolume: FieldValue.increment(amount),
+            },
+          },
+          { merge: true }
+        );
+      }
     }
 
     balanceAfter = playableBalance(wallet);

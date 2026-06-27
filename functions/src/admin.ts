@@ -491,6 +491,52 @@ export const adminSaveLobbyPromos = onCall(async (req) => {
   return { ok: true };
 });
 
+/** Player lobby order — top picks + manual or best-selling sort. */
+export const adminSaveLobbyLayout = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const featuredGameIds = req.data?.featuredGameIds;
+  const manualOrder = req.data?.manualOrder;
+  const sortMode = String(req.data?.sortMode ?? "best_selling");
+
+  if (!Array.isArray(featuredGameIds)) {
+    throw new HttpsError("invalid-argument", "featuredGameIds must be an array.");
+  }
+  if (!Array.isArray(manualOrder)) {
+    throw new HttpsError("invalid-argument", "manualOrder must be an array.");
+  }
+  if (sortMode !== "manual" && sortMode !== "best_selling") {
+    throw new HttpsError("invalid-argument", "sortMode must be manual or best_selling.");
+  }
+
+  const cleanFeatured = featuredGameIds
+    .map((id) => String(id).trim())
+    .filter(Boolean)
+    .slice(0, 24);
+  const cleanManual = manualOrder
+    .map((id) => String(id).trim())
+    .filter(Boolean)
+    .slice(0, 200);
+  const featuredSet = new Set(cleanFeatured);
+  const uniqueManual = cleanManual.filter((id) => !featuredSet.has(id));
+  for (const id of [...cleanFeatured, ...uniqueManual]) {
+    const snap = await db.doc(`games/${id}`).get();
+    if (!snap.exists) {
+      throw new HttpsError("invalid-argument", `Unknown game: ${id}`);
+    }
+  }
+
+  await db.doc("settings/lobbyLayout").set(
+    {
+      featuredGameIds: cleanFeatured,
+      manualOrder: uniqueManual,
+      sortMode,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  return { ok: true };
+});
+
 /** Refresh today's customer demo accounts (new phones + reset balances). */
 export const adminRefreshDailyDemos = onCall(async (req) => {
   await requireRole(req, ["admin"]);

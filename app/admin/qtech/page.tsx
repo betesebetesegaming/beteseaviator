@@ -68,6 +68,7 @@ function StatusRow({ ok, label }: { ok: boolean; label: string }) {
 }
 
 import { LobbyGamesSection } from "@/components/admin/LobbyGamesSection";
+import { LobbyOrderEditor } from "@/components/admin/LobbyOrderEditor";
 
 export default function AdminQTechPage() {
   const [qtech, setQtech] = useState<QTechSettings>(DEFAULT_SETTINGS.qtech!);
@@ -315,6 +316,8 @@ export default function AdminQTechPage() {
           </Button>
         </div>
       </div>
+
+      <LobbyOrderEditor />
 
       {/* Section 1 — Setup checklist */}
       <Card>

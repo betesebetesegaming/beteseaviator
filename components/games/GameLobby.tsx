@@ -4,6 +4,13 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { subscribeActiveGames } from "@/lib/games/subscriptions";
 import { readCachedLobbyGames, writeCachedLobbyGames } from "@/lib/games/lobbyCache";
+import {
+  lobbyLayoutOrDefault,
+  sortLobbyGames,
+  subscribeLobbyLayout,
+  topPickGames,
+  type LobbyLayoutSettings,
+} from "@/lib/games/lobbyLayout";
 import { LobbyGameSkeleton } from "@/components/games/LobbyGameSkeleton";
 import type { Game } from "@/lib/types";
 import { EmptyState } from "@/components/ui";
@@ -26,12 +33,15 @@ function lobbyCategoryOf(game: Game): Exclude<LobbyNavCategory, "all"> {
   if (game.lobbyCategory === "aviator" || game.lobbyCategory === "crash" || game.lobbyCategory === "instantwin") {
     return game.lobbyCategory;
   }
-  if (game.name.toLowerCase().includes("aviator")) return "aviator";
+
   if (game.type === "crash") return "crash";
   return "instantwin";
 }
 
-function buildLobbySections(games: Game[]): LobbySection[] {
+function buildLobbySections(games: Game[], layout: LobbyLayoutSettings | null): LobbySection[] {
+  const cfg = lobbyLayoutOrDefault(layout);
+  const featuredSet = new Set(cfg.featuredGameIds);
+
   const byCategory: Record<Exclude<LobbyNavCategory, "all">, Game[]> = {
     aviator: [],
     crash: [],
@@ -39,7 +49,15 @@ function buildLobbySections(games: Game[]): LobbySection[] {
   };
 
   for (const game of games) {
+    if (featuredSet.has(game.id)) continue;
     byCategory[lobbyCategoryOf(game)].push(game);
+  }
+
+  for (const key of Object.keys(byCategory) as Array<Exclude<LobbyNavCategory, "all">>) {
+    byCategory[key] = sortLobbyGames(byCategory[key], {
+      ...cfg,
+      featuredGameIds: [],
+    });
   }
 
   return LOBBY_NAV.filter((item) => item.id !== "all" && item.available)
@@ -63,6 +81,7 @@ function GameGrid({ games }: { games: Game[] }) {
 
 export function GameLobby() {
   const [games, setGames] = useState<Game[] | null>(() => readCachedLobbyGames<Game>());
+  const [layout, setLayout] = useState<LobbyLayoutSettings | null>(null);
   const [category, setCategory] = useState<LobbyNavCategory>("all");
 
   useEffect(() => {
@@ -71,6 +90,18 @@ export function GameLobby() {
       writeCachedLobbyGames(next);
     });
   }, []);
+
+  useEffect(() => subscribeLobbyLayout(setLayout), []);
+
+  const orderedGames = useMemo(
+    () => (games ? sortLobbyGames(games, layout) : []),
+    [games, layout]
+  );
+
+  const topPicks = useMemo(
+    () => (games ? topPickGames(games, layout) : []),
+    [games, layout]
+  );
 
   const counts = useMemo(() => {
     if (!games) return {};
@@ -82,13 +113,19 @@ export function GameLobby() {
     return next;
   }, [games]);
 
-  const sections = useMemo(() => (games ? buildLobbySections(games) : []), [games]);
+  const sections = useMemo(
+    () => (games ? buildLobbySections(games, layout) : []),
+    [games, layout]
+  );
 
   const filteredGames = useMemo(() => {
-    if (!games) return [];
-    if (category === "all") return games;
-    return games.filter((game) => lobbyCategoryOf(game) === category);
-  }, [games, category]);
+    if (!orderedGames.length) return [];
+    if (category === "all") return orderedGames;
+    return sortLobbyGames(
+      orderedGames.filter((game) => lobbyCategoryOf(game) === category),
+      layout
+    );
+  }, [orderedGames, category, layout]);
 
   const showSkeleton = !games;
 
@@ -104,6 +141,14 @@ export function GameLobby() {
         <EmptyState message="No games are live yet. Check back soon." />
       ) : category === "all" ? (
         <div className="space-y-5">
+          {topPicks.length > 0 ? (
+            <section>
+              <div className="mb-2.5 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-white sm:text-base">Top picks</h2>
+              </div>
+              <GameGrid games={topPicks} />
+            </section>
+          ) : null}
           {sections.map((section) => (
             <section key={section.id}>
               <div className="mb-2.5 flex items-center justify-between gap-2">

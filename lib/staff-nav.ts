@@ -12,6 +12,7 @@ import {
   Percent,
   UserPlus,
   Gamepad2,
+  ListOrdered,
 } from "lucide-react";
 import type { Role } from "@/lib/types";
 
@@ -91,6 +92,12 @@ export const STAFF_NAV: StaffNavItem[] = [
     roles: ["admin"],
   },
   {
+    href: "/admin/games",
+    label: "Lobby order",
+    icon: ListOrdered,
+    roles: ["admin"],
+  },
+  {
     href: "/admin/qtech",
     label: "QTech & Games",
     icon: Gamepad2,
@@ -115,6 +122,7 @@ export const ADMIN_ONLY_PREFIXES = [
   "/admin/wallets",
   "/admin/withdrawals",
   "/admin/promotions",
+  "/admin/games",
   "/admin/qtech",
   "/admin/reports",
   "/admin/settings",

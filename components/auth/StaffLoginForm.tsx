@@ -4,10 +4,23 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { LogIn } from "lucide-react";
 import { auth } from "@/lib/firebase";
+import type { User } from "firebase/auth";
 import { errorMessage } from "@/lib/api";
 import { loginStaffAccount } from "@/lib/auth-login";
-import { redirectAfterStaffLogin } from "@/lib/staff-session";
 import { Button, Input } from "@/components/ui";
+
+async function waitForAuthUser(timeoutMs = 8000): Promise<User> {
+  if (auth.currentUser) return auth.currentUser;
+  return new Promise<User>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("Sign-in timed out. Try again.")), timeoutMs);
+    const unsub = auth.onAuthStateChanged((user) => {
+      if (!user) return;
+      window.clearTimeout(timer);
+      unsub();
+      resolve(user);
+    });
+  });
+}
 
 export function StaffLoginForm() {
   const [id, setId] = useState("");
@@ -22,9 +35,10 @@ export function StaffLoginForm() {
     setBusy(true);
     try {
       await loginStaffAccount(id, password);
-      await auth.currentUser?.getIdToken(true);
+      const user = await waitForAuthUser();
+      await user.getIdToken(true);
       toast.success("Welcome back!");
-      await redirectAfterStaffLogin();
+      window.location.replace("/admin");
     } catch (e) {
       const msg = errorMessage(e);
       if (msg.toLowerCase().includes("invalid credential") || msg.includes("auth/")) {
@@ -32,7 +46,6 @@ export function StaffLoginForm() {
       } else {
         toast.error(msg);
       }
-    } finally {
       setBusy(false);
     }
   }
@@ -56,7 +69,7 @@ export function StaffLoginForm() {
       />
       <Button type="submit" className="w-full gap-2" disabled={busy}>
         <LogIn size={16} />
-        {busy ? "Signing in…" : "Sign in"}
+        {busy ? "Opening dashboard…" : "Sign in"}
       </Button>
     </form>
   );

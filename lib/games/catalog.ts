@@ -12,7 +12,7 @@ export function isLobbyGame(game: Pick<Game, "engine" | "qtechGameId">): boolean
 }
 
 export function filterPlayerLobbyGames(games: Game[]): Game[] {
-  return games.filter(isPlayerLobbyGame).sort((a, b) => a.name.localeCompare(b.name));
+  return games.filter(isPlayerLobbyGame);
 }
 
 export function filterLobbyGames(games: Game[]): Game[] {

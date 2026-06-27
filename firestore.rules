@@ -118,7 +118,7 @@ service cloud.firestore {
     }
 
     match /settings/{docId} {
-      allow read: if isAdmin() || docId == 'platform' || docId == 'lobbyPromos' || docId == 'demoAccounts';
+      allow read: if isAdmin() || docId == 'platform' || docId == 'lobbyPromos' || docId == 'lobbyLayout' || docId == 'demoAccounts';
       allow write: if false;
     }
 

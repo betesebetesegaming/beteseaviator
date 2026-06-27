@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { StaffLoginForm } from "@/components/auth/StaffLoginForm";
 import { StaffLoginShell } from "@/components/auth/StaffLoginShell";
 import { Button, Spinner } from "@/components/ui";
+import { resolveStaffSession } from "@/lib/api";
+import { auth } from "@/lib/firebase";
 import { homeFor, profileMatchesUser, useAuth } from "@/lib/auth-context";
 import { isStaffRole } from "@/lib/staff-routes";
 
@@ -12,6 +14,7 @@ export default function StaffLoginPage() {
   const [openingDashboard, setOpeningDashboard] = useState(false);
 
   const settledProfile = profileMatchesUser(profile, fbUser) ? profile : null;
+  const playerSession = settledProfile?.role === "player";
   const activeStaff =
     settledProfile &&
     settledProfile.status === "active" &&
@@ -23,6 +26,24 @@ export default function StaffLoginPage() {
     window.location.replace(homeFor(settledProfile.role));
   }, [activeStaff, profileReady, settledProfile]);
 
+  useEffect(() => {
+    if (!fbUser || !profileReady || settledProfile || playerSession) return;
+    let cancelled = false;
+    setOpeningDashboard(true);
+    void resolveStaffSession({})
+      .then(async (session) => {
+        if (cancelled) return;
+        await auth.currentUser?.getIdToken(true);
+        window.location.replace(homeFor(session.role));
+      })
+      .catch(() => {
+        if (!cancelled) setOpeningDashboard(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fbUser, profileReady, settledProfile, playerSession]);
+
   if (openingDashboard) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-slate-950">
@@ -30,8 +51,6 @@ export default function StaffLoginPage() {
       </div>
     );
   }
-
-  const playerSession = settledProfile?.role === "player";
 
   return (
     <StaffLoginShell

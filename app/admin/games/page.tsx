@@ -1,6 +1,11 @@
-import { redirect } from "next/navigation";
+"use client";
 
-/** Legacy route — QTech control lives on /admin/qtech. */
-export default function AdminGamesRedirect() {
-  redirect("/admin/qtech");
+import { LobbyOrderEditor } from "@/components/admin/LobbyOrderEditor";
+
+export default function AdminLobbyOrderPage() {
+  return (
+    <div className="mx-auto max-w-3xl">
+      <LobbyOrderEditor showPageHeader />
+    </div>
+  );
 }

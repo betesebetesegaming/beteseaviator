@@ -88,6 +88,11 @@ export interface Game {
   lobbyCategory?: "aviator" | "crash" | "instantwin";
   /** Custom lobby tile image (Firebase Storage URL or site path). */
   imageUrl?: string;
+  /** Player lobby ranking stats (updated on QTech bets). */
+  lobbyStats?: {
+    betCount?: number;
+    betVolume?: number;
+  };
   settings: { maxMultiplier?: number; growthRate?: number };
 }
 

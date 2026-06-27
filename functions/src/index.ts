@@ -31,6 +31,7 @@ export {
   adminFreezeWallet,
   adminSaveSettings,
   adminSaveLobbyPromos,
+  adminSaveLobbyLayout,
   adminRefreshDailyDemos,
   adminRebuildPlatformStats,
   adminSetGameStatus,
