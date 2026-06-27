@@ -62,7 +62,7 @@ export const agentLogin = call<
 /** Sync staff Firestore profile + role claims after Firebase Auth sign-in. */
 export const resolveStaffSession = call<
   Record<string, never>,
-  { ok: true; role: Role; status: string }
+  { ok: true; role: Role; status: string; agentSlug: string | null; name: string }
 >("resolveStaffSession");
 
 // ---------- game ----------
@@ -163,6 +163,11 @@ export const adminSaveLobbyLayout = call<
   },
   { ok: true }
 >("adminSaveLobbyLayout");
+
+export const adminSyncAgentLogins = call<
+  Record<string, never>,
+  { ok: true; synced: number }
+>("adminSyncAgentLogins");
 
 export const adminRefreshDailyDemos = call<
   Record<string, never>,

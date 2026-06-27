@@ -57,7 +57,7 @@ export default function StaffLoginPage() {
       badge="Staff portal"
       badgeColor="text-emerald-400"
       title="Staff sign in"
-      subtitle="Admin, super agents and sub agents use this page — not player phone sign-up."
+      subtitle="Admin, super agents and sub agents — sign in with your username (e.g. paul) or email, not player phone sign-up."
     >
       {playerSession && (
         <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-100">

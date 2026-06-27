@@ -32,6 +32,7 @@ export {
   adminSaveSettings,
   adminSaveLobbyPromos,
   adminSaveLobbyLayout,
+  adminSyncAgentLogins,
   adminRefreshDailyDemos,
   adminRebuildPlatformStats,
   adminSetGameStatus,

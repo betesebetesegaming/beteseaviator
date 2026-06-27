@@ -5,8 +5,9 @@ import toast from "react-hot-toast";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { Plus, Search } from "lucide-react";
 import { db } from "@/lib/firestore";
-import { adminCreateUser, adminSetUserStatus, errorMessage } from "@/lib/api";
+import { adminCreateUser, adminSetUserStatus, adminSyncAgentLogins, errorMessage } from "@/lib/api";
 import { agentSubdomainUrl } from "@/lib/agentLinks";
+import { staffSignInId } from "@/lib/staffAccount";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { normalizePhone, formatDate } from "@/lib/format";
 import type { Role, UserProfile } from "@/lib/types";
@@ -47,6 +48,7 @@ export default function AdminUsersPage() {
     parentId: "",
   });
   const [creating, setCreating] = useState(false);
+  const [syncingAgents, setSyncingAgents] = useState(false);
   const [createdAgent, setCreatedAgent] = useState<{ slug: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -88,6 +90,18 @@ export default function AdminUsersPage() {
       toast.error(errorMessage(e));
     } finally {
       setBusyUid(null);
+    }
+  }
+
+  async function syncAgentLogins() {
+    setSyncingAgents(true);
+    try {
+      const res = await adminSyncAgentLogins({});
+      toast.success(`Agent logins synced for ${res.synced} account${res.synced === 1 ? "" : "s"}.`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setSyncingAgents(false);
     }
   }
 
@@ -145,11 +159,16 @@ export default function AdminUsersPage() {
             All accounts. Suspending blocks sign-in and play — nothing is hard-deleted.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <span className="flex items-center gap-1.5">
-            <Plus size={16} /> Create User
-          </span>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => void syncAgentLogins()} disabled={syncingAgents}>
+            {syncingAgents ? "Syncing…" : "Fix agent logins"}
+          </Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            <span className="flex items-center gap-1.5">
+              <Plus size={16} /> Create User
+            </span>
+          </Button>
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-3">
@@ -201,7 +220,7 @@ export default function AdminUsersPage() {
                 <Td className="tabular-nums text-slate-400">
                   {u.role === "player"
                     ? (u.phone ?? "—")
-                    : (u.email ?? u.agentSlug ?? u.staffLoginId ?? "—")}
+                    : (staffSignInId(u) ?? "—")}
                 </Td>
                 <Td className="text-emerald-300">{u.agentSlug ?? "—"}</Td>
                 <Td>

@@ -22,7 +22,7 @@ import { rtdb } from "@/lib/rtdb";
 import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
 import { roleLabel } from "@/lib/staff-nav";
-import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
+import { StaffAccountCard } from "@/components/staff/StaffAccountCard";
 import { apiProviderCommissionDue, ggrFromTotals } from "@/lib/platformFinancials";
 import { DEFAULT_SETTINGS, type PlatformSettings } from "@/lib/types";
 import { Button, Card, StatCard } from "@/components/ui";
@@ -201,13 +201,7 @@ export function StaffDashboard() {
         </p>
       </div>
 
-      {profile.agentSlug ? (
-        <AgentMarketingLinks slug={profile.agentSlug} agentName={profile.name} />
-      ) : (
-        <Card className="border-amber-500/30 bg-amber-500/10 text-sm text-amber-100">
-          Your agent username is not set yet. Contact BETESE admin to assign one.
-        </Card>
-      )}
+      <StaffAccountCard profile={profile} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link href="/admin/operations">

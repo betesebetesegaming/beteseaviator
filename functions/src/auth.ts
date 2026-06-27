@@ -304,7 +304,18 @@ export const resolveStaffSession = onCall(async (req) => {
     await auth.setCustomUserClaims(uid, { role: profile.role });
   }
 
-  return { ok: true as const, role: profile.role, status: profile.status };
+  if (profile.role === "super_agent" || profile.role === "sub_agent") {
+    const { ensureAgentLoginDocs } = await import("./agent");
+    await ensureAgentLoginDocs(uid, profile);
+  }
+
+  return {
+    ok: true as const,
+    role: profile.role,
+    status: profile.status,
+    agentSlug: profile.agentSlug ?? null,
+    name: profile.name,
+  };
 });
 
 const PRIMARY_ADMIN_PASSWORD = "Betese123";

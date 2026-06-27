@@ -16,7 +16,7 @@ import {
   type ProfileData,
   type Role,
 } from "./helpers";
-import { claimSlug, createPlayerAccount } from "./agent";
+import { claimSlug, createPlayerAccount, ensureAgentLoginDocs } from "./agent";
 
 /** Route outbound QTech API calls through Cloud NAT static IP (QTech IP whitelist). */
 const QTECH_OUTBOUND = {
@@ -139,6 +139,14 @@ export const adminCreateUser = onCall(async (req) => {
       );
     }
     await batch.commit();
+    if (role === "super_agent" || role === "sub_agent") {
+      await ensureAgentLoginDocs(uid, {
+        name,
+        role,
+        agentSlug: slug,
+        status: "active",
+      });
+    }
     return { uid, slug: slug ?? undefined };
   }
 
@@ -535,6 +543,20 @@ export const adminSaveLobbyLayout = onCall(async (req) => {
     { merge: true }
   );
   return { ok: true };
+});
+
+/** Backfill staffLogins + slugs for all agents (fixes legacy accounts). */
+export const adminSyncAgentLogins = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const snap = await db.collection("users").where("role", "in", ["super_agent", "sub_agent"]).get();
+  let synced = 0;
+  for (const doc of snap.docs) {
+    const profile = doc.data() as ProfileData;
+    if (!profile.agentSlug) continue;
+    await ensureAgentLoginDocs(doc.id, profile);
+    synced++;
+  }
+  return { ok: true, synced };
 });
 
 /** Refresh today's customer demo accounts (new phones + reset balances). */

@@ -5,7 +5,8 @@ import toast from "react-hot-toast";
 import { LogIn } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import type { User } from "firebase/auth";
-import { errorMessage } from "@/lib/api";
+import { errorMessage, resolveStaffSession } from "@/lib/api";
+import { homeFor } from "@/lib/auth-context";
 import { loginStaffAccount } from "@/lib/auth-login";
 import { Button, Input } from "@/components/ui";
 
@@ -37,8 +38,10 @@ export function StaffLoginForm() {
       await loginStaffAccount(id, password);
       const user = await waitForAuthUser();
       await user.getIdToken(true);
+      const session = await resolveStaffSession({});
+      await user.getIdToken(true);
       toast.success("Welcome back!");
-      window.location.replace("/admin");
+      window.location.replace(homeFor(session.role));
     } catch (e) {
       const msg = errorMessage(e);
       if (msg.toLowerCase().includes("invalid credential") || msg.includes("auth/")) {
@@ -55,7 +58,7 @@ export function StaffLoginForm() {
       <Input
         label="Name, username, or email"
         autoComplete="username"
-        placeholder="e.g. paul or your email"
+        placeholder="e.g. john or john@betese.com"
         value={id}
         onChange={(e) => setId(e.target.value)}
       />

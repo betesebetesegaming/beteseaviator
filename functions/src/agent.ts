@@ -45,6 +45,30 @@ export async function claimSlug(desired: string, uid: string, agentName: string)
   throw new HttpsError("already-exists", "Username is taken — choose another.");
 }
 
+/** Keeps agent username login + customer referral slugs in sync with the user profile. */
+export async function ensureAgentLoginDocs(
+  uid: string,
+  profile: Pick<ProfileData, "name" | "role" | "agentSlug" | "status">
+): Promise<void> {
+  if (profile.role !== "super_agent" && profile.role !== "sub_agent") return;
+  const slug = String(profile.agentSlug ?? "").trim().toLowerCase();
+  if (!slug) return;
+
+  const batch = db.batch();
+  batch.set(
+    db.doc(`slugs/${slug}`),
+    { uid, agentName: profile.name, active: profile.status === "active" },
+    { merge: true }
+  );
+  batch.set(db.doc(`staffLogins/${slug}`), { uid, role: profile.role }, { merge: true });
+
+  const nameKey = staffLoginKey(profile.name);
+  if (nameKey && nameKey !== slug) {
+    batch.set(db.doc(`staffLogins/${nameKey}`), { uid, role: profile.role }, { merge: true });
+  }
+  await batch.commit();
+}
+
 /** Shared: create a player account owned by an agent. */
 export async function createPlayerAccount(opts: {
   name: string;
@@ -248,6 +272,13 @@ export const agentCreateSubAgent = onCall(async (req) => {
   batch.set(db.doc(`users/${uid}`), { stats: { subAgentCount: FieldValue.increment(1) } }, { merge: true });
   batch.set(db.doc("stats/platform"), { agentCount: FieldValue.increment(1) }, { merge: true });
   await batch.commit();
+
+  await ensureAgentLoginDocs(subUid, {
+    name,
+    role: "sub_agent",
+    agentSlug: slug,
+    status: "active",
+  });
 
   return { uid: subUid, slug };
 });
