@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { collection, doc, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { onValue, ref } from "firebase/database";
 import {
   Users,
@@ -23,12 +23,8 @@ import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
 import { roleLabel } from "@/lib/staff-nav";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
-import {
-  aggregateTransactionTotals,
-  apiProviderCommissionDue,
-  ggrFromTotals,
-} from "@/lib/platformFinancials";
-import { DEFAULT_SETTINGS, type PlatformSettings, type WalletTransaction } from "@/lib/types";
+import { apiProviderCommissionDue, ggrFromTotals } from "@/lib/platformFinancials";
+import { DEFAULT_SETTINGS, type PlatformSettings } from "@/lib/types";
 import { Button, Card, StatCard } from "@/components/ui";
 
 interface PlatformStats {
@@ -50,12 +46,6 @@ export function StaffDashboard() {
 
   const [platformStats, setPlatformStats] = useState<PlatformStats>({});
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
-  const [ledgerTotals, setLedgerTotals] = useState({
-    totalBets: 0,
-    totalWins: 0,
-    totalDeposits: 0,
-    totalWithdrawals: 0,
-  });
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
   const [onlineCount, setOnlineCount] = useState(0);
 
@@ -70,16 +60,6 @@ export function StaffDashboard() {
         setSettings({ ...DEFAULT_SETTINGS, ...data });
       }
     });
-    const unsubLedger = onSnapshot(
-      query(collection(db, "transactions"), orderBy("createdAt", "desc"), limit(8000)),
-      (snap) => {
-        setLedgerTotals(
-          aggregateTransactionTotals(
-            snap.docs.map((d) => ({ type: d.data().type, amount: d.data().amount }) as WalletTransaction)
-          )
-        );
-      }
-    );
     const pendingQ = query(
       collection(db, "withdrawal_requests"),
       where("status", "in", ["Pending", "Processing"])
@@ -99,24 +79,20 @@ export function StaffDashboard() {
     return () => {
       unsubStats();
       unsubSettings();
-      unsubLedger();
       unsubPending();
       unsubPresence();
     };
   }, [isAdmin]);
 
   const financials = useMemo(() => {
-    const totalBets = Math.max(platformStats.totalBets ?? 0, ledgerTotals.totalBets);
-    const totalWins = Math.max(platformStats.totalWins ?? 0, ledgerTotals.totalWins);
-    const totalDeposits = Math.max(platformStats.totalDeposits ?? 0, ledgerTotals.totalDeposits);
-    const totalWithdrawals = Math.max(
-      platformStats.totalWithdrawals ?? 0,
-      ledgerTotals.totalWithdrawals
-    );
+    const totalBets = platformStats.totalBets ?? 0;
+    const totalWins = platformStats.totalWins ?? 0;
+    const totalDeposits = platformStats.totalDeposits ?? 0;
+    const totalWithdrawals = platformStats.totalWithdrawals ?? 0;
     const ggr = ggrFromTotals({ totalBets, totalWins });
     const providerDue = apiProviderCommissionDue(ggr, settings.apiProviderRate ?? 0);
     return { totalBets, totalWins, totalDeposits, totalWithdrawals, ggr, providerDue };
-  }, [platformStats, ledgerTotals, settings.apiProviderRate]);
+  }, [platformStats, settings.apiProviderRate]);
 
   if (!profile) return null;
 
