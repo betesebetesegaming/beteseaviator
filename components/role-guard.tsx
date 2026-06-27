@@ -39,7 +39,10 @@ export function RoleGuard({
       router.replace(loginPath);
       return;
     }
-    if (!profile || !profileMatchesUserFlag) return;
+    if (!profile || !profileMatchesUserFlag) {
+      router.replace(loginPath);
+      return;
+    }
     if (profile.status !== "active") {
       router.replace("/suspended");
       return;
@@ -50,6 +53,6 @@ export function RoleGuard({
   }, [loading, profileReady, fbUser, profile, profileMatchesUserFlag, allow, router, loginPath]);
 
   if (loading || !profileReady) return <Spinner label="Loading…" />;
-  if (!permitted) return <Spinner label="Loading…" />;
+  if (!permitted) return <Spinner label="Redirecting…" />;
   return <>{children}</>;
 }

@@ -1,66 +1,63 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { StaffLoginForm } from "@/components/auth/StaffLoginForm";
 import { StaffLoginShell } from "@/components/auth/StaffLoginShell";
-import { Spinner } from "@/components/ui";
-import { homeFor, useAuth } from "@/lib/auth-context";
+import { Button, Spinner } from "@/components/ui";
+import { homeFor, profileMatchesUser, useAuth } from "@/lib/auth-context";
 import { isStaffRole } from "@/lib/staff-routes";
 
 export default function StaffLoginPage() {
-  const router = useRouter();
-  const { fbUser, profile, loading, profileReady } = useAuth();
+  const { fbUser, profile, profileReady, logout } = useAuth();
+  const [openingDashboard, setOpeningDashboard] = useState(false);
 
-  const profileSettled =
-    !!fbUser && profileReady && !!profile && profile.uid === fbUser.uid;
+  const settledProfile = profileMatchesUser(profile, fbUser) ? profile : null;
+  const activeStaff =
+    settledProfile &&
+    settledProfile.status === "active" &&
+    isStaffRole(settledProfile.role);
 
   useEffect(() => {
-    if (loading) return;
-    if (!fbUser) return;
-    if (!profileSettled) return;
+    if (!activeStaff || !profileReady) return;
+    setOpeningDashboard(true);
+    window.location.replace(homeFor(settledProfile.role));
+  }, [activeStaff, profileReady, settledProfile]);
 
-    if (profile.status !== "active") {
-      router.replace("/suspended");
-      return;
-    }
-
-    if (profile.role === "player") {
-      router.replace("/play");
-      return;
-    }
-
-    if (isStaffRole(profile.role)) {
-      router.replace(homeFor(profile.role));
-    }
-  }, [loading, profileSettled, fbUser, profile, router]);
-
-  // Spin only while the session/profile is still loading, or while a confirmed
-  // redirect is in flight. A signed-in session whose profile finished loading
-  // but isn't a usable staff profile (missing/empty doc, stale session) must
-  // fall through to the login form instead of trapping on the spinner forever.
-  const waitingForStaffRedirect =
-    loading ||
-    (!!fbUser && !profileReady) ||
-    (profileSettled &&
-      (profile.status !== "active" ||
-        profile.role === "player" ||
-        isStaffRole(profile.role)));
-
-  if (waitingForStaffRedirect) {
+  if (openingDashboard) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-slate-950">
-        <Spinner label="Checking session…" />
+        <Spinner label="Opening staff dashboard…" />
       </div>
     );
   }
+
+  const playerSession = settledProfile?.role === "player";
 
   return (
     <StaffLoginShell
       badge="Staff portal"
       badgeColor="text-emerald-400"
       title="Staff sign in"
+      subtitle="Admin, super agents and sub agents use this page — not player phone sign-up."
     >
+      {playerSession && (
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-100">
+          <p>You are signed in as a player on this browser.</p>
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-3 w-full"
+            onClick={() => void logout()}
+          >
+            Sign out of player account
+          </Button>
+        </div>
+      )}
+      {fbUser && profileReady && !settledProfile && (
+        <p className="mb-4 rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs text-sky-100">
+          Sign in below with your staff username or email.
+        </p>
+      )}
       <StaffLoginForm />
     </StaffLoginShell>
   );
