@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { subscribeGame, fetchGame } from "@/lib/games/api";
-import { readCachedGameDoc } from "@/lib/games/qtechLaunchCache";
+import { readCachedGameDoc, prefetchQTechLaunch, qtechPlayDevice } from "@/lib/games/qtechLaunchCache";
 import { isPlayerLobbyGame } from "@/lib/games/catalog";
 import type { Game } from "@/lib/types";
 import { QTechGameView } from "@/components/games/QTechGameView";
@@ -19,6 +19,14 @@ function GamePageContent() {
   const [gameLoading, setGameLoading] = useState(() => !readCachedGameDoc(gameId));
 
   useEffect(() => {
+    void prefetchQTechLaunch({
+      gameId,
+      demo: isDemo,
+      device: qtechPlayDevice(),
+    });
+  }, [gameId, isDemo]);
+
+  useEffect(() => {
     let alive = true;
     setGameLoading((prev) => prev && !readCachedGameDoc(gameId));
     void fetchGame(gameId).then((g) => {
@@ -28,7 +36,7 @@ function GamePageContent() {
     });
     const slow = window.setTimeout(() => {
       if (alive) setGameLoading(false);
-    }, 10_000);
+    }, 4_000);
     const unsub = subscribeGame(gameId, (g) => {
       if (!alive) return;
       setGame(g);

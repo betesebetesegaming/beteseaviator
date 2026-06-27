@@ -12,17 +12,24 @@ export type QTechSettings = {
   lobbyUrl: string;
 };
 
+let settingsCache: { at: number; value: QTechSettings } | null = null;
+const SETTINGS_CACHE_MS = 60_000;
+
 /** Optional env fallbacks — primary source is Admin → QTech & Games (Firestore). */
 function env(name: string): string {
   return String(process.env[name] ?? "").trim();
 }
 
 export async function getQTechSettings(): Promise<QTechSettings> {
+  if (settingsCache && Date.now() - settingsCache.at < SETTINGS_CACHE_MS) {
+    return settingsCache.value;
+  }
+
   const snap = await db.doc("settings/platform").get();
   const stored = snap.exists ? (snap.data()?.qtech as Partial<QTechSettings> | undefined) : undefined;
   const defaults = DEFAULT_SETTINGS.qtech!;
 
-  return {
+  const value: QTechSettings = {
     enabled: stored?.enabled === true,
     passKey: String(stored?.passKey || env("QT_PASS_KEY") || defaults.passKey || "").trim(),
     apiBaseUrl: String(stored?.apiBaseUrl || env("QT_API_BASE_URL") || defaults.apiBaseUrl || "")
@@ -35,4 +42,6 @@ export async function getQTechSettings(): Promise<QTechSettings> {
     lang: String(stored?.lang || defaults.lang || "en_GM").trim(),
     lobbyUrl: String(stored?.lobbyUrl || defaults.lobbyUrl || "https://www.beteseaviator.com/play").trim(),
   };
+  settingsCache = { at: Date.now(), value };
+  return value;
 }

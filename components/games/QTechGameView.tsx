@@ -1,16 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
-import { launchQTechGame, launchQTechGameDemo, errorMessage } from "@/lib/api";
+import { errorMessage } from "@/lib/api";
 import {
   prefetchQTechLaunch,
+  preconnectQTechGameHosts,
   qtechPlayDevice,
   readCachedQTechLaunchUrl,
-  writeCachedQTechLaunchUrl,
 } from "@/lib/games/qtechLaunchCache";
 import type { Game } from "@/lib/types";
 import { Button, Spinner } from "@/components/ui";
@@ -22,10 +22,6 @@ type Props = {
   demo?: boolean;
 };
 
-function isMobilePlayDevice(): boolean {
-  return qtechPlayDevice() === "mobile";
-}
-
 export function QTechGameView({ game, immersive = false, demo = false }: Props) {
   const { fbUser, profile, wallet, loading } = useAuth();
   const { openAuth } = useAuthModal();
@@ -33,8 +29,9 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
   const [launchUrl, setLaunchUrl] = useState<string | null>(() =>
     readCachedQTechLaunchUrl(game.id, demo, device),
   );
-  const [launching, setLaunching] = useState(false);
+  const [launching, setLaunching] = useState(() => !readCachedQTechLaunchUrl(game.id, demo, device));
   const [error, setError] = useState<string | null>(null);
+  const startedRef = useRef(false);
 
   const needsProfile = !!fbUser && !profile && !loading;
   const isPlayer = !!profile && profile.role === "player" && profile.status === "active";
@@ -44,17 +41,14 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     setLaunching(true);
     setError(null);
     try {
-      const playDevice = isMobilePlayDevice() ? "mobile" : "desktop";
-      if (demo) {
-        const res = await launchQTechGameDemo({ gameId: game.id, device: playDevice });
-        writeCachedQTechLaunchUrl(game.id, true, res.launchUrl, playDevice);
-        setLaunchUrl(res.launchUrl);
-        return;
-      }
-      if (!isPlayer || frozen) return;
-      const res = await launchQTechGame({ gameId: game.id, device: playDevice });
-      writeCachedQTechLaunchUrl(game.id, false, res.launchUrl, playDevice);
-      setLaunchUrl(res.launchUrl);
+      const playDevice = qtechPlayDevice();
+      const url = await prefetchQTechLaunch({
+        gameId: game.id,
+        demo,
+        device: playDevice,
+      });
+      if (!url) throw new Error("Could not start this game. Try again.");
+      setLaunchUrl(url);
     } catch (e) {
       const msg = errorMessage(e);
       setError(msg);
@@ -62,29 +56,27 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     } finally {
       setLaunching(false);
     }
-  }, [demo, frozen, game.id, isPlayer]);
+  }, [demo, game.id]);
 
   useEffect(() => {
+    preconnectQTechGameHosts();
+  }, []);
+
+  useEffect(() => {
+    if (startedRef.current) return;
     if (demo) {
-      if (launchUrl) {
-        void prefetchQTechLaunch({ gameId: game.id, demo: true, device }).then((url) => {
-          if (url) setLaunchUrl(url);
-        });
-        return;
-      }
+      startedRef.current = true;
+      if (launchUrl) return;
       void loadGame();
       return;
     }
+    if (loading) return;
     if (isPlayer && !frozen) {
-      if (launchUrl) {
-        void prefetchQTechLaunch({ gameId: game.id, demo: false, device }).then((url) => {
-          if (url) setLaunchUrl(url);
-        });
-        return;
-      }
+      startedRef.current = true;
+      if (launchUrl) return;
       void loadGame();
     }
-  }, [demo, device, frozen, game.id, isPlayer, launchUrl, loadGame]);
+  }, [demo, frozen, isPlayer, launchUrl, loadGame, loading]);
 
   useEffect(() => {
     if (!immersive) return;
@@ -122,11 +114,69 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     return <WalletFrozenNotice />;
   }
 
-  if (launching && !launchUrl) {
-    return <Spinner label={demo ? "Opening demo…" : `Opening ${game.name}…`} />;
+  if (launchUrl) {
+    if (immersive) {
+      return (
+        <>
+          {demo ? (
+            <div className="fixed left-1/2 top-[max(2.5rem,calc(env(safe-area-inset-top)+2rem))] z-[65] -translate-x-1/2 rounded-full bg-amber-500/90 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-black">
+              Fun mode — demo
+            </div>
+          ) : null}
+          {launching ? (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80">
+              <Spinner label="Starting game…" />
+            </div>
+          ) : null}
+          <iframe
+            title={game.name}
+            src={launchUrl}
+            className="game-iframe-full fixed inset-0 z-[10] h-[100dvh] w-full border-0 bg-black"
+            allow="fullscreen; autoplay; payment"
+            referrerPolicy="no-referrer-when-downgrade"
+            loading="eager"
+          />
+          <button
+            type="button"
+            onClick={() => void loadGame()}
+            disabled={launching}
+            className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 z-[65] flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/70 backdrop-blur-sm active:bg-black/60 disabled:opacity-40"
+            title="Reload game"
+          >
+            <RefreshCw size={14} className={launching ? "animate-spin" : ""} />
+          </button>
+        </>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-end">
+          <Button
+            className="mt-4 px-3 py-1.5 text-xs"
+            variant="secondary"
+            onClick={() => void loadGame()}
+            disabled={launching}
+          >
+            <RefreshCw size={14} className="mr-1.5 inline" />
+            Reload game
+          </Button>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
+          <iframe
+            title={game.name}
+            src={launchUrl}
+            className="aspect-[9/16] w-full min-h-[520px] bg-black sm:aspect-[16/10] sm:min-h-[480px]"
+            allow="fullscreen; autoplay"
+            referrerPolicy="no-referrer-when-downgrade"
+            loading="eager"
+          />
+        </div>
+      </div>
+    );
   }
 
-  if (error && !launchUrl) {
+  if (error) {
     return (
       <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-8 text-center">
         <p className="text-red-100">{error}</p>
@@ -138,56 +188,5 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     );
   }
 
-  if (!launchUrl) {
-    return <Spinner label={demo ? "Preparing demo…" : `Preparing ${game.name}…`} />;
-  }
-
-  if (immersive) {
-    return (
-      <>
-        {demo ? (
-          <div className="fixed left-1/2 top-[max(2.5rem,calc(env(safe-area-inset-top)+2rem))] z-[65] -translate-x-1/2 rounded-full bg-amber-500/90 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-black">
-            Fun mode — demo
-          </div>
-        ) : null}
-        <iframe
-          title={game.name}
-          src={launchUrl}
-          className="game-iframe-full fixed inset-0 z-[10] h-[100dvh] w-full border-0 bg-black"
-          allow="fullscreen; autoplay; payment"
-          referrerPolicy="no-referrer-when-downgrade"
-          loading="eager"
-        />
-        <button
-          type="button"
-          onClick={() => void loadGame()}
-          disabled={launching}
-          className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 z-[65] flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/70 backdrop-blur-sm active:bg-black/60 disabled:opacity-40"
-          title="Reload game"
-        >
-          <RefreshCw size={14} className={launching ? "animate-spin" : ""} />
-        </button>
-      </>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button className="mt-4 px-3 py-1.5 text-xs" variant="secondary" onClick={() => void loadGame()} disabled={launching}>
-          <RefreshCw size={14} className="mr-1.5 inline" />
-          Reload game
-        </Button>
-      </div>
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
-        <iframe
-          title={game.name}
-          src={launchUrl}
-          className="aspect-[9/16] w-full min-h-[520px] bg-black sm:aspect-[16/10] sm:min-h-[480px]"
-          allow="fullscreen; autoplay"
-          referrerPolicy="no-referrer-when-downgrade"
-        />
-      </div>
-    </div>
-  );
+  return <Spinner label={demo ? "Opening demo…" : `Opening ${game.name}…`} />;
 }

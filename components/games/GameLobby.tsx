@@ -11,6 +11,7 @@ import {
   topPickGames,
   type LobbyLayoutSettings,
 } from "@/lib/games/lobbyLayout";
+import { warmDemoLaunches } from "@/lib/games/qtechLaunchCache";
 import { LobbyGameSkeleton } from "@/components/games/LobbyGameSkeleton";
 import type { Game } from "@/lib/types";
 import { EmptyState } from "@/components/ui";
@@ -92,6 +93,14 @@ export function GameLobby() {
   }, []);
 
   useEffect(() => subscribeLobbyLayout(setLayout), []);
+
+  useEffect(() => {
+    if (!games?.length) return;
+    const ordered = sortLobbyGames(games, layout);
+    const picks = topPickGames(games, layout).map((g) => g.id);
+    const warmIds = picks.length ? picks : ordered.slice(0, 4).map((g) => g.id);
+    warmDemoLaunches(warmIds);
+  }, [games, layout]);
 
   const orderedGames = useMemo(
     () => (games ? sortLobbyGames(games, layout) : []),

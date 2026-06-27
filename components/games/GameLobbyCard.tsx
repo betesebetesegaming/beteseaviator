@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
-import { cacheGameDoc } from "@/lib/games/qtechLaunchCache";
+import { cacheGameDoc, prefetchQTechLaunch, qtechPlayDevice } from "@/lib/games/qtechLaunchCache";
 import { gameLobbyImageUrl } from "@/lib/games/lobbyImages";
 import { qtechCdnBannerImage } from "@/lib/games/qtechImages";
 import { getGameLobbyVisual } from "@/lib/games/lobbyMeta";
@@ -37,6 +37,10 @@ export function GameLobbyCard({ game, priority = false }: { game: Game; priority
     <>
       <button
         type="button"
+        onPointerDown={() => {
+          cacheGameDoc(game);
+          void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
+        }}
         onClick={() => {
           cacheGameDoc(game);
           setSheetOpen(true);
