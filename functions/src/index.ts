@@ -15,7 +15,7 @@ setGlobalOptions({
   concurrency: 1,
 });
 
-export { completeRegistration, agentLogin, seedPlatform, ensurePrimaryAdmin } from "./auth";
+export { completeRegistration, agentLogin, resolveStaffSession, seedPlatform, ensurePrimaryAdmin } from "./auth";
 export { placeBet, cashout, pokeRound, gameTick } from "./game";
 export { adminResolvePayment } from "./payments";
 export {

@@ -59,6 +59,12 @@ export const agentLogin = call<
   { email: string }
 >("agentLogin");
 
+/** Sync staff Firestore profile + role claims after Firebase Auth sign-in. */
+export const resolveStaffSession = call<
+  Record<string, never>,
+  { ok: true; role: Role; status: string }
+>("resolveStaffSession");
+
 // ---------- game ----------
 
 export const placeBet = call<

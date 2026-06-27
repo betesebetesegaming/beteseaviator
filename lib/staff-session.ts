@@ -1,38 +1,31 @@
-import { doc, getDoc } from "firebase/firestore";
 import { auth } from "@/lib/firebase";
-import { db } from "@/lib/firestore";
+import { resolveStaffSession, errorMessage } from "@/lib/api";
 import { homeFor } from "@/lib/auth-context";
-import { isStaffRole } from "@/lib/staff-routes";
-import type { UserProfile } from "@/lib/types";
 
-/** Poll Firestore until the signed-in user's profile is ready, then hard-navigate. */
+/** Sync staff profile server-side, refresh claims, then open the staff backend. */
 export async function redirectAfterStaffLogin(): Promise<void> {
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error("Not signed in");
+  if (!auth.currentUser) throw new Error("Not signed in");
 
-  const deadline = Date.now() + 10_000;
-  while (Date.now() < deadline) {
-    const snap = await getDoc(doc(db, "users", uid));
-    if (auth.currentUser?.uid !== uid) return;
+  try {
+    const result = await resolveStaffSession({});
+    await auth.currentUser.getIdToken(true);
 
-    if (snap.exists()) {
-      const profile = { uid: snap.id, ...snap.data() } as UserProfile;
-      if (profile.status !== "active") {
-        window.location.href = "/suspended";
-        return;
-      }
-      if (profile.role === "player") {
-        window.location.href = "/play";
-        return;
-      }
-      if (isStaffRole(profile.role)) {
-        window.location.href = homeFor(profile.role);
-        return;
-      }
+    if (result.status !== "active") {
+      window.location.href = "/suspended";
+      return;
+    }
+    if (result.role === "player") {
+      window.location.href = "/play";
+      return;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    window.location.href = homeFor(result.role);
+  } catch (e) {
+    const msg = errorMessage(e);
+    if (msg.toLowerCase().includes("not authorized") || msg.toLowerCase().includes("not a staff")) {
+      window.location.href = "/play";
+      return;
+    }
+    throw new Error(msg || "Could not load your staff profile. Try again.");
   }
-
-  throw new Error("Could not load your staff profile. Try again.");
 }

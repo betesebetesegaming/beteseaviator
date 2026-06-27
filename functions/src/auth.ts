@@ -229,6 +229,84 @@ export const agentLogin = onCall(async (req) => {
 
 const PRIMARY_STAFF_LOGIN = "admin";
 const PRIMARY_ADMIN_EMAIL = "admin@beteseaviator.com";
+
+function isStaffRole(role: Role | undefined): boolean {
+  return role === "admin" || role === "super_agent" || role === "sub_agent";
+}
+
+async function ensureAdminProfileForUid(uid: string): Promise<void> {
+  const userRef = db.doc(`users/${uid}`);
+  const existing = await userRef.get();
+  if (existing.exists) {
+    const data = existing.data() as ProfileData;
+    if (data.role !== "admin") {
+      throw new HttpsError("permission-denied", "This Firebase account is not an admin.");
+    }
+    await auth.setCustomUserClaims(uid, { role: "admin" });
+    await db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`).set({ uid, role: "admin" }, { merge: true });
+    return;
+  }
+
+  const batch = db.batch();
+  batch.set(userRef, {
+    name: "BETESE Admin",
+    email: PRIMARY_ADMIN_EMAIL,
+    phone: null,
+    role: "admin" satisfies Role,
+    parentId: null,
+    agentSlug: null,
+    staffLoginId: PRIMARY_STAFF_LOGIN,
+    ancestors: [],
+    status: "active",
+    stats: {},
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  batch.set(db.doc(`wallets/${uid}`), {
+    balance: 0,
+    bonusBalance: 0,
+    currency: "GMD",
+    frozen: false,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  batch.set(db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`), { uid, role: "admin" });
+  await batch.commit();
+  await auth.setCustomUserClaims(uid, { role: "admin" });
+}
+
+/** After Firebase Auth sign-in, sync staff profile + custom claims (creates admin profile if missing). */
+export const resolveStaffSession = onCall(async (req) => {
+  const uid = requireAuth(req);
+  const email = String(req.auth?.token.email ?? "").toLowerCase().trim();
+
+  let snap = await db.doc(`users/${uid}`).get();
+
+  if (!snap.exists) {
+    if (email === PRIMARY_ADMIN_EMAIL) {
+      await ensureAdminProfileForUid(uid);
+      snap = await db.doc(`users/${uid}`).get();
+    } else {
+      throw new HttpsError(
+        "not-found",
+        "No staff profile found for this account. Contact BETESE support."
+      );
+    }
+  }
+
+  const profile = snap.data() as ProfileData;
+  if (profile.status !== "active") {
+    throw new HttpsError("permission-denied", "Account suspended.");
+  }
+  if (!isStaffRole(profile.role)) {
+    throw new HttpsError("permission-denied", "This account is not authorized for the staff portal.");
+  }
+
+  if (req.auth?.token.role !== profile.role) {
+    await auth.setCustomUserClaims(uid, { role: profile.role });
+  }
+
+  return { ok: true as const, role: profile.role, status: profile.status };
+});
+
 const PRIMARY_ADMIN_PASSWORD = "Betese123";
 const ADMIN_BOOTSTRAP_KEY = "beteseaviator-reset-2026";
 

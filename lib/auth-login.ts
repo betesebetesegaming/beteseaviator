@@ -26,22 +26,23 @@ export async function loginStaffAccount(id: string, password: string) {
   const trimmed = id.trim();
   const lower = trimmed.toLowerCase();
 
-  if (trimmed.includes("@")) {
+  if (lower.includes("@")) {
     await signInStaffEmail(lower, password);
     return;
   }
 
-  const mappedEmail = STAFF_USERNAME_EMAILS[lower];
-  if (mappedEmail) {
-    await signInStaffEmail(mappedEmail, password);
+  try {
+    const { email } = await agentLogin({
+      username: lower,
+      password,
+    });
+    await signInStaffEmail(email, password);
     return;
+  } catch (e) {
+    const mappedEmail = STAFF_USERNAME_EMAILS[lower];
+    if (!mappedEmail) throw e;
+    await signInStaffEmail(mappedEmail, password);
   }
-
-  const { email } = await agentLogin({
-    username: lower,
-    password,
-  });
-  await signInStaffEmail(email, password);
 }
 
 /** @deprecated Use loginStaffAccount */
