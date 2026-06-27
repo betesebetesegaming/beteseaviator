@@ -35,10 +35,17 @@ export default function StaffLoginPage() {
     }
   }, [loading, profileSettled, fbUser, profile, router]);
 
+  // Spin only while the session/profile is still loading, or while a confirmed
+  // redirect is in flight. A signed-in session whose profile finished loading
+  // but isn't a usable staff profile (missing/empty doc, stale session) must
+  // fall through to the login form instead of trapping on the spinner forever.
   const waitingForStaffRedirect =
     loading ||
-    (fbUser && !profileSettled) ||
-    (profileSettled && isStaffRole(profile.role));
+    (!!fbUser && !profileReady) ||
+    (profileSettled &&
+      (profile.status !== "active" ||
+        profile.role === "player" ||
+        isStaffRole(profile.role)));
 
   if (waitingForStaffRedirect) {
     return (
