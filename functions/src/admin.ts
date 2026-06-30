@@ -770,6 +770,15 @@ export const adminAddQTechGame = onCall(QTECH_OUTBOUND, async (req) => {
     throw new HttpsError("invalid-argument", "Category must be aviator, crash, or instantwin.");
   }
 
+  const { isAllowedLobbyGame, disallowedLobbyGameKind } = await import("./lobbyGamePolicy");
+  if (!isAllowedLobbyGame({ qtechGameId, name })) {
+    const kind = disallowedLobbyGameKind({ qtechGameId, name }) ?? "unknown";
+    throw new HttpsError(
+      "failed-precondition",
+      `This game type is not allowed in the lobby (${kind}). Only crash and instant win games are supported.`,
+    );
+  }
+
   const { probeQTechGameIds } = await import("./qtech/gameList");
   const [probe] = await probeQTechGameIds([qtechGameId]);
   const launchOk = probe?.launchStatus === 200 && Boolean(probe?.launchUrl);

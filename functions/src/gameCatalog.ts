@@ -75,10 +75,7 @@ const SPRIBE_GAMES: SpribeSeed[] = [
   { qtechGameId: "SPB-dice", name: "Dice", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "SPB-hilo", name: "Hilo", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "SPB-hotline", name: "Hotline", type: "slots", lobbyCategory: "instantwin" },
-  { qtechGameId: "SPB-keno", name: "Keno", type: "slots", lobbyCategory: "instantwin" },
-  { qtechGameId: "SPB-keno80", name: "Keno 80", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "SPB-mines", name: "Mines", type: "slots", lobbyCategory: "instantwin" },
-  { qtechGameId: "SPB-miniroulette", name: "Mini Roulette", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "SPB-pilotchicken", name: "Pilot Chicken", type: "crash", lobbyCategory: "crash" },
   { qtechGameId: "SPB-plinko", name: "Plinko", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "SPB-trader", name: "Trader", type: "crash", lobbyCategory: "crash" },
@@ -113,25 +110,17 @@ const PARTNER_GAMES: QTechSeed[] = [
   { qtechGameId: "SMS-cricketx", name: "Cricket X", type: "crash", lobbyCategory: "crash" },
   { qtechGameId: "SMS-rollx", name: "Roll X", type: "crash", lobbyCategory: "crash" },
   { qtechGameId: "SMS-plinkox", name: "Plinko X", type: "slots", lobbyCategory: "instantwin" },
-  { qtechGameId: "SMS-multihot5", name: "Multi Hot 5", type: "slots", lobbyCategory: "instantwin" },
   // Upgames (UPG)
   { qtechGameId: "UPG-dice", name: "Dice", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "UPG-hilo", name: "Hilo", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "UPG-mines", name: "Mines", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "UPG-plinko", name: "Plinko", type: "slots", lobbyCategory: "instantwin" },
-  { qtechGameId: "UPG-wheel", name: "Wheel", type: "slots", lobbyCategory: "instantwin" },
-  // Betgames (BTV)
-  { qtechGameId: "BTV-lucky7", name: "Lucky 7", type: "slots", lobbyCategory: "instantwin" },
-  { qtechGameId: "BTV-lucky6", name: "Lucky 6", type: "slots", lobbyCategory: "instantwin" },
-  { qtechGameId: "BTV-lucky5", name: "Lucky 5", type: "slots", lobbyCategory: "instantwin" },
-  { qtechGameId: "BTV-baccarat", name: "Baccarat", type: "slots", lobbyCategory: "instantwin" },
-  { qtechGameId: "BTV-roulette", name: "Roulette", type: "slots", lobbyCategory: "instantwin" },
+  // Betgames (BTV) — plinko instant win only
   { qtechGameId: "BTV-plinko", name: "Plinko", type: "slots", lobbyCategory: "instantwin" },
   // Blitzcrown (BLC)
   { qtechGameId: "BLC-crash", name: "Crash", type: "crash", lobbyCategory: "crash" },
   // KA Gaming (KAG)
   { qtechGameId: "KAG-goldenbull", name: "Golden Bull", type: "crash", lobbyCategory: "crash" },
-  { qtechGameId: "KAG-bonusmania", name: "Bonus Mania", type: "slots", lobbyCategory: "instantwin" },
   // Gamzix (GZX)
   { qtechGameId: "GZX-pilot", name: "Pilot", type: "crash", lobbyCategory: "crash" },
 ];
@@ -149,6 +138,15 @@ export const QTECH_GAME_SEEDS: GameSeed[] = [...SPRIBE_GAMES, ...AVIATRIX_GAMES,
   imageUrl: qtechCdnLobbyImage(g.qtechGameId),
   settings: {},
 }));
+
+/** Curated QTech catalog ids allowed in the player lobby. */
+export const CATALOG_QTECH_GAME_ID_SET = new Set(
+  QTECH_GAME_SEEDS.map((s) => String(s.qtechGameId ?? "").trim()).filter(Boolean),
+);
+
+export function isCatalogQTechGameId(qtechGameId: string): boolean {
+  return CATALOG_QTECH_GAME_ID_SET.has(qtechGameId.trim());
+}
 
 export const ALL_GAME_SEEDS: GameSeed[] = QTECH_GAME_SEEDS;
 

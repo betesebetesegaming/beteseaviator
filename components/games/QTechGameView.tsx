@@ -118,11 +118,6 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     if (immersive) {
       return (
         <>
-          {demo ? (
-            <div className="fixed left-1/2 top-[max(2.5rem,calc(env(safe-area-inset-top)+2rem))] z-[65] -translate-x-1/2 rounded-full bg-amber-500/90 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-black">
-              Fun mode — demo
-            </div>
-          ) : null}
           {launching ? (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80">
               <Spinner label="Starting game…" />
@@ -140,7 +135,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
             type="button"
             onClick={() => void loadGame()}
             disabled={launching}
-            className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 z-[65] flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/70 backdrop-blur-sm active:bg-black/60 disabled:opacity-40"
+            className="fixed bottom-[max(5.75rem,calc(env(safe-area-inset-bottom)+5.25rem))] left-3 z-[65] flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/70 backdrop-blur-sm active:bg-black/60 disabled:opacity-40"
             title="Reload game"
           >
             <RefreshCw size={14} className={launching ? "animate-spin" : ""} />

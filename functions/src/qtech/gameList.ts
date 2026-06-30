@@ -2,6 +2,7 @@ import { logger } from "firebase-functions/v2";
 import { db } from "../helpers";
 import { QTECH_GAME_SEEDS, qtechGameDocId } from "../gameCatalog";
 import { excludeLobbyGameId, removeGameFromLobbyLayout } from "../lobbyExclusions";
+import { disallowedLobbyGameKind, isAllowedLobbyGame } from "../lobbyGamePolicy";
 import { getQTechAccessToken, qtechNetworkError } from "./auth";
 import { getQTechSettings } from "./config";
 import {
@@ -198,6 +199,15 @@ export async function importQTechGamesToLobby(games: QTechCatalogGame[]): Promis
   const skipped: string[] = [];
 
   for (const game of games) {
+    if (!isAllowedLobbyGame({ qtechGameId: game.id, name: game.name })) {
+      skipped.push(game.id);
+      logger.info("Skipped disallowed lobby game on import", {
+        qtechGameId: game.id,
+        name: game.name,
+        kind: disallowedLobbyGameKind({ qtechGameId: game.id, name: game.name }),
+      });
+      continue;
+    }
     const docId = qtechGameDocId(game.id);
     const ref = db.doc(`games/${docId}`);
     const existing = await ref.get();
@@ -320,37 +330,65 @@ export async function importIOGProviderGames(): Promise<{
   return { ids, importResult, imageSync };
 }
 
-/** Remove IOG slot, table, and lottery games from the lobby permanently. */
-export async function purgeIOGDisallowedGames(): Promise<{
-  removed: string[];
+/** Remove slot, table, and lottery games from the lobby (all providers). */
+export async function purgeDisallowedLobbyGames(): Promise<{
+  removed: Array<{ docId: string; qtechGameId: string; kind: string }>;
   kept: string[];
 }> {
-  const { isIOGAllowedInLobby } = await import("./iogCatalog");
   const snap = await db.collection("games").where("engine", "==", "qtech").get();
-  const removed: string[] = [];
+  const removed: Array<{ docId: string; qtechGameId: string; kind: string }> = [];
   const kept: string[] = [];
 
   for (const doc of snap.docs) {
     const qtechGameId = String(doc.data().qtechGameId ?? "").trim();
-    if (!qtechGameId.toUpperCase().startsWith("IOG-")) {
-      kept.push(doc.id);
-      continue;
-    }
     const name = String(doc.data().name ?? "");
-    if (isIOGAllowedInLobby(qtechGameId, name)) {
+    const kind = disallowedLobbyGameKind({ qtechGameId, name, id: doc.id });
+    if (!kind) {
       kept.push(doc.id);
       continue;
     }
     await permanentlyRemoveLobbyGame(doc.id);
-    removed.push(doc.id);
-    logger.info("Removed IOG disallowed game", {
-      docId: doc.id,
-      qtechGameId,
-      name,
-    });
+    removed.push({ docId: doc.id, qtechGameId, kind });
+    logger.info("Removed disallowed lobby game", { docId: doc.id, qtechGameId, name, kind });
   }
 
   return { removed, kept };
+}
+
+/** Remove games outside the curated catalog (auto-imports with broken provider iframes). */
+export async function purgeNonCatalogLobbyGames(): Promise<{
+  removed: Array<{ docId: string; qtechGameId: string }>;
+  kept: string[];
+}> {
+  const { isCatalogQTechGameId } = await import("../gameCatalog");
+  const snap = await db.collection("games").where("engine", "==", "qtech").get();
+  const removed: Array<{ docId: string; qtechGameId: string }> = [];
+  const kept: string[] = [];
+
+  for (const doc of snap.docs) {
+    const qtechGameId = String(doc.data().qtechGameId ?? "").trim();
+    if (qtechGameId && isCatalogQTechGameId(qtechGameId)) {
+      kept.push(doc.id);
+      continue;
+    }
+    await permanentlyRemoveLobbyGame(doc.id);
+    removed.push({ docId: doc.id, qtechGameId: qtechGameId || doc.id });
+    logger.info("Removed non-catalog lobby game", { docId: doc.id, qtechGameId });
+  }
+
+  return { removed, kept };
+}
+
+/** @deprecated Use purgeDisallowedLobbyGames — IOG-only purge. */
+export async function purgeIOGDisallowedGames(): Promise<{
+  removed: string[];
+  kept: string[];
+}> {
+  const result = await purgeDisallowedLobbyGames();
+  return {
+    removed: result.removed.map((r) => r.docId),
+    kept: result.kept,
+  };
 }
 
 export async function discoverChickenGamesViaLaunch(): Promise<QTechCatalogGame[]> {
@@ -562,6 +600,18 @@ export async function reconcileQTechLobbyGames(): Promise<ReconcileLobbyGamesRes
   const toProbe: Array<{ docId: string; qtechGameId: string }> = [];
   for (const doc of snap.docs) {
     const qtechGameId = String(doc.data().qtechGameId ?? "").trim();
+    const name = String(doc.data().name ?? "");
+    const disallowed = disallowedLobbyGameKind({ qtechGameId, name, id: doc.id });
+    if (disallowed) {
+      await permanentlyRemoveLobbyGame(doc.id);
+      removed.push(doc.id);
+      logger.warn("Removed disallowed lobby game during reconcile", {
+        docId: doc.id,
+        qtechGameId,
+        kind: disallowed,
+      });
+      continue;
+    }
     if (!qtechGameId) {
       if (!catalogDocIds.has(doc.id)) {
         await permanentlyRemoveLobbyGame(doc.id);
@@ -625,12 +675,8 @@ export async function purgeBrokenLobbyGames(): Promise<{ deleted: string[]; kept
       kept.push(doc.id);
       continue;
     }
-    if (doc.data().status === "inactive" || !qtechGameId) {
-      await permanentlyRemoveLobbyGame(doc.id);
-      deleted.push(doc.id);
-      continue;
-    }
-    kept.push(doc.id);
+    await permanentlyRemoveLobbyGame(doc.id);
+    deleted.push(doc.id);
   }
 
   return { deleted, kept };
