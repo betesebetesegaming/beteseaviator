@@ -5,6 +5,7 @@ import { logger } from "firebase-functions";
 import { db } from "../helpers";
 
 const OTP_TTL_SECONDS = 300;
+const OTP_VERIFIED_TTL_SECONDS = 600;
 const OTP_LENGTH = 6;
 const MAX_ATTEMPTS = 5;
 
@@ -226,48 +227,44 @@ async function sendViaAfricell(msisdn: string, message: string): Promise<{ messa
     );
   }
 
-  const basicUrl = `${baseUrl}/api/sendsms?sender=${encodeURIComponent(sender)}&msisdn=${encodeURIComponent(msisdn)}`;
+  const url = `${baseUrl}/api/sendsms?sender=${encodeURIComponent(sender)}&msisdn=${encodeURIComponent(msisdn)}`;
   const basic = Buffer.from(`${username}:${password}`).toString("base64");
 
-  let result = await httpsPost(
-    basicUrl,
-    {
-      "Content-Type": "text/plain; charset=utf-8",
-      Authorization: `Basic ${basic}`,
-    },
-    message,
-    timeoutMs,
-  );
+  let lastError = "Africell SMS gateway unreachable";
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const result = await httpsPost(
+      url,
+      {
+        "Content-Type": "text/plain; charset=utf-8",
+        Authorization: `Basic ${basic}`,
+      },
+      message,
+      timeoutMs,
+    );
 
-  if (result.error || result.httpStatus === 0) {
-    const queryParams = new URLSearchParams({ sender, msisdn, username, password, message });
-    const queryUrl = `${baseUrl}/api/sendsms?${queryParams.toString()}`;
-    logger.warn("Africell basic auth send failed — trying query auth", {
-      msisdn,
-      error: result.error,
-      httpStatus: result.httpStatus,
-    });
-    result = await africellRequest(queryUrl, { method: "POST" }, timeoutMs);
-  }
-
-  if (result.error) {
-    throw new Error(`Africell SMS gateway unreachable: ${result.error}`);
-  }
-
-  const parsed = parseAfricellSmsResponse(result.body, result.httpStatus);
-  const { statusCode, gatewayMessage, messageId } = parsed;
-
-  if (statusCode !== 200) {
-    if (statusCode === 407) {
-      throw new Error(
-        "Africell SMS account has no tokens. Contact Africell to top up the Betese sender account.",
-      );
+    if (result.error) {
+      lastError = `Africell SMS gateway unreachable: ${result.error}`;
+      if (attempt === 0 && /timeout/i.test(result.error)) continue;
+      throw new Error(lastError);
     }
-    throw new Error(`Africell gateway error (${statusCode}): ${gatewayMessage}`);
+
+    const parsed = parseAfricellSmsResponse(result.body, result.httpStatus);
+    const { statusCode, gatewayMessage, messageId } = parsed;
+
+    if (statusCode !== 200) {
+      if (statusCode === 407) {
+        throw new Error(
+          "Africell SMS account has no tokens. Contact Africell to top up the Betese sender account.",
+        );
+      }
+      throw new Error(`Africell gateway error (${statusCode}): ${gatewayMessage}`);
+    }
+
+    logger.info("Africell SMS sent", { msisdn, statusCode, messageId, attempt });
+    return { messageId };
   }
 
-  logger.info("Africell SMS sent", { msisdn, statusCode, messageId });
-  return { messageId };
+  throw new Error(lastError);
 }
 
 export async function sendOtpHandler(req: Request, res: Response): Promise<void> {
@@ -423,8 +420,12 @@ export async function verifyOtpHandler(req: Request, res: Response): Promise<voi
     }
 
     await ref.delete().catch(() => undefined);
-    const { recordOtpVerified } = await import("../otpVerification");
-    await recordOtpVerified(msisdn, "africell");
+    const verifiedExpiresAt = Date.now() + OTP_VERIFIED_TTL_SECONDS * 1000;
+    await db.collection("otp_verified").doc(msisdn).set({
+      phone: msisdn,
+      verified_at: new Date().toISOString(),
+      expires_at: new Date(verifiedExpiresAt).toISOString(),
+    });
     res.json({ ok: true, verified: true, phone: msisdn });
   } catch (err) {
     logger.error("OTP verification failed", err);

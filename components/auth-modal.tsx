@@ -6,8 +6,6 @@ import {
   GoogleAuthProvider,
   RecaptchaVerifier,
   createUserWithEmailAndPassword,
-  EmailAuthProvider,
-  linkWithCredential,
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
   signInWithPopup,
@@ -26,6 +24,7 @@ import {
   phoneToEmail,
 } from "@/lib/phone";
 import { isSignupOtpEnabled } from "@/lib/env/publicConfig";
+import { probeSignupOtpGateway, type OtpGatewayStatus } from "@/lib/otpClient";
 import { OtpConfirmPanel, usePhoneOtp } from "@/components/PhoneOtpVerification";
 import { getReferralDeviceId } from "@/lib/referrals";
 import {
@@ -127,6 +126,7 @@ export function AuthModal({
   const [otpCode, setOtpCode] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [otpDismissed, setOtpDismissed] = useState(false);
+  const [otpGatewayStatus, setOtpGatewayStatus] = useState<OtpGatewayStatus>("unknown");
 
   const confirmRef = useRef<ConfirmationResult | null>(null);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
@@ -137,14 +137,8 @@ export function AuthModal({
     () => (phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhone(phone, phoneCountry) : ""),
     [phone, phoneCountry],
   );
-  const signupOtp = usePhoneOtp(signupPhonePreview, {
-    phoneCountry: phoneCountry === "GM" || phoneCountry === "SN" ? phoneCountry : "GM",
-    firebaseRecaptchaId: "auth-modal-recaptcha",
-  });
-  const completeOtp = usePhoneOtp(signupPhonePreview, {
-    phoneCountry: phoneCountry === "GM" || phoneCountry === "SN" ? phoneCountry : "GM",
-    firebaseRecaptchaId: "auth-modal-recaptcha",
-  });
+  const signupOtp = usePhoneOtp(signupPhonePreview);
+  const completeOtp = usePhoneOtp(signupPhonePreview);
   const signupPhoneComplete = Boolean(
     phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhoneLocal(phone, phoneCountry) : null,
   );
@@ -163,7 +157,19 @@ export function AuthModal({
     setOtpCode("");
     setAgeConfirmed(false);
     setOtpDismissed(false);
+    setOtpGatewayStatus("unknown");
   }, [open, initialMode]);
+
+  useEffect(() => {
+    if (!open || phoneCountry !== "GM") return;
+    let alive = true;
+    void probeSignupOtpGateway().then((result) => {
+      if (alive) setOtpGatewayStatus(result.status);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [open, phoneCountry]);
 
   useEffect(() => {
     if (!open || loading) return;
@@ -245,26 +251,15 @@ export function AuthModal({
         ...(email.trim() ? { email: email.trim().toLowerCase() } : {}),
       };
 
-      const phoneAuthed = Boolean(
-        auth.currentUser?.phoneNumber &&
-          !auth.currentUser.email?.endsWith("@phone.beteseaviator.com"),
-      );
-
-      if (phoneAuthed && auth.currentUser) {
-        await completeRegistration(registrationPayload);
-        const credential = EmailAuthProvider.credential(authEmail, password);
-        await linkWithCredential(auth.currentUser, credential);
-      } else {
-        try {
-          await createUserWithEmailAndPassword(auth, authEmail, password);
-        } catch (e: unknown) {
-          const code = (e as { code?: string }).code;
-          if (code !== "auth/email-already-in-use") throw e;
-          await signInWithEmailAndPassword(auth, authEmail, password);
-        }
-        await completeRegistration(registrationPayload);
+      try {
+        await createUserWithEmailAndPassword(auth, authEmail, password);
+      } catch (e: unknown) {
+        const code = (e as { code?: string }).code;
+        if (code !== "auth/email-already-in-use") throw e;
+        await signInWithEmailAndPassword(auth, authEmail, password);
       }
 
+      await completeRegistration(registrationPayload);
       await auth.currentUser?.getIdToken(true);
       toast.success("Account created!");
     } catch (e) {
@@ -406,18 +401,27 @@ export function AuthModal({
       <p className="mb-3 text-center text-sm text-slate-400 sm:mb-4">{modalSubtitle}</p>
 
       {showOtpScreen ? (
-        <OtpConfirmPanel
-          phone={signupPhonePreview}
-          otp={activeOtp}
-          disabled={busy}
-          onBack={() => setOtpDismissed(true)}
-          headline={
-            mode === "complete"
-              ? "Confirm your Africell number to finish signup"
-              : "Confirm your Africell number"
-          }
-          subline="Enter the 6-digit SMS code we sent to your phone."
-        />
+        <>
+          {otpGatewayStatus === "unavailable" ? (
+            <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+              SMS verification is temporarily unavailable. Try again in a few minutes, or sign in with
+              your password if you already have an account.
+            </p>
+          ) : null}
+          <OtpConfirmPanel
+            phone={signupPhonePreview}
+            otp={activeOtp}
+            disabled={busy || otpGatewayStatus === "unavailable"}
+            autoSend={otpGatewayStatus !== "unavailable"}
+            onBack={() => setOtpDismissed(true)}
+            headline={
+              mode === "complete"
+                ? "Confirm your Africell number to finish signup"
+                : "Confirm your Africell number"
+            }
+            subline="Enter the 6-digit SMS code we sent to your phone."
+          />
+        </>
       ) : (
         <>
           {refCode && mode === "register" && (
@@ -554,7 +558,7 @@ export function AuthModal({
                 </p>
               )}
             </div>
-          ) : !otpEnabled || customerAuth === "password" ? (
+          ) : !otpEnabled || customerAuth === "password" || phoneCountry === "GM" ? (
             <div className="space-y-3">
               <CustomerPhoneFields
                 phoneCountry={phoneCountry}
@@ -572,7 +576,7 @@ export function AuthModal({
               <Button className="w-full" onClick={loginWithPassword} disabled={busy}>
                 {busy ? "Signing in…" : "Sign in with phone"}
               </Button>
-              {otpEnabled && (
+              {otpEnabled && phoneCountry !== "GM" && (
                 <button
                   type="button"
                   onClick={() => setCustomerAuth("otp")}

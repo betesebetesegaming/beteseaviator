@@ -54,7 +54,8 @@ export async function sendSignupOtp(
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      return { ok: false, error: String(data.error || "Failed to send verification code.") };
+      const err = String(data.error || data.detail || "Failed to send verification code.");
+      return { ok: false, error: err };
     }
     return { ok: true, expirySeconds: Number(data.expirySeconds || 300) };
   } catch {
