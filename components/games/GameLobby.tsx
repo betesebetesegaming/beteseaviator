@@ -11,7 +11,7 @@ import {
   topPickGames,
   type LobbyLayoutSettings,
 } from "@/lib/games/lobbyLayout";
-import { warmDemoLaunches } from "@/lib/games/qtechLaunchCache";
+import { warmDemoLaunches, preconnectQTechGameHosts } from "@/lib/games/qtechLaunchCache";
 import { LobbyGameSkeleton } from "@/components/games/LobbyGameSkeleton";
 import type { Game } from "@/lib/types";
 import { EmptyState } from "@/components/ui";
@@ -95,6 +95,10 @@ export function GameLobby() {
   }, []);
 
   useEffect(() => subscribeLobbyLayout(setLayout), []);
+
+  useEffect(() => {
+    preconnectQTechGameHosts();
+  }, []);
 
   useEffect(() => {
     if (!games?.length) return;

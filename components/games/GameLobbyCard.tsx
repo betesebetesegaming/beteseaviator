@@ -37,6 +37,10 @@ export function GameLobbyCard({ game, priority = false }: { game: Game; priority
     <>
       <button
         type="button"
+        onPointerEnter={() => {
+          cacheGameDoc(game);
+          void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
+        }}
         onPointerDown={() => {
           cacheGameDoc(game);
           void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });

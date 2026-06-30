@@ -1,3 +1,4 @@
+import { isAllowedPaymentOrigin } from "./corsMiddleware";
 import express from "express";
 import { logger } from "firebase-functions/v2";
 import { onRequest } from "firebase-functions/v2/https";
@@ -20,6 +21,42 @@ import {
 const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "2mb" }));
+
+function setPlayerHttpCors(req: express.Request, res: express.Response): void {
+  const origin = req.headers.origin;
+  if (origin && isAllowedPaymentOrigin(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+/** Fast demo launch for lobby — skips Firebase callable cold start. */
+app.options("/player/demo-launch", (req, res) => {
+  setPlayerHttpCors(req, res);
+  res.status(204).end();
+});
+
+app.get("/player/demo-launch", async (req, res) => {
+  setPlayerHttpCors(req, res);
+  const gameId = String(req.query.gameId ?? "").trim().slice(0, 128);
+  if (!gameId) {
+    res.status(400).json({ error: "gameId_required" });
+    return;
+  }
+  try {
+    const { parsePlayDevice, resolveDemoLaunchUrl, warmDemoLaunchDependencies } = await import("./qtech/demoLaunch");
+    warmDemoLaunchDependencies();
+    const device = parsePlayDevice(String(req.query.device ?? "mobile"));
+    const launchUrl = await resolveDemoLaunchUrl(gameId, device);
+    res.status(200).json({ launchUrl });
+  } catch (e) {
+    logger.warn("player demo-launch failed", { gameId, err: e instanceof Error ? e.message : String(e) });
+    const message = e instanceof Error ? e.message : "demo_launch_failed";
+    res.status(502).json({ error: "demo_launch_failed", message });
+  }
+});
 
 app.get("/accounts/:playerId/session", (req, res) => void verifySessionHandler(req, res));
 app.get("/accounts/:playerId/balance", (req, res) => void getBalanceHandler(req, res));

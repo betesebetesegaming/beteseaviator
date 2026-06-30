@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
 import { gameDemoPath, gamePlayPath } from "@/lib/games/paths";
@@ -30,11 +30,13 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
   }, [game.qtechGameId]);
 
   const [src, setSrc] = useState(primaryUrl);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setSrc(primaryUrl);
     cacheGameDoc(game);
+    void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "";
@@ -53,10 +55,15 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
     openAuth("register");
   };
 
-  const playDemo = () => {
-    onClose();
-    void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
-    router.push(gameDemoPath(game));
+  const playDemo = async () => {
+    setDemoLoading(true);
+    try {
+      await prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
+      onClose();
+      router.push(gameDemoPath(game));
+    } finally {
+      setDemoLoading(false);
+    }
   };
 
   return (
@@ -98,10 +105,12 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
           </button>
           <button
             type="button"
-            onClick={playDemo}
-            className="w-full rounded-xl bg-black py-4 text-center text-sm font-black uppercase tracking-widest text-white active:scale-[0.99]"
+            onClick={() => void playDemo()}
+            disabled={demoLoading}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-black py-4 text-center text-sm font-black uppercase tracking-widest text-white active:scale-[0.99] disabled:opacity-70"
           >
-            Play demo
+            {demoLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+            {demoLoading ? "Opening demo…" : "Play demo"}
           </button>
           <p className="text-center text-[11px] text-slate-500">
             Demo is free — no wallet needed. Sign up to play with real GMD.

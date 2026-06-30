@@ -1,6 +1,7 @@
 "use client";
 
 import { launchQTechGame, launchQTechGameDemo } from "@/lib/api";
+import { fetchDemoLaunchUrlHttp } from "@/lib/games/demoLaunchHttp";
 import type { Game } from "@/lib/types";
 
 const GAME_DOC_PREFIX = "betese-game-doc-v1:";
@@ -78,11 +79,20 @@ export async function prefetchQTechLaunch(opts: {
 
   const promise = (async () => {
     try {
-      const res = demo
-        ? await launchQTechGameDemo({ gameId, device })
-        : await launchQTechGame({ gameId, device });
-      writeCachedQTechLaunchUrl(gameId, demo, res.launchUrl, device);
-      return res.launchUrl;
+      let launchUrl: string;
+      if (demo) {
+        try {
+          launchUrl = await fetchDemoLaunchUrlHttp(gameId, device);
+        } catch {
+          const res = await launchQTechGameDemo({ gameId, device });
+          launchUrl = res.launchUrl;
+        }
+      } else {
+        const res = await launchQTechGame({ gameId, device });
+        launchUrl = res.launchUrl;
+      }
+      writeCachedQTechLaunchUrl(gameId, demo, launchUrl, device);
+      return launchUrl;
     } finally {
       inflightLaunches.delete(key);
     }
@@ -94,7 +104,7 @@ export async function prefetchQTechLaunch(opts: {
 
 /** Prefetch demo launch URLs for visible lobby tiles (runs in background). */
 export function warmDemoLaunches(gameIds: string[], device: QTechPlayDevice = qtechPlayDevice()): void {
-  for (const gameId of gameIds.slice(0, 6)) {
+  for (const gameId of gameIds.slice(0, 12)) {
     if (readCachedQTechLaunchUrl(gameId, true, device)) continue;
     void prefetchQTechLaunch({ gameId, demo: true, device });
   }
@@ -127,6 +137,7 @@ export function readCachedGameDoc(gameId: string): Game | null {
 export function preconnectQTechGameHosts(): void {
   if (typeof document === "undefined") return;
   for (const href of [
+    "https://client.int.qtlauncher.com",
     "https://gl-int.qtplatform.com",
     "https://ps-int.qtplatform.com",
     "https://api-int.qtplatform.com",
@@ -138,4 +149,10 @@ export function preconnectQTechGameHosts(): void {
     link.crossOrigin = "anonymous";
     document.head.appendChild(link);
   }
+}
+
+/** Warm Firebase callable SDK on play routes (real-money launch). */
+export function warmLaunchCallableClient(): void {
+  if (typeof window === "undefined") return;
+  void import("@/lib/api").catch(() => undefined);
 }

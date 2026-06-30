@@ -3,6 +3,7 @@ import { logger } from "firebase-functions/v2";
 import { db, requireRole } from "../helpers";
 import { getQTechAccessToken, qtechNetworkError } from "./auth";
 import { getQTechSettings } from "./config";
+import { fetchDemoLaunchUrl, parsePlayDevice, resolveDemoLaunchUrl } from "./demoLaunch";
 import { createWalletSession } from "./session";
 
 /** Route outbound QTech API calls through Cloud NAT static IP (QTech IP whitelist). */
@@ -12,13 +13,7 @@ export const QTECH_OUTBOUND = {
 };
 
 const gameMetaCache = new Map<string, { qtechGameId: string; expiresAt: number }>();
-const GAME_META_CACHE_MS = 5 * 60 * 1000;
-const demoLaunchCache = new Map<string, { url: string; expiresAt: number }>();
-const DEMO_LAUNCH_CACHE_MS = 4 * 60 * 1000;
-
-function demoLaunchCacheKey(qtechGameId: string, device: string): string {
-  return `${qtechGameId}:${device}`;
-}
+const GAME_META_CACHE_MS = 10 * 60 * 1000;
 
 async function loadActiveQTechGame(gameId: string): Promise<{ qtechGameId: string }> {
   const cached = gameMetaCache.get(gameId);
@@ -53,7 +48,7 @@ async function fetchLaunchUrl(
     qtechGameId: string;
     walletSession: string;
     device: "mobile" | "desktop";
-  }
+  },
 ): Promise<string> {
   const token = await getQTechAccessToken(cfg);
   const url = `${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(args.qtechGameId)}/launch-url`;
@@ -102,76 +97,18 @@ async function fetchLaunchUrl(
   return launchUrl;
 }
 
-/** Demo / fun mode — no wallet session (play for free). */
-async function fetchDemoLaunchUrl(
-  cfg: Awaited<ReturnType<typeof getQTechSettings>>,
-  qtechGameId: string,
-  device: "mobile" | "desktop",
-  playerId = "demo",
-): Promise<string> {
-  const cacheKey = demoLaunchCacheKey(qtechGameId, device);
-  const cached = demoLaunchCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.url;
-  }
-
-  if (!cfg.apiBaseUrl || !cfg.operatorId || !cfg.apiPassword) {
-    throw new HttpsError("failed-precondition", "QTech API credentials are not configured.");
-  }
-
-  const token = await getQTechAccessToken(cfg);
-  let res: Response;
-  try {
-    res = await fetch(`${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(qtechGameId)}/launch-url`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        playerId: playerId.slice(0, 34),
-        currency: cfg.currency,
-        country: cfg.country,
-        lang: cfg.lang,
-        mode: "demo",
-        device,
-        returnUrl: cfg.lobbyUrl,
-      }),
-    });
-  } catch (e) {
-    throw qtechNetworkError(e);
-  }
-
-  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
-    logger.error("QTech demo launch failed", { status: res.status, body, gameId: qtechGameId });
-    throw new HttpsError(
-      "failed-precondition",
-      String(body.message || body.code || "QTech could not load demo for this game."),
-    );
-  }
-  const launchUrl = String(body.url || "");
-  if (!launchUrl) throw new HttpsError("failed-precondition", "QTech demo did not return a game URL.");
-  demoLaunchCache.set(cacheKey, { url: launchUrl, expiresAt: Date.now() + DEMO_LAUNCH_CACHE_MS });
-  return launchUrl;
-}
-
 /** Player launches a QTech-hosted Aviator/Crash game. */
 export const launchQTechGame = onCall(QTECH_OUTBOUND, async (req) => {
   const { uid, profile } = await requireRole(req, ["player"]);
   const gameId = String(req.data?.gameId || "").trim();
   if (!gameId) throw new HttpsError("invalid-argument", "gameId is required.");
 
-  const { qtechGameId } = await loadActiveQTechGame(gameId);
-
-  const cfg = await getQTechSettings();
+  const device = parsePlayDevice(req.data?.device);
+  const [{ qtechGameId }, cfg] = await Promise.all([loadActiveQTechGame(gameId), getQTechSettings()]);
   if (!cfg.enabled) {
     throw new HttpsError("failed-precondition", "QTech integration is disabled in admin settings.");
   }
 
-  const deviceRaw = String(req.data?.device || "mobile").toLowerCase();
-  const device: "mobile" | "desktop" = deviceRaw === "desktop" ? "desktop" : "mobile";
   const walletSession = await createWalletSession(uid, gameId, qtechGameId);
   const launchUrl = await fetchLaunchUrl(cfg, {
     playerId: uid,
@@ -189,13 +126,8 @@ export const launchQTechGameDemo = onCall(QTECH_OUTBOUND, async (req) => {
   const gameId = String(req.data?.gameId || "").trim();
   if (!gameId) throw new HttpsError("invalid-argument", "gameId is required.");
 
-  const { qtechGameId } = await loadActiveQTechGame(gameId);
-  const cfg = await getQTechSettings();
-
-  const deviceRaw = String(req.data?.device || "mobile").toLowerCase();
-  const device: "mobile" | "desktop" = deviceRaw === "desktop" ? "desktop" : "mobile";
-  const launchUrl = await fetchDemoLaunchUrl(cfg, qtechGameId, device);
-
+  const device = parsePlayDevice(req.data?.device);
+  const launchUrl = await resolveDemoLaunchUrl(gameId, device);
   return { launchUrl };
 });
 
@@ -206,8 +138,7 @@ export const adminPreviewQTechGame = onCall(QTECH_OUTBOUND, async (req) => {
   if (!qtechGameId) throw new HttpsError("invalid-argument", "Enter a QTech game ID to preview.");
 
   const cfg = await getQTechSettings();
-  const deviceRaw = String(req.data?.device || "desktop").toLowerCase();
-  const device: "mobile" | "desktop" = deviceRaw === "mobile" ? "mobile" : "desktop";
+  const device = parsePlayDevice(req.data?.device);
   const launchUrl = await fetchDemoLaunchUrl(cfg, qtechGameId, device, "preview");
   return { launchUrl };
 });

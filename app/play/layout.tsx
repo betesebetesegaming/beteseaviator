@@ -13,6 +13,7 @@ import { PresenceTracker } from "@/components/PresenceTracker";
 import { LobbyBackgroundShell } from "@/components/games/LobbyBackgroundShell";
 import { AgentReferralBanner } from "@/components/games/AgentReferralBanner";
 import { GameFloatingBar } from "@/components/games/GameFloatingBar";
+import { preconnectQTechGameHosts, warmLaunchCallableClient } from "@/lib/games/qtechLaunchCache";
 import { CustomerCareBar } from "@/components/CustomerCareBar";
 import { parseAgentSlugFromHost } from "@/lib/agentLinks";
 
@@ -94,6 +95,12 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
   const walletFrozen = Boolean(wallet?.frozen);
   const needsProfile = !!fbUser && !profile;
   const showGuestChrome = !fbUser;
+
+  useEffect(() => {
+    if (!inGame) return;
+    preconnectQTechGameHosts();
+    warmLaunchCallableClient();
+  }, [inGame]);
 
   if (inGame) {
     return (
