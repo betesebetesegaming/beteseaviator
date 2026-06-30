@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { logger } from "firebase-functions/v2";
 import { defineString } from "firebase-functions/params";
 import {
   auth,
@@ -161,6 +162,28 @@ export const completeRegistration = onCall(async (req) => {
     );
   }
   return { ok: true, role: "player" };
+});
+
+/** After Firebase Phone Auth confirms the SMS code, allow completeRegistration to proceed. */
+export const markPhoneOtpVerified = onCall(async (req) => {
+  const uid = requireAuth(req);
+  const tokenPhone = String(req.auth?.token?.phone_number ?? "").trim();
+  if (!tokenPhone) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Sign in with your phone verification code first, then try again.",
+    );
+  }
+
+  const { toOtpMsisdn, recordOtpVerified } = await import("./otpVerification");
+  const msisdn = toOtpMsisdn(tokenPhone);
+  if (!msisdn) {
+    throw new HttpsError("invalid-argument", "Could not read a valid phone number from verification.");
+  }
+
+  await recordOtpVerified(msisdn, "firebase_phone_auth");
+  logger.info("markPhoneOtpVerified", { uid, msisdn });
+  return { ok: true as const, phone: msisdn };
 });
 
 /**

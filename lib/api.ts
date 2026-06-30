@@ -38,6 +38,10 @@ export const completeRegistration = call<
   { ok: true; role: Role }
 >("completeRegistration");
 
+export const markPhoneOtpVerified = call<Record<string, never>, { ok: true; phone: string }>(
+  "markPhoneOtpVerified",
+);
+
 export const getPlayerReferralDashboard = call<
   Record<string, never>,
   {

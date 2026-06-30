@@ -6,6 +6,8 @@ import {
   GoogleAuthProvider,
   RecaptchaVerifier,
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
+  linkWithCredential,
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
   signInWithPopup,
@@ -135,8 +137,14 @@ export function AuthModal({
     () => (phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhone(phone, phoneCountry) : ""),
     [phone, phoneCountry],
   );
-  const signupOtp = usePhoneOtp(signupPhonePreview);
-  const completeOtp = usePhoneOtp(signupPhonePreview);
+  const signupOtp = usePhoneOtp(signupPhonePreview, {
+    phoneCountry: phoneCountry === "GM" || phoneCountry === "SN" ? phoneCountry : "GM",
+    firebaseRecaptchaId: "auth-modal-recaptcha",
+  });
+  const completeOtp = usePhoneOtp(signupPhonePreview, {
+    phoneCountry: phoneCountry === "GM" || phoneCountry === "SN" ? phoneCountry : "GM",
+    firebaseRecaptchaId: "auth-modal-recaptcha",
+  });
   const signupPhoneComplete = Boolean(
     phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhoneLocal(phone, phoneCountry) : null,
   );
@@ -237,15 +245,26 @@ export function AuthModal({
         ...(email.trim() ? { email: email.trim().toLowerCase() } : {}),
       };
 
-      try {
-        await createUserWithEmailAndPassword(auth, authEmail, password);
-      } catch (e: unknown) {
-        const code = (e as { code?: string }).code;
-        if (code !== "auth/email-already-in-use") throw e;
-        await signInWithEmailAndPassword(auth, authEmail, password);
+      const phoneAuthed = Boolean(
+        auth.currentUser?.phoneNumber &&
+          !auth.currentUser.email?.endsWith("@phone.beteseaviator.com"),
+      );
+
+      if (phoneAuthed && auth.currentUser) {
+        await completeRegistration(registrationPayload);
+        const credential = EmailAuthProvider.credential(authEmail, password);
+        await linkWithCredential(auth.currentUser, credential);
+      } else {
+        try {
+          await createUserWithEmailAndPassword(auth, authEmail, password);
+        } catch (e: unknown) {
+          const code = (e as { code?: string }).code;
+          if (code !== "auth/email-already-in-use") throw e;
+          await signInWithEmailAndPassword(auth, authEmail, password);
+        }
+        await completeRegistration(registrationPayload);
       }
 
-      await completeRegistration(registrationPayload);
       await auth.currentUser?.getIdToken(true);
       toast.success("Account created!");
     } catch (e) {

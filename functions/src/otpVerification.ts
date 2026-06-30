@@ -9,16 +9,6 @@ export function isGambianPhoneKey(phone: string): boolean {
   return false;
 }
 
-/** Africell OTP msisdn — same normalization as routes/otp.ts */
-export function toOtpMsisdn(raw: string): string | null {
-  const digits = String(raw || "").replace(/\D/g, "");
-  if (!digits) return null;
-  if (digits.startsWith("220") && digits.length >= 10) return digits;
-  if (digits.startsWith("221") && digits.length >= 12) return digits;
-  if (digits.length === 7) return `220${digits}`;
-  return digits.startsWith("220") ? digits : null;
-}
-
 /** One-time consume of a recent successful SMS verification. */
 export async function consumeOtpVerification(msisdn: string): Promise<void> {
   const ref = db.collection("otp_verified").doc(msisdn);
@@ -39,6 +29,28 @@ export async function consumeOtpVerification(msisdn: string): Promise<void> {
     );
   }
   await ref.delete();
+}
+
+const OTP_VERIFIED_TTL_MS = 10 * 60 * 1000;
+
+/** Africell OTP msisdn — same normalization as routes/otp.ts */
+export function toOtpMsisdn(raw: string): string | null {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("220") && digits.length >= 10) return digits;
+  if (digits.startsWith("221") && digits.length >= 12) return digits;
+  if (digits.length === 7) return `220${digits}`;
+  return digits.startsWith("220") ? digits : null;
+}
+
+/** Store a fresh OTP verification (Africell HTTP or Firebase Phone Auth). */
+export async function recordOtpVerified(msisdn: string, source = "africell"): Promise<void> {
+  await db.collection("otp_verified").doc(msisdn).set({
+    phone: msisdn,
+    verified_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + OTP_VERIFIED_TTL_MS).toISOString(),
+    source,
+  });
 }
 
 export async function assertOtpVerifiedForPhone(phone: string): Promise<void> {

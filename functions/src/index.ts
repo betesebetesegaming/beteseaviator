@@ -15,7 +15,7 @@ setGlobalOptions({
   concurrency: 1,
 });
 
-export { completeRegistration, agentLogin, resolveStaffSession, seedPlatform, ensurePrimaryAdmin } from "./auth";
+export { completeRegistration, markPhoneOtpVerified, agentLogin, resolveStaffSession, seedPlatform, ensurePrimaryAdmin } from "./auth";
 export { placeBet, cashout, pokeRound, gameTick } from "./game";
 export { adminResolvePayment } from "./payments";
 export {
@@ -55,13 +55,9 @@ export {
   adminReleaseReferralBonuses,
 } from "./referrals";
 
-/** Africell SMS OTP — same VPC connector name as betesepmu (betese-connector). */
-const OTP_VPC = {
-  vpcConnector: "projects/beteseaviator-a05ae/locations/us-central1/connectors/betese-connector",
-  vpcConnectorEgressSettings: "ALL_TRAFFIC" as const,
-};
-export const sendOtp = createHttpFunction(sendOtpHandler, OTP_VPC);
-export const verifyOtp = createHttpFunction(verifyOtpHandler, OTP_VPC);
+/** Africell SMS OTP — Africell gateway is only reachable from whitelisted IPs (contact Africell). */
+export const sendOtp = createHttpFunction(sendOtpHandler);
+export const verifyOtp = createHttpFunction(verifyOtpHandler);
 
 /** ModemPay — same handlers as betesepmu (single Cloud Function to save quota). */
 export { modempayApi } from "./modempayApi";
