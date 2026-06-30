@@ -306,18 +306,51 @@ export async function importQTechGamesByIds(ids: string[]): Promise<{
   return { games, importResult };
 }
 
-/** Import all launch-validated InOut (IOG) games — excludes lottery/loto. */
+/** Import all launch-validated InOut (IOG) instant win + crash games. */
 export async function importIOGProviderGames(): Promise<{
   ids: string[];
   importResult: { imported: string[]; skipped: string[] };
   imageSync: Awaited<ReturnType<typeof syncQTechLobbyImages>>;
 }> {
-  const { IOG_LAUNCH_VALID_IDS, isIOGExcludedId } = await import("./iogCatalog");
-  const ids = IOG_LAUNCH_VALID_IDS.filter((id) => !isIOGExcludedId(id));
+  const { IOG_LAUNCH_VALID_IDS, isIOGAllowedInLobby } = await import("./iogCatalog");
+  const ids = IOG_LAUNCH_VALID_IDS.filter((id) => isIOGAllowedInLobby(id));
   const { games, importResult } = await importQTechGamesByIds(ids);
   const imageSync = await syncQTechLobbyImages();
   logger.info("importIOGProviderGames", { count: games.length, importResult, imageSync });
   return { ids, importResult, imageSync };
+}
+
+/** Remove IOG slot, table, and lottery games from the lobby permanently. */
+export async function purgeIOGDisallowedGames(): Promise<{
+  removed: string[];
+  kept: string[];
+}> {
+  const { isIOGAllowedInLobby } = await import("./iogCatalog");
+  const snap = await db.collection("games").where("engine", "==", "qtech").get();
+  const removed: string[] = [];
+  const kept: string[] = [];
+
+  for (const doc of snap.docs) {
+    const qtechGameId = String(doc.data().qtechGameId ?? "").trim();
+    if (!qtechGameId.toUpperCase().startsWith("IOG-")) {
+      kept.push(doc.id);
+      continue;
+    }
+    const name = String(doc.data().name ?? "");
+    if (isIOGAllowedInLobby(qtechGameId, name)) {
+      kept.push(doc.id);
+      continue;
+    }
+    await permanentlyRemoveLobbyGame(doc.id);
+    removed.push(doc.id);
+    logger.info("Removed IOG disallowed game", {
+      docId: doc.id,
+      qtechGameId,
+      name,
+    });
+  }
+
+  return { removed, kept };
 }
 
 export async function discoverChickenGamesViaLaunch(): Promise<QTechCatalogGame[]> {

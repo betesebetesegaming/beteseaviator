@@ -230,6 +230,23 @@ app.get("/bootstrap/purge-broken-games", async (req, res) => {
   }
 });
 
+/** Remove IOG slot, table, and lottery games from lobby. */
+app.get("/bootstrap/purge-iog-slots-tables-lottery", async (req, res) => {
+  const key = String(req.query.key ?? "");
+  if (key !== "beteseaviator-reset-2026") {
+    res.status(403).json({ error: "forbidden" });
+    return;
+  }
+  try {
+    const { purgeIOGDisallowedGames } = await import("./qtech/gameList");
+    const purge = await purgeIOGDisallowedGames();
+    res.status(200).json({ ok: true, purge });
+  } catch (e) {
+    logger.error("bootstrap purge-iog failed", e);
+    res.status(500).json({ error: "purge_failed", message: e instanceof Error ? e.message : String(e) });
+  }
+});
+
 /** Import InOut (IOG) games from QTech release — no lottery/loto. */
 app.get("/bootstrap/import-iog-games", async (req, res) => {
   const key = String(req.query.key ?? "");
