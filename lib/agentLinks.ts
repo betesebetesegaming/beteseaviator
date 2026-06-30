@@ -1,5 +1,7 @@
 /** Agent marketing URLs — subdomain + referral link (Gambia primary site). */
 
+import { STAFF_LOGIN_PATH } from "./staff-routes";
+
 export const AGENT_DOMAIN =
   process.env.NEXT_PUBLIC_AGENT_DOMAIN?.replace(/^https?:\/\//, "").replace(/\/$/, "") ||
   "beteseaviator.com";
@@ -43,6 +45,11 @@ export function agentSubdomainUrl(slug: string): string {
 
 export function agentReferralUrl(slug: string): string {
   return buildAgentLinks(slug).referralUrl;
+}
+
+/** Staff sign-in for super agents and sub agents (not player signup). */
+export function staffLoginUrl(): string {
+  return `${SITE_ORIGIN}${STAFF_LOGIN_PATH}`;
 }
 
 /** e.g. paul.beteseaviator.com → "paul" */

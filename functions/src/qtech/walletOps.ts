@@ -59,6 +59,13 @@ export function payloadKey(body: Record<string, unknown>): string {
   return crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex");
 }
 
+/** Idempotency by txnId — same id returns the original result (QTech CW spec). */
+function assertSameTxnRetry(existing: StoredQTechTxn, playerId: string): void {
+  if (existing.playerId !== playerId) {
+    throw qtechError("REQUEST_DECLINED", 400, "Duplicate txnId with different payload");
+  }
+}
+
 export function newReferenceId(): string {
   return `QT${Date.now().toString(36)}${crypto.randomBytes(4).toString("hex")}`.toUpperCase();
 }
@@ -162,7 +169,7 @@ export async function processWithdrawal(
 
   const existing = await getStoredTxn(txnId);
   if (existing) {
-    if (existing.payloadKey !== key) throw qtechError("REQUEST_DECLINED", 400, "Duplicate txnId with different payload");
+    assertSameTxnRetry(existing, playerId);
     return { balance: existing.balance, referenceId: existing.referenceId || newReferenceId() };
   }
 
@@ -293,7 +300,7 @@ export async function processDeposit(
 
   const existing = await getStoredTxn(txnId);
   if (existing) {
-    if (existing.payloadKey !== key) throw qtechError("REQUEST_DECLINED", 400, "Duplicate txnId with different payload");
+    assertSameTxnRetry(existing, playerId);
     return { balance: existing.balance, referenceId: existing.referenceId || newReferenceId() };
   }
 
@@ -373,7 +380,7 @@ export async function processRollback(
 
   const existing = await getStoredTxn(txnId);
   if (existing) {
-    if (existing.payloadKey !== key) throw qtechError("REQUEST_DECLINED", 400, "Duplicate txnId with different payload");
+    assertSameTxnRetry(existing, playerId);
     return { balance: existing.balance, referenceId: existing.referenceId };
   }
 
@@ -406,7 +413,12 @@ export async function processRollback(
         amount,
         type: "refund",
         description: "QTech rollback",
-        meta: { source: "qtech", txnId, betId: opts.betId, referenceId: opts.referenceId },
+        meta: {
+          source: "qtech",
+          txnId,
+          ...(opts.betId ? { betId: opts.betId } : {}),
+          ...(opts.referenceId ? { referenceId: opts.referenceId } : {}),
+        },
         ignoreFrozen: true,
       });
     }
@@ -444,7 +456,7 @@ export async function processReward(
 
   const existing = await getStoredTxn(txnId);
   if (existing) {
-    if (existing.payloadKey !== key) throw qtechError("REQUEST_DECLINED", 400, "Duplicate txnId with different payload");
+    assertSameTxnRetry(existing, playerId);
     return { balance: existing.balance, referenceId: existing.referenceId || newReferenceId() };
   }
 

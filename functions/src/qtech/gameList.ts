@@ -1,6 +1,7 @@
 import { logger } from "firebase-functions/v2";
 import { db } from "../helpers";
-import { qtechGameDocId } from "../gameCatalog";
+import { QTECH_GAME_SEEDS, qtechGameDocId } from "../gameCatalog";
+import { excludeLobbyGameId, removeGameFromLobbyLayout } from "../lobbyExclusions";
 import { getQTechAccessToken, qtechNetworkError } from "./auth";
 import { getQTechSettings } from "./config";
 import {
@@ -305,6 +306,20 @@ export async function importQTechGamesByIds(ids: string[]): Promise<{
   return { games, importResult };
 }
 
+/** Import all launch-validated InOut (IOG) games — excludes lottery/loto. */
+export async function importIOGProviderGames(): Promise<{
+  ids: string[];
+  importResult: { imported: string[]; skipped: string[] };
+  imageSync: Awaited<ReturnType<typeof syncQTechLobbyImages>>;
+}> {
+  const { IOG_LAUNCH_VALID_IDS, isIOGExcludedId } = await import("./iogCatalog");
+  const ids = IOG_LAUNCH_VALID_IDS.filter((id) => !isIOGExcludedId(id));
+  const { games, importResult } = await importQTechGamesByIds(ids);
+  const imageSync = await syncQTechLobbyImages();
+  logger.info("importIOGProviderGames", { count: games.length, importResult, imageSync });
+  return { ids, importResult, imageSync };
+}
+
 export async function discoverChickenGamesViaLaunch(): Promise<QTechCatalogGame[]> {
   const cfg = await getQTechSettings();
   if (!cfg.apiBaseUrl || !cfg.operatorId || !cfg.apiPassword) {
@@ -321,8 +336,7 @@ export async function discoverChickenGamesViaLaunch(): Promise<QTechCatalogGame[
     const probes = await probeQTechGameIds(batch);
     for (const probe of probes) {
       const launchOk = probe.launchStatus === 200 && Boolean(probe.launchUrl);
-      const betValuesOk = probe.betValuesStatus === 200;
-      if (!launchOk && !betValuesOk) continue;
+      if (!launchOk) continue;
       if (seen.has(probe.id)) continue;
       seen.add(probe.id);
       const game: QTechCatalogGame = {
@@ -341,7 +355,6 @@ export async function discoverChickenGamesViaLaunch(): Promise<QTechCatalogGame[
       logger.info("Discovered chicken game", {
         id: probe.id,
         launchOk,
-        betValuesOk,
       });
     }
   }
@@ -482,4 +495,110 @@ export async function fetchQTechImageForGameId(qtechGameId: string): Promise<str
 /** Resolve Firestore doc id for a QTech catalog id (used when seeding). */
 export function firestoreIdForQTechGame(qtechGameId: string): string {
   return qtechGameDocId(qtechGameId);
+}
+
+export type ReconcileLobbyGamesResult = {
+  catalogSynced: string[];
+  activated: string[];
+  removed: string[];
+  probed: number;
+};
+
+async function permanentlyRemoveLobbyGame(docId: string): Promise<void> {
+  await excludeLobbyGameId(docId);
+  await removeGameFromLobbyLayout(docId);
+  await db.doc(`games/${docId}`).delete();
+}
+
+/** Sync catalog seeds, then hide any active game whose QTech ID cannot launch (demo). */
+export async function reconcileQTechLobbyGames(): Promise<ReconcileLobbyGamesResult> {
+  const { ensureQTechGameDocs } = await import("./games");
+  await ensureQTechGameDocs();
+
+  const catalogDocIds = new Set(QTECH_GAME_SEEDS.map((s) => s.id));
+  const catalogQtechIds = new Set(
+    QTECH_GAME_SEEDS.map((s) => String(s.qtechGameId ?? "").trim()).filter(Boolean),
+  );
+
+  const snap = await db.collection("games").where("engine", "==", "qtech").get();
+  const activated: string[] = [];
+  const removed: string[] = [];
+  const catalogSynced = [...catalogDocIds];
+  let probed = 0;
+
+  const toProbe: Array<{ docId: string; qtechGameId: string }> = [];
+  for (const doc of snap.docs) {
+    const qtechGameId = String(doc.data().qtechGameId ?? "").trim();
+    if (!qtechGameId) {
+      if (!catalogDocIds.has(doc.id)) {
+        await permanentlyRemoveLobbyGame(doc.id);
+        removed.push(doc.id);
+      }
+      continue;
+    }
+    if (catalogDocIds.has(doc.id) || catalogQtechIds.has(qtechGameId)) {
+      if (doc.data().status !== "active") {
+        await doc.ref.set({ status: "active" }, { merge: true });
+        activated.push(doc.id);
+      }
+      continue;
+    }
+    toProbe.push({ docId: doc.id, qtechGameId });
+  }
+
+  const concurrency = 20;
+  for (let i = 0; i < toProbe.length; i += concurrency) {
+    const batch = toProbe.slice(i, i + concurrency);
+    const probes = await probeQTechGameIds(batch.map((g) => g.qtechGameId));
+    probed += probes.length;
+    for (const probe of probes) {
+      const meta = batch.find((g) => g.qtechGameId === probe.id);
+      if (!meta) continue;
+      const launchOk = probe.launchStatus === 200 && Boolean(probe.launchUrl);
+      if (launchOk) {
+        if ((await db.doc(`games/${meta.docId}`).get()).data()?.status !== "active") {
+          await db.doc(`games/${meta.docId}`).set({ status: "active" }, { merge: true });
+          activated.push(meta.docId);
+        }
+        continue;
+      }
+      await permanentlyRemoveLobbyGame(meta.docId);
+      removed.push(meta.docId);
+      logger.warn("Removed game — QTech launch failed", {
+        docId: meta.docId,
+        qtechGameId: probe.id,
+        launchStatus: probe.launchStatus,
+      });
+    }
+  }
+
+  return { catalogSynced, activated, removed, probed };
+}
+
+/** Delete inactive / non-catalog QTech games left over from bad auto-imports. */
+export async function purgeBrokenLobbyGames(): Promise<{ deleted: string[]; kept: string[] }> {
+  const catalogDocIds = new Set(QTECH_GAME_SEEDS.map((s) => s.id));
+  const catalogQtechIds = new Set(
+    QTECH_GAME_SEEDS.map((s) => String(s.qtechGameId ?? "").trim()).filter(Boolean),
+  );
+
+  const snap = await db.collection("games").where("engine", "==", "qtech").get();
+  const deleted: string[] = [];
+  const kept: string[] = [];
+
+  for (const doc of snap.docs) {
+    const qtechGameId = String(doc.data().qtechGameId ?? "").trim();
+    if (catalogDocIds.has(doc.id) || (qtechGameId && catalogQtechIds.has(qtechGameId))) {
+      kept.push(doc.id);
+      continue;
+    }
+    if (doc.data().status === "inactive" || !qtechGameId) {
+      await permanentlyRemoveLobbyGame(doc.id);
+      deleted.push(doc.id);
+      continue;
+    }
+    kept.push(doc.id);
+  }
+
+  return { deleted, kept };
 }

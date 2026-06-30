@@ -16,8 +16,8 @@ export default function AgentDashboard() {
     <div>
       <h1 className="mb-1 text-xl font-bold">Welcome back, {profile?.name}</h1>
       <p className="mb-6 text-sm text-slate-400">
-        Share your agent link or subdomain — every customer who signs up is attached to you for
-        commission.
+        Share your agent marketing link or subdomain — every customer who signs up is attached to you
+        for commission.
       </p>
 
       {profile?.agentSlug ? (
@@ -36,7 +36,7 @@ export default function AgentDashboard() {
           <StatCard
             label="Operations hub"
             value="Live · Ledger · Network"
-            hint="your customers, sub-agents & transactions"
+            hint="your customers & transactions"
             icon={<Activity size={20} />}
           />
         </Link>
@@ -46,14 +46,6 @@ export default function AgentDashboard() {
           hint="players from your link"
           icon={<Users size={20} />}
         />
-        {profile?.role === "super_agent" && (
-          <StatCard
-            label="Sub Agents"
-            value={stats.subAgentCount ?? 0}
-            hint="agents working under you"
-            icon={<UserCog size={20} />}
-          />
-        )}
         <StatCard
           label="Customer Deposits"
           value={formatXof(stats.customerDeposits ?? 0)}

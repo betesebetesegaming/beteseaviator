@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { subscribeActiveGames } from "@/lib/games/subscriptions";
-import { readCachedLobbyGames, writeCachedLobbyGames } from "@/lib/games/lobbyCache";
+import { writeCachedLobbyGames } from "@/lib/games/lobbyCache";
 import {
   lobbyLayoutOrDefault,
   sortLobbyGames,
@@ -81,13 +81,15 @@ function GameGrid({ games }: { games: Game[] }) {
 }
 
 export function GameLobby() {
-  const [games, setGames] = useState<Game[] | null>(() => readCachedLobbyGames<Game>());
+  const [games, setGames] = useState<Game[] | null>(null);
+  const [liveReady, setLiveReady] = useState(false);
   const [layout, setLayout] = useState<LobbyLayoutSettings | null>(null);
   const [category, setCategory] = useState<LobbyNavCategory>("all");
 
   useEffect(() => {
     return subscribeActiveGames((next) => {
       setGames(next);
+      setLiveReady(true);
       writeCachedLobbyGames(next);
     });
   }, []);
@@ -136,7 +138,7 @@ export function GameLobby() {
     );
   }, [orderedGames, category, layout]);
 
-  const showSkeleton = !games;
+  const showSkeleton = !liveReady;
 
   return (
     <div className="lobby-page -mx-4 space-y-4 px-4 pb-8 sm:-mx-0 sm:space-y-5 sm:px-0">
@@ -146,7 +148,7 @@ export function GameLobby() {
 
       {showSkeleton ? (
         <LobbyGameSkeleton />
-      ) : games.length === 0 ? (
+      ) : !games || games.length === 0 ? (
         <EmptyState message="No games are live yet. Check back soon." />
       ) : category === "all" ? (
         <div className="space-y-5">

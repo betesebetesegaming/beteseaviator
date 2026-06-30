@@ -13,6 +13,7 @@ import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { auth, initAnalytics } from "./firebase";
 import { db } from "./firestore";
 import { loginPathFor } from "./staff-routes";
+import { isAgentRole } from "@/lib/roles";
 import type { Role, UserProfile, Wallet } from "./types";
 
 interface AuthState {
@@ -36,16 +37,9 @@ const AuthContext = createContext<AuthState>({
 });
 
 export function homeFor(role: Role | undefined | null): string {
-  switch (role) {
-    case "admin":
-    case "super_agent":
-    case "sub_agent":
-      return "/admin";
-    case "player":
-      return "/play";
-    default:
-      return "/play";
-  }
+  if (role === "admin" || isAgentRole(role)) return "/admin";
+  if (role === "player") return "/play";
+  return "/play";
 }
 
 export { loginPathFor } from "./staff-routes";

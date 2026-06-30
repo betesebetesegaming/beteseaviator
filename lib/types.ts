@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 
-export type Role = "admin" | "super_agent" | "sub_agent" | "player";
+export type Role = "admin" | "agent" | "super_agent" | "sub_agent" | "player";
 export type UserStatus = "active" | "suspended";
 
 export interface UserProfile {
@@ -9,7 +9,7 @@ export interface UserProfile {
   email: string | null;
   phone: string | null; // normalized digits
   role: Role;
-  parentId: string | null; // owning agent uid (players) / super agent uid (sub agents)
+  parentId: string | null; // owning agent uid (players)
   agentSlug: string | null; // agent username, referral code, subdomain
   staffLoginId?: string | null; // admin username login id
   /** Player invite code (e.g. GREGORY1A2B). */
@@ -36,6 +36,8 @@ export interface AgentStats {
 export interface Wallet {
   balance: number;
   bonusBalance?: number;
+  /** Unclaimed player referral rewards (GMD). */
+  referralBalance?: number;
   currency: "GMD";
   frozen: boolean;
   updatedAt: Timestamp | null;
@@ -167,6 +169,10 @@ export interface BonusRuleSettings {
   percent: number;
   maxAmount: number;
   minDeposit: number;
+  /** Optional player-facing title (admin override). */
+  playerTitle?: string;
+  /** Optional free-text rules shown to players for this bonus. */
+  playerTerms?: string;
 }
 
 export interface WeekendBonusSettings extends BonusRuleSettings {
@@ -187,6 +193,8 @@ export interface PlayerReferralSettings {
   bonusAmount: number;
   minQualifyingDeposit: number;
   requireFirstBet: boolean;
+  /** Unclaimed balance auto-moves to play credit every Monday. */
+  weeklyReleaseToPlay?: boolean;
 }
 
 export interface CustomerCareSettings {
@@ -208,8 +216,10 @@ export interface QTechSettings {
 }
 
 export interface PlatformSettings {
-  subAgentRate: number; // e.g. 0.05
-  superAgentRate: number; // e.g. 0.03
+  /** Agent commission share of GGR (e.g. 0.05 = 5%). */
+  agentRate?: number;
+  subAgentRate: number; // legacy
+  superAgentRate: number; // legacy
   /** API / game provider share of GGR (e.g. 0.15 = 15%). */
   apiProviderRate: number;
   apiProviderName: string;
@@ -225,6 +235,14 @@ export interface PlatformSettings {
   earlyWithdrawalFeeRate?: number;
   /** Bonus must be wagered this many times before becoming cash. */
   bonusWagerMultiplier?: number;
+  /** Player-facing label for games bonus balance applies to. */
+  bonusGamesLabel?: string;
+  /** Intro text on the player wallet deposit bonuses panel. */
+  bonusIntroText?: string;
+  /** Player-facing withdrawal / play-through rules (full text override). */
+  withdrawalRulesText?: string;
+  /** ISO UTC datetime — after this, no new deposit bonuses (empty = no end). */
+  bonusCampaignEndsAt?: string;
   providers: Record<PaymentProvider, boolean>;
   bonuses?: BonusSettings;
   playerReferral?: PlayerReferralSettings;
@@ -244,6 +262,7 @@ export interface DailyStats {
 import { DEFAULT_BONUS_SETTINGS } from "./bonuses";
 
 export const DEFAULT_SETTINGS: PlatformSettings = {
+  agentRate: 0.05,
   subAgentRate: 0.05,
   superAgentRate: 0.03,
   apiProviderRate: 0.15,
@@ -251,12 +270,14 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   minBet: 1,
   maxBet: 100_000,
   minDeposit: 25,
-  minWithdrawal: 500,
+  minWithdrawal: 100,
   minAutoCashout: 1.01,
   maxAutoCashout: 100,
   depositPlaythroughRate: 0.8,
   earlyWithdrawalFeeRate: 0.15,
   bonusWagerMultiplier: 3,
+  bonusGamesLabel: "Aviator & Crash",
+  bonusCampaignEndsAt: "",
   providers: { wave: true, afrimoney: true, aps: true, qmoney: true },
   bonuses: DEFAULT_BONUS_SETTINGS,
   playerReferral: {
@@ -264,6 +285,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     bonusAmount: 10,
     minQualifyingDeposit: 50,
     requireFirstBet: true,
+    weeklyReleaseToPlay: true,
   },
   customerCare: {
     phone: "2204176003",

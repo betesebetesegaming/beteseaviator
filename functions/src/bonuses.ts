@@ -7,6 +7,14 @@ import {
 } from "./helpers";
 import { recordBonusWageringRequirement, playthroughRates, type PlaythroughWallet } from "./wagering";
 
+function depositBonusesActive(settings: { bonusCampaignEndsAt?: string | null }): boolean {
+  const raw = String(settings.bonusCampaignEndsAt ?? "").trim();
+  if (!raw) return true;
+  const endMs = Date.parse(raw);
+  if (!Number.isFinite(endMs)) return true;
+  return Date.now() < endMs;
+}
+
 export type BonusKind = "firstDeposit" | "weeklyCrash" | "weekend";
 
 const BONUS_DESCRIPTIONS: Record<BonusKind, string> = {
@@ -66,6 +74,9 @@ export function applyDepositBonuses(
     userRef: FirebaseFirestore.DocumentReference;
   }
 ): AppliedBonus[] {
+  if (!depositBonusesActive(args.settings as { bonusCampaignEndsAt?: string })) {
+    return [];
+  }
   const bonuses = args.settings.bonuses;
   const applied: AppliedBonus[] = [];
   const userUpdates: Record<string, unknown> = {};

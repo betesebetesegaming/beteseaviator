@@ -6,7 +6,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { ArrowDown, ArrowUp, Plus, Search, Star, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/firestore";
-import { adminSaveLobbyLayout, errorMessage } from "@/lib/api";
+import { adminSaveLobbyLayout, adminDeleteGame, adminSetGameStatus, errorMessage } from "@/lib/api";
 import { filterLobbyGames } from "@/lib/games/catalog";
 import { gameLobbyImageUrl } from "@/lib/games/lobbyImages";
 import {
@@ -32,6 +32,8 @@ function OrderRow({
   total,
   onMove,
   onRemove,
+  onHide,
+  busy,
   badge,
 }: {
   game: Game;
@@ -39,6 +41,8 @@ function OrderRow({
   total: number;
   onMove: (dir: -1 | 1) => void;
   onRemove?: () => void;
+  onHide?: () => void;
+  busy?: boolean;
   badge?: string;
 }) {
   return (
@@ -78,10 +82,20 @@ function OrderRow({
         {onRemove ? (
           <button
             type="button"
-            className="rounded bg-slate-800 px-2 py-1 text-[10px] text-rose-300 hover:text-rose-200"
+            className="rounded bg-slate-800 px-2 py-1 text-[10px] text-slate-300 hover:text-white"
             onClick={onRemove}
           >
-            Remove
+            Unpin
+          </button>
+        ) : null}
+        {onHide && game.status === "active" ? (
+          <button
+            type="button"
+            className="rounded bg-slate-800 px-2 py-1 text-[10px] text-rose-300 hover:text-rose-200 disabled:opacity-40"
+            disabled={busy}
+            onClick={onHide}
+          >
+            Hide
           </button>
         ) : null}
       </div>
@@ -93,17 +107,30 @@ function GamePickTile({
   game,
   pinned,
   onPin,
+  onHide,
+  onShow,
+  onRemovePermanently,
+  busy,
 }: {
   game: Game;
   pinned: boolean;
   onPin: () => void;
+  onHide: () => void;
+  onShow: () => void;
+  onRemovePermanently: () => void;
+  busy: boolean;
 }) {
   const imageUrl = gameLobbyImageUrl(game);
+  const hidden = game.status !== "active";
 
   return (
     <div
       className={`flex flex-col overflow-hidden rounded-xl border bg-slate-950/60 ${
-        pinned ? "border-amber-500/40 ring-1 ring-amber-500/20" : "border-white/10"
+        hidden
+          ? "border-white/5 opacity-60"
+          : pinned
+            ? "border-amber-500/40 ring-1 ring-amber-500/20"
+            : "border-white/10"
       }`}
     >
       <div className="relative aspect-[4/3] bg-black/40">
@@ -126,20 +153,63 @@ function GamePickTile({
             {game.lobbyCategory ?? "game"} · {game.status}
           </p>
         </div>
-        <Button
-          type="button"
-          variant={pinned ? "secondary" : "primary"}
-          className="mt-auto w-full px-2 py-1.5 text-xs"
-          disabled={pinned}
-          onClick={onPin}
-        >
-          {pinned ? "Already pinned" : (
-            <>
-              <Plus size={14} className="mr-1 inline" />
-              Pin to top
-            </>
-          )}
-        </Button>
+        {hidden ? (
+          <div className="mt-auto flex flex-col gap-1.5">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full px-2 py-1.5 text-xs"
+              disabled={busy}
+              onClick={onShow}
+            >
+              Show on lobby
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full px-2 py-1.5 text-xs text-rose-300 hover:text-rose-200"
+              disabled={busy}
+              onClick={onRemovePermanently}
+            >
+              Remove permanently
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-auto flex flex-col gap-1.5">
+            <Button
+              type="button"
+              variant={pinned ? "secondary" : "primary"}
+              className="w-full px-2 py-1.5 text-xs"
+              disabled={pinned || busy}
+              onClick={onPin}
+            >
+              {pinned ? "Pinned to top" : (
+                <>
+                  <Plus size={14} className="mr-1 inline" />
+                  Pin to top
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full px-2 py-1.5 text-xs"
+              disabled={busy}
+              onClick={onHide}
+            >
+              Hide from lobby
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full px-2 py-1.5 text-xs text-rose-300 hover:text-rose-200"
+              disabled={busy}
+              onClick={onRemovePermanently}
+            >
+              Remove permanently
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -154,6 +224,7 @@ export function LobbyOrderEditor({ showPageHeader = false }: { showPageHeader?: 
   const [sortMode, setSortMode] = useState<LobbySortMode>("best_selling");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
+  const [hidingId, setHidingId] = useState<string | null>(null);
 
   useEffect(() => subscribeLobbyLayout(setSavedLayout), []);
 
@@ -201,6 +272,62 @@ export function LobbyOrderEditor({ showPageHeader = false }: { showPageHeader?: 
     toast.success("Added to Top picks — click Save lobby order when done.");
   }
 
+  function unpinFeatured(gameId: string) {
+    setFeaturedIds((rows) => rows.filter((id) => id !== gameId));
+    setManualIds((rows) => (rows.includes(gameId) ? rows : [...rows, gameId]));
+    toast.success("Unpinned from top — click Save lobby order to apply on /play.");
+  }
+
+  async function hideFromLobby(game: Game) {
+    if (!window.confirm(`Hide "${game.name}" from the player lobby? Players will not see it on /play.`)) {
+      return;
+    }
+    setHidingId(game.id);
+    try {
+      await adminSetGameStatus({ gameId: game.id, status: "inactive" });
+      setFeaturedIds((rows) => rows.filter((id) => id !== game.id));
+      setManualIds((rows) => rows.filter((id) => id !== game.id));
+      toast.success(`${game.name} hidden from lobby — gone from /play immediately.`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setHidingId(null);
+    }
+  }
+
+  async function removePermanently(game: Game) {
+    if (
+      !window.confirm(
+        `Permanently remove "${game.name}"?\n\nIt will not come back when you click Restore lobby games.`
+      )
+    ) {
+      return;
+    }
+    setHidingId(game.id);
+    try {
+      await adminDeleteGame({ gameId: game.id });
+      setFeaturedIds((rows) => rows.filter((id) => id !== game.id));
+      setManualIds((rows) => rows.filter((id) => id !== game.id));
+      toast.success(`${game.name} removed permanently.`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setHidingId(null);
+    }
+  }
+
+  async function showOnLobby(game: Game) {
+    setHidingId(game.id);
+    try {
+      await adminSetGameStatus({ gameId: game.id, status: "active" });
+      toast.success(`${game.name} is live on /play again.`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setHidingId(null);
+    }
+  }
+
   async function save() {
     setBusy(true);
     try {
@@ -236,7 +363,10 @@ export function LobbyOrderEditor({ showPageHeader = false }: { showPageHeader?: 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
           <div>
             <p className="text-sm font-bold text-amber-100">Choose top games for /play</p>
-            <p className="text-xs text-amber-100/75">Pin games below, then save. Scroll down for QTech setup.</p>
+            <p className="text-xs text-amber-100/75">
+              Pin = top row only. To remove a game from /play entirely, use{" "}
+              <strong className="text-white">Hide from lobby</strong> on the game tile.
+            </p>
           </div>
           <Button onClick={() => void save()} disabled={busy} className="shrink-0">
             {busy ? "Saving…" : "Save lobby order"}
@@ -250,8 +380,9 @@ export function LobbyOrderEditor({ showPageHeader = false }: { showPageHeader?: 
           Top picks — shown first on /play
         </h2>
         <p className="mb-4 text-sm text-slate-400">
-          Tap <strong className="text-white">Pin to top</strong> on any game tile below. Use ↑ ↓ on pinned games to
-          set order (first = leftmost on the lobby).
+          <strong className="text-white">Pin to top</strong> = show first on /play.{" "}
+          <strong className="text-white">Unpin</strong> = remove from top row only (game still shows below).{" "}
+          <strong className="text-rose-300">Hide from lobby</strong> = remove from /play completely.
         </p>
 
         {featuredGames.length === 0 ? (
@@ -266,10 +397,9 @@ export function LobbyOrderEditor({ showPageHeader = false }: { showPageHeader?: 
                 total={featuredGames.length}
                 badge="Top"
                 onMove={(dir) => setFeaturedIds((rows) => moveListItem(rows, index, dir))}
-                onRemove={() => {
-                  setFeaturedIds((rows) => rows.filter((id) => id !== game.id));
-                  setManualIds((rows) => (rows.includes(game.id) ? rows : [...rows, game.id]));
-                }}
+                onRemove={() => unpinFeatured(game.id)}
+                onHide={() => void hideFromLobby(game)}
+                busy={hidingId === game.id}
               />
             ))}
           </div>
@@ -300,7 +430,11 @@ export function LobbyOrderEditor({ showPageHeader = false }: { showPageHeader?: 
                 key={game.id}
                 game={game}
                 pinned={featuredIds.includes(game.id)}
+                busy={hidingId === game.id}
                 onPin={() => pinFeatured(game.id)}
+                onHide={() => void hideFromLobby(game)}
+                onShow={() => void showOnLobby(game)}
+                onRemovePermanently={() => void removePermanently(game)}
               />
             ))}
           </div>
@@ -366,6 +500,8 @@ export function LobbyOrderEditor({ showPageHeader = false }: { showPageHeader?: 
                       const featured = manualIds.filter((id) => featuredIds.includes(id));
                       setManualIds([...featured, ...moved]);
                     }}
+                    onHide={() => void hideFromLobby(game)}
+                    busy={hidingId === game.id}
                   />
                 ))}
             </div>

@@ -36,3 +36,18 @@ export function referralShareMessage(code: string, bonusAmount: number): string 
     `I earn GMD ${bonusAmount} when you qualify.\n${link}`
   );
 }
+
+export function formatReferralReleaseDate(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-GM", {
+      timeZone: "Africa/Dakar",
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return "Monday";
+  }
+}

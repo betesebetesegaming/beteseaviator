@@ -10,11 +10,13 @@ import {
   adminDeleteGame,
   adminGetQTechSetup,
   adminPreviewQTechGame,
+  adminRunQTechCwTest,
   adminSaveQTechSettings,
   adminSeedQTechGames,
   adminSyncQTechGameImages,
   adminSetGameStatus,
   errorMessage,
+  type QTechCwTestResult,
   type QTechSetupStatus,
 } from "@/lib/api";
 import { DEFAULT_SETTINGS, type PlatformSettings, type QTechSettings } from "@/lib/types";
@@ -88,6 +90,9 @@ export default function AdminQTechPage() {
   const [adding, setAdding] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [cwTesting, setCwTesting] = useState(false);
+  const [cwResult, setCwResult] = useState<QTechCwTestResult | null>(null);
+  const [testPlayerUid, setTestPlayerUid] = useState("");
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -303,7 +308,12 @@ export default function AdminQTechPage() {
             <RefreshCw size={14} className="mr-1.5 inline" />
             Refresh status
           </Button>
-          <Button className="px-3 py-1.5 text-xs" onClick={() => void seedGames()} disabled={seeding}>
+          <Button
+            className="px-3 py-1.5 text-xs"
+            onClick={() => void seedGames()}
+            disabled={seeding}
+            title="Adds missing games only — does not re-activate hidden games or overwrite your names/images."
+          >
             {seeding ? "Creating…" : "Restore lobby games"}
           </Button>
           <Button
@@ -676,11 +686,84 @@ export default function AdminQTechPage() {
       </Card>
 
       <Card>
-        <h2 className="mb-2 font-semibold">8. Certification tester</h2>
+        <h2 className="mb-2 font-semibold">8. Common Wallet certification</h2>
         <p className="text-sm text-slate-400">
-          After Pass-Key is saved, run{" "}
-          <code className="text-xs text-slate-300">docs/qtech/cw_qtcw_tester.py all</code> against
-          your wallet URL. See <code className="text-xs text-slate-300">docs/qtech/README.txt</code>.
+          Before real game launches, run the Common Wallet test suite. It checks session verification,
+          balance, bet (withdrawal), payout (deposit), rollback, reward, and idempotency against your live{" "}
+          <code className="text-xs text-slate-300">qtcwApi</code> deployment.
+        </p>
+        <ul className="mt-3 list-inside list-disc text-xs text-slate-500">
+          <li>Pass-Key must be saved in section 3 above.</li>
+          <li>Uses a player wallet with at least 200 GMD playable balance (cash + bonus).</li>
+          <li>Test amount defaults to 10 GMD per bet — real money moves on the test player.</li>
+        </ul>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Input
+            label="Test player UID (optional)"
+            placeholder="Auto-pick highest-balance player"
+            value={testPlayerUid}
+            onChange={(e) => setTestPlayerUid(e.target.value)}
+          />
+        </div>
+        <Button
+          className="mt-4"
+          onClick={async () => {
+            if (!status?.walletReady) {
+              toast.error("Save your Pass-Key in section 3 first.");
+              return;
+            }
+            setCwTesting(true);
+            setCwResult(null);
+            try {
+              const res = await adminRunQTechCwTest({
+                playerUid: testPlayerUid.trim() || undefined,
+              });
+              setCwResult(res);
+              if (res.ok) {
+                toast.success(`Common Wallet tests passed in ${Math.round(res.durationMs / 1000)}s`);
+              } else {
+                toast.error(res.error || "Common Wallet tests failed");
+              }
+            } catch (e) {
+              toast.error(errorMessage(e));
+            } finally {
+              setCwTesting(false);
+            }
+          }}
+          disabled={cwTesting || !status?.walletReady}
+        >
+          {cwTesting ? "Running CW tests…" : "Run Common Wallet tests"}
+        </Button>
+        {cwResult && (
+          <div
+            className={`mt-4 rounded-lg border p-3 text-sm ${
+              cwResult.ok
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+                : "border-red-500/30 bg-red-500/10 text-red-100"
+            }`}
+          >
+            <p className="font-semibold">
+              {cwResult.ok ? "All Common Wallet tests passed" : "Common Wallet tests failed"}
+            </p>
+            {cwResult.error && <p className="mt-1 text-xs opacity-90">{cwResult.error}</p>}
+            <p className="mt-2 text-xs text-slate-400">
+              Player: <code className="text-slate-300">{cwResult.playerId}</code> ·{" "}
+              {Math.round(cwResult.durationMs / 1000)}s
+            </p>
+            <ul className="mt-3 max-h-48 space-y-1 overflow-y-auto text-xs">
+              {cwResult.steps.map((step) => (
+                <li key={step.name} className={step.ok ? "text-emerald-300" : "text-red-300"}>
+                  {step.ok ? "✓" : "✗"} {step.name}
+                  {step.detail ? ` — ${step.detail}` : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="mt-4 text-xs text-slate-500">
+          Official QTech script:{" "}
+          <code className="text-slate-400">docs/qtech/cw_qtcw_tester.py all</code> — see{" "}
+          <code className="text-slate-400">docs/qtech/README.txt</code>.
         </p>
       </Card>
 

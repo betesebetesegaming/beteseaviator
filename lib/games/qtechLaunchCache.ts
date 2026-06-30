@@ -4,7 +4,7 @@ import { launchQTechGame, launchQTechGameDemo } from "@/lib/api";
 import type { Game } from "@/lib/types";
 
 const GAME_DOC_PREFIX = "betese-game-doc-v1:";
-const LAUNCH_URL_PREFIX = "betese-qtech-launch-v1:";
+const LAUNCH_URL_PREFIX = "betese-qtech-launch-v2:";
 const LAUNCH_TTL_MS = 8 * 60 * 1000;
 const DEMO_LAUNCH_TTL_MS = 15 * 60 * 1000;
 const GAME_DOC_TTL_MS = 30 * 60 * 1000;
@@ -83,8 +83,6 @@ export async function prefetchQTechLaunch(opts: {
         : await launchQTechGame({ gameId, device });
       writeCachedQTechLaunchUrl(gameId, demo, res.launchUrl, device);
       return res.launchUrl;
-    } catch {
-      return null;
     } finally {
       inflightLaunches.delete(key);
     }

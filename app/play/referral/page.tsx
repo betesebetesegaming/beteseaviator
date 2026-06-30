@@ -27,7 +27,7 @@ export default function ReferralPage() {
       >
         <ArrowLeft size={16} /> Wallet
       </Link>
-      <h1 className="mb-5 text-xl font-bold">Refer friends</h1>
+      <h1 className="mb-5 text-xl font-bold">Referral bonus account</h1>
       <ReferralPanel />
     </div>
   );

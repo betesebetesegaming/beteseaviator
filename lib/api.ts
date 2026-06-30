@@ -50,8 +50,26 @@ export const getPlayerReferralDashboard = call<
     qualifiedFriends: number;
     pendingBonuses: number;
     totalBonusEarned: number;
+    referralBalance: number;
+    weeklyReleaseToPlay: boolean;
+    nextReleaseAt: string;
   }
 >("getPlayerReferralDashboard");
+
+export const claimReferralEarnings = call<
+  {
+    mode: "withdraw";
+    amount?: number;
+    provider?: PaymentProvider;
+    phone?: string;
+  },
+  { ok: true; requestId: string }
+>("claimReferralEarnings");
+
+export const adminReleaseReferralBonuses = call<
+  { uid?: string },
+  { players: number; total: number }
+>("adminReleaseReferralBonuses");
 
 /** Agent/staff username login: verifies password server-side, returns email for client sign-in. */
 export const agentLogin = call<
@@ -101,16 +119,6 @@ export const agentDepositToCustomer = call<
   { ok: true }
 >("agentDepositToCustomer");
 
-export const agentCreateSubAgent = call<
-  { name: string; email?: string; username: string; password: string },
-  { uid: string; slug: string }
->("agentCreateSubAgent");
-
-export const agentTransferToSubAgent = call<
-  { subAgentId: string; amount: number },
-  { ok: true }
->("agentTransferToSubAgent");
-
 // ---------- admin ----------
 
 export const adminCreateUser = call<
@@ -140,6 +148,11 @@ export const adminFreezeWallet = call<
   { uid: string; frozen: boolean },
   { ok: true }
 >("adminFreezeWallet");
+
+export const adminResetPlayerPassword = call<
+  { phone: string; password: string },
+  { ok: true; uid: string; phone: string; authEmail: string }
+>("adminResetPlayerPassword");
 
 export const adminResolvePayment = call<
   { requestId: string; action: "approve" | "reject"; reason?: string },
@@ -259,6 +272,23 @@ export const adminSaveQTechSettings = call<
   { qtech: Record<string, unknown> },
   QTechSetupStatus & { ok: true }
 >("adminSaveQTechSettings");
+
+export type QTechCwTestStep = { name: string; ok: boolean; detail?: string };
+
+export type QTechCwTestResult = {
+  ok: boolean;
+  playerId: string;
+  walletUrl: string;
+  sessions: { active: string; expired: string };
+  steps: QTechCwTestStep[];
+  error?: string;
+  durationMs: number;
+};
+
+export const adminRunQTechCwTest = call<
+  { playerUid?: string; amount?: number; gameId?: string },
+  QTechCwTestResult
+>("adminRunQTechCwTest");
 
 export const launchQTechGame = call<
   { gameId: string; device?: "mobile" | "desktop" },

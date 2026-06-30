@@ -22,6 +22,7 @@ import {
   resolvePlayerReferrerUid,
 } from "./referrals";
 import { assertOtpVerifiedForPhone } from "./otpVerification";
+import { isAgentRole, isStaffRole as isStaffRoleCheck } from "./roles";
 
 /** Web API key used to verify agent passwords through the Identity Toolkit REST API. */
 const WEB_API_KEY = defineString("WEB_API_KEY", {
@@ -66,11 +67,9 @@ export const completeRegistration = onCall(async (req) => {
       const agentSnap = await db.doc(`users/${agentId}`).get();
       if (agentSnap.exists && agentSnap.data()!.status === "active") {
         const agent = agentSnap.data() as ProfileData;
-        if (agent.role === "super_agent" || agent.role === "sub_agent") {
+        if (isAgentRole(agent.role)) {
           parentId = agentId;
-          ancestors = agent.role === "sub_agent" && agent.parentId
-            ? [agentId, agent.parentId]
-            : [agentId];
+          ancestors = [agentId];
         }
       }
     }
@@ -231,7 +230,7 @@ const PRIMARY_STAFF_LOGIN = "admin";
 const PRIMARY_ADMIN_EMAIL = "admin@beteseaviator.com";
 
 function isStaffRole(role: Role | undefined): boolean {
-  return role === "admin" || role === "super_agent" || role === "sub_agent";
+  return isStaffRoleCheck(role);
 }
 
 async function ensureAdminProfileForUid(uid: string): Promise<void> {
@@ -304,7 +303,7 @@ export const resolveStaffSession = onCall(async (req) => {
     await auth.setCustomUserClaims(uid, { role: profile.role });
   }
 
-  if (profile.role === "super_agent" || profile.role === "sub_agent") {
+  if (isAgentRole(profile.role)) {
     const { ensureAgentLoginDocs } = await import("./agent");
     await ensureAgentLoginDocs(uid, profile);
   }
@@ -556,26 +555,17 @@ export const seedPlatform = onCall(async (req) => {
     const johnId = await createAccount({
       email: "john@betese.com",
       password: "password",
-      name: "John Super",
-      role: "super_agent",
+      name: "John Agent",
+      role: "agent",
       slug: "john",
-    });
-    const victorId = await createAccount({
-      email: "victor@betese.com",
-      password: "password",
-      name: "Victor Sub",
-      role: "sub_agent",
-      slug: "victor",
-      parentId: johnId,
-      ancestors: [johnId],
     });
     await createAccount({
       phone: "3010001",
       password: "password",
       name: "Demo Customer One",
       role: "player",
-      parentId: victorId,
-      ancestors: [victorId, johnId],
+      parentId: johnId,
+      ancestors: [johnId],
       balance: 10_000,
     });
     await createAccount({
@@ -586,15 +576,11 @@ export const seedPlatform = onCall(async (req) => {
       balance: 5_000,
     });
     await db.doc("stats/platform").set(
-      { customerCount: FieldValue.increment(2), agentCount: FieldValue.increment(2) },
+      { customerCount: FieldValue.increment(2), agentCount: FieldValue.increment(1) },
       { merge: true }
     );
-    await db.doc(`users/${johnId}`).set(
-      { stats: { customerCount: 1, subAgentCount: 1 } },
-      { merge: true }
-    );
-    await db.doc(`users/${victorId}`).set({ stats: { customerCount: 1 } }, { merge: true });
-    created.push("demo accounts (john, victor, 3010001, 3020002 — password: password)");
+    await db.doc(`users/${johnId}`).set({ stats: { customerCount: 1 } }, { merge: true });
+    created.push("demo accounts (john agent, 3010001, 3020002 — password: password)");
   }
 
   return { ok: true, created };

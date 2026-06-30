@@ -1,4 +1,10 @@
-import type { BonusRuleSettings, BonusSettings, Wallet, WeekendBonusSettings } from "@/lib/types";
+import type {
+  BonusRuleSettings,
+  BonusSettings,
+  PlatformSettings,
+  Wallet,
+  WeekendBonusSettings,
+} from "@/lib/types";
 
 export const DEFAULT_BONUS_SETTINGS: BonusSettings = {
   firstDeposit: {
@@ -68,4 +74,74 @@ export function isWeekendBonusWindow(at: Date, rule: BonusSettings["weekend"]): 
   if (day === 6) return true;
   if (day === 0 && hour <= rule.sundayEndHour) return true;
   return false;
+}
+
+export function bonusPlayerTitle(key: keyof BonusSettings, rule: BonusRuleSettings): string {
+  const custom = rule.playerTitle?.trim();
+  return custom || BONUS_LABELS[key];
+}
+
+export function bonusPlayerDescription(
+  key: keyof BonusSettings,
+  rule: BonusRuleSettings | WeekendBonusSettings,
+): string {
+  const custom = rule.playerTerms?.trim();
+  return custom || bonusRuleSummary(key, rule);
+}
+
+export function defaultBonusIntroText(bonusGamesLabel: string): string {
+  return `Bonuses are added to your bonus balance when a deposit is confirmed. Use them on ${bonusGamesLabel} — wins go to your cash balance.`;
+}
+
+export function bonusIntroCopy(settings: Pick<PlatformSettings, "bonusIntroText" | "bonusGamesLabel">): string {
+  const custom = settings.bonusIntroText?.trim();
+  if (custom) return custom;
+  return defaultBonusIntroText(settings.bonusGamesLabel?.trim() || "Aviator & Crash");
+}
+
+export function withdrawalRulesCopy(
+  settings: Pick<
+    PlatformSettings,
+    "withdrawalRulesText" | "depositPlaythroughRate" | "earlyWithdrawalFeeRate" | "bonusGamesLabel"
+  >,
+): string {
+  const custom = settings.withdrawalRulesText?.trim();
+  if (custom) return custom;
+  const depositRate = Math.round((settings.depositPlaythroughRate ?? 0.8) * 100);
+  const feeRate = Math.round((settings.earlyWithdrawalFeeRate ?? 0.15) * 100);
+  const label = settings.bonusGamesLabel?.trim() || "Aviator & Crash";
+  return `Only cash balance can be withdrawn. Bonus balance is for ${label} bets. Withdrawing before playing ${depositRate}% of deposits costs a ${feeRate}% fee and forfeits any bonus.`;
+}
+
+/** True when deposit bonus campaign is still running (empty end date = always on). */
+export function depositBonusesActive(settings: Pick<PlatformSettings, "bonusCampaignEndsAt">): boolean {
+  const raw = settings.bonusCampaignEndsAt?.trim();
+  if (!raw) return true;
+  const endMs = Date.parse(raw);
+  if (!Number.isFinite(endMs)) return true;
+  return Date.now() < endMs;
+}
+
+export function formatBonusCampaignEnd(iso: string | undefined): string {
+  const raw = iso?.trim();
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  return d.toLocaleString("en-GM", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" }) + " GMT";
+}
+
+/** For admin datetime-local input (stored as UTC ISO). */
+export function bonusCampaignEndInputValue(iso: string | undefined): string {
+  const raw = iso?.trim();
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+export function bonusCampaignEndFromInput(localValue: string): string {
+  const v = localValue.trim();
+  if (!v) return "";
+  return `${v}:00.000Z`;
 }

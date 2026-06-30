@@ -24,12 +24,7 @@ import {
   Th,
 } from "@/components/ui";
 
-const ROLE_LABELS: Record<Role, string> = {
-  admin: "Admin",
-  super_agent: "Super Agent",
-  sub_agent: "Sub Agent",
-  player: "Customer",
-};
+import { isAgentRole, roleLabel as sharedRoleLabel } from "@/lib/roles";
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserProfile[] | null>(null);
@@ -59,7 +54,7 @@ export default function AdminUsersPage() {
   }, []);
 
   const agents = useMemo(
-    () => (users ?? []).filter((u) => u.role === "super_agent" || u.role === "sub_agent"),
+    () => (users ?? []).filter((u) => isAgentRole(u.role)),
     [users]
   );
 
@@ -113,8 +108,6 @@ export default function AdminUsersPage() {
       return toast.error("Customers need a valid Gambia or Senegal phone.");
     if (isStaffRole && !email.trim() && !username.trim())
       return toast.error("Staff can sign in with name or username — add a username if needed.");
-    if (role === "sub_agent" && !parentId)
-      return toast.error("A sub agent must belong to a super agent.");
     setCreating(true);
     try {
       const res = await adminCreateUser({
@@ -127,7 +120,7 @@ export default function AdminUsersPage() {
         parentId: parentId || null,
       });
       toast.success(`User created${res.slug ? ` — username "${res.slug}"` : ""}.`);
-      if (res.slug && (role === "super_agent" || role === "sub_agent")) {
+      if (res.slug && role === "agent") {
         setCreatedAgent({ slug: res.slug, name: name.trim() });
       }
       setCreateOpen(false);
@@ -147,8 +140,12 @@ export default function AdminUsersPage() {
     }
   }
 
-  const isAgentRole = form.role === "super_agent" || form.role === "sub_agent";
-  const isStaffRole = isAgentRole || form.role === "admin";
+  const isAgentForm = form.role === "agent";
+  const isStaffRole = isAgentForm || form.role === "admin";
+
+  function displayRole(role: Role): string {
+    return sharedRoleLabel(role);
+  }
 
   return (
     <div>
@@ -185,8 +182,7 @@ export default function AdminUsersPage() {
           <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as Role | "all")}>
             <option value="all">All roles</option>
             <option value="player">Customers</option>
-            <option value="super_agent">Super Agents</option>
-            <option value="sub_agent">Sub Agents</option>
+            <option value="agent">Agent Marketers</option>
             <option value="admin">Admins</option>
           </Select>
         </div>
@@ -215,7 +211,7 @@ export default function AdminUsersPage() {
               <tr key={u.uid}>
                 <Td className="font-medium">{u.name}</Td>
                 <Td>
-                  <Badge value={u.role} />
+                  <Badge value={displayRole(u.role)} />
                 </Td>
                 <Td className="tabular-nums text-slate-400">
                   {u.role === "player"
@@ -267,8 +263,7 @@ export default function AdminUsersPage() {
             onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
           >
             <option value="player">Customer</option>
-            <option value="super_agent">Super Agent</option>
-            <option value="sub_agent">Sub Agent</option>
+            <option value="agent">Agent Marketer</option>
             <option value="admin">Admin</option>
           </Select>
           <Input
@@ -302,22 +297,6 @@ export default function AdminUsersPage() {
               onChange={(e) => setForm({ ...form, username: e.target.value })}
             />
           )}
-          {form.role === "sub_agent" && (
-            <Select
-              label="Super Agent"
-              value={form.parentId}
-              onChange={(e) => setForm({ ...form, parentId: e.target.value })}
-            >
-              <option value="">Select super agent…</option>
-              {agents
-                .filter((a) => a.role === "super_agent")
-                .map((a) => (
-                  <option key={a.uid} value={a.uid}>
-                    {a.name} ({a.agentSlug})
-                  </option>
-                ))}
-            </Select>
-          )}
           {form.role === "player" && (
             <Select
               label="Owning agent (optional — blank = direct BETESE customer)"
@@ -327,7 +306,7 @@ export default function AdminUsersPage() {
               <option value="">Direct (no agent)</option>
               {agents.map((a) => (
                 <option key={a.uid} value={a.uid}>
-                  {a.name} ({a.agentSlug}) — {ROLE_LABELS[a.role]}
+                  {a.name} ({a.agentSlug}) — {sharedRoleLabel(a.role)}
                 </option>
               ))}
             </Select>

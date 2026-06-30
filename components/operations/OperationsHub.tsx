@@ -36,7 +36,6 @@ export function OperationsHub() {
   const searchParams = useSearchParams();
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
-  const isSuper = profile?.role === "super_agent";
 
   const initialTab = (searchParams.get("tab") as Tab) || "overview";
   const [tab, setTab] = useState<Tab>(TABS.includes(initialTab) ? initialTab : "overview");
@@ -106,7 +105,7 @@ export function OperationsHub() {
   const title = isAdmin ? "Platform operations" : "Agent operations";
   const subtitle = isAdmin
     ? "Live activity, full transaction ledger, and every user on BETESE — one place."
-    : "Your customers, sub-agents, live activity, and network transactions — one place.";
+    : "Your customers, live activity, and network transactions — one place.";
 
   return (
     <div className="space-y-6">
@@ -169,7 +168,7 @@ export function OperationsHub() {
                   <Shield size={20} className="mb-2 text-violet-400" />
                   <h2 className="font-semibold">Create any account</h2>
                   <p className="mt-1 mb-3 text-sm text-slate-400">
-                    Customers, agents, sub-agents, and admins.
+                    Customers, agents, and admins.
                   </p>
                   <Link href="/admin/users">
                     <Button variant="secondary" className="w-full gap-2">
@@ -212,25 +211,11 @@ export function OperationsHub() {
                     </Button>
                   </Link>
                 </Card>
-                {isSuper && (
-                  <Card className="p-4">
-                    <UserCog size={20} className="mb-2 text-sky-400" />
-                    <h2 className="font-semibold">Add sub-agent</h2>
-                    <p className="mt-1 mb-3 text-sm text-slate-400">
-                      Grow your team — sub-agents bring their own customers.
-                    </p>
-                    <Link href="/admin/sub-agents">
-                      <Button variant="secondary" className="w-full">
-                        Create sub-agent
-                      </Button>
-                    </Link>
-                  </Card>
-                )}
                 <Card className="p-4">
                   <Receipt size={20} className="mb-2 text-amber-400" />
                   <h2 className="font-semibold">Network ledger</h2>
                   <p className="mt-1 mb-3 text-sm text-slate-400">
-                    Your wallet, your customers, and your sub-agents&apos; activity.
+                    Your wallet and your customers&apos; activity.
                   </p>
                   <Button variant="secondary" className="w-full" onClick={() => setTab("transactions")}>
                     View transactions
@@ -260,7 +245,7 @@ export function OperationsHub() {
               message={
                 isAdmin
                   ? "No one is online right now."
-                  : "None of your customers or sub-agents are online right now."
+                  : "None of your customers are online right now."
               }
             />
           ) : (

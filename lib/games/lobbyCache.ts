@@ -1,7 +1,8 @@
 "use client";
 
-const CACHE_KEY = "betese-lobby-games-v2";
-const TTL_MS = 10 * 60 * 1000; // 10 minutes
+/** Bump when lobby game shape/filter changes — invalidates stale localStorage. */
+const CACHE_KEY = "betese-lobby-games-v3";
+const TTL_MS = 5 * 60 * 1000;
 
 type CacheEntry<T> = { games: T[]; at: number };
 
@@ -26,5 +27,17 @@ export function writeCachedLobbyGames<T>(games: T[]): void {
     localStorage.setItem(CACHE_KEY, JSON.stringify(entry));
   } catch {
     /* quota — ignore */
+  }
+}
+
+/** Drop old cache keys after admin removes/hides games. */
+export function clearLobbyGamesCache(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem("betese-lobby-games-v2");
+    localStorage.removeItem("betese-lobby-games-v1");
+  } catch {
+    /* ignore */
   }
 }

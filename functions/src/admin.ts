@@ -16,6 +16,7 @@ import {
   type ProfileData,
   type Role,
 } from "./helpers";
+import { isAgentRole } from "./roles";
 import { claimSlug, createPlayerAccount, ensureAgentLoginDocs } from "./agent";
 
 /** Route outbound QTech API calls through Cloud NAT static IP (QTech IP whitelist). */
@@ -47,17 +48,16 @@ export const adminCreateUser = onCall(async (req) => {
       const agentSnap = await db.doc(`users/${parentId}`).get();
       if (!agentSnap.exists) throw new HttpsError("not-found", "Owning agent not found.");
       const agent = agentSnap.data() as ProfileData;
-      if (agent.role !== "super_agent" && agent.role !== "sub_agent") {
+      if (!isAgentRole(agent.role)) {
         throw new HttpsError("invalid-argument", "A customer's parent must be an agent.");
       }
-      ancestors =
-        agent.role === "sub_agent" && agent.parentId ? [parentId, agent.parentId] : [parentId];
+      ancestors = [parentId];
     }
     const uid = await createPlayerAccount({ name, phone, password, parentId, ancestors });
     return { uid };
   }
 
-  if (role === "super_agent" || role === "sub_agent" || role === "admin") {
+  if (role === "agent" || role === "admin") {
     const hasEmail = email.includes("@");
     const loginKey = staffLoginKey(username || name);
     if (!hasEmail && !loginKey) {
@@ -67,14 +67,6 @@ export const adminCreateUser = onCall(async (req) => {
       );
     }
     let ancestors: string[] = [];
-    if (role === "sub_agent") {
-      if (!parentId) throw new HttpsError("invalid-argument", "A sub agent needs a super agent.");
-      const superSnap = await db.doc(`users/${parentId}`).get();
-      if (!superSnap.exists || (superSnap.data() as ProfileData).role !== "super_agent") {
-        throw new HttpsError("invalid-argument", "Parent must be a super agent.");
-      }
-      ancestors = [parentId];
-    }
 
     const provisionalAuthEmail = hasEmail ? email : staffLoginEmail(loginKey);
     let uid: string;
@@ -110,7 +102,7 @@ export const adminCreateUser = onCall(async (req) => {
       email: hasEmail ? email : null,
       phone: phone || null,
       role,
-      parentId: role === "sub_agent" ? parentId : null,
+      parentId: null,
       agentSlug: slug,
       staffLoginId,
       ancestors,
@@ -131,18 +123,11 @@ export const adminCreateUser = onCall(async (req) => {
     if (role === "admin" && staffLoginId) {
       batch.set(db.doc(`staffLogins/${staffLoginId}`), { uid, role: "admin" });
     }
-    if (role === "sub_agent" && parentId) {
-      batch.set(
-        db.doc(`users/${parentId}`),
-        { stats: { subAgentCount: FieldValue.increment(1) } },
-        { merge: true }
-      );
-    }
     await batch.commit();
-    if (role === "super_agent" || role === "sub_agent") {
+    if (role === "agent") {
       await ensureAgentLoginDocs(uid, {
         name,
-        role,
+        role: "agent",
         agentSlug: slug,
         status: "active",
       });
@@ -221,12 +206,39 @@ export const adminFreezeWallet = onCall(async (req) => {
   return { ok: true };
 });
 
+/** Reset a player's sign-in password by phone (admin support). */
+export const adminResetPlayerPassword = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const phone = normalizePhone(String(req.data?.phone ?? ""));
+  const password = String(req.data?.password ?? "");
+  if (!phone) throw new HttpsError("invalid-argument", "A valid phone number is required.");
+  if (password.length < 8) {
+    throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
+  }
+
+  const phoneSnap = await db.doc(`phones/${phone}`).get();
+  if (!phoneSnap.exists) {
+    throw new HttpsError("not-found", "No player account found for this phone number.");
+  }
+  const uid = String(phoneSnap.data()?.uid ?? "");
+  if (!uid) throw new HttpsError("not-found", "Phone record is missing a linked user.");
+
+  const authEmail = phoneToEmail(phone);
+  await auth.updateUser(uid, { email: authEmail, password });
+  const userSnap = await db.doc(`users/${uid}`).get();
+  const name = userSnap.exists ? String(userSnap.data()?.name ?? "") : "";
+  if (name) await auth.updateUser(uid, { displayName: name });
+
+  return { ok: true, uid, phone, authEmail };
+});
+
 /** Platform settings: rates, limits, provider toggles. */
 export const adminSaveSettings = onCall(async (req) => {
   await requireRole(req, ["admin"]);
   const data = req.data ?? {};
   const clean: Record<string, unknown> = {};
   const numericKeys = [
+    "agentRate",
     "subAgentRate",
     "superAgentRate",
     "apiProviderRate",
@@ -246,6 +258,12 @@ export const adminSaveSettings = onCall(async (req) => {
       if (!Number.isFinite(v) || v < 0) throw new HttpsError("invalid-argument", `Invalid ${k}.`);
       clean[k] = v;
     }
+  }
+  if (
+    (clean.agentRate as number | undefined) !== undefined &&
+    (clean.agentRate as number) > 1
+  ) {
+    throw new HttpsError("invalid-argument", "Agent rate is a fraction, e.g. 0.05 = 5%.");
   }
   if ((clean.subAgentRate as number) > 1 || (clean.superAgentRate as number) > 1) {
     throw new HttpsError("invalid-argument", "Rates are fractions, e.g. 0.05 = 5%.");
@@ -268,6 +286,28 @@ export const adminSaveSettings = onCall(async (req) => {
   }
   if (data.apiProviderName !== undefined) {
     clean.apiProviderName = String(data.apiProviderName).trim().slice(0, 80) || "API Provider";
+  }
+  if (data.bonusGamesLabel !== undefined) {
+    clean.bonusGamesLabel =
+      String(data.bonusGamesLabel).trim().slice(0, 80) || "Aviator & Crash";
+  }
+  if (data.bonusIntroText !== undefined) {
+    clean.bonusIntroText = String(data.bonusIntroText).trim().slice(0, 2000);
+  }
+  if (data.withdrawalRulesText !== undefined) {
+    clean.withdrawalRulesText = String(data.withdrawalRulesText).trim().slice(0, 2000);
+  }
+  if (data.bonusCampaignEndsAt !== undefined) {
+    const raw = String(data.bonusCampaignEndsAt).trim();
+    if (!raw) {
+      clean.bonusCampaignEndsAt = "";
+    } else {
+      const ms = Date.parse(raw.includes("T") ? raw : `${raw}T23:59:59.000Z`);
+      if (!Number.isFinite(ms)) {
+        throw new HttpsError("invalid-argument", "Invalid bonus campaign end date.");
+      }
+      clean.bonusCampaignEndsAt = new Date(ms).toISOString();
+    }
   }
   if (data.providers && typeof data.providers === "object") {
     const providers: Record<string, boolean> = {};
@@ -299,6 +339,12 @@ export const adminSaveSettings = onCall(async (req) => {
         maxAmount,
         minDeposit,
       };
+      if (src.playerTitle !== undefined) {
+        rule.playerTitle = String(src.playerTitle).trim().slice(0, 120);
+      }
+      if (src.playerTerms !== undefined) {
+        rule.playerTerms = String(src.playerTerms).trim().slice(0, 2000);
+      }
       if (extra?.includes("fridayStartHour")) {
         const h = Number(src.fridayStartHour);
         if (!Number.isFinite(h) || h < 0 || h > 23) {
@@ -412,7 +458,7 @@ export const adminRebuildPlatformStats = onCall(async (req) => {
   const customers = await db.collection("users").where("role", "==", "player").count().get();
   const agents = await db
     .collection("users")
-    .where("role", "in", ["super_agent", "sub_agent"])
+    .where("role", "in", ["agent", "super_agent", "sub_agent"])
     .count()
     .get();
 
@@ -548,7 +594,10 @@ export const adminSaveLobbyLayout = onCall(async (req) => {
 /** Backfill staffLogins + slugs for all agents (fixes legacy accounts). */
 export const adminSyncAgentLogins = onCall(async (req) => {
   await requireRole(req, ["admin"]);
-  const snap = await db.collection("users").where("role", "in", ["super_agent", "sub_agent"]).get();
+  const snap = await db
+    .collection("users")
+    .where("role", "in", ["agent", "super_agent", "sub_agent"])
+    .get();
   let synced = 0;
   for (const doc of snap.docs) {
     const profile = doc.data() as ProfileData;
@@ -698,6 +747,12 @@ export const adminSetGameStatus = onCall(async (req) => {
   }
 
   await ref.set(patch, { merge: true });
+
+  if (patch.status === "inactive") {
+    const { removeGameFromLobbyLayout } = await import("./lobbyExclusions");
+    await removeGameFromLobbyLayout(gameId);
+  }
+
   return { ok: true };
 });
 
@@ -714,6 +769,17 @@ export const adminAddQTechGame = onCall(QTECH_OUTBOUND, async (req) => {
   if (!["aviator", "crash", "instantwin"].includes(lobbyCategory)) {
     throw new HttpsError("invalid-argument", "Category must be aviator, crash, or instantwin.");
   }
+
+  const { probeQTechGameIds } = await import("./qtech/gameList");
+  const [probe] = await probeQTechGameIds([qtechGameId]);
+  const launchOk = probe?.launchStatus === 200 && Boolean(probe?.launchUrl);
+  if (!launchOk) {
+    throw new HttpsError(
+      "failed-precondition",
+      `QTech could not launch ${qtechGameId} (HTTP ${probe?.launchStatus ?? "error"}). Check the game ID in QTech back office.`,
+    );
+  }
+
   let rtp = Number(req.data?.rtp);
   if (!Number.isFinite(rtp) || rtp < 0 || rtp > 100) rtp = 97;
 
@@ -755,7 +821,10 @@ export const adminDeleteGame = onCall(async (req) => {
   await requireRole(req, ["admin"]);
   const gameId = String(req.data?.gameId ?? "").trim();
   if (!gameId) throw new HttpsError("invalid-argument", "gameId is required.");
+  const { excludeLobbyGameId, removeGameFromLobbyLayout } = await import("./lobbyExclusions");
+  await excludeLobbyGameId(gameId);
   await db.doc(`games/${gameId}`).delete();
+  await removeGameFromLobbyLayout(gameId);
   return { ok: true };
 });
 
@@ -782,6 +851,13 @@ export const adminSeedQTechGames = onCall(QTECH_OUTBOUND, async (req) => {
   const { syncQTechLobbyImages } = await import("./qtech/gameList");
   const seeded = await seedAllLobbyGames();
   const ids = await ensureQTechGameDocs();
+  let reconcile: Awaited<ReturnType<typeof import("./qtech/gameList").reconcileQTechLobbyGames>> | undefined;
+  try {
+    const { reconcileQTechLobbyGames } = await import("./qtech/gameList");
+    reconcile = await reconcileQTechLobbyGames();
+  } catch (e) {
+    logger.warn("QTech lobby reconcile failed during seed", e);
+  }
   let imageSync = { updated: [] as string[], skipped: [] as string[], missing: [] as string[] };
   try {
     imageSync = await syncQTechLobbyImages();
@@ -789,7 +865,7 @@ export const adminSeedQTechGames = onCall(QTECH_OUTBOUND, async (req) => {
     logger.warn("QTech thumbnail sync failed during seed", e);
   }
   const status = await getQTechSetupStatus();
-  return { ok: true, ...seeded, gameIds: ids, imageSync, ...status };
+  return { ok: true, ...seeded, gameIds: ids, imageSync, reconcile, ...status };
 });
 
 /** Pull official QTech CDN thumbnails into Firestore game docs. */
@@ -815,6 +891,27 @@ export const adminGetQTechSetup = onCall(async (req) => {
   const { getQTechSetupStatus } = await import("./qtech/games");
   return getQTechSetupStatus();
 });
+
+/** Run QTech Common Wallet certification tests (session, balance, bet, payout, rollback). */
+export const adminRunQTechCwTest = onCall(
+  {
+    region: "us-central1",
+    memory: "512MiB",
+    timeoutSeconds: 300,
+    maxInstances: 3,
+    vpcConnector: "projects/beteseaviator-a05ae/locations/us-central1/connectors/betese-qtech",
+    vpcConnectorEgressSettings: "ALL_TRAFFIC",
+  },
+  async (req) => {
+    await requireRole(req, ["admin"]);
+    const data = req.data ?? {};
+    const playerUid = typeof data.playerUid === "string" ? data.playerUid.trim() : undefined;
+    const amount = data.amount !== undefined ? Number(data.amount) : undefined;
+    const gameId = typeof data.gameId === "string" ? data.gameId.trim() : undefined;
+    const { runQTechCwTestSuite } = await import("./qtech/cwTester");
+    return runQTechCwTestSuite({ playerUid, amount, gameId });
+  }
+);
 
 /** Save only QTech integration settings (credentials + enable toggle). */
 export const adminSaveQTechSettings = onCall(async (req) => {

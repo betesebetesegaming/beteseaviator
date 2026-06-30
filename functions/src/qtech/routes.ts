@@ -1,7 +1,12 @@
 import type { Request, Response, NextFunction } from "express";
 import { logger } from "firebase-functions/v2";
 import { getQTechSettings } from "./config";
-import { resolveWalletSession } from "./session";
+import {
+  normalizeWalletSessionId,
+  qtechPlayerIdsMatch,
+  resolveWalletSession,
+  touchWalletSession,
+} from "./session";
 import {
   getBalanceForPlayer,
   parseQtechError,
@@ -18,8 +23,56 @@ function passKey(req: Request): string {
 }
 
 function walletSession(req: Request): string | undefined {
-  const raw = req.header("Wallet-Session") || req.header("wallet-session");
-  return raw?.trim() || undefined;
+  const header =
+    req.header("Wallet-Session") ||
+    req.header("wallet-session") ||
+    req.header("Wallet-Session-Id") ||
+    req.header("wallet-session-id");
+  if (header?.trim()) return header.trim();
+  const query = req.query.walletSession ?? req.query.walletSessionId ?? req.query.session;
+  if (typeof query === "string" && query.trim()) return query.trim();
+  return undefined;
+}
+
+function sessionMatchesPlayer(
+  session: { uid: string },
+  playerId: string,
+  context: string,
+  sessionToken?: string
+): boolean {
+  if (qtechPlayerIdsMatch(session.uid, playerId)) return true;
+  logger.warn("QTech wallet session player mismatch", {
+    context,
+    sessionUid: session.uid,
+    playerId,
+    sessionToken: sessionToken ? `${sessionToken.slice(0, 8)}…` : undefined,
+  });
+  return false;
+}
+
+async function requireValidSession(
+  req: Request,
+  res: Response,
+  playerId: string,
+  context: string
+): Promise<{ uid: string } | null> {
+  const rawSession = walletSession(req);
+  const session = await resolveWalletSession(rawSession, { requireActive: true });
+  if (!session) {
+    logger.warn("QTech wallet session invalid or expired", {
+      context,
+      playerId,
+      hasSessionHeader: Boolean(rawSession),
+      sessionToken: rawSession ? `${normalizeWalletSessionId(rawSession)?.slice(0, 8)}…` : undefined,
+    });
+    sendError(res, 400, "INVALID_TOKEN");
+    return null;
+  }
+  if (!sessionMatchesPlayer(session, playerId, context, rawSession)) {
+    sendError(res, 400, "INVALID_TOKEN");
+    return null;
+  }
+  return session;
 }
 
 async function requirePassKey(req: Request, res: Response): Promise<boolean> {
@@ -42,12 +95,8 @@ async function requireSessionForWithdrawal(
   res: Response,
   playerId: string
 ): Promise<boolean> {
-  const session = await resolveWalletSession(walletSession(req), { requireActive: true });
-  if (!session || session.uid !== playerId) {
-    sendError(res, 400, "INVALID_TOKEN");
-    return false;
-  }
-  return true;
+  const session = await requireValidSession(req, res, playerId, "withdrawal");
+  return session !== null;
 }
 
 function handleWalletError(res: Response, e: unknown): void {
@@ -59,13 +108,11 @@ export async function verifySessionHandler(req: Request, res: Response): Promise
   try {
     if (!(await requirePassKey(req, res))) return;
     const playerId = String(req.params.playerId || "");
-    const session = await resolveWalletSession(walletSession(req), { requireActive: true });
-    if (!session || session.uid !== playerId) {
-      sendError(res, 400, "INVALID_TOKEN");
-      return;
-    }
+    const session = await requireValidSession(req, res, playerId, "verifySession");
+    if (!session) return;
+    await touchWalletSession(walletSession(req) ?? "");
     const cfg = await getQTechSettings();
-    const { balance, currency } = await getBalanceForPlayer(playerId);
+    const { balance, currency } = await getBalanceForPlayer(session.uid);
     sendSuccess(res, { balance, currency: currency || cfg.currency });
   } catch (e) {
     handleWalletError(res, e);
@@ -77,14 +124,15 @@ export async function getBalanceHandler(req: Request, res: Response): Promise<vo
     if (!(await requirePassKey(req, res))) return;
     const playerId = String(req.params.playerId || "");
     const cfg = await getQTechSettings();
-    const session = walletSession(req);
-    if (session) {
-      const resolved = await resolveWalletSession(session);
-      if (!resolved || resolved.uid !== playerId) {
-        // Expired/invalid session still returns balance per QTech tester getbalance_expired_session
+    let balanceUid = playerId;
+    const sessionRaw = walletSession(req);
+    if (sessionRaw) {
+      const resolved = await resolveWalletSession(sessionRaw);
+      if (resolved && qtechPlayerIdsMatch(resolved.uid, playerId)) {
+        balanceUid = resolved.uid;
       }
     }
-    const { balance, currency } = await getBalanceForPlayer(playerId);
+    const { balance, currency } = await getBalanceForPlayer(balanceUid);
     sendSuccess(res, { balance, currency: currency || cfg.currency });
   } catch (e) {
     handleWalletError(res, e);

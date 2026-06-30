@@ -15,7 +15,8 @@ import {
 import { db } from "@/lib/firestore";
 import { rtdb } from "@/lib/rtdb";
 import { filterPlayerLobbyGames } from "@/lib/games/catalog";
-import { DEFAULT_SETTINGS, type Game, type GameSession, type LiveRound, type PlatformSettings } from "@/lib/types";
+import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
+import { type Game, type GameSession, type LiveRound, type PlatformSettings } from "@/lib/types";
 
 export type CrashHistoryItem = { roundId: string; crashPoint: number; at: number };
 
@@ -69,31 +70,7 @@ export function subscribePlatformSettings(
 ): FsUnsubscribe {
   return onSnapshot(doc(db, "settings", "platform"), (snap) => {
     const data = (snap.exists() ? snap.data() : {}) as Partial<PlatformSettings>;
-    onSettings({
-      ...DEFAULT_SETTINGS,
-      ...data,
-      providers: { ...DEFAULT_SETTINGS.providers, ...(data.providers ?? {}) },
-      bonuses: {
-        ...DEFAULT_SETTINGS.bonuses!,
-        ...(data.bonuses ?? {}),
-        firstDeposit: {
-          ...DEFAULT_SETTINGS.bonuses!.firstDeposit,
-          ...(data.bonuses?.firstDeposit ?? {}),
-        },
-        weeklyCrash: {
-          ...DEFAULT_SETTINGS.bonuses!.weeklyCrash,
-          ...(data.bonuses?.weeklyCrash ?? {}),
-        },
-      weekend: {
-        ...DEFAULT_SETTINGS.bonuses!.weekend,
-        ...(data.bonuses?.weekend ?? {}),
-      },
-    },
-    playerReferral: {
-      ...DEFAULT_SETTINGS.playerReferral!,
-      ...(data.playerReferral ?? {}),
-    },
-  });
+    onSettings(mergePlatformSettings(data));
   });
 }
 

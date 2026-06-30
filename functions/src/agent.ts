@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { isAgentRole } from "./roles";
 import {
   auth,
   db,
@@ -13,7 +14,6 @@ import {
   bumpDailyStats,
   bumpPlatformStats,
   RESERVED_SLUGS,
-  staffLoginEmail,
   staffLoginKey,
   type ProfileData,
 } from "./helpers";
@@ -50,7 +50,7 @@ export async function ensureAgentLoginDocs(
   uid: string,
   profile: Pick<ProfileData, "name" | "role" | "agentSlug" | "status">
 ): Promise<void> {
-  if (profile.role !== "super_agent" && profile.role !== "sub_agent") return;
+  if (!isAgentRole(profile.role)) return;
   const slug = String(profile.agentSlug ?? "").trim().toLowerCase();
   if (!slug) return;
 
@@ -60,11 +60,11 @@ export async function ensureAgentLoginDocs(
     { uid, agentName: profile.name, active: profile.status === "active" },
     { merge: true }
   );
-  batch.set(db.doc(`staffLogins/${slug}`), { uid, role: profile.role }, { merge: true });
+  batch.set(db.doc(`staffLogins/${slug}`), { uid, role: "agent" }, { merge: true });
 
   const nameKey = staffLoginKey(profile.name);
   if (nameKey && nameKey !== slug) {
-    batch.set(db.doc(`staffLogins/${nameKey}`), { uid, role: profile.role }, { merge: true });
+    batch.set(db.doc(`staffLogins/${nameKey}`), { uid, role: "agent" }, { merge: true });
   }
   await batch.commit();
 }
@@ -146,22 +146,20 @@ export async function createPlayerAccount(opts: {
 
 /** Agents create customers manually; the new player is attached to them. */
 export const agentCreateCustomer = onCall(async (req) => {
-  const { uid, profile } = await requireRole(req, ["super_agent", "sub_agent"]);
-  const ancestors =
-    profile.role === "sub_agent" && profile.parentId ? [uid, profile.parentId] : [uid];
+  const { uid } = await requireRole(req, ["agent"]);
   const playerUid = await createPlayerAccount({
     name: String(req.data?.name ?? "").trim(),
     phone: String(req.data?.phone ?? ""),
     password: String(req.data?.password ?? ""),
     parentId: uid,
-    ancestors,
+    ancestors: [uid],
   });
   return { uid: playerUid };
 });
 
 /** Atomic transfer from the agent's wallet into one of THEIR customers' wallets. */
 export const agentDepositToCustomer = onCall(async (req) => {
-  const { uid, profile } = await requireRole(req, ["super_agent", "sub_agent"]);
+  const { uid, profile } = await requireRole(req, ["agent"]);
   const customerId = String(req.data?.customerId ?? "");
   const amount = round2(Number(req.data?.amount));
   if (!customerId || !Number.isFinite(amount) || amount <= 0) {
@@ -202,121 +200,6 @@ export const agentDepositToCustomer = onCall(async (req) => {
         { merge: true }
       );
     }
-  });
-
-  return { ok: true };
-});
-
-/** Super agents build their team. */
-export const agentCreateSubAgent = onCall(async (req) => {
-  const { uid } = await requireRole(req, ["super_agent"]);
-  const name = String(req.data?.name ?? "").trim();
-  const email = req.data?.email ? String(req.data.email).toLowerCase().trim() : "";
-  const username = String(req.data?.username ?? "").trim();
-  const password = String(req.data?.password ?? "");
-  const hasEmail = email.includes("@");
-  const loginKey = staffLoginKey(username || name);
-  if (!name) {
-    throw new HttpsError("invalid-argument", "Name is required.");
-  }
-  if (!hasEmail && !loginKey) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Provide an email or a username/name they can sign in with."
-    );
-  }
-  if (password.length < 8) {
-    throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
-  }
-
-  const provisionalAuthEmail = hasEmail ? email : staffLoginEmail(loginKey);
-  let subUid: string;
-  try {
-    const u = await auth.createUser({ email: provisionalAuthEmail, password, displayName: name });
-    subUid = u.uid;
-  } catch (e: unknown) {
-    if ((e as { code?: string }).code === "auth/email-already-exists") {
-      throw new HttpsError("already-exists", "This login is already registered.");
-    }
-    throw e;
-  }
-  const slug = await claimSlug(username || name, subUid, name);
-  if (!hasEmail) {
-    const finalAuthEmail = staffLoginEmail(slug);
-    if (finalAuthEmail !== provisionalAuthEmail) {
-      await auth.updateUser(subUid, { email: finalAuthEmail });
-    }
-  }
-  await auth.setCustomUserClaims(subUid, { role: "sub_agent" });
-
-  const batch = db.batch();
-  batch.set(db.doc(`users/${subUid}`), {
-    name,
-    email: hasEmail ? email : null,
-    phone: null,
-    role: "sub_agent",
-    parentId: uid,
-    agentSlug: slug,
-    ancestors: [uid],
-    status: "active",
-    stats: {},
-    createdAt: FieldValue.serverTimestamp(),
-  });
-  batch.set(db.doc(`wallets/${subUid}`), {
-    balance: 0,
-    bonusBalance: 0,
-    currency: "GMD",
-    frozen: false,
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-  batch.set(db.doc(`users/${uid}`), { stats: { subAgentCount: FieldValue.increment(1) } }, { merge: true });
-  batch.set(db.doc("stats/platform"), { agentCount: FieldValue.increment(1) }, { merge: true });
-  await batch.commit();
-
-  await ensureAgentLoginDocs(subUid, {
-    name,
-    role: "sub_agent",
-    agentSlug: slug,
-    status: "active",
-  });
-
-  return { uid: subUid, slug };
-});
-
-/** Atomic credit transfer super agent -> own sub agent. */
-export const agentTransferToSubAgent = onCall(async (req) => {
-  const { uid, profile } = await requireRole(req, ["super_agent"]);
-  const subAgentId = String(req.data?.subAgentId ?? "");
-  const amount = round2(Number(req.data?.amount));
-  if (!subAgentId || !Number.isFinite(amount) || amount <= 0) {
-    throw new HttpsError("invalid-argument", "subAgentId and a positive amount are required.");
-  }
-
-  const subSnap = await db.doc(`users/${subAgentId}`).get();
-  if (!subSnap.exists) throw new HttpsError("not-found", "Sub agent not found.");
-  const sub = subSnap.data() as ProfileData;
-  if (sub.role !== "sub_agent" || sub.parentId !== uid) {
-    throw new HttpsError("permission-denied", "This sub agent does not belong to you.");
-  }
-
-  await db.runTransaction(async (tx) => {
-    const superWallet = await walletRead(tx, uid);
-    const subWallet = await walletRead(tx, subAgentId);
-    walletWrite(tx, superWallet, {
-      uid,
-      amount: -amount,
-      type: "transfer",
-      description: `Transfer to sub agent ${sub.name}`,
-      meta: { to: subAgentId, toName: sub.name },
-    });
-    walletWrite(tx, subWallet, {
-      uid: subAgentId,
-      amount,
-      type: "transfer",
-      description: `Transfer from super agent ${profile.name}`,
-      meta: { from: uid, fromName: profile.name },
-      ignoreFrozen: true,
-    });
   });
 
   return { ok: true };

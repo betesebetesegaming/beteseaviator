@@ -3,12 +3,13 @@
 import { KeyRound } from "lucide-react";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { staffSignInHint, staffSignInId } from "@/lib/staffAccount";
+import { isAgentRole } from "@/lib/roles";
 import type { UserProfile } from "@/lib/types";
 import { Card } from "@/components/ui";
 
 export function StaffAccountCard({ profile }: { profile: UserProfile }) {
   const signInId = staffSignInId(profile);
-  const isAgent = profile.role === "super_agent" || profile.role === "sub_agent";
+  const isAgent = isAgentRole(profile.role);
 
   return (
     <div className="space-y-4">

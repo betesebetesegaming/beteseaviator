@@ -89,7 +89,7 @@ export const requestDeposit = onCall(async (req) => {
  * HELD immediately; BETESE admin approves or rejects every payout.
  */
 export const requestWithdrawal = onCall(async (req) => {
-  const { uid, profile } = await requireRole(req, ["player", "super_agent", "sub_agent"]);
+  const { uid, profile } = await requireRole(req, ["player", "agent"]);
   const settings = await getSettings();
   const provider = assertProvider(String(req.data?.provider ?? ""));
   const phone = normalizePhone(String(req.data?.phone ?? ""));

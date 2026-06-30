@@ -19,7 +19,7 @@ service cloud.firestore {
     }
 
     function isAgent() {
-      return signedIn() && role() in ['super_agent', 'sub_agent'];
+      return signedIn() && role() in ['agent', 'super_agent', 'sub_agent'];
     }
 
     function isPlayer() {

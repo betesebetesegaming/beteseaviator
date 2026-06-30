@@ -1,23 +1,31 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import { logger } from "firebase-functions/v2";
 import {
   db,
   FieldValue,
   getSettings,
+  normalizePhone,
   requireAuth,
   requireRole,
   round2,
   staffLoginKey,
   walletRead,
   walletWrite,
+  bumpDailyStats,
+  bumpPlatformStats,
+  todayIso,
   type Settings,
+  type Provider,
 } from "./helpers";
-import { recordBonusWageringRequirement, playthroughRates } from "./wagering";
 
 export interface PlayerReferralSettings {
   enabled: boolean;
   bonusAmount: number;
   minQualifyingDeposit: number;
   requireFirstBet: boolean;
+  /** Every Monday, unclaimed referral balance moves to play credit (default true). */
+  weeklyReleaseToPlay?: boolean;
 }
 
 export function playerReferralSettings(settings: Settings): PlayerReferralSettings {
@@ -27,7 +35,35 @@ export function playerReferralSettings(settings: Settings): PlayerReferralSettin
     bonusAmount: Number(pr?.bonusAmount ?? 10),
     minQualifyingDeposit: Number(pr?.minQualifyingDeposit ?? 50),
     requireFirstBet: pr?.requireFirstBet !== false,
+    weeklyReleaseToPlay: pr?.weeklyReleaseToPlay !== false,
   };
+}
+
+/** Next Monday 08:00 Africa/Dakar (when weekly play-credit release runs). */
+export function nextReferralReleaseAt(from = new Date()): string {
+  const tz = "Africa/Dakar";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(from);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const y = Number(get("year"));
+  const m = Number(get("month")) - 1;
+  const d = Number(get("day"));
+  const weekday = get("weekday");
+  const hour = Number(get("hour"));
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const dow = dayMap[weekday.slice(0, 3)] ?? 0;
+  let daysUntil = (8 - dow) % 7;
+  if (daysUntil === 0 && hour >= 8) daysUntil = 7;
+  const release = new Date(Date.UTC(y, m, d + daysUntil, 8, 0, 0));
+  return release.toISOString();
 }
 
 export function normalizeReferralCode(code: string): string {
@@ -312,17 +348,36 @@ function commitReferralBonusPay(
   if (!referrerWallet) return;
 
   const bonusAmount = round2(cfg.bonusAmount);
-  const { bonusMultiplier } = playthroughRates(settings);
+  const referralBefore = round2(referrerWallet.referralBalance ?? 0);
+  const referralAfter = round2(referralBefore + bonusAmount);
+  referrerWallet.referralBalance = referralAfter;
 
-  walletWrite(tx, referrerWallet, {
-    uid: invite.referrerId,
+  tx.set(
+    db.doc(`wallets/${invite.referrerId}`),
+    {
+      referralBalance: referralAfter,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  tx.set(db.collection("transactions").doc(), {
+    userId: invite.referrerId,
+    type: "referral_reward",
     amount: bonusAmount,
-    type: "bonus",
-    creditAsBonus: true,
+    balanceBefore: round2(referrerWallet.balance),
+    balanceAfter: round2(referrerWallet.balance),
+    reference: `REF-${invite.referralCode}-${referredUid.slice(0, 6)}`,
+    status: "completed",
     description: `Referral bonus — friend qualified (${invite.referralCode})`,
-    meta: { source: "player_referral", referredUserId: referredUid, referralCode: invite.referralCode },
+    meta: {
+      source: "player_referral",
+      referredUserId: referredUid,
+      referralCode: invite.referralCode,
+      referralBalanceBefore: referralBefore,
+      referralBalanceAfter: referralAfter,
+    },
+    createdAt: FieldValue.serverTimestamp(),
   });
-  recordBonusWageringRequirement(tx, invite.referrerId, referrerWallet, bonusAmount, bonusMultiplier);
 
   const rewardRef = db.collection("referral_rewards").doc();
   tx.set(rewardRef, {
@@ -423,15 +478,194 @@ export const getPlayerReferralDashboard = onCall(async (req) => {
     totalBonusEarned = Math.max(totalBonusEarned, round2(stats.referralBonusEarned));
   }
 
+  const walletSnap = await db.doc(`wallets/${uid}`).get();
+  const referralBalance = round2(Number(walletSnap.data()?.referralBalance ?? 0));
+
   return {
     enabled: cfg.enabled,
     bonusAmount: cfg.bonusAmount,
     minQualifyingDeposit: cfg.minQualifyingDeposit,
     requireFirstBet: cfg.requireFirstBet,
+    weeklyReleaseToPlay: cfg.weeklyReleaseToPlay !== false,
+    nextReleaseAt: nextReferralReleaseAt(),
     referralCode,
     friendsInvited,
     qualifiedFriends,
     pendingBonuses,
     totalBonusEarned,
+    referralBalance,
   };
+});
+
+/** Move referralBalance → play balance for one or all players (Monday batch). */
+export async function releaseReferralBonusesToPlay(opts?: {
+  uid?: string;
+}): Promise<{ players: number; total: number }> {
+  const settings = await getSettings();
+  const cfg = playerReferralSettings(settings);
+  if (!cfg.weeklyReleaseToPlay) return { players: 0, total: 0 };
+
+  let docs: FirebaseFirestore.QueryDocumentSnapshot[];
+  if (opts?.uid) {
+    const snap = await db.doc(`wallets/${opts.uid}`).get();
+    if (!snap.exists || Number(snap.data()?.referralBalance ?? 0) <= 0) {
+      return { players: 0, total: 0 };
+    }
+    docs = [snap as FirebaseFirestore.QueryDocumentSnapshot];
+  } else {
+    const snap = await db.collection("wallets").where("referralBalance", ">", 0).get();
+    docs = snap.docs;
+  }
+
+  let players = 0;
+  let total = 0;
+
+  for (const doc of docs) {
+    try {
+      const released = await db.runTransaction(async (tx) => {
+        const wallet = await walletRead(tx, doc.id);
+        const available = round2(wallet.referralBalance ?? 0);
+        if (available <= 0) return 0;
+
+        wallet.referralBalance = 0;
+        tx.set(
+          db.doc(`wallets/${doc.id}`),
+          { referralBalance: 0, updatedAt: FieldValue.serverTimestamp() },
+          { merge: true }
+        );
+        walletWrite(tx, wallet, {
+          uid: doc.id,
+          amount: available,
+          type: "referral_to_balance",
+          description: "Referral bonus — Monday release to play credit",
+          meta: { source: "weekly_referral_release" },
+        });
+        return available;
+      });
+      if (released > 0) {
+        players += 1;
+        total = round2(total + released);
+      }
+    } catch (e) {
+      logger.warn("referral weekly release failed", { uid: doc.id, error: String(e) });
+    }
+  }
+
+  logger.info("releaseReferralBonusesToPlay", { players, total, singleUid: opts?.uid ?? null });
+  return { players, total };
+}
+
+/** Every Monday 08:00 Dakar — move unclaimed referral bonuses to play credit. */
+export const releaseReferralBonusesWeekly = onSchedule(
+  { schedule: "0 8 * * 1", timeZone: "Africa/Dakar" },
+  async () => {
+    await releaseReferralBonusesToPlay();
+  }
+);
+
+/** Admin can run Monday release early (e.g. first launch). */
+export const adminReleaseReferralBonuses = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const uid = req.data?.uid ? String(req.data.uid) : undefined;
+  return releaseReferralBonusesToPlay(uid ? { uid } : undefined);
+});
+
+function assertProvider(raw: string): Provider {
+  const p = raw.toLowerCase();
+  if (p === "wave" || p === "afrimoney" || p === "aps" || p === "qmoney") return p;
+  throw new HttpsError("invalid-argument", "Invalid payment provider.");
+}
+
+/** Claim referral earnings — players withdraw to phone; play credit releases every Monday. */
+export const claimReferralEarnings = onCall(async (req) => {
+  const uid = requireAuth(req);
+  const { profile } = await requireRole(req, ["player"]);
+  const mode = String(req.data?.mode ?? "") as "play" | "withdraw";
+  const settings = await getSettings();
+  const cfg = playerReferralSettings(settings);
+
+  if (mode !== "play" && mode !== "withdraw") {
+    throw new HttpsError("invalid-argument", "mode must be play or withdraw.");
+  }
+
+  if (mode === "play") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Referral bonuses move to your play balance every Monday. Withdraw to your phone anytime instead."
+    );
+  }
+
+  const provider = assertProvider(String(req.data?.provider ?? ""));
+  const phone = normalizePhone(String(req.data?.phone ?? ""));
+  if (settings.providers[provider] === false) {
+    throw new HttpsError("failed-precondition", "This provider is currently disabled.");
+  }
+  if (!phone) {
+    throw new HttpsError("invalid-argument", "A valid payout phone is required.");
+  }
+
+  const ref = db.collection("paymentRequests").doc();
+
+  await db.runTransaction(async (tx) => {
+    const wallet = await walletRead(tx, uid);
+    const available = round2(wallet.referralBalance ?? 0);
+    if (available <= 0) {
+      throw new HttpsError("failed-precondition", "No referral earnings to claim.");
+    }
+
+    const claimAmount =
+      req.data?.amount !== undefined ? round2(Number(req.data.amount)) : available;
+    if (!Number.isFinite(claimAmount) || claimAmount <= 0 || claimAmount > available) {
+      throw new HttpsError("invalid-argument", "Invalid claim amount.");
+    }
+
+    wallet.referralBalance = round2(available - claimAmount);
+    tx.set(
+      db.doc(`wallets/${uid}`),
+      { referralBalance: wallet.referralBalance, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+
+    if (claimAmount < cfg.bonusAmount) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Minimum referral withdrawal is ${cfg.bonusAmount} GMD.`
+      );
+    }
+
+    tx.set(db.collection("transactions").doc(), {
+      userId: uid,
+      type: "referral_withdrawal",
+      amount: -claimAmount,
+      balanceBefore: round2(wallet.balance),
+      balanceAfter: round2(wallet.balance),
+      reference: ref.id,
+      status: "completed",
+      description: "Referral earnings withdrawal request",
+      meta: { source: "referral_claim", mode: "withdraw", provider, phone, requestId: ref.id },
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    tx.set(ref, {
+      userId: uid,
+      userName: profile.name,
+      userRole: profile.role,
+      type: "withdrawal",
+      amount: claimAmount,
+      payoutAmount: claimAmount,
+      earlyWithdrawalFee: 0,
+      bonusForfeited: 0,
+      playthroughMet: true,
+      provider,
+      status: "pending",
+      providerRef: null,
+      approvedBy: null,
+      meta: { phone, source: "referral_balance" },
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    bumpDailyStats(tx, todayIso(), { withdrawals: claimAmount });
+    bumpPlatformStats(tx, { totalWithdrawals: claimAmount });
+  });
+
+  return { ok: true as const, requestId: ref.id };
 });

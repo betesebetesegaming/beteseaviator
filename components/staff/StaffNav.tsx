@@ -5,13 +5,14 @@ import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { navForRole, roleLabel } from "@/lib/staff-nav";
+import { isAgentRole } from "@/lib/roles";
 import { formatXof } from "@/lib/format";
 
 export function StaffNav() {
   const pathname = usePathname();
   const { profile, wallet, logout } = useAuth();
   const items = navForRole(profile?.role);
-  const isAgent = profile?.role === "super_agent" || profile?.role === "sub_agent";
+  const isAgent = isAgentRole(profile?.role);
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/90 backdrop-blur">

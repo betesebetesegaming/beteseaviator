@@ -21,14 +21,13 @@ export { adminResolvePayment } from "./payments";
 export {
   agentCreateCustomer,
   agentDepositToCustomer,
-  agentCreateSubAgent,
-  agentTransferToSubAgent,
 } from "./agent";
 export {
   adminCreateUser,
   adminSetUserStatus,
   adminAdjustWallet,
   adminFreezeWallet,
+  adminResetPlayerPassword,
   adminSaveSettings,
   adminSaveLobbyPromos,
   adminSaveLobbyLayout,
@@ -44,11 +43,17 @@ export {
   adminEnsureLobbyGames,
   adminGetQTechSetup,
   adminSaveQTechSettings,
+  adminRunQTechCwTest,
 } from "./admin";
 export { processCommissions, adminRunCommissions } from "./commissions";
 
 export { getOperationsHub } from "./operations";
-export { getPlayerReferralDashboard } from "./referrals";
+export {
+  getPlayerReferralDashboard,
+  claimReferralEarnings,
+  releaseReferralBonusesWeekly,
+  adminReleaseReferralBonuses,
+} from "./referrals";
 
 /** Africell SMS OTP — same VPC connector name as betesepmu (betese-connector). */
 const OTP_VPC = {

@@ -1,19 +1,14 @@
 import type { Role } from "@/lib/types";
+import { isAgentRole, isStaffRole as checkStaffRole } from "@/lib/roles";
 
-/** Single sign-in page for admin, super agents and sub agents */
+/** Single sign-in page for admin and agents */
 export const STAFF_LOGIN_PATH = "/admin/login";
 
 export function isStaffRole(role: Role | undefined | null): boolean {
-  return role === "admin" || role === "super_agent" || role === "sub_agent";
+  return checkStaffRole(role);
 }
 
 export function loginPathFor(role: Role | undefined | null): string {
-  switch (role) {
-    case "admin":
-    case "super_agent":
-    case "sub_agent":
-      return STAFF_LOGIN_PATH;
-    default:
-      return "/play";
-  }
+  if (role === "admin" || isAgentRole(role)) return STAFF_LOGIN_PATH;
+  return "/play";
 }

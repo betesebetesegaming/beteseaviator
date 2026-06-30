@@ -1,4 +1,5 @@
 import { db } from "../helpers";
+import { getExcludedLobbyGameIds } from "../lobbyExclusions";
 import { QTECH_GAME_SEEDS, type GameSeed } from "../gameCatalog";
 
 export type QTechGameTemplate = Pick<
@@ -15,23 +16,62 @@ export const QTECH_GAME_TEMPLATES: QTechGameTemplate[] = QTECH_GAME_SEEDS.map((g
   rtp: g.rtp,
 }));
 
+function seedDocFromCatalog(seed: GameSeed): Record<string, unknown> {
+  const doc: Record<string, unknown> = {
+    name: seed.name,
+    type: seed.type,
+    provider: seed.provider,
+    engine: seed.engine,
+    lobbyCategory: seed.lobbyCategory,
+    rtp: seed.rtp,
+    settings: seed.settings ?? {},
+    qtechGameId: seed.qtechGameId ?? "",
+    status: seed.status,
+  };
+  if (seed.imageUrl) doc.imageUrl = seed.imageUrl;
+  return doc;
+}
+
+/** Backfill catalog fields — always fix qtechGameId when the seed doc id matches. */
+function backfillPatch(existing: FirebaseFirestore.DocumentData, seed: GameSeed): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  const seedQtechId = String(seed.qtechGameId ?? "").trim();
+  const existingQtechId = String(existing.qtechGameId ?? "").trim();
+  if (seedQtechId && existingQtechId !== seedQtechId) {
+    patch.qtechGameId = seedQtechId;
+  }
+  if (!String(existing.imageUrl ?? "").trim() && seed.imageUrl) {
+    patch.imageUrl = seed.imageUrl;
+  }
+  if (!existing.engine) patch.engine = seed.engine;
+  if (!existing.lobbyCategory && seed.lobbyCategory) patch.lobbyCategory = seed.lobbyCategory;
+  if (!existing.provider && seed.provider) patch.provider = seed.provider;
+  if (!existing.type && seed.type) patch.type = seed.type;
+  if (seed.status === "active" && existing.status !== "active") {
+    patch.status = "active";
+  }
+  return patch;
+}
+
 export async function ensureQTechGameDocs(): Promise<string[]> {
+  const excluded = await getExcludedLobbyGameIds();
   const touched: string[] = [];
   for (const seed of QTECH_GAME_SEEDS) {
     const ref = db.doc(`games/${seed.id}`);
-    const patch: Record<string, unknown> = {
-      name: seed.name,
-      type: seed.type,
-      provider: seed.provider,
-      engine: seed.engine,
-      lobbyCategory: seed.lobbyCategory,
-      rtp: seed.rtp,
-      settings: seed.settings ?? {},
-      qtechGameId: seed.qtechGameId ?? "",
-      status: seed.status,
-    };
-    if (seed.imageUrl) patch.imageUrl = seed.imageUrl;
-    await ref.set(patch, { merge: true });
+    if (excluded.has(seed.id)) {
+      if ((await ref.get()).exists) await ref.delete();
+      continue;
+    }
+    const snap = await ref.get();
+    if (!snap.exists) {
+      await ref.set(seedDocFromCatalog(seed));
+      touched.push(seed.id);
+      continue;
+    }
+    const patch = backfillPatch(snap.data()!, seed);
+    if (Object.keys(patch).length > 0) {
+      await ref.set(patch, { merge: true });
+    }
     touched.push(seed.id);
   }
   return touched;

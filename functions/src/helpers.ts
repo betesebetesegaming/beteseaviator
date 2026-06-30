@@ -10,7 +10,9 @@ export const rtdb = admin.database();
 export const auth = admin.auth();
 export const FieldValue = admin.firestore.FieldValue;
 
-export type Role = "admin" | "super_agent" | "sub_agent" | "player";
+import { roleAllowed, type Role } from "./roles";
+
+export type { Role };
 
 export interface ProfileData {
   name: string;
@@ -30,6 +32,7 @@ export const PROVIDERS = ["wave", "afrimoney", "aps", "qmoney"] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
 export const DEFAULT_SETTINGS = {
+  agentRate: 0.05,
   subAgentRate: 0.05,
   superAgentRate: 0.03,
   apiProviderRate: 0.15,
@@ -37,7 +40,7 @@ export const DEFAULT_SETTINGS = {
   minBet: 1,
   maxBet: 100_000,
   minDeposit: 25,
-  minWithdrawal: 500,
+  minWithdrawal: 100,
   minAutoCashout: 1.01,
   maxAutoCashout: 100,
   /** Must bet this fraction of recent deposits before free withdrawal (0.8 = 80%). */
@@ -46,6 +49,8 @@ export const DEFAULT_SETTINGS = {
   earlyWithdrawalFeeRate: 0.15,
   /** Bonus must be wagered this many times before it becomes cash. */
   bonusWagerMultiplier: 3,
+  bonusGamesLabel: "Aviator & Crash",
+  bonusCampaignEndsAt: "",
   providers: { wave: true, afrimoney: true, aps: true, qmoney: true } as Record<string, boolean>,
   bonuses: {
     firstDeposit: { enabled: true, percent: 0.5, maxAmount: 500, minDeposit: 100 },
@@ -148,6 +153,12 @@ export async function getSettings(): Promise<Settings> {
     ...DEFAULT_SETTINGS,
     ...data,
     providers: { ...DEFAULT_SETTINGS.providers, ...(data.providers ?? {}) },
+    bonusGamesLabel:
+      typeof data.bonusGamesLabel === "string" && data.bonusGamesLabel.trim()
+        ? data.bonusGamesLabel.trim()
+        : DEFAULT_SETTINGS.bonusGamesLabel,
+    bonusCampaignEndsAt:
+      typeof data.bonusCampaignEndsAt === "string" ? data.bonusCampaignEndsAt.trim() : "",
     bonuses: {
       firstDeposit: { ...DEFAULT_SETTINGS.bonuses.firstDeposit, ...(data.bonuses?.firstDeposit ?? {}) },
       weeklyCrash: { ...DEFAULT_SETTINGS.bonuses.weeklyCrash, ...(data.bonuses?.weeklyCrash ?? {}) },
@@ -180,7 +191,7 @@ export async function requireRole(
   if (!snap.exists) throw new HttpsError("failed-precondition", "Profile not found.");
   const profile = snap.data() as ProfileData;
   if (profile.status !== "active") throw new HttpsError("permission-denied", "Account suspended.");
-  if (!roles.includes(profile.role)) {
+  if (!roleAllowed(profile.role, roles)) {
     throw new HttpsError("permission-denied", "You are not allowed to do this.");
   }
   return { uid, profile };
@@ -189,7 +200,7 @@ export async function requireRole(
 interface MoveMoneyArgs {
   uid: string;
   amount: number; // positive credit, negative debit
-  type: "deposit" | "withdrawal" | "bet" | "win" | "commission" | "transfer" | "refund" | "bonus";
+  type: "deposit" | "withdrawal" | "bet" | "win" | "commission" | "transfer" | "refund" | "bonus" | "referral_to_balance" | "referral_reward" | "referral_withdrawal";
   description: string;
   meta?: Record<string, unknown>;
   /** debits normally blocked on frozen wallets; refunds may still land */
@@ -212,6 +223,7 @@ export async function walletRead(
 ): Promise<{
   balance: number;
   bonusBalance: number;
+  referralBalance: number;
   frozen: boolean;
   exists: boolean;
   pendingDepositTotal: number;
@@ -224,6 +236,7 @@ export async function walletRead(
     return {
       balance: 0,
       bonusBalance: 0,
+      referralBalance: 0,
       frozen: false,
       exists: false,
       pendingDepositTotal: 0,
@@ -236,6 +249,7 @@ export async function walletRead(
   return {
     balance: Number(data.balance ?? 0),
     bonusBalance: Number(data.bonusBalance ?? 0),
+    referralBalance: Number(data.referralBalance ?? 0),
     frozen: Boolean(data.frozen),
     exists: true,
     pendingDepositTotal: Number(data.pendingDepositTotal ?? 0),
@@ -250,6 +264,7 @@ export function walletWrite(
   wallet: {
     balance: number;
     bonusBalance: number;
+    referralBalance?: number;
     frozen: boolean;
     exists: boolean;
     pendingDepositTotal?: number;
@@ -293,6 +308,7 @@ export function walletWrite(
     {
       balance: wallet.balance,
       bonusBalance: wallet.bonusBalance,
+      referralBalance: round2(wallet.referralBalance ?? 0),
       currency: "GMD",
       frozen: wallet.frozen,
       updatedAt: FieldValue.serverTimestamp(),

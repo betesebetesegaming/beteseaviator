@@ -3,6 +3,7 @@
  * with a real qtechGameId.
  */
 import { qtechCdnLobbyImage } from "./qtech/imageUrls";
+import { IOG_LAUNCH_VALID_GAMES } from "./qtech/iogCatalog";
 
 export type LobbyCategory = "aviator" | "crash" | "instantwin";
 
@@ -41,6 +42,8 @@ function providerForQtechId(qtechGameId: string): string {
     SPB: "Spribe",
     AVX: "Aviatrix",
     BTL: "Betsoft",
+    IOG: "InOut Games",
+    INO: "InOut Games",
     EVP: "Evoplay",
     EVO: "Evoplay",
     PPC: "PPC",
@@ -87,12 +90,20 @@ const AVIATRIX_GAMES: QTechSeed[] = [
   { qtechGameId: "AVX-secondchance", name: "Aviatrix Second Chance", type: "crash", lobbyCategory: "crash" },
 ];
 
-/** Chicken-themed games discoverable on BETESE QTech (launch-validated). */
-const CHICKEN_GAMES: QTechSeed[] = [
+/** Other studios — chicken / rush titles (non-IOG). */
+const OTHER_CHICKEN_GAMES: QTechSeed[] = [
   { qtechGameId: "PPC-chicken", name: "Chicken", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "BTL-chickenrun", name: "Chicken Run", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "EVP-uncrossablerush", name: "Uncrossable Rush", type: "crash", lobbyCategory: "crash" },
 ];
+
+/** InOut Games (IOG) — launch-validated on BETESE QTech (no lottery/loto). */
+const IOG_GAMES: QTechSeed[] = IOG_LAUNCH_VALID_GAMES.map((g) => ({
+  qtechGameId: g.qtechGameId,
+  name: g.name,
+  type: g.type,
+  lobbyCategory: g.lobbyCategory,
+}));
 
 /** Partner studios — launch-validated on api_BETESE. */
 const PARTNER_GAMES: QTechSeed[] = [
@@ -125,7 +136,7 @@ const PARTNER_GAMES: QTechSeed[] = [
   { qtechGameId: "GZX-pilot", name: "Pilot", type: "crash", lobbyCategory: "crash" },
 ];
 
-export const QTECH_GAME_SEEDS: GameSeed[] = [...SPRIBE_GAMES, ...AVIATRIX_GAMES, ...CHICKEN_GAMES, ...PARTNER_GAMES].map((g) => ({
+export const QTECH_GAME_SEEDS: GameSeed[] = [...SPRIBE_GAMES, ...AVIATRIX_GAMES, ...OTHER_CHICKEN_GAMES, ...IOG_GAMES, ...PARTNER_GAMES].map((g) => ({
   id: qtechGameDocId(g.qtechGameId),
   name: g.name,
   type: g.type,

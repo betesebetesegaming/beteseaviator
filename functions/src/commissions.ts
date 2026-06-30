@@ -1,6 +1,7 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
+import { agentCommissionRate } from "./roles";
 import {
   db,
   FieldValue,
@@ -54,12 +55,7 @@ export async function processCommissionsForDate(date: string): Promise<{
       skipped++;
       continue;
     }
-    const rate =
-      agent.role === "sub_agent"
-        ? settings.subAgentRate
-        : agent.role === "super_agent"
-          ? settings.superAgentRate
-          : 0;
+    const rate = agentCommissionRate(settings);
     if (rate <= 0) {
       skipped++;
       continue;

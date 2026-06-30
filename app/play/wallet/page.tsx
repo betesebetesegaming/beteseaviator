@@ -22,7 +22,7 @@ import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
 import { buildDepositResult, type PaymentResultPayload } from "@/lib/paymentResultPayload";
 import { formatSigned, formatDate, formatXof } from "@/lib/format";
 import { subscribePlatformSettings } from "@/lib/games/subscriptions";
-import { mergeBonusSettings } from "@/lib/bonuses";
+import { mergeBonusSettings, withdrawalRulesCopy } from "@/lib/bonuses";
 import {
   bonusWageringRemaining,
   depositPlaythroughMet,
@@ -313,14 +313,21 @@ export default function WalletPage() {
     <div className="mx-auto max-w-5xl">
       <div className="mb-5 grid gap-5 lg:grid-cols-[1fr_280px]">
         <div>
-          <WalletBalanceCards wallet={wallet} />
+          <WalletBalanceCards wallet={wallet} bonusGamesLabel={settings.bonusGamesLabel} />
           {frozen && (
             <div className="mt-4">
               <WalletFrozenNotice />
             </div>
           )}
         </div>
-        {!frozen && <BonusOffersPanel bonuses={mergeBonusSettings(settings.bonuses)} />}
+        {!frozen && (
+          <BonusOffersPanel
+            bonuses={mergeBonusSettings(settings.bonuses)}
+            bonusGamesLabel={settings.bonusGamesLabel}
+            bonusIntroText={settings.bonusIntroText}
+            bonusCampaignEndsAt={settings.bonusCampaignEndsAt}
+          />
+        )}
       </div>
 
       <div className="mb-5 grid grid-cols-4 rounded-lg bg-slate-900 p-1 text-sm font-medium">
@@ -491,11 +498,7 @@ export default function WalletPage() {
             >
               {busy ? "Processing…" : "Withdraw via ModemPay"}
             </Button>
-            <p className="text-xs text-slate-500">
-              Only cash balance can be withdrawn. Bonus balance is for Aviator &amp; Crash bets. Withdrawing
-              before playing {Math.round((settings.depositPlaythroughRate ?? 0.8) * 100)}% of deposits costs a{" "}
-              {Math.round((settings.earlyWithdrawalFeeRate ?? 0.15) * 100)}% fee and forfeits any bonus.
-            </p>
+            <p className="whitespace-pre-line text-xs text-slate-500">{withdrawalRulesCopy(settings)}</p>
           </div>
             </>
           )}

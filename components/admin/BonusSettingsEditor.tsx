@@ -14,6 +14,8 @@ function BonusRuleEditor({
     minDeposit: number;
     fridayStartHour?: number;
     sundayEndHour?: number;
+    playerTitle?: string;
+    playerTerms?: string;
   };
   onChange: (patch: Partial<typeof rule>) => void;
   showWeekendHours?: boolean;
@@ -89,6 +91,32 @@ function BonusRuleEditor({
           </label>
         </div>
       )}
+      <div className="mt-4 space-y-3 border-t border-white/5 pt-4">
+        <label className="block text-xs text-slate-400">
+          Player title (optional)
+          <input
+            type="text"
+            value={rule.playerTitle ?? ""}
+            onChange={(e) => onChange({ playerTitle: e.target.value })}
+            placeholder={title}
+            className="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
+          />
+        </label>
+        <label className="block text-xs text-slate-400">
+          Player rules (write anything — shown on wallet)
+          <textarea
+            value={rule.playerTerms ?? ""}
+            onChange={(e) => onChange({ playerTerms: e.target.value })}
+            rows={3}
+            placeholder="e.g. Get 50% extra on your first deposit. You must play through your total deposit before withdrawing. Early withdrawal: 15% fee deducted."
+            className="mt-1 w-full resize-y rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm leading-relaxed text-white"
+          />
+        </label>
+        <p className="text-[11px] text-slate-500">
+          Leave blank to auto-generate from the numbers above. Write your own terms for turnover, fees, or
+          anything else players should know.
+        </p>
+      </div>
     </div>
   );
 }

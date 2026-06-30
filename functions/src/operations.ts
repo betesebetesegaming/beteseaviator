@@ -46,26 +46,6 @@ type LedgerRow = {
 async function loadNetwork(uid: string, profile: ProfileData): Promise<NetworkMember[]> {
   const members: NetworkMember[] = [];
 
-  if (profile.role === "super_agent") {
-    const subs = await db
-      .collection("users")
-      .where("role", "==", "sub_agent")
-      .where("parentId", "==", uid)
-      .get();
-    for (const d of subs.docs) {
-      const p = d.data() as ProfileData;
-      members.push({
-        uid: d.id,
-        name: p.name,
-        role: p.role,
-        phone: p.phone,
-        email: p.email,
-        agentSlug: p.agentSlug,
-        status: p.status,
-      });
-    }
-  }
-
   const customers = await db
     .collection("users")
     .where("role", "==", "player")
@@ -220,7 +200,7 @@ async function loadTransactions(opts: {
  * network (self, sub-agents, customers) for live users and transactions.
  */
 export const getOperationsHub = onCall(async (req) => {
-  const { uid, profile } = await requireRole(req, ["admin", "super_agent", "sub_agent"]);
+  const { uid, profile } = await requireRole(req, ["admin", "agent"]);
   const typeFilter = req.data?.type ? String(req.data.type) : null;
   const limit = Math.min(Math.max(Number(req.data?.limit) || 150, 1), 300);
 

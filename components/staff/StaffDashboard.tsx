@@ -197,7 +197,8 @@ export function StaffDashboard() {
         </p>
         <h1 className="text-xl font-bold">Welcome back, {profile.name}</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Your link, customers, commissions, and network transactions — one login, your access only.
+          Share your marketing link — customers who register through it are yours. View customers,
+          commissions, and transactions here.
         </p>
       </div>
 
@@ -208,14 +209,11 @@ export function StaffDashboard() {
           <StatCard
             label="Operations hub"
             value="Live · Ledger · Network"
-            hint="your scope only"
+            hint="your customers & transactions"
             icon={<Activity size={20} />}
           />
         </Link>
         <StatCard label="My Customers" value={stats.customerCount ?? 0} icon={<Users size={20} />} />
-        {profile.role === "super_agent" && (
-          <StatCard label="Sub Agents" value={stats.subAgentCount ?? 0} icon={<UserCog size={20} />} />
-        )}
         <StatCard label="Customer Deposits" value={formatXof(stats.customerDeposits ?? 0)} icon={<Banknote size={20} />} />
         <StatCard label="Sales (GGR)" value={formatXof(Math.max(0, agentGgr))} icon={<TrendingUp size={20} />} />
         <StatCard label="Commission Due" value={formatXof(wallet?.balance ?? 0)} icon={<WalletCards size={20} />} />
@@ -231,16 +229,6 @@ export function StaffDashboard() {
             </Button>
           </Link>
         </Card>
-        {profile.role === "super_agent" && (
-          <Card className="p-4">
-            <h2 className="mb-2 font-semibold">Add sub-agent</h2>
-            <Link href="/admin/sub-agents">
-              <Button variant="secondary" className="w-full">
-                Sub agents
-              </Button>
-            </Link>
-          </Card>
-        )}
         <Card className="p-4">
           <h2 className="mb-2 font-semibold">My wallet</h2>
           <Link href="/admin/agent-wallet">

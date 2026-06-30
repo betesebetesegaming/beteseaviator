@@ -9,7 +9,7 @@ const LEGACY_AGENT_PATHS: Record<string, string> = {
   "/agent/login": "/admin/login",
   "/agent/operations": "/admin/operations",
   "/agent/players": "/admin/customers",
-  "/agent/sub-agents": "/admin/sub-agents",
+  "/agent/sub-agents": "/admin",
   "/agent/commissions": "/admin/commissions",
   "/agent/wallet": "/admin/agent-wallet",
 };

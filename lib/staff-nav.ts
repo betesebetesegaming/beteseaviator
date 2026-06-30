@@ -8,15 +8,16 @@ import {
   Settings,
   Megaphone,
   Activity,
-  UserCog,
   Percent,
   UserPlus,
   Gamepad2,
   ListOrdered,
+  Gift,
 } from "lucide-react";
 import type { Role } from "@/lib/types";
+import { isAgentRole, roleLabel as sharedRoleLabel } from "@/lib/roles";
 
-export const STAFF_ROLES: Role[] = ["admin", "super_agent", "sub_agent"];
+export const STAFF_ROLES: Role[] = ["admin", "agent", "super_agent", "sub_agent"];
 
 export type StaffNavItem = {
   href: string;
@@ -24,7 +25,6 @@ export type StaffNavItem = {
   icon: LucideIcon;
   exact?: boolean;
   roles: Role[];
-  superOnly?: boolean;
 };
 
 /** One backend nav — filtered by signed-in role after login. */
@@ -46,26 +46,19 @@ export const STAFF_NAV: StaffNavItem[] = [
     href: "/admin/customers",
     label: "My Customers",
     icon: UserPlus,
-    roles: ["super_agent", "sub_agent"],
-  },
-  {
-    href: "/admin/sub-agents",
-    label: "Sub Agents",
-    icon: UserCog,
-    roles: ["super_agent"],
-    superOnly: true,
+    roles: ["agent", "super_agent", "sub_agent"],
   },
   {
     href: "/admin/commissions",
     label: "Commissions",
     icon: Percent,
-    roles: ["super_agent", "sub_agent"],
+    roles: ["agent", "super_agent", "sub_agent"],
   },
   {
     href: "/admin/agent-wallet",
     label: "My Wallet",
     icon: Wallet,
-    roles: ["super_agent", "sub_agent"],
+    roles: ["agent", "super_agent", "sub_agent"],
   },
   {
     href: "/admin/users",
@@ -104,6 +97,12 @@ export const STAFF_NAV: StaffNavItem[] = [
     roles: ["admin"],
   },
   {
+    href: "/admin/bonuses",
+    label: "Bonuses & Wallet",
+    icon: Gift,
+    roles: ["admin"],
+  },
+  {
     href: "/admin/reports",
     label: "Reports",
     icon: BarChart3,
@@ -122,6 +121,7 @@ export const ADMIN_ONLY_PREFIXES = [
   "/admin/wallets",
   "/admin/withdrawals",
   "/admin/promotions",
+  "/admin/bonuses",
   "/admin/games",
   "/admin/qtech",
   "/admin/reports",
@@ -131,21 +131,12 @@ export const ADMIN_ONLY_PREFIXES = [
 export function navForRole(role: Role | undefined): StaffNavItem[] {
   if (!role) return [];
   return STAFF_NAV.filter((item) => {
-    if (!item.roles.includes(role)) return false;
-    if (item.superOnly && role !== "super_agent") return false;
-    return true;
+    if (item.roles.includes(role)) return true;
+    if (isAgentRole(role) && item.roles.includes("agent")) return true;
+    return false;
   });
 }
 
 export function roleLabel(role: Role): string {
-  switch (role) {
-    case "admin":
-      return "Admin";
-    case "super_agent":
-      return "Super Agent";
-    case "sub_agent":
-      return "Sub Agent";
-    default:
-      return role;
-  }
+  return sharedRoleLabel(role);
 }

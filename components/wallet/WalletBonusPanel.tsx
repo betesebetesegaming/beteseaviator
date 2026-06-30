@@ -3,12 +3,16 @@
 import { Gift, Sparkles, Calendar, Moon } from "lucide-react";
 import {
   BONUS_LABELS,
-  bonusRuleSummary,
+  bonusIntroCopy,
+  bonusPlayerDescription,
+  bonusPlayerTitle,
+  depositBonusesActive,
+  formatBonusCampaignEnd,
   isWeekendBonusWindow,
   mergeBonusSettings,
 } from "@/lib/bonuses";
 import { formatXof } from "@/lib/format";
-import type { BonusSettings, Wallet } from "@/lib/types";
+import { DEFAULT_SETTINGS, type BonusSettings, type Wallet } from "@/lib/types";
 import { Card } from "@/components/ui";
 
 const ICONS = {
@@ -20,9 +24,15 @@ const ICONS = {
 type Props = {
   wallet: Wallet | null;
   bonuses?: BonusSettings | null;
+  bonusGamesLabel?: string;
+  bonusIntroText?: string;
+  bonusCampaignEndsAt?: string;
 };
 
-export function WalletBalanceCards({ wallet }: Pick<Props, "wallet">) {
+export function WalletBalanceCards({
+  wallet,
+  bonusGamesLabel = DEFAULT_SETTINGS.bonusGamesLabel!,
+}: Pick<Props, "wallet" | "bonusGamesLabel">) {
   const cash = wallet?.balance ?? 0;
   const bonus = wallet?.bonusBalance ?? 0;
 
@@ -36,15 +46,38 @@ export function WalletBalanceCards({ wallet }: Pick<Props, "wallet">) {
       <Card className="bg-gradient-to-br from-violet-500/15 to-transparent text-center">
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Bonus</p>
         <p className="mt-1 text-2xl font-black text-violet-300 sm:text-3xl">{formatXof(bonus)}</p>
-        <p className="mt-1 text-[10px] text-slate-500">For Aviator bets</p>
+        <p className="mt-1 text-[10px] text-slate-500">For {bonusGamesLabel} bets</p>
       </Card>
     </div>
   );
 }
 
-export function BonusOffersPanel({ bonuses }: Pick<Props, "bonuses">) {
+export function BonusOffersPanel({
+  bonuses,
+  bonusGamesLabel = DEFAULT_SETTINGS.bonusGamesLabel!,
+  bonusIntroText,
+  bonusCampaignEndsAt,
+}: Pick<Props, "bonuses" | "bonusGamesLabel" | "bonusIntroText" | "bonusCampaignEndsAt">) {
   const rules = mergeBonusSettings(bonuses);
   const weekendLive = isWeekendBonusWindow(new Date(), rules.weekend);
+  const intro = bonusIntroCopy({ bonusIntroText, bonusGamesLabel });
+  const campaignActive = depositBonusesActive({ bonusCampaignEndsAt });
+
+  if (!campaignActive) {
+    return (
+      <Card className="h-fit border-slate-500/20 bg-slate-500/5">
+        <div className="mb-2 flex items-center gap-2">
+          <Gift size={18} className="text-slate-400" />
+          <h2 className="font-semibold text-slate-300">Deposit bonuses</h2>
+        </div>
+        <p className="text-xs leading-relaxed text-slate-400">
+          Our launch deposit bonus offer has ended
+          {bonusCampaignEndsAt ? ` (${formatBonusCampaignEnd(bonusCampaignEndsAt)})` : ""}. You can
+          still deposit and play — any bonus balance you already have remains until wagered.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <Card className="h-fit border-violet-500/20 bg-violet-500/5">
@@ -52,10 +85,7 @@ export function BonusOffersPanel({ bonuses }: Pick<Props, "bonuses">) {
         <Gift size={18} className="text-violet-300" />
         <h2 className="font-semibold text-violet-100">Deposit bonuses</h2>
       </div>
-      <p className="mb-4 text-xs leading-relaxed text-slate-400">
-        Bonuses are added to your bonus balance when a deposit is confirmed. Use them on Aviator
-        &amp; Crash — wins go to your cash balance.
-      </p>
+      <p className="mb-4 whitespace-pre-line text-xs leading-relaxed text-slate-400">{intro}</p>
       <ul className="space-y-3">
         {(Object.keys(BONUS_LABELS) as (keyof BonusSettings)[]).map((key) => {
           const rule = rules[key];
@@ -73,9 +103,9 @@ export function BonusOffersPanel({ bonuses }: Pick<Props, "bonuses">) {
               <div className="flex items-start gap-2">
                 <Icon size={16} className="mt-0.5 shrink-0 text-violet-300" />
                 <div>
-                  <p className="text-sm font-semibold text-white">{BONUS_LABELS[key]}</p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-slate-400">
-                    {bonusRuleSummary(key, rule)}
+                  <p className="text-sm font-semibold text-white">{bonusPlayerTitle(key, rule)}</p>
+                  <p className="mt-0.5 whitespace-pre-line text-[11px] leading-snug text-slate-400">
+                    {bonusPlayerDescription(key, rule)}
                   </p>
                   {key === "weekend" && rule.enabled && weekendLive && (
                     <span className="mt-1.5 inline-block rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-200">
