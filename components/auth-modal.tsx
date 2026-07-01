@@ -1,20 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+/**
+ * Auth modal — phone + password signup/login with Africell SMS OTP (via PMU fallback).
+ *
+ * WARNING: Do NOT use Firebase Phone Auth — Gambian SMS OTP only (sendOtp/verifyOtp).
+ * SMS verification uses sendOtp/verifyOtp only. See lib/otpPolicy.ts.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import {
-  GoogleAuthProvider,
-  RecaptchaVerifier,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithPhoneNumber,
-  signInWithPopup,
-  type ConfirmationResult,
-} from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { LogIn, UserPlus } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { useAuth, homeFor, profileMatchesUser } from "@/lib/auth-context";
-import { completeRegistration, errorMessage } from "@/lib/api";
+import { completeRegistration, errorMessage, resetPlayerPassword } from "@/lib/api";
 import {
   displayLocalFromPhoneKey,
   normalizePhone,
@@ -23,7 +22,6 @@ import {
   phoneKeyFromAuthEmail,
   phoneToEmail,
 } from "@/lib/phone";
-import { isSignupOtpEnabled } from "@/lib/env/publicConfig";
 import { probeSignupOtpGateway, type OtpGatewayStatus } from "@/lib/otpClient";
 import { OtpConfirmPanel, usePhoneOtp } from "@/components/PhoneOtpVerification";
 import { getReferralDeviceId } from "@/lib/referrals";
@@ -34,16 +32,14 @@ import {
   PHONE_COUNTRY_OPTIONS,
   getPhoneCountryMeta,
   isActivePhoneCountry,
-  normalizePhoneE164,
   type PhoneCountryCode,
 } from "@/lib/phone";
 import { Button, Input, Modal, Select } from "@/components/ui";
-import { Logo } from "@/components/logo";
 import { CustomerCareBar } from "@/components/CustomerCareBar";
 import { SignupComplianceNotice } from "@/components/SignupComplianceNotice";
 
-export type AuthModalMode = "login" | "register" | "complete";
-type CustomerAuth = "password" | "otp";
+export type AuthModalMode = "login" | "register" | "complete" | "forgot";
+type FormStep = "details" | "otp" | "reset";
 
 function CustomerPhoneFields({
   phoneCountry,
@@ -81,7 +77,7 @@ function CustomerPhoneFields({
           type="tel"
           inputMode="numeric"
           autoComplete="tel-national"
-          maxLength={phoneCountry === "GM" ? 12 : 16}
+          maxLength={12}
           placeholder={PHONE_PLACEHOLDER[phoneCountry]}
           value={phone}
           onChange={(e) => onPhoneChange(e.target.value.replace(/[^\d+\s]/g, ""))}
@@ -89,7 +85,7 @@ function CustomerPhoneFields({
         />
       ) : (
         <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-100">
-          {meta.label} sign-up is coming soon. Please use Gambia or Senegal for now.
+          {meta.label} sign-up is coming soon. Please use a Gambian mobile number for now.
         </p>
       )}
     </>
@@ -113,55 +109,52 @@ export function AuthModal({
 }) {
   const { fbUser, profile, loading } = useAuth();
   const [mode, setMode] = useState<AuthModalMode>(initialMode);
-  const [customerAuth, setCustomerAuth] = useState<CustomerAuth>("password");
+  const [formStep, setFormStep] = useState<FormStep>("details");
   const [busy, setBusy] = useState(false);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [phoneCountry, setPhoneCountry] = useState<PhoneCountryCode>("GM");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const [otpDismissed, setOtpDismissed] = useState(false);
   const [otpGatewayStatus, setOtpGatewayStatus] = useState<OtpGatewayStatus>("unknown");
 
-  const confirmRef = useRef<ConfirmationResult | null>(null);
-  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
-  const otpEnabled = isSignupOtpEnabled();
-  const requiresSignupOtp = phoneCountry === "GM";
-  const requiresCompleteOtp = phoneCountry === "GM";
   const signupPhonePreview = useMemo(
-    () => (phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhone(phone, phoneCountry) : ""),
+    () => (isActivePhoneCountry(phoneCountry) ? normalizePhone(phone, phoneCountry) : ""),
     [phone, phoneCountry],
   );
   const signupOtp = usePhoneOtp(signupPhonePreview);
   const completeOtp = usePhoneOtp(signupPhonePreview);
+  const loginOtp = usePhoneOtp(signupPhonePreview);
+  const forgotOtp = usePhoneOtp(signupPhonePreview);
   const signupPhoneComplete = Boolean(
-    phoneCountry === "GM" || phoneCountry === "SN" ? normalizePhoneLocal(phone, phoneCountry) : null,
+    isActivePhoneCountry(phoneCountry) ? normalizePhoneLocal(phone, phoneCountry) : null,
   );
 
-  const needsOtpStep =
-    (mode === "register" && requiresSignupOtp) || (mode === "complete" && requiresCompleteOtp);
-  const activeOtp = mode === "complete" ? completeOtp : signupOtp;
-  const showOtpScreen =
-    needsOtpStep && signupPhoneComplete && !activeOtp.otpVerified && !otpDismissed;
+  const activeOtp =
+    mode === "complete"
+      ? completeOtp
+      : mode === "forgot"
+        ? forgotOtp
+        : mode === "login"
+          ? loginOtp
+          : signupOtp;
+  const showOtpScreen = formStep === "otp" && signupPhoneComplete;
+  const showResetScreen = mode === "forgot" && formStep === "reset" && signupPhoneComplete;
+
+  const postOtpActionRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setMode(initialMode);
-    setCustomerAuth("password");
-    setOtpSent(false);
-    setOtpCode("");
+    setFormStep("details");
     setAgeConfirmed(false);
-    setOtpDismissed(false);
     setOtpGatewayStatus("unknown");
   }, [open, initialMode]);
 
   useEffect(() => {
-    if (!open || phoneCountry !== "GM") return;
+    if (!open || !isActivePhoneCountry(phoneCountry)) return;
     let alive = true;
     void probeSignupOtpGateway().then((result) => {
       if (alive) setOtpGatewayStatus(result.status);
@@ -176,6 +169,7 @@ export function AuthModal({
     const matchedProfile = profileMatchesUser(profile, fbUser) ? profile : null;
     if (fbUser && !matchedProfile) {
       setMode("complete");
+      setFormStep("details");
       if (fbUser.displayName) setName((n) => n || fbUser.displayName || "");
       const key = phoneKeyFromAuthEmail(fbUser.email);
       if (key) {
@@ -193,22 +187,39 @@ export function AuthModal({
   }, [open, loading, fbUser, profile, onSuccess, onClose]);
 
   useEffect(() => {
-    setOtpDismissed(false);
+    setFormStep("details");
   }, [phone, phoneCountry, mode]);
 
-  async function loginWithPassword() {
+  function requireAgeConfirmation(): boolean {
+    if (ageConfirmed) return true;
+    toast.error("You must confirm you are 18 or older to sign up.");
+    return false;
+  }
+
+  function validatePhoneFields(): { ok: true; normalized: string } | { ok: false; error: string } {
     if (!isActivePhoneCountry(phoneCountry)) {
-      return toast.error("Gambia and Senegal are available now. Ghana & Nigeria coming soon.");
+      return {
+        ok: false,
+        error: "Only Gambian mobile numbers are supported. Ghana & Nigeria coming soon.",
+      };
     }
     const normalized = normalizePhone(phone, phoneCountry);
-    if (!normalized) return toast.error(PHONE_HINT);
+    if (!normalized) return { ok: false, error: PHONE_HINT };
+    return { ok: true, normalized };
+  }
+
+  async function loginWithPassword() {
+    const phoneCheck = validatePhoneFields();
+    if (!phoneCheck.ok) return toast.error(phoneCheck.error);
     if (!password) return toast.error("Enter your password.");
+    const normalized = phoneCheck.normalized;
     setBusy(true);
     try {
       await signInWithEmailAndPassword(auth, phoneToEmail(normalized), password);
       toast.success("Welcome back!");
       if (!profile) {
         setMode("complete");
+        setFormStep("details");
       }
     } catch {
       toast.error("Invalid phone or password.");
@@ -217,27 +228,14 @@ export function AuthModal({
     }
   }
 
-  function requireAgeConfirmation(): boolean {
-    if (ageConfirmed) return true;
-    toast.error("You must confirm you are 18 or older to sign up.");
-    return false;
-  }
-
   async function registerWithPhone() {
     if (!requireAgeConfirmation()) return;
-    if (!isActivePhoneCountry(phoneCountry)) {
-      return toast.error("Gambia and Senegal are available now. Ghana & Nigeria coming soon.");
-    }
-    const normalized = normalizePhone(phone, phoneCountry);
+    const phoneCheck = validatePhoneFields();
+    if (!phoneCheck.ok) return toast.error(phoneCheck.error);
+    const normalized = phoneCheck.normalized;
     if (!name.trim()) return toast.error("Enter your full name.");
-    if (!normalized) return toast.error(PHONE_HINT);
     if (password.length < 8) return toast.error("Password must be at least 8 characters.");
     if (password !== confirm) return toast.error("Passwords do not match.");
-
-    if (requiresSignupOtp && !signupOtp.otpVerified) {
-      setOtpDismissed(false);
-      return toast.error("Verify your mobile number with the SMS code first.");
-    }
 
     setBusy(true);
     try {
@@ -248,7 +246,6 @@ export function AuthModal({
         ref: refCode,
         pref: prefCode,
         deviceId: getReferralDeviceId() || undefined,
-        ...(email.trim() ? { email: email.trim().toLowerCase() } : {}),
       };
 
       try {
@@ -271,9 +268,11 @@ export function AuthModal({
       ) {
         toast.error("This phone is already registered. Sign in with your password.");
         setMode("login");
+        setFormStep("details");
       } else if (msg.includes("Invalid credentials") || msg.includes("wrong-password")) {
         toast.error("This phone is already registered. Sign in with your password.");
         setMode("login");
+        setFormStep("details");
       } else {
         toast.error(msg);
       }
@@ -282,69 +281,12 @@ export function AuthModal({
     }
   }
 
-  async function sendOtp() {
-    if (!isActivePhoneCountry(phoneCountry)) {
-      return toast.error("Gambia and Senegal are available now. Ghana & Nigeria coming soon.");
-    }
-    const e164 = normalizePhoneE164(phone, phoneCountry);
-    if (!e164) return toast.error(PHONE_HINT);
-    setBusy(true);
-    try {
-      if (!recaptchaRef.current) {
-        recaptchaRef.current = new RecaptchaVerifier(auth, "auth-modal-recaptcha", {
-          size: "invisible",
-        });
-      }
-      confirmRef.current = await signInWithPhoneNumber(auth, e164, recaptchaRef.current);
-      setOtpSent(true);
-      toast.success("SMS code sent.");
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirmOtp() {
-    if (!confirmRef.current || otpCode.length < 6) return toast.error("Enter the 6-digit code.");
-    setBusy(true);
-    try {
-      await confirmRef.current.confirm(otpCode);
-      toast.success("Phone verified!");
-    } catch {
-      toast.error("Invalid code.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function loginGoogle() {
-    if (mode === "register" && !requireAgeConfirmation()) return;
-    setBusy(true);
-    try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-      toast.success("Signed in with Google.");
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function completeProfile() {
     if (!requireAgeConfirmation()) return;
     if (!name.trim()) return toast.error("Enter your full name.");
-    if (!isActivePhoneCountry(phoneCountry)) {
-      return toast.error("Gambia and Senegal are available now. Ghana & Nigeria coming soon.");
-    }
-    const normalized = normalizePhone(phone, phoneCountry);
-    if (!normalized) return toast.error(PHONE_HINT);
-
-    if (requiresCompleteOtp && !completeOtp.otpVerified) {
-      setOtpDismissed(false);
-      return toast.error("Verify your mobile number with the SMS code first.");
-    }
-
+    const phoneCheck = validatePhoneFields();
+    if (!phoneCheck.ok) return toast.error(phoneCheck.error);
+    const normalized = phoneCheck.normalized;
     setBusy(true);
     try {
       await completeRegistration({
@@ -361,6 +303,7 @@ export function AuthModal({
       if (msg.includes("already registered") || msg.includes("already-exists")) {
         toast.error("This phone is already registered. Sign in with your password instead.");
         setMode("login");
+        setFormStep("details");
       } else {
         toast.error(msg);
       }
@@ -369,43 +312,108 @@ export function AuthModal({
     }
   }
 
-  const showCredentials =
-    mode === "register" && (!requiresSignupOtp || signupOtp.otpVerified);
-  const showCompleteSubmit =
-    mode === "complete" && (!requiresCompleteOtp || completeOtp.otpVerified);
+  function continueRegister() {
+    if (!requireAgeConfirmation()) return;
+    const phoneCheck = validatePhoneFields();
+    if (!phoneCheck.ok) return toast.error(phoneCheck.error);
+    if (!name.trim()) return toast.error("Enter your full name.");
+    if (password.length < 8) return toast.error("Password must be at least 8 characters.");
+    if (password !== confirm) return toast.error("Passwords do not match.");
+    postOtpActionRef.current = () => {
+      void registerWithPhone();
+    };
+    setFormStep("otp");
+  }
+
+  function continueLogin() {
+    const phoneCheck = validatePhoneFields();
+    if (!phoneCheck.ok) return toast.error(phoneCheck.error);
+    if (!password) return toast.error("Enter your password.");
+    postOtpActionRef.current = () => {
+      void loginWithPassword();
+    };
+    setFormStep("otp");
+  }
+
+  async function submitPasswordReset() {
+    const phoneCheck = validatePhoneFields();
+    if (!phoneCheck.ok) return toast.error(phoneCheck.error);
+    if (password.length < 8) return toast.error("Password must be at least 8 characters.");
+    if (password !== confirm) return toast.error("Passwords do not match.");
+    setBusy(true);
+    try {
+      await resetPlayerPassword({ phone: phoneCheck.normalized, password });
+      toast.success("Password updated. Sign in with your new password.");
+      setMode("login");
+      setFormStep("details");
+      setPassword("");
+      setConfirm("");
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function continueForgot() {
+    const phoneCheck = validatePhoneFields();
+    if (!phoneCheck.ok) return toast.error(phoneCheck.error);
+    postOtpActionRef.current = () => {
+      setFormStep("reset");
+    };
+    setFormStep("otp");
+  }
+  function continueComplete() {
+    if (!requireAgeConfirmation()) return;
+    if (!name.trim()) return toast.error("Enter your full name.");
+    const phoneCheck = validatePhoneFields();
+    if (!phoneCheck.ok) return toast.error(phoneCheck.error);
+    postOtpActionRef.current = () => {
+      void completeProfile();
+    };
+    setFormStep("otp");
+  }
+
+  const handleOtpVerified = useCallback(() => {
+    const action = postOtpActionRef.current;
+    if (!action) return;
+    postOtpActionRef.current = null;
+    action();
+  }, []);
 
   const modalTitle = showOtpScreen
     ? "Verify your number"
-    : mode === "complete"
-      ? "Finish your profile"
-      : mode === "register"
-        ? "Create account to play"
-        : "Sign in to place bets";
+    : showResetScreen
+      ? "Choose a new password"
+      : mode === "forgot"
+        ? "Reset password"
+        : mode === "complete"
+          ? "Finish your profile"
+          : mode === "register"
+            ? "Create account to play"
+            : "Sign in to place bets";
 
   const modalSubtitle = showOtpScreen
-    ? "We sent a 6-digit code to your Africell phone. Enter it below to continue."
-    : mode === "complete"
-      ? requiresCompleteOtp
-        ? "One last step — confirm your name and Gambian mobile number. SMS verification is required before your wallet opens."
-        : "Add your phone number to deposit, bet and withdraw with real GMD."
-      : mode === "register" && requiresSignupOtp
-        ? "Enter your details, then verify your Gambian mobile number by SMS."
-        : "Watch the game for free — sign up when you're ready to bet for real money.";
+    ? "We sent a one-time password to your phone. Enter the 6-digit code below."
+    : showResetScreen
+      ? "Pick a strong password you will remember."
+      : mode === "forgot"
+        ? "Enter your registered Gambian mobile number — we'll verify by SMS."
+        : mode === "complete"
+          ? "Confirm your name and Gambian mobile number to open your wallet."
+          : mode === "register"
+            ? "Enter your name, phone and password — we'll verify your number by SMS next."
+            : "Enter your phone and password — we'll send a verification code next.";
 
   return (
     <Modal open={open} onClose={onClose} title={modalTitle}>
-      <div className="mb-3 flex justify-center sm:mb-4">
-        <Logo height={28} showWordmark={false} className="sm:hidden" />
-        <Logo height={32} showWordmark={false} className="hidden sm:inline-flex" />
-      </div>
       <p className="mb-3 text-center text-sm text-slate-400 sm:mb-4">{modalSubtitle}</p>
 
       {showOtpScreen ? (
         <>
           {otpGatewayStatus === "unavailable" ? (
             <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
-              SMS verification is temporarily unavailable. Try again in a few minutes, or sign in with
-              your password if you already have an account.
+              SMS verification is temporarily unavailable. Try again in a few minutes.
             </p>
           ) : null}
           <OtpConfirmPanel
@@ -413,15 +421,50 @@ export function AuthModal({
             otp={activeOtp}
             disabled={busy || otpGatewayStatus === "unavailable"}
             autoSend={otpGatewayStatus !== "unavailable"}
-            onBack={() => setOtpDismissed(true)}
+            onBack={() => setFormStep("details")}
+            onVerified={handleOtpVerified}
             headline={
               mode === "complete"
-                ? "Confirm your Africell number to finish signup"
-                : "Confirm your Africell number"
+                ? "Confirm your mobile number to finish signup"
+                : mode === "forgot"
+                  ? "Confirm it's your number"
+                  : mode === "login"
+                    ? "Confirm it's you"
+                    : "Confirm your mobile number"
             }
             subline="Enter the 6-digit SMS code we sent to your phone."
           />
         </>
+      ) : showResetScreen ? (
+        <div className="space-y-3">
+          <Input
+            label="New password (min 8 characters)"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <Input
+            label="Confirm new password"
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+          <Button className="w-full" onClick={() => void submitPasswordReset()} disabled={busy}>
+            {busy ? "Updating…" : "Update password"}
+          </Button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode("login");
+              setFormStep("details");
+              setPassword("");
+              setConfirm("");
+            }}
+            className="w-full text-center text-sm font-medium text-emerald-400 hover:text-emerald-300"
+          >
+            Back to sign in
+          </button>
+        </div>
       ) : (
         <>
           {refCode && mode === "register" && (
@@ -437,13 +480,13 @@ export function AuthModal({
             </p>
           )}
 
-          {mode !== "complete" && (
+          {mode !== "complete" && mode !== "forgot" && (
             <div className="mb-3 grid grid-cols-2 rounded-lg bg-slate-950/70 p-1 text-sm font-medium sm:mb-4">
               <button
                 type="button"
                 onClick={() => {
                   setMode("login");
-                  setOtpDismissed(false);
+                  setFormStep("details");
                 }}
                 className={`flex items-center justify-center gap-1.5 rounded-md py-2 ${
                   mode === "login" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
@@ -455,7 +498,7 @@ export function AuthModal({
                 type="button"
                 onClick={() => {
                   setMode("register");
-                  setOtpDismissed(false);
+                  setFormStep("details");
                 }}
                 className={`flex items-center justify-center gap-1.5 rounded-md py-2 ${
                   mode === "register"
@@ -480,28 +523,32 @@ export function AuthModal({
                 onCountryChange={setPhoneCountry}
                 phone={phone}
                 onPhoneChange={setPhone}
-                disabled={completeOtp.otpVerified}
               />
-              {requiresCompleteOtp && !signupPhoneComplete && (
-                <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                  Enter your full 7-digit Gambian mobile number — the popup will switch to SMS
-                  verification automatically.
-                </p>
-              )}
-              {requiresCompleteOtp && completeOtp.otpVerified && (
-                <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
-                  Mobile number verified — tap below to activate your wallet
-                </p>
-              )}
-              {showCompleteSubmit && (
-                <Button
-                  className="w-full"
-                  onClick={completeProfile}
-                  disabled={busy || !ageConfirmed}
-                >
-                  {busy ? "Saving…" : "Start playing for real"}
-                </Button>
-              )}
+              <Button className="w-full" onClick={continueComplete} disabled={busy || !ageConfirmed}>
+                Continue
+              </Button>
+            </div>
+          ) : mode === "forgot" ? (
+            <div className="space-y-3">
+              <CustomerPhoneFields
+                phoneCountry={phoneCountry}
+                onCountryChange={setPhoneCountry}
+                phone={phone}
+                onPhoneChange={setPhone}
+              />
+              <Button className="w-full" onClick={continueForgot} disabled={busy}>
+                Send verification code
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setFormStep("details");
+                }}
+                className="w-full text-center text-sm font-medium text-emerald-400 hover:text-emerald-300"
+              >
+                Back to sign in
+              </button>
             </div>
           ) : mode === "register" ? (
             <div className="space-y-3">
@@ -520,45 +567,24 @@ export function AuthModal({
                 onCountryChange={setPhoneCountry}
                 phone={phone}
                 onPhoneChange={setPhone}
-                disabled={signupOtp.otpVerified}
               />
-              {requiresSignupOtp && signupOtp.otpVerified && (
-                <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
-                  Mobile number verified — set your password below
-                </p>
-              )}
-              {showCredentials && (
-                <>
-                  <Input
-                    label="Email (optional)"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                  <Input
-                    label="Password (min 8 characters)"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  <Input
-                    label="Confirm Password"
-                    type="password"
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                  />
-                  <Button className="w-full" onClick={registerWithPhone} disabled={busy || !ageConfirmed}>
-                    {busy ? "Creating account…" : "Create account"}
-                  </Button>
-                </>
-              )}
-              {requiresSignupOtp && signupPhoneComplete && !signupOtp.otpVerified && (
-                <p className="text-center text-xs text-slate-500">
-                  Enter your full Gambian mobile number — the popup will ask for your SMS code.
-                </p>
-              )}
+              <Input
+                label="Password (min 8 characters)"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <Input
+                label="Confirm Password"
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+              <Button className="w-full" onClick={continueRegister} disabled={busy || !ageConfirmed}>
+                Continue
+              </Button>
             </div>
-          ) : !otpEnabled || customerAuth === "password" || phoneCountry === "GM" ? (
+          ) : (
             <div className="space-y-3">
               <CustomerPhoneFields
                 phoneCountry={phoneCountry}
@@ -571,70 +597,24 @@ export function AuthModal({
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && loginWithPassword()}
+                onKeyDown={(e) => e.key === "Enter" && continueLogin()}
               />
-              <Button className="w-full" onClick={loginWithPassword} disabled={busy}>
-                {busy ? "Signing in…" : "Sign in with phone"}
-              </Button>
-              {otpEnabled && phoneCountry !== "GM" && (
-                <button
-                  type="button"
-                  onClick={() => setCustomerAuth("otp")}
-                  className="block w-full text-center text-xs text-slate-400 hover:text-emerald-300"
-                >
-                  Sign in with SMS code instead
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <CustomerPhoneFields
-                phoneCountry={phoneCountry}
-                onCountryChange={setPhoneCountry}
-                phone={phone}
-                onPhoneChange={setPhone}
-              />
-              {otpSent && (
-                <Input
-                  label="SMS Code"
-                  inputMode="numeric"
-                  placeholder="123456"
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
-                />
-              )}
-              <Button className="w-full" onClick={otpSent ? confirmOtp : sendOtp} disabled={busy}>
-                {busy ? "Please wait…" : otpSent ? "Verify code" : "Send SMS code"}
+              <Button className="w-full" onClick={continueLogin} disabled={busy}>
+                Continue
               </Button>
               <button
                 type="button"
                 onClick={() => {
-                  setCustomerAuth("password");
-                  setOtpSent(false);
+                  setMode("forgot");
+                  setFormStep("details");
+                  setPassword("");
+                  setConfirm("");
                 }}
-                className="block w-full text-center text-xs text-slate-400 hover:text-emerald-300"
+                className="w-full text-center text-sm font-medium text-emerald-400 hover:text-emerald-300"
               >
-                Use password instead
+                Forgot password?
               </button>
             </div>
-          )}
-
-          {mode !== "complete" && (
-            <>
-              <div className="my-4 flex items-center gap-3 text-xs text-slate-500">
-                <div className="h-px flex-1 bg-white/10" />
-                or
-                <div className="h-px flex-1 bg-white/10" />
-              </div>
-              <Button
-                variant="secondary"
-                className="w-full"
-                onClick={loginGoogle}
-                disabled={busy || (mode === "register" && !ageConfirmed)}
-              >
-                Continue with Google
-              </Button>
-            </>
           )}
 
           {mode === "login" ? (
@@ -644,8 +624,6 @@ export function AuthModal({
           ) : null}
         </>
       )}
-
-      <div id="auth-modal-recaptcha" />
     </Modal>
   );
 }

@@ -1,6 +1,11 @@
 import { apiUrl } from "./apiUrl";
 
-/** Africell gateway down, credentials missing, or other infra failure. */
+/**
+ * Africell SMS OTP client (sendOtp / verifyOtp Cloud Functions).
+ *
+ * WARNING: Do NOT use Firebase Phone Auth here. All SMS codes go through Africell
+ * via lib/otpClient → functions/src/routes/otp.ts. See lib/otpPolicy.ts.
+ */
 export function isOtpGatewayUnavailableError(error?: string): boolean {
   const msg = String(error || "").toLowerCase();
   return (

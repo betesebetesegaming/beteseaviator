@@ -4,10 +4,51 @@ import https from "node:https";
 import { logger } from "firebase-functions";
 import { db } from "../helpers";
 
+/**
+ * Africell SMS OTP HTTP handlers (sendOtp / verifyOtp).
+ *
+ * WARNING: Do NOT use Firebase Phone Auth or Identity Toolkit for SMS codes.
+ * BETESE only sends OTP via Africell gateway. See lib/otpPolicy.ts (frontend mirror).
+ */
+
 const OTP_TTL_SECONDS = 300;
 const OTP_VERIFIED_TTL_SECONDS = 600;
 const OTP_LENGTH = 6;
 const MAX_ATTEMPTS = 5;
+
+/** betesepmu Cloud Functions — fallback when Aviator Africell egress is blocked. */
+const PMU_OTP_BASE_URL = (
+  process.env.PMU_OTP_API_BASE_URL || "https://us-central1-betesepmu-4ffc7.cloudfunctions.net"
+).replace(/\/+$/, "");
+
+async function proxyPmuOtp(
+  fn: "sendOtp" | "verifyOtp",
+  body: Record<string, unknown>,
+): Promise<{ httpStatus: number; data: Record<string, unknown> }> {
+  try {
+    const res = await fetch(`${PMU_OTP_BASE_URL}/${fn}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(55000),
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return { httpStatus: res.status, data };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { httpStatus: 502, data: { error: `PMU OTP proxy failed: ${msg}` } };
+  }
+}
+
+async function mirrorOtpVerified(msisdn: string): Promise<void> {
+  const verifiedExpiresAt = Date.now() + OTP_VERIFIED_TTL_SECONDS * 1000;
+  await db.collection("otp_verified").doc(msisdn).set({
+    phone: msisdn,
+    verified_at: new Date().toISOString(),
+    expires_at: new Date(verifiedExpiresAt).toISOString(),
+    source: "pmu",
+  });
+}
 
 /**
  * Africell Gambia SMS API Gateway — 20 February 2020
@@ -67,13 +108,13 @@ function parseAfricellSmsResponse(
   };
 }
 
+/** Gambian Africell numbers only — 7 local digits or 220-prefixed msisdn. */
 function normalizeMsisdn(raw: string): string | null {
   const digits = String(raw || "").replace(/\D/g, "");
   if (!digits) return null;
   if (digits.startsWith("220") && digits.length >= 10) return digits;
-  if (digits.startsWith("221") && digits.length >= 12) return digits;
   if (digits.length === 7) return `220${digits}`;
-  return digits;
+  return null;
 }
 
 function hashOtp(code: string, phone: string, salt: string): string {
@@ -275,6 +316,11 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
     const username = process.env.AFRICELL_SMS_USERNAME || "";
     const password = process.env.AFRICELL_SMS_PASSWORD || "";
     if (!baseUrl || !username || !password) {
+      const proxied = await proxyPmuOtp("sendOtp", { probe: true });
+      if (proxied.httpStatus >= 200 && proxied.httpStatus < 300 && proxied.data.probe === true) {
+        res.json({ probe: true, gateway: proxied.data.gateway, via: "pmu" });
+        return;
+      }
       res.status(503).json({ error: "Africell SMS credentials not configured" });
       return;
     }
@@ -306,7 +352,7 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
   }
   const msisdn = normalizeMsisdn(phoneInput);
   if (!msisdn) {
-    res.status(400).json({ error: "Invalid phone number" });
+    res.status(400).json({ error: "Invalid Gambian mobile number. Use 7 digits (e.g. 7701234)." });
     return;
   }
 
@@ -357,13 +403,26 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
       await db.collection("otp_codes").doc(msisdn).delete().catch(() => undefined);
     }
     const msg = err instanceof Error ? err.message : String(err);
-    logger.error("Africell SMS dispatch failed", { msisdn, msg });
-    const timedOut = /timeout|abort|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|fetch failed/i.test(msg);
-    if (timedOut) {
-      res.status(502).json({ error: "Africell SMS gateway timed out.", detail: msg });
+    logger.warn("Local Africell SMS failed, trying PMU OTP proxy", { msisdn, msg });
+
+    const proxied = await proxyPmuOtp("sendOtp", { phone: phoneInput });
+    if (proxied.httpStatus >= 200 && proxied.httpStatus < 300 && proxied.data.ok === true) {
+      logger.info("OTP sent via PMU proxy", { msisdn });
+      res.json(proxied.data);
       return;
     }
-    res.status(502).json({ error: msg });
+
+    logger.error("Africell SMS dispatch failed", { msisdn, msg, pmuError: proxied.data.error });
+    const timedOut = /timeout|abort|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|fetch failed/i.test(msg);
+    if (timedOut) {
+      res.status(502).json({
+        error: "Africell SMS gateway timed out.",
+        detail: msg,
+        pmuError: proxied.data.error,
+      });
+      return;
+    }
+    res.status(502).json({ error: msg, pmuError: proxied.data.error });
   }
 }
 
@@ -378,7 +437,7 @@ export async function verifyOtpHandler(req: Request, res: Response): Promise<voi
   }
   const msisdn = normalizeMsisdn(phoneInput);
   if (!msisdn) {
-    res.status(400).json({ error: "Invalid phone number" });
+    res.status(400).json({ error: "Invalid Gambian mobile number. Use 7 digits (e.g. 7701234)." });
     return;
   }
 
@@ -388,7 +447,16 @@ export async function verifyOtpHandler(req: Request, res: Response): Promise<voi
     const ref = db.collection("otp_codes").doc(msisdn);
     const snap = await ref.get();
     if (!snap.exists) {
-      res.status(404).json({ error: "No OTP request found for this number. Please request a new code." });
+      const proxied = await proxyPmuOtp("verifyOtp", { phone: phoneInput, code });
+      if (proxied.httpStatus >= 200 && proxied.httpStatus < 300 && proxied.data.ok === true) {
+        await mirrorOtpVerified(msisdn);
+        res.json({ ok: true, verified: true, phone: msisdn, via: "pmu" });
+        return;
+      }
+      const proxiedErr = String(
+        proxied.data.error || "No OTP request found for this number. Please request a new code.",
+      );
+      res.status(proxied.httpStatus >= 400 ? proxied.httpStatus : 404).json({ error: proxiedErr });
       return;
     }
     const data = snap.data() as { code_hash?: string; expires_at?: string; attempts?: number };

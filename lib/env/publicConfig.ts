@@ -154,10 +154,11 @@ export function isSmsOtpSupportedPhone(phone?: string): boolean {
 }
 
 /**
- * Optional Firebase phone-auth login path. Gambian signup/withdrawal OTP is always
- * mandatory via requiresMandatoryOtpPhone — not controlled by this flag.
+ * Optional legacy flag — Firebase phone-auth login is NOT supported.
+ * Gambian signup/withdrawal SMS uses Africell OTP only (see lib/otpPolicy.ts).
+ *
+ * WARNING: Do NOT wire this to signInWithPhoneNumber or RecaptchaVerifier.
  */
 export function isSignupOtpEnabled(): boolean {
-  const enabled = readPublicEnv("NEXT_PUBLIC_SIGNUP_OTP_ENABLED");
-  return enabled !== "false";
+  return false;
 }

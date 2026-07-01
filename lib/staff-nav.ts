@@ -13,6 +13,7 @@ import {
   Gamepad2,
   ListOrdered,
   Gift,
+  Calculator,
 } from "lucide-react";
 import type { Role } from "@/lib/types";
 import { isAgentRole, roleLabel as sharedRoleLabel } from "@/lib/roles";
@@ -101,6 +102,12 @@ export const STAFF_NAV: StaffNavItem[] = [
     label: "Bonuses & Wallet",
     icon: Gift,
     roles: ["admin"],
+  },
+  {
+    href: "/admin/accounts",
+    label: "Accounts",
+    icon: Calculator,
+    roles: ["admin", "agent", "super_agent", "sub_agent"],
   },
   {
     href: "/admin/reports",

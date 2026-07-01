@@ -1,10 +1,5 @@
 import { getApps, initializeApp } from "firebase/app";
-import {
-  browserLocalPersistence,
-  browserPopupRedirectResolver,
-  getAuth,
-  initializeAuth,
-} from "firebase/auth";
+import { browserLocalPersistence, getAuth, initializeAuth } from "firebase/auth";
 import { getPublicFirebaseConfig } from "./env/publicConfig";
 
 const firebaseConfig = getPublicFirebaseConfig();
@@ -17,12 +12,7 @@ export const auth =
     ? getAuth(app)
     : (() => {
         try {
-          return initializeAuth(app, {
-            persistence: browserLocalPersistence,
-            // getAuth() bundles this automatically; initializeAuth does NOT —
-            // without it signInWithPopup/Redirect throw auth/argument-error.
-            popupRedirectResolver: browserPopupRedirectResolver,
-          });
+          return initializeAuth(app, { persistence: browserLocalPersistence });
         } catch {
           return getAuth(app);
         }

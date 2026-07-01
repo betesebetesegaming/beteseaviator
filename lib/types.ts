@@ -266,7 +266,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   subAgentRate: 0.05,
   superAgentRate: 0.03,
   apiProviderRate: 0.15,
-  apiProviderName: "API Provider",
+  apiProviderName: "QTech",
   minBet: 1,
   maxBet: 100_000,
   minDeposit: 25,

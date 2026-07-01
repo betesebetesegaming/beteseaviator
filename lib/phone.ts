@@ -1,15 +1,13 @@
-/** Gambia (+220) and Senegal (+221) are active; Ghana & Nigeria listed for future use. */
+/** BETESE accepts Gambian mobile numbers only (+220, 7 local digits). Africell OTP required for all accounts. */
 
-/** Countries that accept sign-up / login today */
-export type PhoneCountry = "GM" | "SN";
+/** Active sign-up / login country */
+export type PhoneCountry = "GM";
 
-/** All options shown in the country dropdown */
+/** Options shown in the country dropdown */
 export type PhoneCountryCode = PhoneCountry | "GH" | "NG";
 
 export const GAMBIA_COUNTRY_CODE = "220";
-export const SENEGAL_COUNTRY_CODE = "221";
 export const GAMBIA_LOCAL_LENGTH = 7;
-export const SENEGAL_LOCAL_LENGTH = 9;
 
 export type PhoneCountryMeta = {
   code: PhoneCountryCode;
@@ -31,14 +29,6 @@ export const PHONE_COUNTRY_OPTIONS: PhoneCountryMeta[] = [
     placeholder: "7701234",
   },
   {
-    code: "SN",
-    label: "Senegal",
-    dial: "+221",
-    active: true,
-    localLength: SENEGAL_LOCAL_LENGTH,
-    placeholder: "771234567",
-  },
-  {
     code: "GH",
     label: "Ghana",
     dial: "+233",
@@ -55,27 +45,24 @@ export const PHONE_COUNTRY_OPTIONS: PhoneCountryMeta[] = [
 ];
 
 export function isActivePhoneCountry(code: PhoneCountryCode): code is PhoneCountry {
-  return code === "GM" || code === "SN";
+  return code === "GM";
 }
 
 export function getPhoneCountryMeta(code: PhoneCountryCode): PhoneCountryMeta {
   return PHONE_COUNTRY_OPTIONS.find((c) => c.code === code) ?? PHONE_COUNTRY_OPTIONS[0];
 }
 
-export const PHONE_HINT =
-  "Gambia: 7 digits (e.g. 7701234). Senegal: 9 digits (e.g. 771234567).";
+export const PHONE_HINT = "Enter a valid Gambian mobile number: 7 digits (e.g. 7701234).";
 
 /** @deprecated Use PHONE_HINT */
 export const GAMBIA_PHONE_HINT = PHONE_HINT;
 
 export const PHONE_PLACEHOLDER: Record<PhoneCountry, string> = {
   GM: "e.g. 7701234",
-  SN: "e.g. 771234567",
 };
 
 export const PHONE_LABEL: Record<PhoneCountry, string> = {
   GM: "Phone number",
-  SN: "Phone number",
 };
 
 export type ParsedPhone = { country: PhoneCountry; local: string };
@@ -84,22 +71,16 @@ function stripLeadingZeros(digits: string): string {
   return digits.replace(/^0+/, "");
 }
 
-/** Parse and validate; prefers Gambia when length is ambiguous. */
+/** Parse and validate a Gambian mobile number. */
 export function normalizePhoneLocal(
   input: string,
-  preferredCountry: PhoneCountry = "GM"
+  _preferredCountry: PhoneCountry = "GM"
 ): ParsedPhone | null {
   const raw = String(input || "").trim();
   if (!raw) return null;
 
   let digits = raw.replace(/\D/g, "");
   if (!digits) return null;
-
-  if (digits.startsWith(SENEGAL_COUNTRY_CODE)) {
-    const local = stripLeadingZeros(digits.slice(3));
-    if (local.length !== SENEGAL_LOCAL_LENGTH || !/^\d{9}$/.test(local)) return null;
-    return { country: "SN", local };
-  }
 
   if (digits.startsWith(GAMBIA_COUNTRY_CODE)) {
     const local = stripLeadingZeros(digits.slice(3));
@@ -108,42 +89,28 @@ export function normalizePhoneLocal(
   }
 
   digits = stripLeadingZeros(digits);
-
-  if (digits.length === SENEGAL_LOCAL_LENGTH && /^\d{9}$/.test(digits)) {
-    return { country: "SN", local: digits };
-  }
-
   if (digits.length === GAMBIA_LOCAL_LENGTH && /^\d{7}$/.test(digits)) {
     return { country: "GM", local: digits };
-  }
-
-  if (preferredCountry === "SN" && digits.length === SENEGAL_LOCAL_LENGTH) {
-    return /^\d{9}$/.test(digits) ? { country: "SN", local: digits } : null;
-  }
-
-  if (preferredCountry === "GM" && digits.length === GAMBIA_LOCAL_LENGTH) {
-    return /^\d{7}$/.test(digits) ? { country: "GM", local: digits } : null;
   }
 
   return null;
 }
 
-/** Storage key in Firestore `phones/{key}` — GM: 7 digits, SN: 221 + 9 digits. */
+/** Storage key in Firestore `phones/{key}` — 7-digit Gambian local number. */
 export function normalizePhone(input: string, preferredCountry: PhoneCountry = "GM"): string {
   const parsed = normalizePhoneLocal(input, preferredCountry);
   if (!parsed) return "";
-  return parsed.country === "GM" ? parsed.local : `${SENEGAL_COUNTRY_CODE}${parsed.local}`;
+  return parsed.local;
 }
 
-/** E.164 for SMS / payments: +220XXXXXXX or +221XXXXXXXXX */
+/** E.164 for SMS / payments: +220XXXXXXX */
 export function normalizePhoneE164(
   input: string,
   preferredCountry: PhoneCountry = "GM"
 ): string | null {
   const parsed = normalizePhoneLocal(input, preferredCountry);
   if (!parsed) return null;
-  const cc = parsed.country === "GM" ? GAMBIA_COUNTRY_CODE : SENEGAL_COUNTRY_CODE;
-  return `+${cc}${parsed.local}`;
+  return `+${GAMBIA_COUNTRY_CODE}${parsed.local}`;
 }
 
 const PHONE_AUTH_EMAIL_SUFFIX = "@phone.beteseaviator.com";
@@ -159,24 +126,21 @@ export function phoneKeyFromAuthEmail(email: string | null | undefined): string 
   return /^\d+$/.test(key) ? key : null;
 }
 
-export function phoneCountryFromKey(key: string): PhoneCountry {
-  if (key.length === GAMBIA_LOCAL_LENGTH) return "GM";
-  if (key.startsWith(SENEGAL_COUNTRY_CODE) && key.length === 12) return "SN";
+export function phoneCountryFromKey(_key: string): PhoneCountry {
   return "GM";
 }
 
 /** Local digits for the phone input (without country prefix). */
-export function displayLocalFromPhoneKey(key: string, country: PhoneCountry): string {
-  if (country === "SN" && key.startsWith(SENEGAL_COUNTRY_CODE)) {
-    return key.slice(SENEGAL_COUNTRY_CODE.length);
+export function displayLocalFromPhoneKey(key: string, _country: PhoneCountry): string {
+  if (key.startsWith(GAMBIA_COUNTRY_CODE) && key.length === 10) {
+    return key.slice(3);
   }
   return key;
 }
 
-/** Gambia-only helpers (payments default). */
 export function normalizeGambiaPhoneLocal(input: string): string | null {
   const parsed = normalizePhoneLocal(input, "GM");
-  return parsed?.country === "GM" ? parsed.local : null;
+  return parsed?.local ?? null;
 }
 
 export function normalizeGambiaPhone(input: string): string | null {
@@ -190,12 +154,12 @@ export function formatGambiaPhoneLocal(local: string): string {
 }
 
 export function formatPhoneDisplay(phoneKey: string): string {
-  if (phoneKey.length === GAMBIA_LOCAL_LENGTH) {
-    return `+${GAMBIA_COUNTRY_CODE} ${formatGambiaPhoneLocal(phoneKey)}`;
-  }
-  if (phoneKey.startsWith(SENEGAL_COUNTRY_CODE) && phoneKey.length === 12) {
-    const local = phoneKey.slice(3);
-    return `+${SENEGAL_COUNTRY_CODE} ${local.slice(0, 2)} ${local.slice(2, 5)} ${local.slice(5)}`;
+  const local =
+    phoneKey.startsWith(GAMBIA_COUNTRY_CODE) && phoneKey.length === 10
+      ? phoneKey.slice(3)
+      : phoneKey;
+  if (local.length === GAMBIA_LOCAL_LENGTH) {
+    return `+${GAMBIA_COUNTRY_CODE} ${formatGambiaPhoneLocal(local)}`;
   }
   return phoneKey;
 }

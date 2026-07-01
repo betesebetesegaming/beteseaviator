@@ -1,39 +1,21 @@
 "use client";
 
+/**
+ * Africell SMS OTP UI — signup, profile completion, withdrawal verification.
+ *
+ * WARNING: Do NOT use Firebase Phone Auth (signInWithPhoneNumber / RecaptchaVerifier).
+ * This component only calls lib/otpClient → Africell sendOtp/verifyOtp. See lib/otpPolicy.ts.
+ */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, MessageSquare, ShieldCheck } from "lucide-react";
-import {
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  type ConfirmationResult,
-} from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { markPhoneOtpVerified } from "@/lib/api";
-import { sendSignupOtp, verifySignupOtp, isOtpGatewayUnavailableError } from "@/lib/otpClient";
-import { formatPhoneDisplay, type PhoneCountry } from "@/lib/phone";
+import { sendSignupOtp, verifySignupOtp } from "@/lib/otpClient";
+import { formatPhoneDisplay } from "@/lib/phone";
 import { Button, Input } from "@/components/ui";
 
 const OTP_RESEND_SECONDS = 60;
 
-function phoneToE164(phoneKey: string, country: PhoneCountry = "GM"): string | null {
-  const digits = phoneKey.replace(/\D/g, "");
-  if (!digits) return null;
-  if (country === "GM") {
-    const local = digits.startsWith("220") ? digits.slice(3) : digits;
-    return local.length === 7 ? `+220${local}` : null;
-  }
-  if (digits.startsWith("221") && digits.length === 12) return `+${digits}`;
-  if (digits.length === 9) return `+221${digits}`;
-  return null;
-}
-
-export type UsePhoneOtpOptions = {
-  phoneCountry?: PhoneCountry;
-  /** Fallback to Firebase Phone Auth when Africell gateway is unreachable. */
-  firebaseRecaptchaId?: string;
-};
-
-export function usePhoneOtp(phone: string, opts: UsePhoneOtpOptions = {}) {
+export function usePhoneOtp(phone: string) {
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
@@ -42,9 +24,6 @@ export function usePhoneOtp(phone: string, opts: UsePhoneOtpOptions = {}) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [firebaseMode, setFirebaseMode] = useState(false);
-  const firebaseConfirmRef = useRef<ConfirmationResult | null>(null);
-  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
     setOtpCode("");
@@ -53,8 +32,6 @@ export function usePhoneOtp(phone: string, opts: UsePhoneOtpOptions = {}) {
     setOtpCooldown(0);
     setError("");
     setInfo("");
-    setFirebaseMode(false);
-    firebaseConfirmRef.current = null;
   }, [phone]);
 
   useEffect(() => {
@@ -64,31 +41,6 @@ export function usePhoneOtp(phone: string, opts: UsePhoneOtpOptions = {}) {
     }, 1000);
     return () => window.clearInterval(timer);
   }, [otpCooldown]);
-
-  const sendViaFirebase = useCallback(async (): Promise<boolean> => {
-    const recaptchaId = opts.firebaseRecaptchaId;
-    if (!recaptchaId) return false;
-    const e164 = phoneToE164(phone, opts.phoneCountry ?? "GM");
-    if (!e164) {
-      setError("Enter a valid mobile number before requesting a code.");
-      return false;
-    }
-    try {
-      if (!recaptchaRef.current) {
-        recaptchaRef.current = new RecaptchaVerifier(auth, recaptchaId, { size: "invisible" });
-      }
-      firebaseConfirmRef.current = await signInWithPhoneNumber(auth, e164, recaptchaRef.current);
-      setFirebaseMode(true);
-      setOtpSent(true);
-      setOtpVerified(false);
-      setOtpCooldown(OTP_RESEND_SECONDS);
-      setInfo("Code sent via backup SMS. Enter the 6-digit code below.");
-      return true;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send SMS code. Try again.");
-      return false;
-    }
-  }, [opts.firebaseRecaptchaId, opts.phoneCountry, phone]);
 
   const send = useCallback(async (): Promise<boolean> => {
     setError("");
@@ -100,26 +52,19 @@ export function usePhoneOtp(phone: string, opts: UsePhoneOtpOptions = {}) {
     setIsSending(true);
     try {
       const result = await sendSignupOtp(phone);
-      if (result.ok) {
-        setFirebaseMode(false);
-        firebaseConfirmRef.current = null;
-        setOtpSent(true);
-        setOtpVerified(false);
-        setOtpCooldown(OTP_RESEND_SECONDS);
-        setInfo(`Code sent to your phone. It expires in ${Math.round((result.expirySeconds || 300) / 60)} minutes.`);
-        return true;
+      if (!result.ok) {
+        setError(result.error || "Failed to send verification code.");
+        return false;
       }
-
-      if (isOtpGatewayUnavailableError(result.error) && opts.firebaseRecaptchaId) {
-        return sendViaFirebase();
-      }
-
-      setError(result.error || "Failed to send verification code.");
-      return false;
+      setOtpSent(true);
+      setOtpVerified(false);
+      setOtpCooldown(OTP_RESEND_SECONDS);
+      setInfo(`Code sent to your phone. It expires in ${Math.round((result.expirySeconds || 300) / 60)} minutes.`);
+      return true;
     } finally {
       setIsSending(false);
     }
-  }, [phone, opts.firebaseRecaptchaId, sendViaFirebase]);
+  }, [phone]);
 
   const verify = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
     if (otpVerified) return { ok: true };
@@ -132,14 +77,6 @@ export function usePhoneOtp(phone: string, opts: UsePhoneOtpOptions = {}) {
     setIsVerifying(true);
     setError("");
     try {
-      if (firebaseMode && firebaseConfirmRef.current) {
-        await firebaseConfirmRef.current.confirm(otpCode.trim());
-        await markPhoneOtpVerified({});
-        setOtpVerified(true);
-        setInfo("Phone verified. You can continue.");
-        return { ok: true };
-      }
-
       const result = await verifySignupOtp(phone, otpCode);
       if (result.ok) {
         setOtpVerified(true);
@@ -148,14 +85,10 @@ export function usePhoneOtp(phone: string, opts: UsePhoneOtpOptions = {}) {
         setError(result.error || "Invalid verification code.");
       }
       return result;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Invalid verification code.";
-      setError(msg);
-      return { ok: false, error: msg };
     } finally {
       setIsVerifying(false);
     }
-  }, [otpVerified, otpSent, otpCode, phone, firebaseMode]);
+  }, [otpVerified, otpSent, otpCode, phone]);
 
   return {
     otpCode,
@@ -171,7 +104,6 @@ export function usePhoneOtp(phone: string, opts: UsePhoneOtpOptions = {}) {
     verify,
     setError,
     setInfo,
-    firebaseMode,
   };
 }
 
@@ -228,12 +160,12 @@ export function OtpConfirmPanel({
     if (otpVerified) onVerified?.();
   }, [otpVerified, onVerified]);
 
-  const displayPhone = formatPhoneDisplay(phone) || phone;
-
   async function handleVerify() {
     const result = await verify();
     if (result.ok) onVerified?.();
   }
+
+  const displayPhone = formatPhoneDisplay(phone) || phone;
 
   return (
     <div className="space-y-5 py-1">

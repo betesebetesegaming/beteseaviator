@@ -105,7 +105,7 @@ export default function AdminUsersPage() {
     if (!name.trim()) return toast.error("Name is required.");
     if (password.length < 8) return toast.error("Password must be at least 8 characters.");
     if (role === "player" && !normalizePhone(phone))
-      return toast.error("Customers need a valid Gambia or Senegal phone.");
+      return toast.error("Customers need a valid Gambian mobile number.");
     if (isStaffRole && !email.trim() && !username.trim())
       return toast.error("Staff can sign in with name or username — add a username if needed.");
     setCreating(true);

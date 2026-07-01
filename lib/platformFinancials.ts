@@ -50,3 +50,9 @@ export function apiProviderCommissionDue(ggr: number, rate: number): number {
   if (!Number.isFinite(rate) || rate <= 0 || ggr <= 0) return 0;
   return Math.round(ggr * rate * 100) / 100;
 }
+
+/** Agent commission share of GGR (same rate as nightly job when all GGR is agent-attributed). */
+export function agentCommissionDue(ggr: number, rate: number): number {
+  if (!Number.isFinite(rate) || rate <= 0 || ggr <= 0) return 0;
+  return Math.round(ggr * rate * 100) / 100;
+}

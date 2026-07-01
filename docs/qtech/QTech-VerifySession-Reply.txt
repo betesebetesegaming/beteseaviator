@@ -1,0 +1,36 @@
+Subject: RE: INVALID_TOKEN on VerifySession — fix deployed, fresh test credentials
+
+Hello Team,
+
+We identified the INVALID_TOKEN on VerifySession: the wallet session token in your test config had expired (sessions were 24h; your test was 2 days after handover).
+
+We have deployed a fix (7-day sessions, UUID dash normalization, improved validation) and issued fresh test credentials.
+
+Please update your cw_qtcw_tester.cfg (or back-office test config) as follows:
+
+  playerid           = UK44ixQcpihtCcuDAxfsj1DHYpy2
+  walletsession      = ac21e50d93be4e1182d73e5dcc0e6399
+  walletsessionExpired = d6aff45295484474b0b1f1bd0975d30a
+  gameid             = SPB-aviator
+
+Pass-Key and wallet URLs are unchanged:
+
+  walleturl    = https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi/
+  withdrawurl  = https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi/transactions/
+  depositurl   = https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi/transactions
+  rollbackurl  = https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi/transactions/rollback
+  rewardurl    = https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi/bonus/reward
+
+Verify Session URL (example):
+  GET .../accounts/UK44ixQcpihtCcuDAxfsj1DHYpy2/session?gameId=SPB-aviator
+  Headers: Pass-Key: (same as handover), Wallet-Session: ac21e50d93be4e1182d73e5dcc0e6399
+
+Please re-run VerifySession and the full Common Wallet test suite.
+
+Notes:
+- Test sessions are valid for 7 days; successful VerifySession extends the TTL.
+- If you re-test after 7 days without a new game launch, ask us for a refreshed walletsession.
+- For live players, each game launch creates a new session automatically — no manual update needed.
+
+Thank you,
+BETESE Aviator / api_BETESE

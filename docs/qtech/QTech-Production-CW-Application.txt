@@ -1,0 +1,61 @@
+Subject: BETESE — Production Common Wallet application (api_BETESE)
+
+Hello Team,
+
+Thank you for confirming that we passed Common Wallet verification in staging.
+Please find our production Common Wallet application details below.
+
+We understand we must NOT go live until production CW testing is completed.
+We will wait for your confirmation before enabling real-money QTech games for players.
+
+----------------------------------------------------------------------
+1. Website link
+   https://www.beteseaviator.com/play
+   (Brand: BETESE Aviator — Gambia, GMD)
+
+2. Base URL in Production
+   https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi
+
+   Wallet endpoints (under base URL):
+   - Verify Session:  GET  /accounts/{playerId}/session?gameId={gameId}
+   - Get Balance:     GET  /accounts/{playerId}/balance?gameId={gameId}
+   - Withdrawal:      POST /transactions/
+   - Deposit:         POST /transactions
+   - Rollback (v2):   POST /transactions/rollback
+   - Rollback (v1):   POST /transactions/{referenceId}/rollback
+
+3. Rewards URL in Production
+   https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi/bonus/reward
+
+4. Preferred PassKey in Production
+   [INSERT — same Pass-Key already used for staging CW tests]
+   (Saved in our operator wallet config; must match staging unless you prefer a separate prod key.)
+
+5. IP Addresses for Back Office in Production
+   197.231.207.193
+   (Office IP for accessing QTech production back office — Gambia)
+
+6. IP Addresses for API in Production
+   Outbound (BETESE server → QTech API): 35.226.2.98
+   Please whitelist this static IP for our production operator account.
+
+   Inbound (QTech → our wallet API): No fixed IP — serverless HTTPS on Google Cloud.
+   QTech calls our wallet Base URL above over the public internet.
+
+7. Email address for receiving production account credentials
+   care@beteseaviator.com
+   (Update if you prefer a different contact.)
+
+----------------------------------------------------------------------
+Additional notes:
+- Operator: BETESE / api_BETESE
+- Currency: GMD | Country: GM | Language: en_GM
+- Integration: Common Wallet (seamless)
+- Promotion Status URL: Not implemented — N/A
+- Staging CW: PASSED (wallet URL same implementation; prod CW retest requested)
+
+For production CW testing, if you need a fresh Wallet-Session token, contact us and we
+will issue updated test credentials (or use a live game launch which creates a session).
+
+Thank you,
+BETESE Aviator Team

@@ -30,7 +30,6 @@ export const completeRegistration = call<
   {
     name: string;
     phone?: string;
-    email?: string;
     ref?: string | null;
     pref?: string | null;
     deviceId?: string | null;
@@ -38,9 +37,11 @@ export const completeRegistration = call<
   { ok: true; role: Role }
 >("completeRegistration");
 
-export const markPhoneOtpVerified = call<Record<string, never>, { ok: true; phone: string }>(
-  "markPhoneOtpVerified",
-);
+/** Reset player password after SMS OTP verification (forgot password flow). */
+export const resetPlayerPassword = call<
+  { phone: string; password: string },
+  { ok: true; phone: string; authEmail: string }
+>("resetPlayerPassword");
 
 export const getPlayerReferralDashboard = call<
   Record<string, never>,

@@ -23,6 +23,7 @@ import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
 import { roleLabel } from "@/lib/staff-nav";
 import { StaffAccountCard } from "@/components/staff/StaffAccountCard";
+import { AgentPeriodStats } from "@/components/staff/AgentPeriodStats";
 import { apiProviderCommissionDue, ggrFromTotals } from "@/lib/platformFinancials";
 import { DEFAULT_SETTINGS, type PlatformSettings } from "@/lib/types";
 import { Button, Card, StatCard } from "@/components/ui";
@@ -146,11 +147,11 @@ export function StaffDashboard() {
               icon={<AlertCircle size={20} />}
             />
           </Link>
-          <Link href="/admin/settings">
+          <Link href="/admin/accounts">
             <StatCard
-              label={`${providerName} due`}
+              label={`${providerName} due (all time)`}
               value={formatXof(financials.providerDue)}
-              hint={`${providerPct}% of GGR`}
+              hint={`${providerPct}% of lifetime GGR — open Accounts for week/month`}
               icon={<Percent size={20} />}
             />
           </Link>
@@ -176,8 +177,17 @@ export function StaffDashboard() {
             </Link>
           </Card>
           <Card className="p-4">
+            <h2 className="mb-2 font-semibold">Accounts &amp; GGR</h2>
+            <p className="mb-4 text-sm text-slate-400">Week/month GGR, QTech due, and agent commissions.</p>
+            <Link href="/admin/accounts">
+              <Button variant="secondary" className="w-full">
+                Open accounts
+              </Button>
+            </Link>
+          </Card>
+          <Card className="p-4">
             <h2 className="mb-2 font-semibold">Platform settings</h2>
-            <p className="mb-4 text-sm text-slate-400">API provider commission %, bonuses, limits, and promos.</p>
+            <p className="mb-4 text-sm text-slate-400">QTech commission %, bonuses, limits, and promos.</p>
             <Link href="/admin/settings">
               <Button variant="secondary" className="w-full">
                 Settings
@@ -204,6 +214,8 @@ export function StaffDashboard() {
 
       <StaffAccountCard profile={profile} />
 
+      <AgentPeriodStats />
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link href="/admin/operations">
           <StatCard
@@ -226,6 +238,15 @@ export function StaffDashboard() {
           <Link href="/admin/customers">
             <Button variant="secondary" className="w-full">
               My customers
+            </Button>
+          </Link>
+        </Card>
+        <Card className="p-4">
+          <h2 className="mb-2 font-semibold">Accounts &amp; sales</h2>
+          <p className="mb-4 text-sm text-slate-400">Your GGR, customer ModemPay payments, and commissions.</p>
+          <Link href="/admin/accounts">
+            <Button variant="secondary" className="w-full">
+              Open accounts
             </Button>
           </Link>
         </Card>

@@ -1,5 +1,4 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { logger } from "firebase-functions/v2";
 import { defineString } from "firebase-functions/params";
 import {
   auth,
@@ -25,6 +24,8 @@ import {
 import { assertOtpVerifiedForPhone } from "./otpVerification";
 import { isAgentRole, isStaffRole as isStaffRoleCheck } from "./roles";
 
+/** WARNING: Do NOT use Firebase Phone Auth for OTP. Gambian SMS = Africell sendOtp/verifyOtp only. */
+
 /** Web API key used to verify agent passwords through the Identity Toolkit REST API. */
 const WEB_API_KEY = defineString("WEB_API_KEY", {
   default: "AIzaSyCfG9tVqFxcqmOvsR9jI_cyJXi4LLPgFyA",
@@ -47,16 +48,12 @@ export const completeRegistration = onCall(async (req) => {
     null;
 
   if (!name) throw new HttpsError("invalid-argument", "Name is required.");
-    if (!phone) throw new HttpsError("invalid-argument", "A valid Gambia or Senegal phone number is required.");
+  if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
 
   await assertOtpVerifiedForPhone(phone);
 
-  // contact email: explicit > real auth email (never the synthetic phone alias)
-  const tokenEmail = req.auth?.token.email as string | undefined;
-  const explicitEmail = req.data?.email ? String(req.data.email).toLowerCase().trim() : null;
-  const email =
-    explicitEmail ??
-    (tokenEmail && !tokenEmail.endsWith("@phone.beteseaviator.com") ? tokenEmail : null);
+  // Players sign up with phone + password only — no contact email on profile.
+  const email = null;
 
   // resolve referral agent (invalid/inactive refs silently ignored -> direct customer)
   let parentId: string | null = null;
@@ -164,26 +161,40 @@ export const completeRegistration = onCall(async (req) => {
   return { ok: true, role: "player" };
 });
 
-/** After Firebase Phone Auth confirms the SMS code, allow completeRegistration to proceed. */
-export const markPhoneOtpVerified = onCall(async (req) => {
-  const uid = requireAuth(req);
-  const tokenPhone = String(req.auth?.token?.phone_number ?? "").trim();
-  if (!tokenPhone) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Sign in with your phone verification code first, then try again.",
-    );
+/** Player self-service password reset — requires a fresh Africell OTP for the phone. */
+export const resetPlayerPassword = onCall({ invoker: "public" }, async (req) => {
+  const phone = normalizePhone(String(req.data?.phone ?? ""));
+  const password = String(req.data?.password ?? "");
+  if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
+  if (password.length < 8) {
+    throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
   }
 
-  const { toOtpMsisdn, recordOtpVerified } = await import("./otpVerification");
-  const msisdn = toOtpMsisdn(tokenPhone);
-  if (!msisdn) {
-    throw new HttpsError("invalid-argument", "Could not read a valid phone number from verification.");
+  await assertOtpVerifiedForPhone(phone);
+
+  const phoneSnap = await db.doc(`phones/${phone}`).get();
+  if (!phoneSnap.exists) {
+    throw new HttpsError("not-found", "No account found for this phone number.");
+  }
+  const uid = String(phoneSnap.data()?.uid ?? "");
+  if (!uid) throw new HttpsError("not-found", "Phone record is missing a linked user.");
+
+  const userSnap = await db.doc(`users/${uid}`).get();
+  if (!userSnap.exists) {
+    throw new HttpsError("not-found", "No account found for this phone number.");
+  }
+  const profile = userSnap.data() as ProfileData;
+  if (profile.status !== "active") {
+    throw new HttpsError("permission-denied", "Account suspended.");
+  }
+  if (profile.role !== "player") {
+    throw new HttpsError("permission-denied", "Use the staff portal to reset this account.");
   }
 
-  await recordOtpVerified(msisdn, "firebase_phone_auth");
-  logger.info("markPhoneOtpVerified", { uid, msisdn });
-  return { ok: true as const, phone: msisdn };
+  const authEmail = phoneToEmail(phone);
+  await auth.updateUser(uid, { email: authEmail, password, displayName: profile.name || undefined });
+
+  return { ok: true as const, phone, authEmail };
 });
 
 /**

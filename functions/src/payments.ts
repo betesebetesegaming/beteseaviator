@@ -53,7 +53,7 @@ export const requestDeposit = onCall(async (req) => {
   if (settings.providers[provider] === false) {
     throw new HttpsError("failed-precondition", "This provider is currently disabled.");
   }
-  if (!phone) throw new HttpsError("invalid-argument", "A valid Gambia or Senegal phone is required.");
+  if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
   if (!Number.isFinite(amount) || amount < settings.minDeposit) {
     throw new HttpsError("invalid-argument", `Minimum deposit is ${settings.minDeposit} GMD.`);
   }

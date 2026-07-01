@@ -1,6 +1,6 @@
 import { normalizePhone as toPhoneKey, type PhoneCountry } from "./phone";
 
-/** Normalize to storage key (Gambia 7-digit or Senegal 221+9-digit), or empty if invalid. */
+/** Normalize to 7-digit Gambian storage key, or empty if invalid. */
 export function normalizePhone(input: string, preferredCountry: PhoneCountry = "GM"): string {
   return toPhoneKey(input, preferredCountry);
 }

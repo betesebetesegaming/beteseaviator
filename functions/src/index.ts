@@ -15,7 +15,14 @@ setGlobalOptions({
   concurrency: 1,
 });
 
-export { completeRegistration, agentLogin, resolveStaffSession, seedPlatform, ensurePrimaryAdmin } from "./auth";
+export {
+  completeRegistration,
+  resetPlayerPassword,
+  agentLogin,
+  resolveStaffSession,
+  seedPlatform,
+  ensurePrimaryAdmin,
+} from "./auth";
 export { placeBet, cashout, pokeRound, gameTick } from "./game";
 export { adminResolvePayment } from "./payments";
 export {
@@ -55,7 +62,10 @@ export {
   adminReleaseReferralBonuses,
 } from "./referrals";
 
-/** Africell SMS OTP — direct internet egress (Africell gateway is not reachable via VPC NAT). */
+/** Africell SMS OTP — direct internet egress (Africell gateway is not reachable via VPC NAT).
+ *
+ * WARNING: Do NOT add Firebase Phone Auth callables here. SMS = Africell only.
+ */
 export const sendOtp = createHttpFunction(sendOtpHandler, { timeoutSeconds: 60 });
 export const verifyOtp = createHttpFunction(verifyOtpHandler);
 

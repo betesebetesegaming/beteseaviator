@@ -1,0 +1,33 @@
+BETESE Aviator — QTech Common Wallet Certification
+Wallet URL: https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi
+
+--- Original run (2026-06-27) — PASSED ---
+Player ID: UK44ixQcpihtCcuDAxfsj1DHYpy2
+Active session (expired): 0859863d7b544c558df53e5018090112
+Expired session: 72a2ca2d043543108acbb16e09f8037c
+
+--- QTech re-test credentials (2026-06-29, after INVALID_TOKEN fix) ---
+Issue: QTech VerifySession failed 2026-06-29 — stale walletsession (24h TTL expired).
+Fix deployed: 7-day sessions, UUID dash normalization, playerId truncation match.
+Player ID: UK44ixQcpihtCcuDAxfsj1DHYpy2
+Active session: ac21e50d93be4e1182d73e5dcc0e6399
+Expired session: d6aff45295484474b0b1f1bd0975d30a
+Refresh sessions: GET .../qtcwApi/bootstrap/refresh-cw-sessions?key=beteseaviator-reset-2026
+
+Implemented endpoints:
+  GET    /accounts/{playerId}/session — Verify Session
+  GET    /accounts/{playerId}/balance — Get Balance
+  POST   /transactions/ — Withdrawal (bet / DEBIT)
+  POST   /transactions — Deposit (payout / CREDIT)
+  POST   /bonus/reward — Reward
+  POST   /transactions/rollback — Rollback (v2)
+  POST   /transactions/{referenceId}/rollback — Rollback (v1)
+
+Original test steps (2026-06-27): ALL PASSED
+  PASS — Wallet API health
+  PASS — Test player funded
+  PASS — GetBalance (initial)
+  PASS — VerifySession
+  PASS — Bet #1 / #2, Payout, Rollback, Reward, Idempotency checks
+
+Copy-paste reply for QTech: docs/qtech/QTech-VerifySession-Reply.txt

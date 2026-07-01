@@ -43,10 +43,6 @@ export function formatCustomerCarePhone(digits: string): string {
   if (d.length === 7) {
     return `+220 ${d.slice(0, 3)} ${d.slice(3)}`;
   }
-  if (d.startsWith("221") && d.length === 12) {
-    const local = d.slice(3);
-    return `+221 ${local.slice(0, 2)} ${local.slice(2, 5)} ${local.slice(5)}`;
-  }
   return d ? `+${d}` : "";
 }
 

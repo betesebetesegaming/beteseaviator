@@ -116,8 +116,8 @@ export default function AdminSettingsPage() {
       <Card className="mb-5">
         <h2 className="mb-4 font-semibold">API provider commission (share of GGR)</h2>
         <p className="mb-4 text-sm text-slate-400">
-          Set the game/API provider name and what percent of total GGR (bets minus wins) you owe
-          them. The admin dashboard shows the calculated amount due.
+          Set the game provider name (QTech) and what percent of total GGR (bets minus wins) you owe
+          them. The Accounts page shows week/month amounts due.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input

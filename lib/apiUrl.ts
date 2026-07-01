@@ -1,6 +1,8 @@
 /**
  * Maps legacy route paths (e.g. `/modempay-checkout`) to Firebase Cloud Functions.
- * Aviator uses one consolidated `modempayApi` function (same handlers as betesepmu).
+ *
+ * OTP routes sendOtp / verifyOtp use Africell SMS only — never Firebase Phone Auth.
+ * See lib/otpPolicy.ts.
  */
 import { getApiBaseUrl } from "./env/publicConfig";
 

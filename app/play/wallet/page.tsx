@@ -77,17 +77,8 @@ export default function WalletPage() {
     if (tab !== "withdraw") {
       setWithdrawStep("form");
       setWithdrawOtpDismissed(false);
-      return;
     }
-    if (
-      requiresWithdrawalOtp &&
-      withdrawPhoneComplete &&
-      !withdrawalOtp.otpVerified &&
-      !withdrawOtpDismissed
-    ) {
-      setWithdrawStep("otp");
-    }
-  }, [tab, requiresWithdrawalOtp, withdrawPhoneComplete, withdrawalOtp.otpVerified, withdrawOtpDismissed]);
+  }, [tab]);
 
   useEffect(() => {
     if (withdrawalOtp.otpVerified && withdrawStep === "otp") {
@@ -406,12 +397,13 @@ export default function WalletPage() {
                 phone={otpPhone}
                 otp={withdrawalOtp}
                 disabled={busy}
+                autoSend={false}
                 onBack={() => {
                   setWithdrawOtpDismissed(true);
                   setWithdrawStep("form");
                 }}
                 headline="Confirm payout phone"
-                subline="Enter the SMS code to authorize this withdrawal."
+                subline="Tap Send SMS code, then enter the code to authorize this withdrawal."
               />
             </>
           ) : (
