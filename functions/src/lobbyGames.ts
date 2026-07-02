@@ -6,6 +6,7 @@ import { REMOVED_LOBBY_GAME_IDS } from "./gameCatalog";
 const FEATURED_FOOTBALL_CRASH_IDS = [
   "qt-spb-aviator",
   "qt-spb-goal",
+  "qt-gzx-pilotcup",
   "qt-sms-footballx",
   "qt-sms-worldchampionx",
   "qt-sms-jetx",

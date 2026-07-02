@@ -53,6 +53,9 @@ function providerForQtechId(qtechGameId: string): string {
     BLC: "Blitzcrown",
     KAG: "KA Gaming",
     GZX: "Gamzix",
+    GLX: "Galaxsys",
+    GTT: "GameTimeTec",
+    TAD: "TaDa",
     BEON: "Beon Gaming",
     BRI: "Brino Games",
     BRN: "Brino Games",
@@ -91,6 +94,7 @@ const AVIATRIX_GAMES: QTechSeed[] = [
 /** Other studios — chicken / rush titles (non-IOG). */
 const OTHER_CHICKEN_GAMES: QTechSeed[] = [
   { qtechGameId: "PPC-chicken", name: "Chicken", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "PPC-spaceman", name: "Spaceman", type: "crash", lobbyCategory: "crash" },
   { qtechGameId: "BTL-chickenrun", name: "Chicken Run", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "EVP-uncrossablerush", name: "Uncrossable Rush", type: "crash", lobbyCategory: "crash" },
 ];
@@ -126,14 +130,30 @@ const PARTNER_GAMES: QTechSeed[] = [
   { qtechGameId: "UPG-hilo", name: "Hilo", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "UPG-mines", name: "Mines", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "UPG-plinko", name: "Plinko", type: "slots", lobbyCategory: "instantwin" },
-  // Betgames (BTV) — plinko instant win only
+  { qtechGameId: "UPG-aero", name: "Aero", type: "crash", lobbyCategory: "crash" },
+  // Betgames (BTV)
   { qtechGameId: "BTV-plinko", name: "Plinko", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BTV-skyward", name: "Skyward", type: "crash", lobbyCategory: "crash" },
   // Blitzcrown (BLC)
   { qtechGameId: "BLC-crash", name: "Crash", type: "crash", lobbyCategory: "crash" },
   // KA Gaming (KAG)
   { qtechGameId: "KAG-goldenbull", name: "Golden Bull", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "KAG-redbaron", name: "Red Baron", type: "crash", lobbyCategory: "crash" },
   // Gamzix (GZX)
   { qtechGameId: "GZX-pilot", name: "Pilot", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "GZX-pilotcup", name: "Pilot Cup", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "GZX-pilotcoin", name: "Pilot Coin", type: "crash", lobbyCategory: "crash" },
+  // Galaxsys (GLX)
+  { qtechGameId: "GLX-crash", name: "Crash", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "GLX-limbocrash", name: "Limbo Crash", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "GLX-crasher", name: "Crasher", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "GLX-rocketon", name: "Rocketon", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "GLX-cashshow", name: "Cash Show", type: "slots", lobbyCategory: "instantwin" },
+  // GameTimeTec (GTT)
+  { qtechGameId: "GTT-aviatron", name: "Aviatron", type: "crash", lobbyCategory: "crash" },
+  // TaDa / JiLi (TAD)
+  { qtechGameId: "TAD-crashbonus", name: "Crash Bonus", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "TAD-gorush", name: "Go Rush", type: "crash", lobbyCategory: "crash" },
 ];
 
 export const QTECH_GAME_SEEDS: GameSeed[] = [...SPRIBE_GAMES, ...AVIATRIX_GAMES, ...OTHER_CHICKEN_GAMES, ...IOG_GAMES, ...PARTNER_GAMES].map((g) => ({
