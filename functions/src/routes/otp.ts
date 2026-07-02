@@ -426,6 +426,62 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
   }
 }
 
+/** Verify SMS OTP and mark phone verified in Firestore. Used by HTTP + callables. */
+export async function verifySmsOtp(phoneInput: string, code: string): Promise<string> {
+  const trimmedPhone = String(phoneInput || "").trim();
+  const trimmedCode = String(code || "").trim();
+  if (!trimmedPhone || !trimmedCode) {
+    throw new Error("phone and code are required");
+  }
+  const msisdn = normalizeMsisdn(trimmedPhone);
+  if (!msisdn) {
+    throw new Error("Invalid Gambian mobile number. Use 7 digits (e.g. 7701234).");
+  }
+
+  const otpSalt = process.env.OTP_HASH_SALT || "betese-otp-default-salt";
+  const ref = db.collection("otp_codes").doc(msisdn);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    const proxied = await proxyPmuOtp("verifyOtp", { phone: trimmedPhone, code: trimmedCode });
+    if (proxied.httpStatus >= 200 && proxied.httpStatus < 300 && proxied.data.ok === true) {
+      await mirrorOtpVerified(msisdn);
+      return msisdn;
+    }
+    throw new Error(
+      String(proxied.data.error || "No OTP request found for this number. Please request a new code."),
+    );
+  }
+
+  const data = snap.data() as { code_hash?: string; expires_at?: string; attempts?: number };
+  const expiresAt = data.expires_at ? Date.parse(data.expires_at) : 0;
+  if (!expiresAt || Date.now() > expiresAt) {
+    await ref.delete().catch(() => undefined);
+    throw new Error("OTP code expired. Please request a new code.");
+  }
+
+  const attempts = Number(data.attempts || 0);
+  if (attempts >= MAX_ATTEMPTS) {
+    await ref.delete().catch(() => undefined);
+    throw new Error("Too many failed attempts. Please request a new code.");
+  }
+
+  const expectedHash = data.code_hash || "";
+  const actualHash = hashOtp(trimmedCode, msisdn, otpSalt);
+  if (expectedHash !== actualHash) {
+    await ref.update({ attempts: attempts + 1 }).catch(() => undefined);
+    throw new Error("Invalid OTP code.");
+  }
+
+  await ref.delete().catch(() => undefined);
+  const verifiedExpiresAt = Date.now() + OTP_VERIFIED_TTL_SECONDS * 1000;
+  await db.collection("otp_verified").doc(msisdn).set({
+    phone: msisdn,
+    verified_at: new Date().toISOString(),
+    expires_at: new Date(verifiedExpiresAt).toISOString(),
+  });
+  return msisdn;
+}
+
 export async function verifyOtpHandler(req: Request, res: Response): Promise<void> {
   const body = (req.body || {}) as { phone?: string; code?: string };
 
@@ -441,62 +497,24 @@ export async function verifyOtpHandler(req: Request, res: Response): Promise<voi
     return;
   }
 
-  const otpSalt = process.env.OTP_HASH_SALT || "betese-otp-default-salt";
-
   try {
-    const ref = db.collection("otp_codes").doc(msisdn);
-    const snap = await ref.get();
-    if (!snap.exists) {
-      const proxied = await proxyPmuOtp("verifyOtp", { phone: phoneInput, code });
-      if (proxied.httpStatus >= 200 && proxied.httpStatus < 300 && proxied.data.ok === true) {
-        await mirrorOtpVerified(msisdn);
-        res.json({ ok: true, verified: true, phone: msisdn, via: "pmu" });
-        return;
-      }
-      const proxiedErr = String(
-        proxied.data.error || "No OTP request found for this number. Please request a new code.",
-      );
-      res.status(proxied.httpStatus >= 400 ? proxied.httpStatus : 404).json({ error: proxiedErr });
-      return;
-    }
-    const data = snap.data() as { code_hash?: string; expires_at?: string; attempts?: number };
-
-    const expiresAt = data.expires_at ? Date.parse(data.expires_at) : 0;
-    if (!expiresAt || Date.now() > expiresAt) {
-      await ref.delete().catch(() => undefined);
-      res.status(410).json({ error: "OTP code expired. Please request a new code." });
-      return;
-    }
-
-    const attempts = Number(data.attempts || 0);
-    if (attempts >= MAX_ATTEMPTS) {
-      await ref.delete().catch(() => undefined);
-      res.status(429).json({ error: "Too many failed attempts. Please request a new code." });
-      return;
-    }
-
-    const expectedHash = data.code_hash || "";
-    const actualHash = hashOtp(code, msisdn, otpSalt);
-
-    if (expectedHash !== actualHash) {
-      await ref.update({ attempts: attempts + 1 }).catch(() => undefined);
-      res.status(401).json({
-        error: "Invalid OTP code.",
-        attemptsRemaining: Math.max(0, MAX_ATTEMPTS - (attempts + 1)),
-      });
-      return;
-    }
-
-    await ref.delete().catch(() => undefined);
-    const verifiedExpiresAt = Date.now() + OTP_VERIFIED_TTL_SECONDS * 1000;
-    await db.collection("otp_verified").doc(msisdn).set({
-      phone: msisdn,
-      verified_at: new Date().toISOString(),
-      expires_at: new Date(verifiedExpiresAt).toISOString(),
-    });
+    await verifySmsOtp(phoneInput, code);
     res.json({ ok: true, verified: true, phone: msisdn });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Invalid OTP")) {
+      res.status(401).json({ error: msg });
+      return;
+    }
+    if (msg.includes("expired") || msg.includes("Too many")) {
+      res.status(410).json({ error: msg });
+      return;
+    }
+    if (msg.includes("No OTP request")) {
+      res.status(404).json({ error: msg });
+      return;
+    }
     logger.error("OTP verification failed", err);
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    res.status(500).json({ error: msg });
   }
 }

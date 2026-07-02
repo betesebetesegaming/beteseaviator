@@ -18,6 +18,7 @@ setGlobalOptions({
 export {
   completeRegistration,
   resetPlayerPassword,
+  resetPlayerPasswordWithOtp,
   agentLogin,
   resolveStaffSession,
   seedPlatform,

@@ -22,6 +22,7 @@ import {
   resolvePlayerReferrerUid,
 } from "./referrals";
 import { assertOtpVerifiedForPhone } from "./otpVerification";
+import { verifySmsOtp } from "./routes/otp";
 import { isAgentRole, isStaffRole as isStaffRoleCheck } from "./roles";
 
 /** WARNING: Do NOT use Firebase Phone Auth for OTP. Gambian SMS = Africell sendOtp/verifyOtp only. */
@@ -171,6 +172,55 @@ export const resetPlayerPassword = onCall({ invoker: "public" }, async (req) => 
   }
 
   await assertOtpVerifiedForPhone(phone);
+
+  const phoneSnap = await db.doc(`phones/${phone}`).get();
+  if (!phoneSnap.exists) {
+    throw new HttpsError("not-found", "No account found for this phone number.");
+  }
+  const uid = String(phoneSnap.data()?.uid ?? "");
+  if (!uid) throw new HttpsError("not-found", "Phone record is missing a linked user.");
+
+  const userSnap = await db.doc(`users/${uid}`).get();
+  if (!userSnap.exists) {
+    throw new HttpsError("not-found", "No account found for this phone number.");
+  }
+  const profile = userSnap.data() as ProfileData;
+  if (profile.status !== "active") {
+    throw new HttpsError("permission-denied", "Account suspended.");
+  }
+  if (profile.role !== "player") {
+    throw new HttpsError("permission-denied", "Use the staff portal to reset this account.");
+  }
+
+  const authEmail = phoneToEmail(phone);
+  await auth.updateUser(uid, { email: authEmail, password, displayName: profile.name || undefined });
+
+  return { ok: true as const, phone, authEmail };
+});
+
+/** Verify SMS OTP and reset player password in one step (mobile-friendly). */
+export const resetPlayerPasswordWithOtp = onCall({ invoker: "public" }, async (req) => {
+  const phone = normalizePhone(String(req.data?.phone ?? ""));
+  const code = String(req.data?.code ?? "").trim();
+  const password = String(req.data?.password ?? "");
+  if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
+  if (!code || code.length < 6) {
+    throw new HttpsError("invalid-argument", "Enter the 6-digit SMS verification code.");
+  }
+  if (password.length < 8) {
+    throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
+  }
+
+  try {
+    await verifySmsOtp(phone, code);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Invalid OTP")) throw new HttpsError("permission-denied", msg);
+    if (msg.includes("expired") || msg.includes("Too many") || msg.includes("No OTP")) {
+      throw new HttpsError("failed-precondition", msg);
+    }
+    throw new HttpsError("internal", msg || "Could not verify SMS code.");
+  }
 
   const phoneSnap = await db.doc(`phones/${phone}`).get();
   if (!phoneSnap.exists) {

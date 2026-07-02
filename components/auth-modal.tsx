@@ -35,6 +35,7 @@ import {
   type PhoneCountryCode,
 } from "@/lib/phone";
 import { Button, Input, Modal, Select } from "@/components/ui";
+import { Logo } from "@/components/logo";
 import { CustomerCareBar } from "@/components/CustomerCareBar";
 import { SignupComplianceNotice } from "@/components/SignupComplianceNotice";
 
@@ -407,6 +408,9 @@ export function AuthModal({
 
   return (
     <Modal open={open} onClose={onClose} title={modalTitle}>
+      <div className="mb-4 flex justify-center sm:mb-5">
+        <Logo height={56} showWordmark={false} />
+      </div>
       <p className="mb-3 text-center text-sm text-slate-400 sm:mb-4">{modalSubtitle}</p>
 
       {showOtpScreen ? (
