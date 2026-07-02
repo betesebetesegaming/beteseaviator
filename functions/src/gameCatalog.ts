@@ -157,6 +157,7 @@ const PARTNER_GAMES: QTechSeed[] = [
   { qtechGameId: "TAD-crashbonus", name: "Crash Bonus", type: "crash", lobbyCategory: "crash" },
   { qtechGameId: "TAD-gorush", name: "Go Rush", type: "crash", lobbyCategory: "crash" },
   { qtechGameId: "TAD-crashgoal", name: "Crash Goal", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "TAD-chickendash", name: "Chicken Dash", type: "slots", lobbyCategory: "instantwin" },
   // Mascot Gaming (MSG)
   { qtechGameId: "MSG-paperlanternscrashgame", name: "Paper Lanterns Crash", type: "crash", lobbyCategory: "crash" },
 ];

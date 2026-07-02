@@ -69,6 +69,7 @@ const QTECH_LOBBY_GAME_IDS = new Set<string>([
   "SPB-pilotchicken",
   "SPB-plinko",
   "SPB-trader",
+  "TAD-chickendash",
   "TAD-crashbonus",
   "TAD-crashgoal",
   "TAD-gorush",

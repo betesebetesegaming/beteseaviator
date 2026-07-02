@@ -1,7 +1,7 @@
 "use client";
 
 /** Bump when lobby game shape/filter changes — invalidates stale localStorage. */
-const CACHE_KEY = "betese-lobby-games-v7";
+const CACHE_KEY = "betese-lobby-games-v8";
 const TTL_MS = 5 * 60 * 1000;
 
 type CacheEntry<T> = { games: T[]; at: number };
