@@ -19,6 +19,7 @@ export const DEFAULT_LOBBY_LAYOUT: LobbyLayoutSettings = {
     "qt-spb-aviator",
     "qt-spb-goal",
     "qt-gzx-pilotcup",
+    "qt-tad-crashgoal",
     "qt-sms-footballx",
     "qt-sms-worldchampionx",
     "qt-sms-jetx",

@@ -56,6 +56,7 @@ function providerForQtechId(qtechGameId: string): string {
     GLX: "Galaxsys",
     GTT: "GameTimeTec",
     TAD: "TaDa",
+    MSG: "Mascot Gaming",
     BEON: "Beon Gaming",
     BRI: "Brino Games",
     BRN: "Brino Games",
@@ -136,6 +137,7 @@ const PARTNER_GAMES: QTechSeed[] = [
   { qtechGameId: "BTV-skyward", name: "Skyward", type: "crash", lobbyCategory: "crash" },
   // Blitzcrown (BLC)
   { qtechGameId: "BLC-crash", name: "Crash", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "BLC-dragonwizardfly2win", name: "Dragon & Wizard Fly2Win", type: "crash", lobbyCategory: "crash" },
   // KA Gaming (KAG)
   { qtechGameId: "KAG-goldenbull", name: "Golden Bull", type: "crash", lobbyCategory: "crash" },
   { qtechGameId: "KAG-redbaron", name: "Red Baron", type: "crash", lobbyCategory: "crash" },
@@ -154,6 +156,9 @@ const PARTNER_GAMES: QTechSeed[] = [
   // TaDa / JiLi (TAD)
   { qtechGameId: "TAD-crashbonus", name: "Crash Bonus", type: "crash", lobbyCategory: "crash" },
   { qtechGameId: "TAD-gorush", name: "Go Rush", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "TAD-crashgoal", name: "Crash Goal", type: "crash", lobbyCategory: "crash" },
+  // Mascot Gaming (MSG)
+  { qtechGameId: "MSG-paperlanternscrashgame", name: "Paper Lanterns Crash", type: "crash", lobbyCategory: "crash" },
 ];
 
 export const QTECH_GAME_SEEDS: GameSeed[] = [...SPRIBE_GAMES, ...AVIATRIX_GAMES, ...OTHER_CHICKEN_GAMES, ...IOG_GAMES, ...PARTNER_GAMES].map((g) => ({
