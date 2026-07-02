@@ -240,10 +240,12 @@ app.get("/bootstrap/reconcile-games", async (req, res) => {
     return;
   }
   try {
+    const { seedAllLobbyGames } = await import("./lobbyGames");
     const { reconcileQTechLobbyGames, syncQTechLobbyImages } = await import("./qtech/gameList");
+    const seeded = await seedAllLobbyGames();
     const reconcile = await reconcileQTechLobbyGames();
     const imageSync = await syncQTechLobbyImages();
-    res.status(200).json({ ok: true, reconcile, imageSync });
+    res.status(200).json({ ok: true, seeded, reconcile, imageSync });
   } catch (e) {
     logger.error("bootstrap reconcile-games failed", e);
     res.status(500).json({ error: "reconcile_failed", message: e instanceof Error ? e.message : String(e) });

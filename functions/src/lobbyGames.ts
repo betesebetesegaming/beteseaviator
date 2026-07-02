@@ -2,6 +2,56 @@ import { logger } from "firebase-functions/v2";
 import { db } from "./helpers";
 import { REMOVED_LOBBY_GAME_IDS } from "./gameCatalog";
 
+/** Pin football + crash titles at the top of the player lobby. */
+const FEATURED_FOOTBALL_CRASH_IDS = [
+  "qt-spb-aviator",
+  "qt-sms-footballx",
+  "qt-sms-worldchampionx",
+  "qt-sms-jetx",
+  "qt-blc-crash",
+  "qt-spb-balloon",
+  "qt-sms-balloonx",
+  "qt-sms-propelx",
+  "qt-sms-cricketx",
+  "qt-iog-chickenroad",
+];
+
+/** Ensure football/crash picks appear in Top picks (prepend if missing). */
+export async function ensureFeaturedFootballCrashGames(): Promise<string[]> {
+  const ref = db.doc("settings/lobbyLayout");
+  const snap = await ref.get();
+  const data = snap.data() ?? {};
+  const existing = Array.isArray(data.featuredGameIds)
+    ? (data.featuredGameIds as string[]).map(String).filter(Boolean)
+    : [];
+  const featured = [...existing];
+  for (let i = FEATURED_FOOTBALL_CRASH_IDS.length - 1; i >= 0; i -= 1) {
+    const id = FEATURED_FOOTBALL_CRASH_IDS[i];
+    const at = featured.indexOf(id);
+    if (at === -1) featured.unshift(id);
+    else if (at > 0) {
+      featured.splice(at, 1);
+      featured.unshift(id);
+    }
+  }
+  const changed =
+    featured.length !== existing.length ||
+    featured.some((id, index) => existing[index] !== id);
+  if (changed) {
+    await ref.set(
+      {
+        featuredGameIds: featured,
+        sortMode: data.sortMode === "manual" ? "manual" : "best_selling",
+        manualOrder: Array.isArray(data.manualOrder) ? data.manualOrder : [],
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+    logger.info("Pinned football/crash games to lobby top picks", { featured });
+  }
+  return featured;
+}
+
 /** Delete legacy native / placeholder game docs from Firestore. Safe to run often. */
 export async function purgeLegacyLobbyGames(): Promise<string[]> {
   const removed: string[] = [];
@@ -46,6 +96,7 @@ export async function seedAllLobbyGames(): Promise<{
   const removedGameIds = await purgeLegacyLobbyGames();
   const { ensureQTechGameDocs } = await import("./qtech/games");
   const qtechGameIds = await ensureQTechGameDocs();
+  await ensureFeaturedFootballCrashGames();
   let imageSync: { updated: string[]; skipped: string[]; missing: string[] } | undefined;
   try {
     const { syncQTechLobbyImages } = await import("./qtech/gameList");

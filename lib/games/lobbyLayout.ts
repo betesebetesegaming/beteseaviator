@@ -15,7 +15,18 @@ export type LobbyLayoutSettings = {
 };
 
 export const DEFAULT_LOBBY_LAYOUT: LobbyLayoutSettings = {
-  featuredGameIds: [],
+  featuredGameIds: [
+    "qt-spb-aviator",
+    "qt-sms-footballx",
+    "qt-sms-worldchampionx",
+    "qt-sms-jetx",
+    "qt-blc-crash",
+    "qt-spb-balloon",
+    "qt-sms-balloonx",
+    "qt-sms-propelx",
+    "qt-sms-cricketx",
+    "qt-iog-chickenroad",
+  ],
   manualOrder: [],
   sortMode: "best_selling",
 };

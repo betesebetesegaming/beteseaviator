@@ -32,7 +32,7 @@ function seedDocFromCatalog(seed: GameSeed): Record<string, unknown> {
   return doc;
 }
 
-/** Backfill catalog fields — always fix qtechGameId when the seed doc id matches. */
+/** Backfill catalog fields — catalog seed is source of truth for lobby metadata. */
 function backfillPatch(existing: FirebaseFirestore.DocumentData, seed: GameSeed): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
   const seedQtechId = String(seed.qtechGameId ?? "").trim();
@@ -44,9 +44,12 @@ function backfillPatch(existing: FirebaseFirestore.DocumentData, seed: GameSeed)
     patch.imageUrl = seed.imageUrl;
   }
   if (!existing.engine) patch.engine = seed.engine;
-  if (!existing.lobbyCategory && seed.lobbyCategory) patch.lobbyCategory = seed.lobbyCategory;
-  if (!existing.provider && seed.provider) patch.provider = seed.provider;
-  if (!existing.type && seed.type) patch.type = seed.type;
+  if (seed.lobbyCategory && existing.lobbyCategory !== seed.lobbyCategory) {
+    patch.lobbyCategory = seed.lobbyCategory;
+  }
+  if (seed.provider && existing.provider !== seed.provider) patch.provider = seed.provider;
+  if (seed.type && existing.type !== seed.type) patch.type = seed.type;
+  if (seed.name && existing.name !== seed.name) patch.name = seed.name;
   if (seed.status === "active" && existing.status !== "active") {
     patch.status = "active";
   }
