@@ -57,6 +57,7 @@ function providerForQtechId(qtechGameId: string): string {
     GTT: "GameTimeTec",
     TAD: "TaDa",
     MSG: "Mascot Gaming",
+    MIL: "Million Games",
     BEON: "Beon Gaming",
     BRI: "Brino Games",
     BRN: "Brino Games",
@@ -151,6 +152,8 @@ const PARTNER_GAMES: QTechSeed[] = [
   { qtechGameId: "GLX-crasher", name: "Crasher", type: "crash", lobbyCategory: "crash" },
   { qtechGameId: "GLX-rocketon", name: "Rocketon", type: "crash", lobbyCategory: "crash" },
   { qtechGameId: "GLX-cashshow", name: "Cash Show", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "GLX-hamstermania", name: "Hamster Mania", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "GLX-penalty", name: "Penalty", type: "slots", lobbyCategory: "instantwin" },
   // GameTimeTec (GTT)
   { qtechGameId: "GTT-aviatron", name: "Aviatron", type: "crash", lobbyCategory: "crash" },
   // TaDa / JiLi (TAD)
@@ -160,6 +163,8 @@ const PARTNER_GAMES: QTechSeed[] = [
   { qtechGameId: "TAD-chickendash", name: "Chicken Dash", type: "slots", lobbyCategory: "instantwin" },
   // Mascot Gaming (MSG)
   { qtechGameId: "MSG-paperlanternscrashgame", name: "Paper Lanterns Crash", type: "crash", lobbyCategory: "crash" },
+  // Million Games (MIL)
+  { qtechGameId: "MIL-chickenx", name: "Chicken X", type: "slots", lobbyCategory: "instantwin" },
 ];
 
 export const QTECH_GAME_SEEDS: GameSeed[] = [...SPRIBE_GAMES, ...AVIATRIX_GAMES, ...OTHER_CHICKEN_GAMES, ...IOG_GAMES, ...PARTNER_GAMES].map((g) => ({
