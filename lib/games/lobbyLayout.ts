@@ -17,6 +17,7 @@ export type LobbyLayoutSettings = {
 export const DEFAULT_LOBBY_LAYOUT: LobbyLayoutSettings = {
   featuredGameIds: [
     "qt-spb-aviator",
+    "qt-spb-goal",
     "qt-sms-footballx",
     "qt-sms-worldchampionx",
     "qt-sms-jetx",

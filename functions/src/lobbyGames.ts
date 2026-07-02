@@ -5,6 +5,7 @@ import { REMOVED_LOBBY_GAME_IDS } from "./gameCatalog";
 /** Pin football + crash titles at the top of the player lobby. */
 const FEATURED_FOOTBALL_CRASH_IDS = [
   "qt-spb-aviator",
+  "qt-spb-goal",
   "qt-sms-footballx",
   "qt-sms-worldchampionx",
   "qt-sms-jetx",
