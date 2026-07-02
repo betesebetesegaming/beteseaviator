@@ -5,7 +5,6 @@ import { REMOVED_LOBBY_GAME_IDS } from "./gameCatalog";
 /** Pin football + crash titles at the top of the player lobby. */
 const FEATURED_FOOTBALL_CRASH_IDS = [
   "qt-spb-aviator",
-  "qt-spb-goal",
   "qt-gzx-pilotcup",
   "qt-tad-crashgoal",
   "qt-sms-footballx",
@@ -27,7 +26,7 @@ export async function ensureFeaturedFootballCrashGames(): Promise<string[]> {
   const existing = Array.isArray(data.featuredGameIds)
     ? (data.featuredGameIds as string[]).map(String).filter(Boolean)
     : [];
-  const featured = [...existing];
+  const featured = existing.filter((id) => !REMOVED_LOBBY_GAME_IDS.includes(id));
   for (let i = FEATURED_FOOTBALL_CRASH_IDS.length - 1; i >= 0; i -= 1) {
     const id = FEATURED_FOOTBALL_CRASH_IDS[i];
     const at = featured.indexOf(id);

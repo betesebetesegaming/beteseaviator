@@ -79,7 +79,6 @@ const SPRIBE_GAMES: SpribeSeed[] = [
   { qtechGameId: "SPB-aviator", name: "Aviator", type: "crash", lobbyCategory: "aviator" },
   { qtechGameId: "SPB-balloon", name: "Balloon", type: "crash", lobbyCategory: "crash" },
   { qtechGameId: "SPB-dice", name: "Dice", type: "slots", lobbyCategory: "instantwin" },
-  { qtechGameId: "SPB-goal", name: "Goal", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "SPB-hilo", name: "Hilo", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "SPB-hotline", name: "Hotline", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "SPB-mines", name: "Mines", type: "slots", lobbyCategory: "instantwin" },
@@ -214,4 +213,5 @@ export const REMOVED_LOBBY_GAME_IDS = [
   "qtech-mines",
   "qtech-dice",
   "qtech-wheel",
+  "qt-spb-goal",
 ];

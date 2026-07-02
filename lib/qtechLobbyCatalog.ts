@@ -66,7 +66,6 @@ const QTECH_LOBBY_GAME_IDS = new Set<string>([
   "SPB-aviator",
   "SPB-balloon",
   "SPB-dice",
-  "SPB-goal",
   "SPB-hilo",
   "SPB-hotline",
   "SPB-mines",
