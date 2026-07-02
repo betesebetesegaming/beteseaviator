@@ -21,7 +21,10 @@ import {
   normalizeReferralCode,
   resolvePlayerReferrerUid,
 } from "./referrals";
-import { assertOtpVerifiedForPhone } from "./otpVerification";
+import {
+  consumeOtpVerifiedForPhone,
+  requireOtpVerifiedForPhone,
+} from "./otpVerification";
 import { verifySmsOtp } from "./routes/otp";
 import { isAgentRole, isStaffRole as isStaffRoleCheck } from "./roles";
 
@@ -51,7 +54,7 @@ export const completeRegistration = onCall(async (req) => {
   if (!name) throw new HttpsError("invalid-argument", "Name is required.");
   if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
 
-  await assertOtpVerifiedForPhone(phone);
+  await requireOtpVerifiedForPhone(phone);
 
   // Players sign up with phone + password only — no contact email on profile.
   const email = null;
@@ -151,6 +154,8 @@ export const completeRegistration = onCall(async (req) => {
     });
 
     await auth.setCustomUserClaims(uid, { role: "player" });
+    await auth.updateUser(uid, { displayName: name }).catch(() => undefined);
+    await consumeOtpVerifiedForPhone(phone);
   } catch (e) {
     if (e instanceof HttpsError) throw e;
     console.error("completeRegistration failed", e);
@@ -171,7 +176,7 @@ export const resetPlayerPassword = onCall({ invoker: "public" }, async (req) => 
     throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
   }
 
-  await assertOtpVerifiedForPhone(phone);
+  await requireOtpVerifiedForPhone(phone);
 
   const phoneSnap = await db.doc(`phones/${phone}`).get();
   if (!phoneSnap.exists) {
@@ -194,6 +199,7 @@ export const resetPlayerPassword = onCall({ invoker: "public" }, async (req) => 
 
   const authEmail = phoneToEmail(phone);
   await auth.updateUser(uid, { email: authEmail, password, displayName: profile.name || undefined });
+  await consumeOtpVerifiedForPhone(phone);
 
   return { ok: true as const, phone, authEmail };
 });

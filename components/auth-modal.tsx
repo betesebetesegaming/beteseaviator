@@ -229,6 +229,13 @@ export function AuthModal({
     }
   }
 
+  function retryOtpAfterFailure(message: string) {
+    activeOtp.reset();
+    postOtpActionRef.current = null;
+    setFormStep("otp");
+    toast.error(message);
+  }
+
   async function registerWithPhone() {
     if (!requireAgeConfirmation()) return;
     const phoneCheck = validatePhoneFields();
@@ -274,6 +281,12 @@ export function AuthModal({
         toast.error("This phone is already registered. Sign in with your password.");
         setMode("login");
         setFormStep("details");
+      } else if (/sms verification/i.test(msg)) {
+        retryOtpAfterFailure(msg);
+      } else if (auth.currentUser && !profileMatchesUser(profile, auth.currentUser)) {
+        setMode("complete");
+        setFormStep("details");
+        toast.error(msg || "Almost done — finish your profile below.");
       } else {
         toast.error(msg);
       }
@@ -305,6 +318,8 @@ export function AuthModal({
         toast.error("This phone is already registered. Sign in with your password instead.");
         setMode("login");
         setFormStep("details");
+      } else if (/sms verification/i.test(msg)) {
+        retryOtpAfterFailure(msg);
       } else {
         toast.error(msg);
       }

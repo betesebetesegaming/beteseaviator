@@ -19,7 +19,7 @@ import { adminDb } from '../adminModem';
 import { db, bumpDailyStats, bumpPlatformStats, getSettings, round2, todayIso, walletRead, walletWrite } from '../helpers';
 import { applyEarlyWithdrawalPenalties, evaluateEarlyWithdrawal, parsePlaythroughWallet } from '../wagering';
 import { syncAviatorWalletCredit } from '../walletSync';
-import { assertOtpVerifiedForPhone } from '../otpVerification';
+import { consumeOtpVerifiedForPhone, requireOtpVerifiedForPhone } from '../otpVerification';
 import {
   patchDepositOnRtdb,
   syncCheckoutToRtdb,
@@ -362,7 +362,7 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
     }
 
     try {
-      await assertOtpVerifiedForPhone(recipientPhone);
+      await requireOtpVerifiedForPhone(recipientPhone);
     } catch (err) {
       const msg =
         err instanceof HttpsError
@@ -469,6 +469,9 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
         });
       });
       holdCompleted = true;
+      await consumeOtpVerifiedForPhone(recipientPhone).catch((err) =>
+        logger.warn('OTP consume after withdrawal hold failed', err),
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn('Withdrawal hold failed', { requestId, customerId, amount, err: message });

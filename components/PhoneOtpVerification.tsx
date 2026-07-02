@@ -34,6 +34,15 @@ export function usePhoneOtp(phone: string) {
     setInfo("");
   }, [phone]);
 
+  const reset = useCallback(() => {
+    setOtpCode("");
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpCooldown(0);
+    setError("");
+    setInfo("");
+  }, []);
+
   useEffect(() => {
     if (otpCooldown <= 0) return;
     const timer = window.setInterval(() => {
@@ -102,6 +111,7 @@ export function usePhoneOtp(phone: string) {
     info,
     send,
     verify,
+    reset,
     setError,
     setInfo,
   };
@@ -144,9 +154,11 @@ export function OtpConfirmPanel({
   } = otp;
 
   const autoSentRef = useRef("");
+  const verifiedOnceRef = useRef(false);
 
   useEffect(() => {
     autoSentRef.current = "";
+    verifiedOnceRef.current = false;
   }, [phone]);
 
   useEffect(() => {
@@ -156,13 +168,12 @@ export function OtpConfirmPanel({
     void send();
   }, [autoSend, phone, otpVerified, otpSent, isSending, send]);
 
-  useEffect(() => {
-    if (otpVerified) onVerified?.();
-  }, [otpVerified, onVerified]);
-
   async function handleVerify() {
     const result = await verify();
-    if (result.ok) onVerified?.();
+    if (result.ok && !verifiedOnceRef.current) {
+      verifiedOnceRef.current = true;
+      onVerified?.();
+    }
   }
 
   const displayPhone = formatPhoneDisplay(phone) || phone;
