@@ -47,6 +47,7 @@ const QTECH_LOBBY_GAME_IDS = new Set<string>([
   "MSG-paperlanternscrashgame",
   "PPC-chicken",
   "PPC-spaceman",
+  "PIX-chicknrun",
   "SMS-balloonx",
   "SMS-cheesyroad",
   "SMS-cheesyroadclassic",

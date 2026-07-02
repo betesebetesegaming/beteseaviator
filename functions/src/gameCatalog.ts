@@ -58,6 +58,7 @@ function providerForQtechId(qtechGameId: string): string {
     TAD: "TaDa",
     MSG: "Mascot Gaming",
     MIL: "Million Games",
+    PIX: "Pixmove",
     BEON: "Beon Gaming",
     BRI: "Brino Games",
     BRN: "Brino Games",
@@ -165,6 +166,8 @@ const PARTNER_GAMES: QTechSeed[] = [
   { qtechGameId: "MSG-paperlanternscrashgame", name: "Paper Lanterns Crash", type: "crash", lobbyCategory: "crash" },
   // Million Games (MIL)
   { qtechGameId: "MIL-chickenx", name: "Chicken X", type: "slots", lobbyCategory: "instantwin" },
+  // Pixmove (PIX)
+  { qtechGameId: "PIX-chicknrun", name: "Chick N' Run", type: "slots", lobbyCategory: "instantwin" },
 ];
 
 export const QTECH_GAME_SEEDS: GameSeed[] = [...SPRIBE_GAMES, ...AVIATRIX_GAMES, ...OTHER_CHICKEN_GAMES, ...IOG_GAMES, ...PARTNER_GAMES].map((g) => ({
