@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
+import { hardRedirect } from "@/lib/hardRedirect";
 import { Spinner } from "@/components/ui";
 
 const LEGACY_AGENT_PATHS: Record<string, string> = {
@@ -16,11 +17,13 @@ const LEGACY_AGENT_PATHS: Record<string, string> = {
 
 export default function AgentLegacyLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const redirectedRef = useRef(false);
 
   useEffect(() => {
-    router.replace(LEGACY_AGENT_PATHS[pathname] ?? "/admin");
-  }, [pathname, router]);
+    if (redirectedRef.current) return;
+    redirectedRef.current = true;
+    hardRedirect(LEGACY_AGENT_PATHS[pathname] ?? "/admin");
+  }, [pathname]);
 
   return (
     <div className="flex min-h-[40vh] items-center justify-center">

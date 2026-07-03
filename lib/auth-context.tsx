@@ -13,6 +13,7 @@ import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { auth, initAnalytics } from "./firebase";
 import { db } from "./firestore";
 import { loginPathFor } from "./staff-routes";
+import { hardRedirect } from "./hardRedirect";
 import { isAgentRole } from "@/lib/roles";
 import type { Role, UserProfile, Wallet } from "./types";
 
@@ -47,9 +48,9 @@ export { loginPathFor } from "./staff-routes";
 /** Brief wait for Firebase to restore a persisted session — avoids flashing "Demo mode". */
 const AUTH_RESTORE_MS = 500;
 /** Never block guest session restore longer than this. */
-const AUTH_MAX_WAIT_MS = 2500;
+const AUTH_MAX_WAIT_MS = 1800;
 /** Staff routes may wait a bit longer for the profile doc before giving up. */
-const PROFILE_MAX_WAIT_MS = 6000;
+const PROFILE_MAX_WAIT_MS = 3000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [fbUser, setFbUser] = useState<User | null>(null);
@@ -168,9 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     explicitSignOutRef.current = true;
-    const redirect = loginPathFor(profile?.role);
-    await signOut(auth);
-    if (typeof window !== "undefined") window.location.href = redirect;
+    const redirect = loginPathFor(profile?.role) || "/admin/login";
+    void signOut(auth).catch(() => undefined);
+    hardRedirect(redirect);
   };
 
   const sessionPending = !sessionResolved;

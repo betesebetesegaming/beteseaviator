@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { Plus, Search } from "lucide-react";
@@ -9,8 +11,13 @@ import { adminCreateUser, adminBackfillPlayerIds, adminSetAgentCashOps, adminSet
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
 import { agentSignupUrl } from "@/lib/agentLinks";
 import { staffSignInId } from "@/lib/staffAccount";
-import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { normalizePhone, formatDate } from "@/lib/format";
+import {
+  PASSWORD_FIELD_LABEL,
+  PASSWORD_MAX,
+  validatePassword,
+} from "@/lib/passwordPolicy";
+import { PasswordStrengthHint } from "@/components/PasswordStrengthHint";
 import type { Role, UserProfile } from "@/lib/types";
 import {
   Badge,
@@ -28,6 +35,15 @@ import {
 import { isAgentRole, roleLabel as sharedRoleLabel } from "@/lib/roles";
 
 export default function AdminUsersPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <AdminUsersContent />
+    </Suspense>
+  );
+}
+
+function AdminUsersContent() {
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<UserProfile[] | null>(null);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role | "all">("all");
@@ -46,7 +62,25 @@ export default function AdminUsersPage() {
   const [creating, setCreating] = useState(false);
   const [syncingAgents, setSyncingAgents] = useState(false);
   const [backfillingIds, setBackfillingIds] = useState(false);
-  const [createdAgent, setCreatedAgent] = useState<{ slug: string; name: string } | null>(null);
+
+  function openCreate(role: Role = "player") {
+    setForm({
+      role,
+      name: "",
+      email: "",
+      phone: "",
+      username: "",
+      password: "",
+      parentId: "",
+    });
+    setCreateOpen(true);
+  }
+
+  useEffect(() => {
+    if (searchParams.get("create") === "agent") {
+      window.location.replace("/admin/agents?create=1");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const q = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(500));
@@ -132,7 +166,12 @@ export default function AdminUsersPage() {
   async function create() {
     const { role, name, email, phone, username, password, parentId } = form;
     if (!name.trim()) return toast.error("Name is required.");
-    if (password.length < 8) return toast.error("Password must be at least 8 characters.");
+    if (role === "player") {
+      const pwCheck = validatePassword(password);
+      if (!pwCheck.ok) return toast.error(pwCheck.message);
+    } else if (password.length < 8) {
+      return toast.error("Staff password must be at least 8 characters.");
+    }
     if (role === "player" && !normalizePhone(phone))
       return toast.error("Customers need a valid Gambian mobile number.");
     if (isStaffRole && !email.trim() && !username.trim())
@@ -149,9 +188,6 @@ export default function AdminUsersPage() {
         parentId: parentId || null,
       });
       toast.success(`User created${res.slug ? ` — username "${res.slug}"` : ""}.`);
-      if (res.slug && role === "agent") {
-        setCreatedAgent({ slug: res.slug, name: name.trim() });
-      }
       setCreateOpen(false);
       setForm({
         role: "player",
@@ -180,9 +216,13 @@ export default function AdminUsersPage() {
     <div>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold">Users</h1>
+          <h1 className="text-xl font-bold">All Users</h1>
           <p className="text-sm text-slate-400">
-            All accounts. Suspending blocks sign-in and play — nothing is hard-deleted.
+            Customers, admins, and Player IDs. Agent staff accounts are created under{" "}
+            <Link href="/admin/agents" className="text-emerald-400 hover:underline">
+              Agents
+            </Link>
+            .
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -192,12 +232,30 @@ export default function AdminUsersPage() {
           <Button variant="secondary" onClick={() => void syncAgentLogins()} disabled={syncingAgents}>
             {syncingAgents ? "Syncing…" : "Fix agent logins"}
           </Button>
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button variant="secondary" onClick={() => openCreate("player")}>
             <span className="flex items-center gap-1.5">
-              <Plus size={16} /> Create User
+              <Plus size={16} /> Create Customer
             </span>
           </Button>
+          <Link href="/admin/agents?create=1">
+            <Button variant="secondary">
+              <span className="flex items-center gap-1.5">
+                <Plus size={16} /> Create Agent
+              </span>
+            </Button>
+          </Link>
         </div>
+      </div>
+
+      <div className="mb-5 rounded-xl border border-sky-500/25 bg-sky-500/10 p-4 text-sm text-sky-50/90">
+        <p>
+          <strong>Agent staff accounts</strong> are admin-only — use the{" "}
+          <Link href="/admin/agents" className="text-sky-200 underline">
+            Agents
+          </Link>{" "}
+          page to create an agent&apos;s first login. Use <strong>Create Customer</strong> here for player
+          wallets.
+        </p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-3">
@@ -311,7 +369,11 @@ export default function AdminUsersPage() {
         </TableShell>
       )}
 
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Create User">
+      <Modal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title={form.role === "agent" ? "Create Agent Account" : form.role === "admin" ? "Create Admin Account" : "Create Customer"}
+      >
         <div className="space-y-4">
           <Select
             label="Role"
@@ -319,7 +381,6 @@ export default function AdminUsersPage() {
             onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
           >
             <option value="player">Customer</option>
-            <option value="agent">Agent Marketer</option>
             <option value="admin">Admin</option>
           </Select>
           <Input
@@ -368,34 +429,23 @@ export default function AdminUsersPage() {
             </Select>
           )}
           <Input
-            label="Password (min 8 characters)"
+            label={
+              form.role === "player"
+                ? PASSWORD_FIELD_LABEL
+                : "Password (min 8 characters)"
+            }
             type="password"
             value={form.password}
+            maxLength={form.role === "player" ? PASSWORD_MAX : undefined}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
+          {form.role === "player" ? (
+            <PasswordStrengthHint length={form.password.length} />
+          ) : null}
           <Button className="w-full" onClick={create} disabled={creating}>
             {creating ? "Creating…" : "Create"}
           </Button>
         </div>
-      </Modal>
-
-      <Modal
-        open={!!createdAgent}
-        onClose={() => setCreatedAgent(null)}
-        title="Agent marketing links ready"
-      >
-        {createdAgent && (
-          <div className="space-y-4">
-            <p className="text-sm text-slate-400">
-              Share these with <strong>{createdAgent.name}</strong>. Customers who sign up through
-              either link are attached to this agent immediately.
-            </p>
-            <AgentMarketingLinks slug={createdAgent.slug} agentName={createdAgent.name} />
-            <Button className="w-full" onClick={() => setCreatedAgent(null)}>
-              Done
-            </Button>
-          </div>
-        )}
       </Modal>
     </div>
   );

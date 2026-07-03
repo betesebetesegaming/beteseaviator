@@ -23,6 +23,12 @@ import { AgentCustomerCashActions } from "@/components/agent/AgentCashDesk";
 import { CustomerCreatedSuccess } from "@/components/agent/CustomerCreatedSuccess";
 import { formatXof, normalizePhone, todayIso } from "@/lib/format";
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
+import {
+  PASSWORD_FIELD_LABEL,
+  PASSWORD_MAX,
+  validatePassword,
+} from "@/lib/passwordPolicy";
+import { PasswordStrengthHint } from "@/components/PasswordStrengthHint";
 import type { UserProfile } from "@/lib/types";
 import {
   Badge,
@@ -110,7 +116,8 @@ export default function AgentPlayersPage() {
     const phone = normalizePhone(newPhone);
     if (!newName.trim()) return toast.error("Enter the customer's name.");
     if (!phone) return toast.error("Enter a valid Gambian mobile number (7 digits).");
-    if (newPassword.length < 8) return toast.error("Password must be at least 8 characters.");
+    const pwCheck = validatePassword(newPassword);
+    if (!pwCheck.ok) return toast.error(pwCheck.message);
     setBusy(true);
     try {
       const name = newName.trim();
@@ -243,11 +250,13 @@ export default function AgentPlayersPage() {
             onChange={(e) => setNewPhone(e.target.value)}
           />
           <Input
-            label="Password (min 8 characters)"
+            label={PASSWORD_FIELD_LABEL}
             type="password"
             value={newPassword}
+            maxLength={PASSWORD_MAX}
             onChange={(e) => setNewPassword(e.target.value)}
           />
+          <PasswordStrengthHint length={newPassword.length} />
           <Button className="w-full" onClick={createCustomer} disabled={busy}>
             {busy ? "Creating…" : "Create Customer"}
           </Button>

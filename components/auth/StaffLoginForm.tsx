@@ -7,6 +7,7 @@ import { auth } from "@/lib/firebase";
 import type { User } from "firebase/auth";
 import { errorMessage, resolveStaffSession } from "@/lib/api";
 import { homeFor } from "@/lib/auth-context";
+import { hardRedirect, withTimeout } from "@/lib/hardRedirect";
 import { loginStaffAccount } from "@/lib/auth-login";
 import { Button, Input } from "@/components/ui";
 
@@ -38,10 +39,14 @@ export function StaffLoginForm() {
       await loginStaffAccount(id, password);
       const user = await waitForAuthUser();
       await user.getIdToken(true);
-      const session = await resolveStaffSession({});
+      const session = await withTimeout(
+        resolveStaffSession({}),
+        8000,
+        "Staff profile sync timed out",
+      );
       await user.getIdToken(true);
       toast.success("Welcome back!");
-      window.location.replace(homeFor(session.role));
+      hardRedirect(homeFor(session.role));
     } catch (e) {
       const msg = errorMessage(e);
       if (msg.toLowerCase().includes("invalid credential") || msg.includes("auth/")) {
@@ -74,6 +79,9 @@ export function StaffLoginForm() {
         <LogIn size={16} />
         {busy ? "Opening dashboard…" : "Sign in"}
       </Button>
+      <p className="rounded-lg border border-white/10 bg-slate-950/50 px-3 py-2 text-center text-xs text-slate-400">
+        Need an agent account? Contact BETESE admin — only admin can create staff logins.
+      </p>
     </form>
   );
 }

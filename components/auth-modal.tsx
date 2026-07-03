@@ -15,6 +15,12 @@ import { auth } from "@/lib/firebase";
 import { useAuth, homeFor, profileMatchesUser } from "@/lib/auth-context";
 import { completeRegistration, errorMessage, resetPlayerPassword } from "@/lib/api";
 import {
+  PASSWORD_FIELD_LABEL,
+  PASSWORD_MAX,
+  validatePassword,
+} from "@/lib/passwordPolicy";
+import { PasswordStrengthHint } from "@/components/PasswordStrengthHint";
+import {
   displayLocalFromPhoneKey,
   normalizePhone,
   normalizePhoneLocal,
@@ -242,7 +248,8 @@ export function AuthModal({
     if (!phoneCheck.ok) return toast.error(phoneCheck.error);
     const normalized = phoneCheck.normalized;
     if (!name.trim()) return toast.error("Enter your full name.");
-    if (password.length < 8) return toast.error("Password must be at least 8 characters.");
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.ok) return toast.error(pwCheck.message);
     if (password !== confirm) return toast.error("Passwords do not match.");
 
     setBusy(true);
@@ -260,6 +267,9 @@ export function AuthModal({
         await createUserWithEmailAndPassword(auth, authEmail, password);
       } catch (e: unknown) {
         const code = (e as { code?: string }).code;
+        if (code === "auth/weak-password") {
+          throw new Error("Use 4–8 letters or numbers. If it still fails, try 6 or more characters.");
+        }
         if (code !== "auth/email-already-in-use") throw e;
         await signInWithEmailAndPassword(auth, authEmail, password);
       }
@@ -333,7 +343,8 @@ export function AuthModal({
     const phoneCheck = validatePhoneFields();
     if (!phoneCheck.ok) return toast.error(phoneCheck.error);
     if (!name.trim()) return toast.error("Enter your full name.");
-    if (password.length < 8) return toast.error("Password must be at least 8 characters.");
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.ok) return toast.error(pwCheck.message);
     if (password !== confirm) return toast.error("Passwords do not match.");
     postOtpActionRef.current = () => {
       void registerWithPhone();
@@ -345,16 +356,14 @@ export function AuthModal({
     const phoneCheck = validatePhoneFields();
     if (!phoneCheck.ok) return toast.error(phoneCheck.error);
     if (!password) return toast.error("Enter your password.");
-    postOtpActionRef.current = () => {
-      void loginWithPassword();
-    };
-    setFormStep("otp");
+    void loginWithPassword();
   }
 
   async function submitPasswordReset() {
     const phoneCheck = validatePhoneFields();
     if (!phoneCheck.ok) return toast.error(phoneCheck.error);
-    if (password.length < 8) return toast.error("Password must be at least 8 characters.");
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.ok) return toast.error(pwCheck.message);
     if (password !== confirm) return toast.error("Passwords do not match.");
     setBusy(true);
     try {
@@ -412,14 +421,14 @@ export function AuthModal({
   const modalSubtitle = showOtpScreen
     ? "We sent a one-time password to your phone. Enter the 6-digit code below."
     : showResetScreen
-      ? "Pick a strong password you will remember."
+      ? "Pick a password (4–8 letters or numbers)."
       : mode === "forgot"
         ? "Enter your registered Gambian mobile number — we'll verify by SMS."
         : mode === "complete"
           ? "Confirm your name and Gambian mobile number to open your wallet."
           : mode === "register"
             ? "Enter your name, phone and password — we'll verify your number by SMS next."
-            : "Enter your phone and password — we'll send a verification code next.";
+            : "Enter your phone and password to sign in.";
 
   return (
     <Modal open={open} onClose={onClose} title={modalTitle}>
@@ -457,15 +466,18 @@ export function AuthModal({
       ) : showResetScreen ? (
         <div className="space-y-3">
           <Input
-            label="New password (min 8 characters)"
+            label={PASSWORD_FIELD_LABEL}
             type="password"
             value={password}
+            maxLength={PASSWORD_MAX}
             onChange={(e) => setPassword(e.target.value)}
           />
+          <PasswordStrengthHint length={password.length} />
           <Input
             label="Confirm new password"
             type="password"
             value={confirm}
+            maxLength={PASSWORD_MAX}
             onChange={(e) => setConfirm(e.target.value)}
           />
           <Button className="w-full" onClick={() => void submitPasswordReset()} disabled={busy}>
@@ -588,15 +600,18 @@ export function AuthModal({
                 onPhoneChange={setPhone}
               />
               <Input
-                label="Password (min 8 characters)"
+                label={PASSWORD_FIELD_LABEL}
                 type="password"
                 value={password}
+                maxLength={PASSWORD_MAX}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <PasswordStrengthHint length={password.length} />
               <Input
                 label="Confirm Password"
                 type="password"
                 value={confirm}
+                maxLength={PASSWORD_MAX}
                 onChange={(e) => setConfirm(e.target.value)}
               />
               <Button className="w-full" onClick={continueRegister} disabled={busy || !ageConfirmed}>
@@ -619,7 +634,7 @@ export function AuthModal({
                 onKeyDown={(e) => e.key === "Enter" && continueLogin()}
               />
               <Button className="w-full" onClick={continueLogin} disabled={busy}>
-                Continue
+                {busy ? "Signing in…" : "Sign in"}
               </Button>
               <button
                 type="button"

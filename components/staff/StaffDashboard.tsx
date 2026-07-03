@@ -166,9 +166,21 @@ export function StaffDashboard() {
         <AdminDailyCustomerOpens />
 
         <div className="grid gap-4 md:grid-cols-3">
+          <Card className="border-emerald-500/30 p-4">
+            <h2 className="mb-2 font-semibold text-emerald-100">Create agent account</h2>
+            <p className="mb-4 text-sm text-slate-400">
+              Add a shop agent or marketer. Admin creates their first staff login — agents cannot
+              self-register.
+            </p>
+            <Link href="/admin/agents?create=1">
+              <Button className="w-full gap-2">
+                <UserCog size={16} /> Create agent account
+              </Button>
+            </Link>
+          </Card>
           <Card className="p-4">
             <h2 className="mb-2 font-semibold">All users</h2>
-            <p className="mb-4 text-sm text-slate-400">Create customers, agents, sub-agents, and admins.</p>
+            <p className="mb-4 text-sm text-slate-400">Customers, agents, cash desk, Player IDs, suspend accounts.</p>
             <Link href="/admin/users">
               <Button variant="secondary" className="w-full gap-2">
                 <Users size={16} /> Manage users

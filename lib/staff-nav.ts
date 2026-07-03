@@ -10,6 +10,7 @@ import {
   Activity,
   Percent,
   UserPlus,
+  UserCog,
   Gamepad2,
   ListOrdered,
   Gift,
@@ -26,6 +27,8 @@ export type StaffNavItem = {
   icon: LucideIcon;
   exact?: boolean;
   roles: Role[];
+  /** Always visible — not hidden in the horizontal scroll strip. */
+  pinned?: boolean;
 };
 
 /** One backend nav — filtered by signed-in role after login. */
@@ -36,18 +39,21 @@ export const STAFF_NAV: StaffNavItem[] = [
     icon: LayoutDashboard,
     exact: true,
     roles: STAFF_ROLES,
+    pinned: true,
   },
   {
     href: "/admin/operations",
     label: "Operations",
     icon: Activity,
     roles: STAFF_ROLES,
+    pinned: true,
   },
   {
     href: "/admin/customers",
     label: "My Customers",
     icon: UserPlus,
     roles: ["agent", "super_agent", "sub_agent"],
+    pinned: true,
   },
   {
     href: "/admin/commissions",
@@ -62,10 +68,18 @@ export const STAFF_NAV: StaffNavItem[] = [
     roles: ["agent", "super_agent", "sub_agent"],
   },
   {
+    href: "/admin/agents",
+    label: "Agents",
+    icon: UserCog,
+    roles: ["admin"],
+    pinned: true,
+  },
+  {
     href: "/admin/users",
     label: "All Users",
     icon: Users,
     roles: ["admin"],
+    pinned: true,
   },
   {
     href: "/admin/wallets",
@@ -124,6 +138,7 @@ export const STAFF_NAV: StaffNavItem[] = [
 ];
 
 export const ADMIN_ONLY_PREFIXES = [
+  "/admin/agents",
   "/admin/users",
   "/admin/wallets",
   "/admin/withdrawals",

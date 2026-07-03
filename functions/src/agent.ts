@@ -1,5 +1,6 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { allocatePlayerNumber, formatPlayerId } from "./playerIds";
+import { assertValidPassword } from "./passwordPolicy";
 import { isAgentRole } from "./roles";
 import {
   auth,
@@ -82,9 +83,7 @@ export async function createPlayerAccount(opts: {
 }): Promise<{ uid: string; playerNumber: number; playerId: string }> {
   const phone = normalizePhone(opts.phone);
   if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
-  if (opts.password.length < 8) {
-    throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
-  }
+  assertValidPassword(opts.password);
 
   const phoneDoc = await db.doc(`phones/${phone}`).get();
   if (phoneDoc.exists) {

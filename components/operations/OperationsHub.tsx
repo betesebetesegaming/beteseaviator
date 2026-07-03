@@ -76,10 +76,15 @@ export function OperationsHub() {
 
   const filteredTx = useMemo(() => {
     if (!data) return [];
+    let list = data.transactions;
+    if (agentFilter) {
+      list = list.filter((t) => t.agentId === agentFilter);
+    }
     const q = search.trim().toLowerCase();
-    if (!q) return data.transactions;
-    return data.transactions.filter(
+    if (!q) return list;
+    return list.filter(
       (t) =>
+        t.id.toLowerCase().includes(q) ||
         t.userId.toLowerCase().includes(q) ||
         (t.userName ?? "").toLowerCase().includes(q) ||
         (t.playerId ?? "").toLowerCase().includes(q) ||
@@ -87,7 +92,7 @@ export function OperationsHub() {
         t.reference.toLowerCase().includes(q) ||
         t.description.toLowerCase().includes(q)
     );
-  }, [data, search]);
+  }, [data, search, agentFilter]);
 
   const filteredLive = useMemo(() => {
     if (!data) return [];
@@ -205,15 +210,22 @@ export function OperationsHub() {
               <>
                 <Card className="p-4">
                   <Shield size={20} className="mb-2 text-violet-400" />
-                  <h2 className="font-semibold">Create any account</h2>
+                  <h2 className="font-semibold">Open accounts</h2>
                   <p className="mt-1 mb-3 text-sm text-slate-400">
-                    Customers, agents, and admins.
+                    Create agents and customers in a few clicks.
                   </p>
-                  <Link href="/admin/users">
-                    <Button variant="secondary" className="w-full gap-2">
-                      <UserPlus size={16} /> Manage users
-                    </Button>
-                  </Link>
+                  <div className="flex flex-col gap-2">
+                    <Link href="/admin/agents?create=1">
+                      <Button variant="secondary" className="w-full gap-2">
+                        <UserCog size={16} /> Create agent
+                      </Button>
+                    </Link>
+                    <Link href="/admin/users">
+                      <Button variant="secondary" className="w-full gap-2">
+                        <UserPlus size={16} /> Create customer
+                      </Button>
+                    </Link>
+                  </div>
                 </Card>
                 <Card className="p-4">
                   <Radio size={20} className="mb-2 text-emerald-400" />
@@ -393,6 +405,10 @@ export function OperationsHub() {
 
       {tab === "transactions" && (
         <div className="space-y-4">
+          <p className="text-sm text-slate-400">
+            Every deposit, bet, win, and withdrawal — with transaction ID, customer, Player ID, and
+            agent name.
+          </p>
           <div className="flex flex-wrap gap-3">
             <Select
               label="Type"
@@ -407,12 +423,28 @@ export function OperationsHub() {
                 </option>
               ))}
             </Select>
+            {isAdmin && data?.agents && data.agents.length > 0 ? (
+              <Select
+                label="Agent"
+                value={agentFilter ?? ""}
+                onChange={(e) => setAgentFilter(e.target.value || null)}
+                className="min-w-[12rem]"
+              >
+                <option value="">All agents</option>
+                {data.agents.map((a) => (
+                  <option key={a.uid} value={a.uid}>
+                    {a.name}
+                    {a.agentSlug ? ` (${a.agentSlug})` : ""}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
             <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm">
               <span className="text-slate-400">Search</span>
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name, Player ID, agent, reference…"
+                placeholder="Tx ID, name, Player ID, agent, reference…"
                 className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
               />
             </label>
@@ -425,30 +457,29 @@ export function OperationsHub() {
             <TableShell>
               <thead>
                 <tr>
+                  <Th>Tx ID</Th>
                   <Th>When</Th>
-                  <Th>User</Th>
+                  <Th>Customer</Th>
+                  <Th>Player ID</Th>
                   {isAdmin ? <Th>Agent</Th> : null}
                   <Th>Type</Th>
                   <Th>Amount</Th>
-                  <Th>Balance</Th>
                   <Th>Reference</Th>
-                  <Th>Details</Th>
                 </tr>
               </thead>
               <tbody>
                 {filteredTx.map((t) => (
                   <tr key={t.id}>
+                    <Td className="max-w-[7rem] font-mono text-[10px] text-sky-300">
+                      <span title={t.id}>{t.id.length > 12 ? `${t.id.slice(0, 10)}…` : t.id}</span>
+                    </Td>
                     <Td className="whitespace-nowrap text-xs text-slate-400">
                       {t.createdAt ? formatDate(new Date(t.createdAt)) : "—"}
                     </Td>
-                    <Td>
-                      <span className="block font-medium text-white">{t.userName ?? "—"}</span>
-                      <span className="font-mono text-[10px] text-emerald-400/90">
-                        {t.playerId ?? (t.userId ? `${t.userId.slice(0, 10)}…` : "—")}
-                      </span>
-                    </Td>
+                    <Td className="font-medium text-white">{t.userName ?? "—"}</Td>
+                    <Td className="font-mono text-xs text-emerald-300">{t.playerId ?? "—"}</Td>
                     {isAdmin ? (
-                      <Td className="text-sm text-slate-300">{t.agentName ?? "—"}</Td>
+                      <Td className="text-sm font-medium text-violet-200">{t.agentName ?? "Direct"}</Td>
                     ) : null}
                     <Td>
                       <Badge value={t.type} />
@@ -458,11 +489,9 @@ export function OperationsHub() {
                     >
                       {formatSigned(t.amount)}
                     </Td>
-                    <Td className="text-xs text-slate-400">
-                      {t.balanceBefore.toLocaleString()} → {t.balanceAfter.toLocaleString()}
+                    <Td className="max-w-[8rem] truncate font-mono text-[10px] text-slate-500">
+                      <span title={t.reference}>{t.reference}</span>
                     </Td>
-                    <Td className="font-mono text-[10px] text-slate-500">{t.reference}</Td>
-                    <Td className="max-w-xs truncate text-xs">{t.description}</Td>
                   </tr>
                 ))}
               </tbody>

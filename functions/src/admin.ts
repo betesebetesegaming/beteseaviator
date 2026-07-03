@@ -18,6 +18,7 @@ import {
 } from "./helpers";
 import { isAgentRole } from "./roles";
 import { claimSlug, createPlayerAccount, ensureAgentLoginDocs } from "./agent";
+import { assertValidPassword } from "./passwordPolicy";
 
 /** Route outbound QTech API calls through Cloud NAT static IP (QTech IP whitelist). */
 const QTECH_OUTBOUND = {
@@ -25,7 +26,7 @@ const QTECH_OUTBOUND = {
   vpcConnectorEgressSettings: "ALL_TRAFFIC" as const,
 };
 
-/** Admin creates any account type with full hierarchy validation. */
+/** Admin creates any account type. Agent staff accounts are admin-only — agents cannot self-register. */
 export const adminCreateUser = onCall(async (req) => {
   await requireRole(req, ["admin"]);
   const role = String(req.data?.role ?? "") as Role;
@@ -37,11 +38,9 @@ export const adminCreateUser = onCall(async (req) => {
   const parentId = req.data?.parentId ? String(req.data.parentId) : null;
 
   if (!name) throw new HttpsError("invalid-argument", "Name is required.");
-  if (password.length < 8) {
-    throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
-  }
 
   if (role === "player") {
+    assertValidPassword(password);
     // customers sign in with phone; an optional parent agent owns them
     let ancestors: string[] = [];
     if (parentId) {
@@ -58,6 +57,9 @@ export const adminCreateUser = onCall(async (req) => {
   }
 
   if (role === "agent" || role === "admin") {
+    if (password.length < 8) {
+      throw new HttpsError("invalid-argument", "Staff password must be at least 8 characters.");
+    }
     const hasEmail = email.includes("@");
     const loginKey = staffLoginKey(username || name);
     if (!hasEmail && !loginKey) {
@@ -212,9 +214,7 @@ export const adminResetPlayerPassword = onCall(async (req) => {
   const phone = normalizePhone(String(req.data?.phone ?? ""));
   const password = String(req.data?.password ?? "");
   if (!phone) throw new HttpsError("invalid-argument", "A valid phone number is required.");
-  if (password.length < 8) {
-    throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
-  }
+  assertValidPassword(password);
 
   const phoneSnap = await db.doc(`phones/${phone}`).get();
   if (!phoneSnap.exists) {

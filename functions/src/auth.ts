@@ -28,6 +28,7 @@ import {
   requireOtpVerifiedForPhone,
 } from "./otpVerification";
 import { allocatePlayerNumber, formatPlayerId } from "./playerIds";
+import { assertValidPassword } from "./passwordPolicy";
 import { verifySmsOtp } from "./routes/otp";
 import { isAgentRole, isStaffRole as isStaffRoleCheck } from "./roles";
 
@@ -190,9 +191,7 @@ export const resetPlayerPassword = onCall({ invoker: "public" }, async (req) => 
   const phone = normalizePhone(String(req.data?.phone ?? ""));
   const password = String(req.data?.password ?? "");
   if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
-  if (password.length < 8) {
-    throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
-  }
+  assertValidPassword(password);
 
   await requireOtpVerifiedForPhone(phone);
 
@@ -231,9 +230,7 @@ export const resetPlayerPasswordWithOtp = onCall({ invoker: "public" }, async (r
   if (!code || code.length < 6) {
     throw new HttpsError("invalid-argument", "Enter the 6-digit SMS verification code.");
   }
-  if (password.length < 8) {
-    throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
-  }
+  assertValidPassword(password);
 
   try {
     await verifySmsOtp(phone, code);

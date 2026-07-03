@@ -13,8 +13,8 @@ const STEPS = [
   },
   {
     icon: UserPlus,
-    title: "2. Open their account",
-    body: "They register from your link — or you create them manually under My Customers.",
+    title: "2. Customers join",
+    body: "They register from your marketing link, or you add them under My Customers after admin opened your account.",
     color: "text-sky-300",
   },
   {

@@ -468,14 +468,16 @@ app.get("/bootstrap/repair-player-login", async (req, res) => {
   }
   try {
     const { auth, db, normalizePhone, phoneToEmail } = await import("./helpers");
+    const { validatePassword } = await import("./passwordPolicy");
     const phone = normalizePhone(String(req.query.phone ?? ""));
     const password = String(req.query.password ?? "");
     if (!phone) {
       res.status(400).json({ error: "invalid_phone" });
       return;
     }
-    if (password.length < 8) {
-      res.status(400).json({ error: "password_too_short" });
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.ok) {
+      res.status(400).json({ error: "password_invalid", message: pwCheck.message });
       return;
     }
 
@@ -567,14 +569,16 @@ app.get("/bootstrap/reset-player-password", async (req, res) => {
   }
   try {
     const { auth, db, normalizePhone, phoneToEmail } = await import("./helpers");
+    const { validatePassword } = await import("./passwordPolicy");
     const phone = normalizePhone(String(req.query.phone ?? ""));
     const password = String(req.query.password ?? "");
     if (!phone) {
       res.status(400).json({ error: "invalid_phone" });
       return;
     }
-    if (password.length < 8) {
-      res.status(400).json({ error: "password_too_short" });
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.ok) {
+      res.status(400).json({ error: "password_invalid", message: pwCheck.message });
       return;
     }
     const phoneSnap = await db.doc(`phones/${phone}`).get();
