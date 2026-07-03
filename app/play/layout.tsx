@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { Suspense, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LogIn, UserPlus, Wallet, LogOut, UserCircle } from "lucide-react";
+import { LogIn, UserPlus, Wallet, LogOut, UserCircle, Gift } from "lucide-react";
 import { useAuth, homeFor } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
 import { formatXof } from "@/lib/format";
@@ -155,6 +155,13 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
                     Contact support
                   </span>
                 )}
+                <Link
+                  href="/play/referral"
+                  className="hidden items-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-1.5 text-xs font-semibold text-violet-200 hover:bg-violet-500/20 sm:flex"
+                  title="Invite friends — earn bonus"
+                >
+                  <Gift size={14} /> Invite
+                </Link>
                 <Link
                   href="/play/wallet"
                   className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium hover:bg-slate-700"

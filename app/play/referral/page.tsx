@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Gift } from "lucide-react";
 import { ReferralPanel } from "@/components/wallet/ReferralPanel";
 import { useAuth } from "@/lib/auth-context";
 
@@ -14,7 +14,7 @@ export default function ReferralPage() {
         <Link href="/play" className="text-emerald-400 hover:underline">
           Sign in
         </Link>{" "}
-        as a player to invite friends.
+        as a player to invite friends and earn bonuses.
       </p>
     );
   }
@@ -27,7 +27,18 @@ export default function ReferralPage() {
       >
         <ArrowLeft size={16} /> Wallet
       </Link>
-      <h1 className="mb-5 text-xl font-bold">Referral bonus account</h1>
+      <div className="mb-6 flex items-start gap-3">
+        <div className="rounded-lg bg-violet-500/15 p-2">
+          <Gift size={22} className="text-violet-300" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold">Invite friends</h1>
+          <p className="mt-1 text-sm text-slate-400">
+            Share your personal QR or link — not the same as an agent shop link. Earn when friends
+            join, deposit, and play.
+          </p>
+        </div>
+      </div>
       <ReferralPanel />
     </div>
   );

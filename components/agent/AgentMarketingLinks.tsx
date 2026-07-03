@@ -19,6 +19,7 @@ import {
   whatsAppShareUrl,
 } from "@/lib/agentShare";
 import { ReferralQrCode } from "@/components/shared/ReferralQrCode";
+import { ShareLinkPanel } from "@/components/shared/ShareLinkPanel";
 import { Card } from "@/components/ui";
 
 type Props = {
@@ -48,46 +49,16 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
 
   if (compact) {
     return (
-      <Card className="border-emerald-500/25 bg-emerald-500/5 p-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <ReferralQrCode
-            value={links.signupUrl}
-            label={`Scan — ${links.slug}`}
-            size={120}
-            downloadFileName={`betese-${slug}-qr`}
-            showDownload
-          />
-          <div className="min-w-0 flex-1 space-y-2 text-sm">
-            <p className="font-medium text-emerald-200">Share your signup QR</p>
-            <p className="text-xs text-slate-400">
-              Customers scan to register under you — use WhatsApp or SMS below.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <a
-                href={whatsAppShareUrl(shareMessage)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-2 text-xs font-semibold text-white hover:brightness-110"
-              >
-                <MessageCircle size={14} /> WhatsApp
-              </a>
-              <a
-                href={smsShareUrl(shareMessage)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/5"
-              >
-                <Smartphone size={14} /> SMS
-              </a>
-              <button
-                type="button"
-                onClick={() => copy(links.signupUrl, "sub")}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10"
-              >
-                <Copy size={14} /> {copied === "sub" ? "Copied" : "Copy link"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </Card>
+      <ShareLinkPanel
+        compact
+        accent="emerald"
+        title="Share your signup QR"
+        subtitle="Customers scan to register under you — WhatsApp, SMS, or copy link."
+        url={links.signupUrl}
+        shareMessage={shareMessage}
+        qrLabel={`Scan — ${links.slug}`}
+        downloadFileName={`betese-${slug}-qr`}
+      />
     );
   }
 

@@ -1,4 +1,7 @@
 import { SITE_ORIGIN } from "./agentLinks";
+import { smsShareUrl, whatsAppShareUrl } from "./shareChannels";
+
+export { smsShareUrl, whatsAppShareUrl };
 
 const DEVICE_KEY = "betese_device_id";
 
@@ -25,17 +28,20 @@ export function playerReferralUrl(code: string): string {
   return `${SITE_ORIGIN}/r/${encodeURIComponent(clean)}`;
 }
 
-export function whatsAppShareUrl(message: string): string {
-  return `https://wa.me/?text=${encodeURIComponent(message)}`;
-}
-
 export function referralShareMessage(code: string, bonusAmount: number): string {
   const link = playerReferralUrl(code);
   return (
-    `Join me on BETESE Aviator! Sign up, deposit GMD 50+ and play your first bet — ` +
+    `Join me on BETESE Aviator! Sign up with my link, deposit GMD 50+ and play once — ` +
     `I earn GMD ${bonusAmount} when you qualify.\n${link}`
   );
 }
+
+export const PLAYER_REFERRAL_EXAMPLES = [
+  "Send your link on WhatsApp — friends tap and register in one step.",
+  "Let them scan your QR code from your phone screen at home or work.",
+  "Share by SMS when a friend asks how to join BETESE.",
+  "Your code is personal — different from an agent shop link.",
+] as const;
 
 export function formatReferralReleaseDate(iso: string): string {
   try {

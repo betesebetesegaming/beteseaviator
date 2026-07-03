@@ -20,6 +20,7 @@ import {
 } from "@/lib/api";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { AgentCustomerCashActions } from "@/components/agent/AgentCashDesk";
+import { CustomerCreatedSuccess } from "@/components/agent/CustomerCreatedSuccess";
 import { formatXof, normalizePhone, todayIso } from "@/lib/format";
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
 import type { UserProfile } from "@/lib/types";
@@ -50,6 +51,11 @@ export default function AgentPlayersPage() {
   const [depositTarget, setDepositTarget] = useState<PlayerRow | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [createdSuccess, setCreatedSuccess] = useState<{
+    name: string;
+    playerId: string;
+    phone: string;
+  } | null>(null);
   const [openedToday, setOpenedToday] = useState<number | null>(null);
 
   useEffect(() => {
@@ -107,12 +113,13 @@ export default function AgentPlayersPage() {
     if (newPassword.length < 8) return toast.error("Password must be at least 8 characters.");
     setBusy(true);
     try {
-      const res = await agentCreateCustomer({ name: newName.trim(), phone, password: newPassword });
-      toast.success(`Customer created — Player ID ${res.playerId}`);
+      const name = newName.trim();
+      const res = await agentCreateCustomer({ name, phone, password: newPassword });
       setCreateOpen(false);
       setNewName("");
       setNewPhone("");
       setNewPassword("");
+      setCreatedSuccess({ name, playerId: res.playerId, phone });
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
@@ -269,6 +276,16 @@ export default function AgentPlayersPage() {
           </Button>
         </div>
       </Modal>
+
+      <CustomerCreatedSuccess
+        open={!!createdSuccess}
+        onClose={() => setCreatedSuccess(null)}
+        customerName={createdSuccess?.name ?? ""}
+        playerId={createdSuccess?.playerId ?? ""}
+        phone={createdSuccess?.phone ?? ""}
+        agentSlug={profile?.agentSlug}
+        agentName={profile?.name}
+      />
     </div>
   );
 }

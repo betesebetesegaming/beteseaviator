@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
+import { AgentQuickStart } from "@/components/agent/AgentQuickStart";
 import { AgentTodayCustomerOpens } from "@/components/staff/DailyCustomerOpens";
 import { Button, Card, StatCard } from "@/components/ui";
 
@@ -22,8 +23,9 @@ export default function AgentDashboard() {
       </p>
 
       {profile?.agentSlug ? (
-        <div className="mb-6">
+        <div className="mb-6 space-y-4">
           <AgentMarketingLinks slug={profile.agentSlug} agentName={profile.name} />
+          <AgentQuickStart />
         </div>
       ) : (
         <Card className="mb-6 border-amber-500/30 bg-amber-500/10 text-sm text-amber-100">

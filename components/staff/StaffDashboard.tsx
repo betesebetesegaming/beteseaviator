@@ -22,8 +22,10 @@ import { rtdb } from "@/lib/rtdb";
 import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
 import { roleLabel } from "@/lib/staff-nav";
+import { isAgentRole } from "@/lib/roles";
 import { StaffAccountCard } from "@/components/staff/StaffAccountCard";
 import { AgentPeriodStats } from "@/components/staff/AgentPeriodStats";
+import { AgentQuickStart } from "@/components/agent/AgentQuickStart";
 import {
   AdminDailyCustomerOpens,
   AgentTodayCustomerOpens,
@@ -219,6 +221,8 @@ export function StaffDashboard() {
       </div>
 
       <StaffAccountCard profile={profile} />
+
+      {isAgentRole(profile.role) && profile.agentSlug ? <AgentQuickStart /> : null}
 
       <AgentPeriodStats />
 
