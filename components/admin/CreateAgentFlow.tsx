@@ -5,7 +5,11 @@ import toast from "react-hot-toast";
 import { Plus } from "lucide-react";
 import { adminCreateUser, errorMessage } from "@/lib/api";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
-import { agentSignupUrl, slugifyAgentName } from "@/lib/agentLinks";
+import {
+  agentLinkSlug,
+  agentSignupUrl,
+  type AgentLinkMode,
+} from "@/lib/agentLinks";
 import { STAFF_LOGIN_PATH } from "@/lib/staff-routes";
 import { Button, Input, Modal } from "@/components/ui";
 
@@ -21,7 +25,7 @@ type Props = {
   autoOpen?: boolean;
 };
 
-/** Admin-only: opens agent account — link uses full first + surname. */
+/** Admin-only: agent link can use first name only or full name. */
 export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen = false }: Props) {
   const [open, setOpen] = useState(autoOpen);
   const [creating, setCreating] = useState(false);
@@ -30,25 +34,27 @@ export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen
     name: "",
     email: "",
     password: "",
+    linkMode: "first" as AgentLinkMode,
   });
 
   const linkPreview = useMemo(() => {
-    const slug = slugifyAgentName(form.name);
-    if (!slug) return null;
+    const slug = agentLinkSlug(form.name, form.linkMode);
+    if (slug.length < 2) return null;
     return agentSignupUrl(slug).replace(/^https?:\/\//, "");
-  }, [form.name]);
+  }, [form.name, form.linkMode]);
 
   function resetForm() {
-    setForm({ name: "", email: "", password: "" });
+    setForm({ name: "", email: "", password: "", linkMode: "first" });
   }
 
   async function submit() {
     const name = form.name.trim();
     const email = form.email.trim().toLowerCase();
     const password = form.password;
-    if (!name) return toast.error("Enter first name and surname together (e.g. Fatou Jarju).");
-    if (slugifyAgentName(name).length < 3) {
-      return toast.error("Name is too short for a signup link — use first and surname.");
+    if (!name) return toast.error("Enter the agent's name (e.g. Fatou Jarju).");
+    const slugPreview = agentLinkSlug(name, form.linkMode);
+    if (slugPreview.length < 2) {
+      return toast.error("Name is too short for a signup link.");
     }
     if (password.length < 8) return toast.error("Staff password must be at least 8 characters.");
 
@@ -59,6 +65,7 @@ export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen
         name,
         email: email || undefined,
         password,
+        linkMode: form.linkMode,
       });
       if (!res.slug) {
         toast.error("Agent created but link is missing — use Fix agent logins on All Users.");
@@ -74,7 +81,7 @@ export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen
       });
       setOpen(false);
       resetForm();
-      toast.success(`Agent ${name} created — customers under this link earn them GGR commission.`);
+      toast.success(`Agent ${name} created.`);
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
@@ -93,9 +100,9 @@ export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen
       <Modal open={open} onClose={() => setOpen(false)} title="Create agent account (admin only)">
         <div className="space-y-4">
           <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
-            Use the agent&apos;s <strong>full name</strong> (first + surname). Their customer link becomes{" "}
-            <strong>beteseaviator.com/agent/firstnamesurname</strong>. Everyone who signs up or is opened
-            under them counts for their GGR commission.
+            Enter the agent&apos;s full name for records. Choose a <strong>short first-name link</strong> or{" "}
+            <strong>full-name link</strong> for customers — both attach players to this agent for GGR
+            commission.
           </p>
           <Input
             label="Full name (first + surname)"
@@ -103,9 +110,38 @@ export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
+          <div>
+            <p className="mb-2 text-sm text-slate-300">Customer signup link</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, linkMode: "first" })}
+                className={`rounded-lg border px-3 py-2.5 text-left text-sm transition ${
+                  form.linkMode === "first"
+                    ? "border-emerald-400 bg-emerald-500/15 text-emerald-100"
+                    : "border-white/10 text-slate-400 hover:bg-white/5"
+                }`}
+              >
+                <span className="font-semibold">First name only</span>
+                <span className="mt-0.5 block text-xs opacity-80">Shorter — e.g. /agent/fatou</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, linkMode: "full" })}
+                className={`rounded-lg border px-3 py-2.5 text-left text-sm transition ${
+                  form.linkMode === "full"
+                    ? "border-emerald-400 bg-emerald-500/15 text-emerald-100"
+                    : "border-white/10 text-slate-400 hover:bg-white/5"
+                }`}
+              >
+                <span className="font-semibold">Full name</span>
+                <span className="mt-0.5 block text-xs opacity-80">Longer — e.g. /agent/fatoujarju</span>
+              </button>
+            </div>
+          </div>
           {linkPreview ? (
             <p className="text-xs text-emerald-300">
-              Customer link: <code className="text-emerald-100">{linkPreview}</code>
+              Link preview: <code className="text-emerald-100">{linkPreview}</code>
             </p>
           ) : null}
           <Input
@@ -149,10 +185,6 @@ export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen
                   <dd className="font-mono">{created.password}</dd>
                 </div>
               </dl>
-              <p className="mt-3 text-xs text-emerald-200/80">
-                Customers from this link or opened by {created.name} play under them — agent earns
-                commission on their GGR.
-              </p>
             </div>
             <AgentMarketingLinks slug={created.slug} agentName={created.name} />
             <Button className="w-full" onClick={() => setCreated(null)}>

@@ -127,8 +127,9 @@ function AdminAgentsContent() {
           <li>Click <strong>Create Agent Account</strong> and set name, username, and password.</li>
           <li>Give the agent their username + password for staff sign-in.</li>
           <li>
-            Share their link (<code className="text-violet-200">beteseaviator.com/agent/firstnamesurname</code>
-            ) — customers and GGR commission stay under that agent.
+            Choose link style when creating: <strong>first name only</strong> (e.g.{" "}
+            <code className="text-violet-200">/agent/fatou</code>) or <strong>full name</strong> (
+            <code className="text-violet-200">/agent/fatoujarju</code>).
           </li>
           <li>Turn on <strong>Cash desk</strong> below if they handle shop cash.</li>
         </ol>

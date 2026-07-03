@@ -8,7 +8,7 @@ const STEPS = [
   {
     icon: QrCode,
     title: "1. Share your link",
-    body: "Share beteseaviator.com/agent/yourfullname — customers who register or you open count for your GGR commission.",
+    body: "Share beteseaviator.com/agent/yourname (first name or full name) — your customers earn you GGR commission.",
     color: "text-emerald-300",
   },
   {

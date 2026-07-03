@@ -46,6 +46,20 @@ export function slugifyAgentName(name: string): string {
     .slice(0, 48);
 }
 
+export type AgentLinkMode = "first" | "full";
+
+/** First word of the agent's display name, e.g. "Fatou Jarju" → "fatou". */
+export function agentFirstName(name: string): string {
+  const first = name.trim().split(/\s+/)[0] ?? "";
+  return slugifyAgentName(first);
+}
+
+/** Pick signup-link slug from full name + admin choice. */
+export function agentLinkSlug(name: string, mode: AgentLinkMode): string {
+  if (mode === "first") return agentFirstName(name);
+  return slugifyAgentName(name);
+}
+
 export type AgentLinks = {
   slug: string;
   /** Primary share link: beteseaviator.com/agent/fatoujarju */

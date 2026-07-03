@@ -159,6 +159,8 @@ export const adminCreateUser = call<
     email?: string;
     phone?: string;
     username?: string;
+    /** Agent signup link: first name only (short) or full name. */
+    linkMode?: "first" | "full";
     password: string;
     parentId?: string | null;
   },

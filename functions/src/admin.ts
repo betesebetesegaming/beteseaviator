@@ -35,6 +35,7 @@ export const adminCreateUser = onCall(async (req) => {
   const email = req.data?.email ? String(req.data.email).toLowerCase().trim() : "";
   const phone = req.data?.phone ? normalizePhone(String(req.data.phone)) : "";
   const username = req.data?.username ? String(req.data.username).trim() : "";
+  const linkMode = String(req.data?.linkMode ?? "first") === "full" ? "full" : "first";
   const password = String(req.data?.password ?? "");
   const parentId = req.data?.parentId ? String(req.data.parentId) : null;
 
@@ -83,8 +84,15 @@ export const adminCreateUser = onCall(async (req) => {
       throw e;
     }
 
+    const slugSource =
+      role === "agent"
+        ? username ||
+          (linkMode === "first"
+            ? name.trim().split(/\s+/)[0] || name
+            : name)
+        : "";
     const slug =
-      role === "admin" ? null : await claimSlug(name, uid, name);
+      role === "admin" ? null : await claimSlug(slugSource, uid, name);
     const staffLoginId =
       role === "admin"
         ? (username ? username.toLowerCase().trim() : loginKey)
