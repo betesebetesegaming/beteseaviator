@@ -35,7 +35,7 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
   const displayName = agentName?.trim() || slug;
   const shareMessage = agentSignupShareMessage({
     agentName: displayName,
-    signupUrl: links.subdomainUrl,
+    signupUrl: links.signupUrl,
   });
   const [copied, setCopied] = useState<"sub" | "ref" | "login" | "msg" | null>(null);
 
@@ -51,8 +51,8 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
       <Card className="border-emerald-500/25 bg-emerald-500/5 p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <ReferralQrCode
-            value={links.subdomainUrl}
-            label={`Scan — ${links.subdomain}`}
+            value={links.signupUrl}
+            label={`Scan — ${links.slug}`}
             size={120}
             downloadFileName={`betese-${slug}-qr`}
             showDownload
@@ -79,7 +79,7 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
               </a>
               <button
                 type="button"
-                onClick={() => copy(links.subdomainUrl, "sub")}
+                onClick={() => copy(links.signupUrl, "sub")}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10"
               >
                 <Copy size={14} /> {copied === "sub" ? "Copied" : "Copy link"}
@@ -111,13 +111,13 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
       <div className="mb-6 grid gap-6 rounded-xl border border-emerald-500/20 bg-slate-950/40 p-4 lg:grid-cols-[auto_1fr]">
         <div className="flex flex-col items-center gap-3">
           <ReferralQrCode
-            value={links.subdomainUrl}
+            value={links.signupUrl}
             label="Main signup QR (recommended)"
             size={168}
             downloadFileName={`betese-${slug}-signup-qr`}
             showDownload
           />
-          <code className="text-center text-xs text-emerald-200">{links.subdomain}</code>
+          <code className="text-center text-xs text-emerald-200">{links.signupUrl.replace(/^https?:\/\//, "")}</code>
         </div>
 
         <div className="space-y-4">
@@ -178,22 +178,22 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
         <div className="space-y-3">
           <div>
             <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              Agent subdomain link
+              Your signup link (recommended)
             </p>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <code className="flex-1 overflow-x-auto rounded-lg bg-slate-950/70 px-3 py-2 text-sm text-emerald-200">
-                {links.subdomainUrl}
+                {links.signupUrl}
               </code>
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => copy(links.subdomainUrl, "sub")}
+                  onClick={() => copy(links.signupUrl, "sub")}
                   className="flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-400"
                 >
                   <Copy size={14} /> {copied === "sub" ? "Copied" : "Copy"}
                 </button>
                 <a
-                  href={links.subdomainUrl}
+                  href={links.signupUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/5"
@@ -203,9 +203,27 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
               </div>
             </div>
             <p className="mt-1 text-[10px] text-slate-600">
-              Example: customer opens <strong>{slug}.beteseaviator.com</strong> → signs up → you
-              get credit.
+              Example: customer opens <strong>beteseaviator.com/{slug}</strong> → signs up → you get
+              credit.
             </p>
+          </div>
+
+          <div>
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              Legacy subdomain (still works)
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <code className="flex-1 overflow-x-auto rounded-lg bg-slate-950/70 px-3 py-2 text-xs text-slate-400">
+                {links.subdomainUrl}
+              </code>
+              <button
+                type="button"
+                onClick={() => copy(links.subdomainUrl, "ref")}
+                className="flex items-center justify-center gap-1 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-400 hover:bg-white/5"
+              >
+                <Copy size={14} /> Copy
+              </button>
+            </div>
           </div>
 
           <div>

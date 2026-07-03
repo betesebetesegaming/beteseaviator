@@ -21,6 +21,8 @@ export interface UserProfile {
   status: UserStatus;
   createdAt: Timestamp | null;
   stats?: AgentStats;
+  /** Admin enables OTC cash desk at agent shop (special cases). */
+  cashOpsEnabled?: boolean;
 }
 
 export interface AgentStats {

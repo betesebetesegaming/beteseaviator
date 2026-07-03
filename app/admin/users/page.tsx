@@ -5,9 +5,9 @@ import toast from "react-hot-toast";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { Plus, Search } from "lucide-react";
 import { db } from "@/lib/firestore";
-import { adminCreateUser, adminBackfillPlayerIds, adminSetUserStatus, adminSyncAgentLogins, errorMessage } from "@/lib/api";
+import { adminCreateUser, adminBackfillPlayerIds, adminSetAgentCashOps, adminSetUserStatus, adminSyncAgentLogins, errorMessage } from "@/lib/api";
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
-import { agentSubdomainUrl } from "@/lib/agentLinks";
+import { agentSignupUrl } from "@/lib/agentLinks";
 import { staffSignInId } from "@/lib/staffAccount";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { normalizePhone, formatDate } from "@/lib/format";
@@ -113,6 +113,19 @@ export default function AdminUsersPage() {
       toast.error(errorMessage(e));
     } finally {
       setSyncingAgents(false);
+    }
+  }
+
+  async function toggleCashOps(u: UserProfile) {
+    const next = !u.cashOpsEnabled;
+    setBusyUid(u.uid);
+    try {
+      await adminSetAgentCashOps({ uid: u.uid, enabled: next });
+      toast.success(`${u.name}: cash desk ${next ? "enabled" : "disabled"}.`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusyUid(null);
     }
   }
 
@@ -251,12 +264,12 @@ export default function AdminUsersPage() {
                 <Td>
                   {u.agentSlug ? (
                     <a
-                      href={agentSubdomainUrl(u.agentSlug)}
+                      href={agentSignupUrl(u.agentSlug)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-emerald-400 hover:underline"
                     >
-                      {u.agentSlug}.beteseaviator.com
+                      beteseaviator.com/{u.agentSlug}
                     </a>
                   ) : (
                     "—"
@@ -267,16 +280,29 @@ export default function AdminUsersPage() {
                   <Badge value={u.status} />
                 </Td>
                 <Td>
-                  {u.role !== "admin" && (
-                    <Button
-                      variant={u.status === "active" ? "danger" : "secondary"}
-                      className="!px-2.5 !py-1 text-xs"
-                      disabled={busyUid === u.uid}
-                      onClick={() => toggleStatus(u)}
-                    >
-                      {u.status === "active" ? "Suspend" : "Re-activate"}
-                    </Button>
-                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {isAgentRole(u.role) ? (
+                      <Button
+                        variant={u.cashOpsEnabled ? "secondary" : "secondary"}
+                        className={`!px-2.5 !py-1 text-xs ${u.cashOpsEnabled ? "text-amber-200" : ""}`}
+                        disabled={busyUid === u.uid}
+                        onClick={() => toggleCashOps(u)}
+                        title="Enable OTC cash deposit/withdraw at agent shop"
+                      >
+                        {u.cashOpsEnabled ? "Cash desk on" : "Cash desk off"}
+                      </Button>
+                    ) : null}
+                    {u.role !== "admin" && (
+                      <Button
+                        variant={u.status === "active" ? "danger" : "secondary"}
+                        className="!px-2.5 !py-1 text-xs"
+                        disabled={busyUid === u.uid}
+                        onClick={() => toggleStatus(u)}
+                      >
+                        {u.status === "active" ? "Suspend" : "Re-activate"}
+                      </Button>
+                    )}
+                  </div>
                 </Td>
               </tr>
             );

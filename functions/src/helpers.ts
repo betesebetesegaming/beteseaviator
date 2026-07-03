@@ -29,6 +29,8 @@ export interface ProfileData {
   referralCode?: string | null;
   referredBy?: string | null;
   createdAt?: admin.firestore.Timestamp | null;
+  /** Admin-only: allow OTC cash deposit/withdraw at agent shop. */
+  cashOpsEnabled?: boolean;
   stats?: {
     customerCount?: number;
     customerDeposits?: number;

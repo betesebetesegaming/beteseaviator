@@ -129,6 +129,27 @@ export const agentDepositToCustomer = call<
   { ok: true }
 >("agentDepositToCustomer");
 
+export const agentOtcCashDeposit = call<
+  { customerId: string; amount: number },
+  { ok: true; playerId: string; amount: number }
+>("agentOtcCashDeposit");
+
+export const agentOtcCashWithdraw = call<
+  { customerId: string; amount: number },
+  {
+    ok: true;
+    withdrawalCode: string;
+    playerId: string;
+    amount: number;
+    customerName: string;
+  }
+>("agentOtcCashWithdraw");
+
+export const adminSetAgentCashOps = call<
+  { uid: string; enabled: boolean },
+  { ok: true; uid: string; cashOpsEnabled: boolean }
+>("adminSetAgentCashOps");
+
 // ---------- admin ----------
 
 export const adminCreateUser = call<

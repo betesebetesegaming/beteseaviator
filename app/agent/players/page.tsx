@@ -19,6 +19,7 @@ import {
   errorMessage,
 } from "@/lib/api";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
+import { AgentCustomerCashActions } from "@/components/agent/AgentCashDesk";
 import { formatXof, normalizePhone, todayIso } from "@/lib/format";
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
 import type { UserProfile } from "@/lib/types";
@@ -159,6 +160,13 @@ export default function AgentPlayersPage() {
         </Button>
       </div>
 
+      {profile?.cashOpsEnabled ? (
+        <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+          <strong>Cash desk enabled</strong> — + Cash when customer pays you; − Cash when you pay
+          them (withdrawal code with Player ID).
+        </p>
+      ) : null}
+
       {profile?.agentSlug ? (
         <div className="mb-5">
           <AgentMarketingLinks slug={profile.agentSlug} agentName={profile.name} compact />
@@ -206,15 +214,11 @@ export default function AgentPlayersPage() {
                   <Badge value={p.status} />
                 </Td>
                 <Td>
-                  <Button
-                    variant="secondary"
-                    className="!px-2.5 !py-1 text-xs"
-                    onClick={() => setDepositTarget(p)}
-                  >
-                    <span className="flex items-center gap-1">
-                      <Banknote size={13} /> Deposit
-                    </span>
-                  </Button>
+                  <AgentCustomerCashActions
+                    customer={p}
+                    cashOpsEnabled={Boolean(profile?.cashOpsEnabled)}
+                    onFloatDeposit={() => setDepositTarget(p)}
+                  />
                 </Td>
               </tr>
             ))}

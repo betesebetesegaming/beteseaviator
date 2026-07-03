@@ -31,6 +31,11 @@ export {
   agentDepositToCustomer,
 } from "./agent";
 export {
+  adminSetAgentCashOps,
+  agentOtcCashDeposit,
+  agentOtcCashWithdraw,
+} from "./agentCashOps";
+export {
   adminCreateUser,
   adminSetUserStatus,
   adminAdjustWallet,

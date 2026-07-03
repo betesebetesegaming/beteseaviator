@@ -1,4 +1,4 @@
-/** Agent marketing URLs — subdomain + referral link (Gambia primary site). */
+/** Agent marketing URLs — path link (primary) + legacy subdomain. */
 
 import { STAFF_LOGIN_PATH } from "./staff-routes";
 
@@ -21,8 +21,26 @@ export const AGENT_RESERVED_SUBDOMAINS = [
   "app",
 ];
 
+/** Path segments that are app routes — not agent usernames. */
+export const AGENT_RESERVED_PATHS = new Set([
+  "play",
+  "admin",
+  "agent",
+  "suspended",
+  "api",
+  "r",
+  "promotions",
+  "favicon.ico",
+  "icon.png",
+  "_next",
+  ...AGENT_RESERVED_SUBDOMAINS,
+]);
+
 export type AgentLinks = {
   slug: string;
+  /** Primary share link: beteseaviator.com/paul */
+  signupUrl: string;
+  /** @deprecated Legacy subdomain — still works */
   subdomain: string;
   subdomainUrl: string;
   referralUrl: string;
@@ -33,10 +51,16 @@ export function buildAgentLinks(slug: string): AgentLinks {
   const subdomain = `${clean}.${AGENT_DOMAIN}`;
   return {
     slug: clean,
+    signupUrl: `${SITE_ORIGIN}/${clean}`,
     subdomain,
     subdomainUrl: `https://${subdomain}`,
     referralUrl: `${SITE_ORIGIN}/play?signup=1&ref=${encodeURIComponent(clean)}`,
   };
+}
+
+/** Primary marketing URL agents share (path format). */
+export function agentSignupUrl(slug: string): string {
+  return buildAgentLinks(slug).signupUrl;
 }
 
 export function agentSubdomainUrl(slug: string): string {
@@ -50,6 +74,15 @@ export function agentReferralUrl(slug: string): string {
 /** Staff sign-in for super agents and sub agents (not player signup). */
 export function staffLoginUrl(): string {
   return `${SITE_ORIGIN}${STAFF_LOGIN_PATH}`;
+}
+
+/** e.g. /paul → "paul" */
+export function parseAgentSlugFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/([a-z0-9][a-z0-9-]{0,23})\/?$/i);
+  if (!match) return null;
+  const slug = match[1].toLowerCase();
+  if (AGENT_RESERVED_PATHS.has(slug)) return null;
+  return slug;
 }
 
 /** e.g. paul.beteseaviator.com → "paul" */
