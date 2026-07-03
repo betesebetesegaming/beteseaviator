@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { formatXof } from "@/lib/format";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
+import { AgentTodayCustomerOpens } from "@/components/staff/DailyCustomerOpens";
 import { Button, Card, StatCard } from "@/components/ui";
 
 export default function AgentDashboard() {
@@ -32,6 +33,7 @@ export default function AgentDashboard() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <AgentTodayCustomerOpens />
         <Link href="/agent/operations">
           <StatCard
             label="Operations hub"

@@ -5,7 +5,8 @@ import toast from "react-hot-toast";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { Plus, Search } from "lucide-react";
 import { db } from "@/lib/firestore";
-import { adminCreateUser, adminSetUserStatus, adminSyncAgentLogins, errorMessage } from "@/lib/api";
+import { adminCreateUser, adminBackfillPlayerIds, adminSetUserStatus, adminSyncAgentLogins, errorMessage } from "@/lib/api";
+import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
 import { agentSubdomainUrl } from "@/lib/agentLinks";
 import { staffSignInId } from "@/lib/staffAccount";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
@@ -44,6 +45,7 @@ export default function AdminUsersPage() {
   });
   const [creating, setCreating] = useState(false);
   const [syncingAgents, setSyncingAgents] = useState(false);
+  const [backfillingIds, setBackfillingIds] = useState(false);
   const [createdAgent, setCreatedAgent] = useState<{ slug: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -69,7 +71,9 @@ export default function AdminUsersPage() {
           u.name?.toLowerCase().includes(s) ||
           u.email?.toLowerCase().includes(s) ||
           u.agentSlug?.toLowerCase().includes(s) ||
-          u.phone?.includes(normalizePhone(s) || s)
+          u.phone?.includes(normalizePhone(s) || s) ||
+          (u.playerNumber ? formatPlayerId(u.playerNumber).toLowerCase().includes(s) : false) ||
+          String(u.playerNumber ?? "").includes(s)
       );
     }
     return list;
@@ -85,6 +89,18 @@ export default function AdminUsersPage() {
       toast.error(errorMessage(e));
     } finally {
       setBusyUid(null);
+    }
+  }
+
+  async function backfillPlayerIds() {
+    setBackfillingIds(true);
+    try {
+      const res = await adminBackfillPlayerIds({ limit: 2000 });
+      toast.success(`Assigned Player IDs to ${res.count} customer${res.count === 1 ? "" : "s"}.`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBackfillingIds(false);
     }
   }
 
@@ -157,6 +173,9 @@ export default function AdminUsersPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => void backfillPlayerIds()} disabled={backfillingIds}>
+            {backfillingIds ? "Assigning…" : "Assign Player IDs"}
+          </Button>
           <Button variant="secondary" onClick={() => void syncAgentLogins()} disabled={syncingAgents}>
             {syncingAgents ? "Syncing…" : "Fix agent logins"}
           </Button>
@@ -172,7 +191,7 @@ export default function AdminUsersPage() {
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
           <Input
-            placeholder="Search name, phone, email, username…"
+            placeholder="Search name, phone, Player ID, username…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -197,9 +216,10 @@ export default function AdminUsersPage() {
           <thead>
             <tr>
               <Th>Name</Th>
+              <Th>Player ID</Th>
               <Th>Role</Th>
               <Th>Login</Th>
-              <Th>Username</Th>
+              <Th>Agent / Username</Th>
               <Th>Agent link</Th>
               <Th>Joined</Th>
               <Th>Status</Th>
@@ -207,9 +227,16 @@ export default function AdminUsersPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((u) => (
+            {filtered.map((u) => {
+              const owner = u.role === "player" && u.parentId
+                ? users?.find((a) => a.uid === u.parentId)
+                : null;
+              return (
               <tr key={u.uid}>
                 <Td className="font-medium">{u.name}</Td>
+                <Td className="font-mono text-sm text-emerald-300">
+                  {u.role === "player" ? playerDisplayId(u) : "—"}
+                </Td>
                 <Td>
                   <Badge value={displayRole(u.role)} />
                 </Td>
@@ -218,7 +245,9 @@ export default function AdminUsersPage() {
                     ? (u.phone ?? "—")
                     : (staffSignInId(u) ?? "—")}
                 </Td>
-                <Td className="text-emerald-300">{u.agentSlug ?? "—"}</Td>
+                <Td className="text-emerald-300">
+                  {u.role === "player" ? (owner?.name ?? "Direct") : (u.agentSlug ?? "—")}
+                </Td>
                 <Td>
                   {u.agentSlug ? (
                     <a
@@ -250,7 +279,8 @@ export default function AdminUsersPage() {
                   )}
                 </Td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </TableShell>
       )}

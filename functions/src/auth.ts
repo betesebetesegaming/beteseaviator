@@ -11,6 +11,8 @@ import {
   resolveStaffAuthEmail,
   staffLoginKey,
   DEFAULT_SETTINGS,
+  todayIso,
+  recordCustomersOpened,
   type ProfileData,
   type Role,
 } from "./helpers";
@@ -25,6 +27,7 @@ import {
   consumeOtpVerifiedForPhone,
   requireOtpVerifiedForPhone,
 } from "./otpVerification";
+import { allocatePlayerNumber, formatPlayerId } from "./playerIds";
 import { verifySmsOtp } from "./routes/otp";
 import { isAgentRole, isStaffRole as isStaffRoleCheck } from "./roles";
 
@@ -83,6 +86,8 @@ export const completeRegistration = onCall(async (req) => {
     if (playerReferrerUid === uid) playerReferrerUid = null;
   }
 
+  let assignedPlayerNumber = 0;
+
   try {
     await db.runTransaction(async (tx) => {
       const userRef = db.doc(`users/${uid}`);
@@ -95,8 +100,13 @@ export const completeRegistration = onCall(async (req) => {
       ]);
 
       if (userSnap.exists) {
-        const existing = userSnap.data() as ProfileData & { phone?: string; referralCode?: string };
+        const existing = userSnap.data() as ProfileData & {
+          phone?: string;
+          referralCode?: string;
+          playerNumber?: number;
+        };
         if (existing.phone === phone) {
+          assignedPlayerNumber = Number(existing.playerNumber ?? 0);
           if (!existing.referralCode) {
             const code = await pickPlayerReferralCode(tx, uid, name);
             writePlayerReferralCode(tx, uid, name, code);
@@ -115,6 +125,7 @@ export const completeRegistration = onCall(async (req) => {
       }
 
       const referralCode = await pickPlayerReferralCode(tx, uid, name);
+      assignedPlayerNumber = await allocatePlayerNumber(tx);
 
       writePlayerReferralCode(tx, uid, name, referralCode);
       tx.set(userRef, {
@@ -127,6 +138,7 @@ export const completeRegistration = onCall(async (req) => {
         ancestors,
         referredBy: playerReferrerUid,
         referralCode,
+        playerNumber: assignedPlayerNumber,
         status: "active",
         stats: {},
         createdAt: FieldValue.serverTimestamp(),
@@ -140,6 +152,7 @@ export const completeRegistration = onCall(async (req) => {
       });
       tx.set(phoneRef, { uid });
       tx.set(db.doc("stats/platform"), { customerCount: FieldValue.increment(1) }, { merge: true });
+      recordCustomersOpened(tx, todayIso(), ancestors);
       for (const agentId of ancestors) {
         tx.set(
           db.doc(`users/${agentId}`),
@@ -164,7 +177,12 @@ export const completeRegistration = onCall(async (req) => {
       "Could not finish your profile. Please try again in a moment."
     );
   }
-  return { ok: true, role: "player" };
+  return {
+    ok: true,
+    role: "player",
+    playerNumber: assignedPlayerNumber || undefined,
+    playerId: assignedPlayerNumber ? formatPlayerId(assignedPlayerNumber) : undefined,
+  };
 });
 
 /** Player self-service password reset — requires a fresh Africell OTP for the phone. */

@@ -53,8 +53,8 @@ export const adminCreateUser = onCall(async (req) => {
       }
       ancestors = [parentId];
     }
-    const uid = await createPlayerAccount({ name, phone, password, parentId, ancestors });
-    return { uid };
+    const created = await createPlayerAccount({ name, phone, password, parentId, ancestors });
+    return created;
   }
 
   if (role === "agent" || role === "admin") {
@@ -958,4 +958,13 @@ export const adminSaveQTechSettings = onCall(async (req) => {
   const { getQTechSetupStatus } = await import("./qtech/games");
   const status = await getQTechSetupStatus();
   return { ok: true, ...status };
+});
+
+/** Assign BTE player IDs to existing customers missing playerNumber. */
+export const adminBackfillPlayerIds = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const { backfillMissingPlayerIds } = await import("./playerIds");
+  const limit = Math.min(Math.max(Number(req.data?.limit) || 500, 1), 2000);
+  const result = await backfillMissingPlayerIds(limit);
+  return { ok: true, ...result, count: result.updated.length };
 });

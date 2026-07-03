@@ -24,6 +24,10 @@ import { formatXof } from "@/lib/format";
 import { roleLabel } from "@/lib/staff-nav";
 import { StaffAccountCard } from "@/components/staff/StaffAccountCard";
 import { AgentPeriodStats } from "@/components/staff/AgentPeriodStats";
+import {
+  AdminDailyCustomerOpens,
+  AgentTodayCustomerOpens,
+} from "@/components/staff/DailyCustomerOpens";
 import { apiProviderCommissionDue, ggrFromTotals } from "@/lib/platformFinancials";
 import { DEFAULT_SETTINGS, type PlatformSettings } from "@/lib/types";
 import { Button, Card, StatCard } from "@/components/ui";
@@ -157,6 +161,8 @@ export function StaffDashboard() {
           </Link>
         </div>
 
+        <AdminDailyCustomerOpens />
+
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="p-4">
             <h2 className="mb-2 font-semibold">All users</h2>
@@ -217,6 +223,7 @@ export function StaffDashboard() {
       <AgentPeriodStats />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <AgentTodayCustomerOpens />
         <Link href="/admin/operations">
           <StatCard
             label="Operations hub"

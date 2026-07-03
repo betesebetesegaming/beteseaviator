@@ -138,6 +138,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /agentDailyStats/{docId} {
+      allow read: if isAdmin()
+        || (isAgent() && resource.data.agentId == uid());
+      allow write: if false;
+    }
+
     match /phones/{phone} {
       allow read, write: if false;
     }

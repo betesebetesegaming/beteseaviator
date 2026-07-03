@@ -10,7 +10,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { Plus, Search, Banknote } from "lucide-react";
+import { Plus, Search, Banknote, UserPlus } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -18,7 +18,8 @@ import {
   agentDepositToCustomer,
   errorMessage,
 } from "@/lib/api";
-import { formatXof, normalizePhone } from "@/lib/format";
+import { formatXof, normalizePhone, todayIso } from "@/lib/format";
+import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
 import type { UserProfile } from "@/lib/types";
 import {
   Badge,
@@ -47,6 +48,16 @@ export default function AgentPlayersPage() {
   const [depositTarget, setDepositTarget] = useState<PlayerRow | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [openedToday, setOpenedToday] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!fbUser) return;
+    const today = todayIso();
+    const ref = doc(db, "agentDailyStats", `${fbUser.uid}_${today}`);
+    return onSnapshot(ref, (snap) => {
+      setOpenedToday(snap.exists() ? Number(snap.data()?.customersOpened ?? 0) : 0);
+    });
+  }, [fbUser]);
 
   useEffect(() => {
     if (!fbUser) return;
@@ -81,7 +92,9 @@ export default function AgentPlayersPage() {
     return players.filter(
       (p) =>
         p.name?.toLowerCase().includes(s) ||
-        p.phone?.includes(normalizePhone(s) || s)
+        p.phone?.includes(normalizePhone(s) || s) ||
+        (p.playerNumber ? formatPlayerId(p.playerNumber).toLowerCase().includes(s) : false) ||
+        String(p.playerNumber ?? "").includes(s)
     );
   }, [players, search]);
 
@@ -92,8 +105,8 @@ export default function AgentPlayersPage() {
     if (newPassword.length < 8) return toast.error("Password must be at least 8 characters.");
     setBusy(true);
     try {
-      await agentCreateCustomer({ name: newName.trim(), phone, password: newPassword });
-      toast.success("Customer created!");
+      const res = await agentCreateCustomer({ name: newName.trim(), phone, password: newPassword });
+      toast.success(`Customer created — Player ID ${res.playerId}`);
       setCreateOpen(false);
       setNewName("");
       setNewPhone("");
@@ -128,7 +141,15 @@ export default function AgentPlayersPage() {
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold">My Customers</h1>
-          <p className="text-sm text-slate-400">Players who joined through your link.</p>
+          <p className="text-sm text-slate-400">
+            Players who joined through your link or that you registered.
+            {openedToday !== null ? (
+              <span className="ml-2 inline-flex items-center gap-1 text-emerald-300">
+                <UserPlus size={14} />
+                {openedToday} opened today
+              </span>
+            ) : null}
+          </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <span className="flex items-center gap-1.5">
@@ -140,7 +161,7 @@ export default function AgentPlayersPage() {
       <div className="relative mb-4 max-w-sm">
         <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
         <Input
-          placeholder="Search by name or phone…"
+          placeholder="Search by name, phone, or Player ID…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -155,6 +176,7 @@ export default function AgentPlayersPage() {
         <TableShell>
           <thead>
             <tr>
+              <Th>Player ID</Th>
               <Th>Name</Th>
               <Th>Phone</Th>
               <Th>Balance</Th>
@@ -165,6 +187,9 @@ export default function AgentPlayersPage() {
           <tbody>
             {filtered.map((p) => (
               <tr key={p.uid}>
+                <Td className="font-mono text-sm font-semibold text-emerald-300">
+                  {playerDisplayId(p)}
+                </Td>
                 <Td className="font-medium">{p.name}</Td>
                 <Td className="tabular-nums">{p.phone ?? "—"}</Td>
                 <Td className="tabular-nums">
@@ -214,7 +239,7 @@ export default function AgentPlayersPage() {
       <Modal
         open={!!depositTarget}
         onClose={() => setDepositTarget(null)}
-        title={`Deposit to ${depositTarget?.name ?? ""}`}
+        title={`Deposit to ${depositTarget?.name ?? ""}${depositTarget?.playerNumber ? ` (${formatPlayerId(depositTarget.playerNumber)})` : ""}`}
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-400">

@@ -1,3 +1,4 @@
+import type { DocumentSnapshot, QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { onCall } from "firebase-functions/v2/https";
 import {
   db,
@@ -6,6 +7,7 @@ import {
   type ProfileData,
   type Role,
 } from "./helpers";
+import { formatPlayerId } from "./playerIds";
 
 const ONLINE_MS = 3 * 60 * 1000;
 
@@ -18,6 +20,11 @@ type NetworkMember = {
   agentSlug: string | null;
   status: string;
   balance?: number;
+  playerNumber?: number | null;
+  playerId?: string | null;
+  parentId?: string | null;
+  parentName?: string | null;
+  createdAt?: number | null;
 };
 
 type LiveUser = {
@@ -33,6 +40,7 @@ type LedgerRow = {
   id: string;
   userId: string;
   userName?: string;
+  playerId?: string | null;
   type: string;
   amount: number;
   balanceBefore: number;
@@ -43,8 +51,31 @@ type LedgerRow = {
   createdAt: number | null;
 };
 
+function memberFromDoc(
+  d: QueryDocumentSnapshot | DocumentSnapshot,
+  parentNameByUid: Map<string, string>,
+): NetworkMember {
+  const p = d.data() as ProfileData;
+  const playerNumber = p.playerNumber ?? null;
+  const parentId = p.parentId ?? null;
+  return {
+    uid: d.id,
+    name: p.name,
+    role: p.role,
+    phone: p.phone,
+    email: p.email,
+    agentSlug: p.agentSlug,
+    status: p.status,
+    playerNumber,
+    playerId: playerNumber ? formatPlayerId(playerNumber) : null,
+    parentId,
+    parentName: parentId ? parentNameByUid.get(parentId) ?? null : null,
+    createdAt: p.createdAt?.toMillis?.() ?? null,
+  };
+}
+
 async function loadNetwork(uid: string, profile: ProfileData): Promise<NetworkMember[]> {
-  const members: NetworkMember[] = [];
+  const parentNameByUid = new Map<string, string>([[uid, profile.name]]);
 
   const customers = await db
     .collection("users")
@@ -52,22 +83,9 @@ async function loadNetwork(uid: string, profile: ProfileData): Promise<NetworkMe
     .where("ancestors", "array-contains", uid)
     .get();
 
-  for (const d of customers.docs) {
-    const p = d.data() as ProfileData;
-    members.push({
-      uid: d.id,
-      name: p.name,
-      role: p.role,
-      phone: p.phone,
-      email: p.email,
-      agentSlug: p.agentSlug,
-      status: p.status,
-    });
-  }
+  const members = customers.docs.map((d) => memberFromDoc(d, parentNameByUid));
 
-  const walletSnaps = await Promise.all(
-    members.map((m) => db.doc(`wallets/${m.uid}`).get())
-  );
+  const walletSnaps = await Promise.all(members.map((m) => db.doc(`wallets/${m.uid}`).get()));
   walletSnaps.forEach((snap, i) => {
     if (snap.exists) members[i].balance = snap.data()?.balance as number;
   });
@@ -78,24 +96,17 @@ async function loadNetwork(uid: string, profile: ProfileData): Promise<NetworkMe
 
 async function loadAllPlatformUsers(limit: number): Promise<NetworkMember[]> {
   const snap = await db.collection("users").limit(limit).get();
-  const members = snap.docs.map((d) => {
-    const p = d.data() as ProfileData;
-    return {
-      uid: d.id,
-      name: p.name,
-      role: p.role,
-      phone: p.phone,
-      email: p.email,
-      agentSlug: p.agentSlug,
-      status: p.status,
-    };
-  });
+  const parentNameByUid = new Map<string, string>();
+  for (const d of snap.docs) {
+    parentNameByUid.set(d.id, String(d.data().name ?? "Unknown"));
+  }
+  const members = snap.docs.map((d) => memberFromDoc(d, parentNameByUid));
   return members.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function parsePresence(
   val: Record<string, Record<string, unknown>> | null,
-  allowed: Set<string> | null
+  allowed: Set<string> | null,
 ): LiveUser[] {
   if (!val) return [];
   const now = Date.now();
@@ -121,8 +132,9 @@ async function loadTransactions(opts: {
   typeFilter: string | null;
   limit: number;
   nameByUid: Map<string, string>;
+  playerIdByUid: Map<string, string>;
 }): Promise<LedgerRow[]> {
-  const { allowed, typeFilter, limit, nameByUid } = opts;
+  const { allowed, typeFilter, limit, nameByUid, playerIdByUid } = opts;
   const rows: LedgerRow[] = [];
 
   if (!allowed) {
@@ -141,6 +153,7 @@ async function loadTransactions(opts: {
         id: d.id,
         userId: t.userId,
         userName: nameByUid.get(t.userId),
+        playerId: playerIdByUid.get(t.userId) ?? null,
         type: t.type,
         amount: t.amount,
         balanceBefore: t.balanceBefore,
@@ -179,6 +192,7 @@ async function loadTransactions(opts: {
         id: d.id,
         userId: t.userId,
         userName: nameByUid.get(t.userId),
+        playerId: playerIdByUid.get(t.userId) ?? null,
         type: t.type,
         amount: t.amount,
         balanceBefore: t.balanceBefore,
@@ -208,16 +222,23 @@ export const getOperationsHub = onCall(async (req) => {
   let network: NetworkMember[] = [];
   let allowed: Set<string> | null = null;
   const nameByUid = new Map<string, string>();
+  const playerIdByUid = new Map<string, string>();
 
   if (isAdmin) {
     network = await loadAllPlatformUsers(500);
-    for (const m of network) nameByUid.set(m.uid, m.name);
+    for (const m of network) {
+      nameByUid.set(m.uid, m.name);
+      if (m.playerId) playerIdByUid.set(m.uid, m.playerId);
+    }
     nameByUid.set(uid, profile.name);
   } else {
     network = await loadNetwork(uid, profile);
     allowed = new Set([uid, ...network.map((m) => m.uid)]);
     nameByUid.set(uid, profile.name);
-    for (const m of network) nameByUid.set(m.uid, m.name);
+    for (const m of network) {
+      nameByUid.set(m.uid, m.name);
+      if (m.playerId) playerIdByUid.set(m.uid, m.playerId);
+    }
   }
 
   const presenceVal = (await rtdb.ref("presence").get()).val() as Record<
@@ -231,6 +252,7 @@ export const getOperationsHub = onCall(async (req) => {
     typeFilter,
     limit,
     nameByUid,
+    playerIdByUid,
   });
 
   return {

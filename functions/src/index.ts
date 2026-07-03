@@ -49,6 +49,7 @@ export {
   adminSeedQTechGames,
   adminSyncQTechGameImages,
   adminEnsureLobbyGames,
+  adminBackfillPlayerIds,
   adminGetQTechSetup,
   adminSaveQTechSettings,
   adminRunQTechCwTest,

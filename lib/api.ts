@@ -34,8 +34,18 @@ export const completeRegistration = call<
     pref?: string | null;
     deviceId?: string | null;
   },
-  { ok: true; role: Role }
+  { ok: true; role: Role; playerNumber?: number; playerId?: string }
 >("completeRegistration");
+
+export const agentCreateCustomer = call<
+  { name: string; phone: string; password: string },
+  { uid: string; playerNumber: number; playerId: string }
+>("agentCreateCustomer");
+
+export const adminBackfillPlayerIds = call<
+  { limit?: number },
+  { ok: true; updated: string[]; count: number }
+>("adminBackfillPlayerIds");
 
 /** Reset player password after SMS OTP verification (forgot password flow). */
 export const resetPlayerPassword = call<
@@ -113,11 +123,6 @@ export const requestWithdrawal = call<
 >("requestWithdrawal");
 
 // ---------- agent ----------
-
-export const agentCreateCustomer = call<
-  { name: string; phone: string; password: string },
-  { uid: string }
->("agentCreateCustomer");
 
 export const agentDepositToCustomer = call<
   { customerId: string; amount: number },
@@ -322,6 +327,11 @@ export type OperationsHubResponse = {
     agentSlug: string | null;
     status: string;
     balance?: number;
+    playerNumber?: number | null;
+    playerId?: string | null;
+    parentId?: string | null;
+    parentName?: string | null;
+    createdAt?: number | null;
   }>;
   live: Array<{
     uid: string;
@@ -336,6 +346,7 @@ export type OperationsHubResponse = {
     id: string;
     userId: string;
     userName?: string;
+    playerId?: string | null;
     type: string;
     amount: number;
     balanceBefore: number;

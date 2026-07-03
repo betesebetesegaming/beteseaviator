@@ -15,6 +15,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { getOperationsHub, type OperationsHubResponse, errorMessage } from "@/lib/api";
 import { formatDate, formatSigned, formatXof } from "@/lib/format";
+import { formatPlayerId } from "@/lib/playerId";
 import type { Role, TransactionType } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Select, TableShell, Td, Th } from "@/components/ui";
 
@@ -38,9 +39,10 @@ export function OperationsHub() {
   const isAdmin = profile?.role === "admin";
 
   const initialTab = (searchParams.get("tab") as Tab) || "overview";
+  const initialSearch = searchParams.get("search") ?? "";
   const [tab, setTab] = useState<Tab>(TABS.includes(initialTab) ? initialTab : "overview");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [data, setData] = useState<OperationsHubResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -75,6 +77,7 @@ export function OperationsHub() {
       (t) =>
         t.userId.toLowerCase().includes(q) ||
         (t.userName ?? "").toLowerCase().includes(q) ||
+        (t.playerId ?? "").toLowerCase().includes(q) ||
         t.reference.toLowerCase().includes(q) ||
         t.description.toLowerCase().includes(q)
     );
@@ -98,7 +101,9 @@ export function OperationsHub() {
       (m) =>
         m.name.toLowerCase().includes(q) ||
         (m.phone ?? "").includes(q) ||
-        (m.agentSlug ?? "").includes(q)
+        (m.agentSlug ?? "").includes(q) ||
+        (m.playerId ?? "").toLowerCase().includes(q) ||
+        (m.parentName ?? "").toLowerCase().includes(q)
     );
   }, [data, search]);
 
@@ -303,7 +308,7 @@ export function OperationsHub() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name, user ID, reference…"
+                placeholder="Name, Player ID, reference…"
                 className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
               />
             </label>
@@ -333,7 +338,9 @@ export function OperationsHub() {
                     </Td>
                     <Td>
                       <span className="block font-medium text-white">{t.userName ?? "—"}</span>
-                      <span className="font-mono text-[10px] text-slate-500">{t.userId.slice(0, 10)}…</span>
+                      <span className="font-mono text-[10px] text-emerald-400/90">
+                        {t.playerId ?? `${t.userId.slice(0, 10)}…`}
+                      </span>
                     </Td>
                     <Td>
                       <Badge value={t.type} />
@@ -384,8 +391,10 @@ export function OperationsHub() {
             <TableShell>
               <thead>
                 <tr>
+                  <Th>Player ID</Th>
                   <Th>Name</Th>
                   <Th>Role</Th>
+                  {isAdmin ? <Th>Agent</Th> : null}
                   <Th>Login</Th>
                   <Th>Balance</Th>
                   <Th>Status</Th>
@@ -394,10 +403,16 @@ export function OperationsHub() {
               <tbody>
                 {filteredNetwork.map((m) => (
                   <tr key={m.uid}>
+                    <Td className="font-mono text-sm text-emerald-300">
+                      {m.playerId ?? (m.playerNumber ? formatPlayerId(m.playerNumber) : "—")}
+                    </Td>
                     <Td className="font-medium">{m.name}</Td>
                     <Td>
                       <Badge value={m.role as Role} />
                     </Td>
+                    {isAdmin ? (
+                      <Td className="text-sm text-slate-400">{m.parentName ?? "—"}</Td>
+                    ) : null}
                     <Td className="text-xs text-slate-400">
                       {m.phone ?? m.email ?? m.agentSlug ?? "—"}
                     </Td>

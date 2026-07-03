@@ -17,7 +17,7 @@ export async function ensureCwTestPlayer(): Promise<{ uid: string; balance: numb
     return { uid, balance };
   }
 
-  const uid = await createPlayerAccount({
+  const created = await createPlayerAccount({
     name: CW_TEST_NAME,
     phone: CW_TEST_PHONE,
     password: "CwTest9900099!",
@@ -25,5 +25,5 @@ export async function ensureCwTestPlayer(): Promise<{ uid: string; balance: numb
     ancestors: [],
     countForAgents: false,
   });
-  return { uid, balance: 0 };
+  return { uid: created.uid, balance: 0 };
 }

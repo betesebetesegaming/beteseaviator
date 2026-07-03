@@ -12,6 +12,8 @@ export interface UserProfile {
   parentId: string | null; // owning agent uid (players)
   agentSlug: string | null; // agent username, referral code, subdomain
   staffLoginId?: string | null; // admin username login id
+  /** Sequential office ID — display as BTE-00001. */
+  playerNumber?: number | null;
   /** Player invite code (e.g. GREGORY1A2B). */
   referralCode?: string | null;
   /** UID of player who referred this user. */
@@ -257,6 +259,13 @@ export interface DailyStats {
   deposits: number;
   withdrawals: number;
   sessions: number;
+  newCustomers?: number;
+}
+
+export interface AgentDailyStats {
+  agentId: string;
+  date: string;
+  customersOpened: number;
 }
 
 import { DEFAULT_BONUS_SETTINGS } from "./bonuses";

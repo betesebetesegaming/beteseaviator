@@ -24,6 +24,11 @@ export interface ProfileData {
   staffLoginId?: string | null;
   ancestors: string[];
   status: "active" | "suspended";
+  /** Sequential office ID for players (display: BTE-00001). */
+  playerNumber?: number | null;
+  referralCode?: string | null;
+  referredBy?: string | null;
+  createdAt?: admin.firestore.Timestamp | null;
 }
 
 export const RESERVED_SLUGS = ["www", "admin", "api", "mail", "ftp", "betese", "app"];
@@ -361,6 +366,26 @@ export function bumpDailyStats(
     }
   }
   if (any) tx.set(db.doc(`dailyStats/${date}`), updates, { merge: true });
+}
+
+/** Track new customer accounts opened today — platform total + per-agent attribution. */
+export function recordCustomersOpened(
+  tx: FirebaseFirestore.Transaction,
+  date: string,
+  ancestorIds: string[],
+): void {
+  bumpDailyStats(tx, date, { newCustomers: 1 });
+  for (const agentId of ancestorIds) {
+    tx.set(
+      db.doc(`agentDailyStats/${agentId}_${date}`),
+      {
+        agentId,
+        date,
+        customersOpened: FieldValue.increment(1),
+      },
+      { merge: true },
+    );
+  }
 }
 
 /** Increment an agent's dashboard stats (inside a transaction). */

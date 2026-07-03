@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { allocatePlayerNumber, formatPlayerId } from "./playerIds";
 import { isAgentRole } from "./roles";
 import {
   auth,
@@ -15,6 +16,7 @@ import {
   bumpPlatformStats,
   RESERVED_SLUGS,
   staffLoginKey,
+  recordCustomersOpened,
   type ProfileData,
 } from "./helpers";
 
@@ -77,7 +79,7 @@ export async function createPlayerAccount(opts: {
   parentId: string | null;
   ancestors: string[];
   countForAgents?: boolean;
-}): Promise<string> {
+}): Promise<{ uid: string; playerNumber: number; playerId: string }> {
   const phone = normalizePhone(opts.phone);
   if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
   if (opts.password.length < 8) {
@@ -105,10 +107,12 @@ export async function createPlayerAccount(opts: {
   }
   await auth.setCustomUserClaims(uid, { role: "player" });
 
+  let playerNumber = 0;
   await db.runTransaction(async (tx) => {
     const phoneRef = db.doc(`phones/${phone}`);
     const snap = await tx.get(phoneRef);
     if (snap.exists) throw new HttpsError("already-exists", "This phone number is already registered.");
+    playerNumber = await allocatePlayerNumber(tx);
     tx.set(db.doc(`users/${uid}`), {
       name: opts.name,
       email: null,
@@ -117,6 +121,7 @@ export async function createPlayerAccount(opts: {
       parentId: opts.parentId,
       agentSlug: null,
       ancestors: opts.ancestors,
+      playerNumber,
       status: "active",
       stats: {},
       createdAt: FieldValue.serverTimestamp(),
@@ -130,6 +135,7 @@ export async function createPlayerAccount(opts: {
     });
     tx.set(phoneRef, { uid });
     bumpPlatformStats(tx, { customerCount: 1 });
+    recordCustomersOpened(tx, todayIso(), opts.countForAgents !== false ? opts.ancestors : []);
     if (opts.countForAgents !== false) {
       for (const agentId of opts.ancestors) {
         tx.set(
@@ -141,20 +147,20 @@ export async function createPlayerAccount(opts: {
     }
   });
 
-  return uid;
+  return { uid, playerNumber, playerId: formatPlayerId(playerNumber) };
 }
 
 /** Agents create customers manually; the new player is attached to them. */
 export const agentCreateCustomer = onCall(async (req) => {
   const { uid } = await requireRole(req, ["agent"]);
-  const playerUid = await createPlayerAccount({
+  const created = await createPlayerAccount({
     name: String(req.data?.name ?? "").trim(),
     phone: String(req.data?.phone ?? ""),
     password: String(req.data?.password ?? ""),
     parentId: uid,
     ancestors: [uid],
   });
-  return { uid: playerUid };
+  return created;
 });
 
 /** Atomic transfer from the agent's wallet into one of THEIR customers' wallets. */
