@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { Copy, CheckCircle2 } from "lucide-react";
 import { buildAgentLinks } from "@/lib/agentLinks";
 import { ShareLinkPanel } from "@/components/shared/ShareLinkPanel";
-import { agentSignupShareMessage, AGENT_QR_USE_EXAMPLES } from "@/lib/agentShare";
+import { agentSignupShareMessage } from "@/lib/agentShare";
 import { Button, Modal } from "@/components/ui";
 
 type Props = {
