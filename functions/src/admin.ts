@@ -13,6 +13,7 @@ import {
   phoneToEmail,
   staffLoginEmail,
   staffLoginKey,
+  resolveStaffAuthEmail,
   type ProfileData,
   type Role,
 } from "./helpers";
@@ -230,6 +231,61 @@ export const adminResetPlayerPassword = onCall(async (req) => {
   if (name) await auth.updateUser(uid, { displayName: name });
 
   return { ok: true, uid, phone, authEmail };
+});
+
+/** Admin sets a new password when a customer or agent forgot theirs (passwords cannot be read back). */
+export const adminSetUserPassword = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const uid = String(req.data?.uid ?? "");
+  const password = String(req.data?.password ?? "");
+  if (!uid) throw new HttpsError("invalid-argument", "uid is required.");
+
+  const userSnap = await db.doc(`users/${uid}`).get();
+  if (!userSnap.exists) throw new HttpsError("not-found", "User not found.");
+  const profile = userSnap.data() as ProfileData;
+
+  if (profile.role === "player") {
+    assertValidPassword(password);
+    const phone = normalizePhone(String(profile.phone ?? ""));
+    if (!phone) {
+      throw new HttpsError("failed-precondition", "Customer has no phone number on file.");
+    }
+    const authEmail = phoneToEmail(phone);
+    await auth.updateUser(uid, {
+      email: authEmail,
+      password,
+      displayName: profile.name || undefined,
+    });
+    return {
+      ok: true as const,
+      uid,
+      role: profile.role,
+      signInWith: phone,
+      signInLabel: "Phone (sign in on /play)",
+    };
+  }
+
+  if (profile.role === "admin" || isAgentRole(profile.role)) {
+    if (password.length < 8) {
+      throw new HttpsError("invalid-argument", "Staff password must be at least 8 characters.");
+    }
+    const authEmail = resolveStaffAuthEmail(profile);
+    await auth.updateUser(uid, {
+      email: authEmail,
+      password,
+      displayName: profile.name || undefined,
+    });
+    const loginId = profile.agentSlug || profile.staffLoginId || profile.email || authEmail;
+    return {
+      ok: true as const,
+      uid,
+      role: profile.role,
+      signInWith: String(loginId),
+      signInLabel: "Username (sign in at /admin/login)",
+    };
+  }
+
+  throw new HttpsError("invalid-argument", "Unsupported account type.");
 });
 
 /** Platform settings: rates, limits, provider toggles. */

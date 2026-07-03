@@ -41,6 +41,7 @@ export {
   adminAdjustWallet,
   adminFreezeWallet,
   adminResetPlayerPassword,
+  adminSetUserPassword,
   adminSaveSettings,
   adminSaveLobbyPromos,
   adminSaveLobbyLayout,

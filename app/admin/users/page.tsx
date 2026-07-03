@@ -17,6 +17,7 @@ import {
   PASSWORD_MAX,
   validatePassword,
 } from "@/lib/passwordPolicy";
+import { AdminResetPasswordModal } from "@/components/admin/AdminResetPasswordModal";
 import { PasswordStrengthHint } from "@/components/PasswordStrengthHint";
 import type { Role, UserProfile } from "@/lib/types";
 import {
@@ -62,6 +63,7 @@ function AdminUsersContent() {
   const [creating, setCreating] = useState(false);
   const [syncingAgents, setSyncingAgents] = useState(false);
   const [backfillingIds, setBackfillingIds] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserProfile | null>(null);
 
   function openCreate(role: Role = "player") {
     setForm({
@@ -247,6 +249,14 @@ function AdminUsersContent() {
         </div>
       </div>
 
+      <div className="mb-5 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-50/90">
+        <p>
+          <strong>Password help:</strong> Admin cannot view existing passwords (they are encrypted).
+          Use <strong>Reset password</strong> on any customer or agent to set a new one and share it
+          with them when they have sign-in problems.
+        </p>
+      </div>
+
       <div className="mb-5 rounded-xl border border-sky-500/25 bg-sky-500/10 p-4 text-sm text-sky-50/90">
         <p>
           <strong>Agent staff accounts</strong> are admin-only — use the{" "}
@@ -339,6 +349,15 @@ function AdminUsersContent() {
                 </Td>
                 <Td>
                   <div className="flex flex-wrap gap-1.5">
+                    {u.role !== "admin" ? (
+                      <Button
+                        variant="secondary"
+                        className="!px-2.5 !py-1 text-xs"
+                        onClick={() => setResetPasswordUser(u)}
+                      >
+                        Reset password
+                      </Button>
+                    ) : null}
                     {isAgentRole(u.role) ? (
                       <Button
                         variant={u.cashOpsEnabled ? "secondary" : "secondary"}
@@ -447,6 +466,11 @@ function AdminUsersContent() {
           </Button>
         </div>
       </Modal>
+
+      <AdminResetPasswordModal
+        user={resetPasswordUser}
+        onClose={() => setResetPasswordUser(null)}
+      />
     </div>
   );
 }

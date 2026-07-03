@@ -10,6 +10,7 @@ import { db } from "@/lib/firestore";
 import { adminSetAgentCashOps, adminSetUserStatus, adminSyncAgentLogins, errorMessage } from "@/lib/api";
 import { agentSignupUrl } from "@/lib/agentLinks";
 import { staffSignInId } from "@/lib/staffAccount";
+import { AdminResetPasswordModal } from "@/components/admin/AdminResetPasswordModal";
 import { CreateAgentFlow } from "@/components/admin/CreateAgentFlow";
 import { formatDate } from "@/lib/format";
 import { isAgentRole, roleLabel as sharedRoleLabel } from "@/lib/roles";
@@ -32,6 +33,7 @@ function AdminAgentsContent() {
   const [search, setSearch] = useState("");
   const [busyUid, setBusyUid] = useState<string | null>(null);
   const [syncingAgents, setSyncingAgents] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(500));
@@ -112,6 +114,13 @@ function AdminAgentsContent() {
         </div>
       </div>
 
+      <div className="mb-5 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-50/90">
+        <p>
+          <strong>Password help:</strong> You cannot read an agent&apos;s current password. Use{" "}
+          <strong>Reset password</strong> to set a new one and give it to them for /admin/login.
+        </p>
+      </div>
+
       <div className="mb-5 rounded-xl border border-violet-500/25 bg-violet-500/10 p-4 text-sm text-violet-50/90">
         <h2 className="font-semibold text-violet-100">Admin-only onboarding</h2>
         <ol className="mt-2 list-decimal space-y-1 pl-5">
@@ -186,6 +195,13 @@ function AdminAgentsContent() {
                   <div className="flex flex-wrap gap-1.5">
                     <Button
                       variant="secondary"
+                      className="!px-2.5 !py-1 text-xs"
+                      onClick={() => setResetPasswordUser(u)}
+                    >
+                      Reset password
+                    </Button>
+                    <Button
+                      variant="secondary"
                       className={`!px-2.5 !py-1 text-xs ${u.cashOpsEnabled ? "text-amber-200" : ""}`}
                       disabled={busyUid === u.uid}
                       onClick={() => toggleCashOps(u)}
@@ -207,6 +223,11 @@ function AdminAgentsContent() {
           </tbody>
         </TableShell>
       )}
+
+      <AdminResetPasswordModal
+        user={resetPasswordUser}
+        onClose={() => setResetPasswordUser(null)}
+      />
     </div>
   );
 }

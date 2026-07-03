@@ -185,6 +185,17 @@ export const adminResetPlayerPassword = call<
   { ok: true; uid: string; phone: string; authEmail: string }
 >("adminResetPlayerPassword");
 
+export const adminSetUserPassword = call<
+  { uid: string; password: string },
+  {
+    ok: true;
+    uid: string;
+    role: Role;
+    signInWith: string;
+    signInLabel: string;
+  }
+>("adminSetUserPassword");
+
 export const adminResolvePayment = call<
   { requestId: string; action: "approve" | "reject"; reason?: string },
   { ok: true; status: string }
