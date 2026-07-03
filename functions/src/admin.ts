@@ -84,11 +84,11 @@ export const adminCreateUser = onCall(async (req) => {
     }
 
     const slug =
-      role === "admin" ? null : await claimSlug(username || name, uid, name);
+      role === "admin" ? null : await claimSlug(name, uid, name);
     const staffLoginId =
       role === "admin"
         ? (username ? username.toLowerCase().trim() : loginKey)
-        : null;
+        : slug;
 
     if (!hasEmail) {
       const finalAuthEmail = staffLoginEmail(slug || staffLoginId || loginKey);

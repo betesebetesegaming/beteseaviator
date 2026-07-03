@@ -1,4 +1,4 @@
-/** Agent marketing URLs — path link (primary) + legacy subdomain. */
+/** Agent marketing URLs — /agent/{fullname} (primary) + legacy /{slug} + subdomain. */
 
 import { STAFF_LOGIN_PATH } from "./staff-routes";
 
@@ -36,11 +36,22 @@ export const AGENT_RESERVED_PATHS = new Set([
   ...AGENT_RESERVED_SUBDOMAINS,
 ]);
 
+/** First + surname → one link slug, e.g. "Fatou Jarju" → "fatoujarju". */
+export function slugifyAgentName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 48);
+}
+
 export type AgentLinks = {
   slug: string;
-  /** Primary share link: beteseaviator.com/paul */
+  /** Primary share link: beteseaviator.com/agent/fatoujarju */
   signupUrl: string;
-  /** @deprecated Legacy subdomain — still works */
+  /** @deprecated Legacy short path — still works */
+  legacyPathUrl: string;
   subdomain: string;
   subdomainUrl: string;
   referralUrl: string;
@@ -51,16 +62,21 @@ export function buildAgentLinks(slug: string): AgentLinks {
   const subdomain = `${clean}.${AGENT_DOMAIN}`;
   return {
     slug: clean,
-    signupUrl: `${SITE_ORIGIN}/${clean}`,
+    signupUrl: `${SITE_ORIGIN}/agent/${clean}`,
+    legacyPathUrl: `${SITE_ORIGIN}/${clean}`,
     subdomain,
     subdomainUrl: `https://${subdomain}`,
     referralUrl: `${SITE_ORIGIN}/play?signup=1&ref=${encodeURIComponent(clean)}`,
   };
 }
 
-/** Primary marketing URL agents share (path format). */
+/** Primary marketing URL agents share. */
 export function agentSignupUrl(slug: string): string {
   return buildAgentLinks(slug).signupUrl;
+}
+
+export function agentSignupPath(slug: string): string {
+  return `/agent/${slug.trim().toLowerCase()}`;
 }
 
 export function agentSubdomainUrl(slug: string): string {
@@ -71,14 +87,21 @@ export function agentReferralUrl(slug: string): string {
   return buildAgentLinks(slug).referralUrl;
 }
 
-/** Staff sign-in for super agents and sub agents (not player signup). */
+/** Staff sign-in for agents (not customer signup). */
 export function staffLoginUrl(): string {
   return `${SITE_ORIGIN}${STAFF_LOGIN_PATH}`;
 }
 
-/** e.g. /paul → "paul" */
+/** e.g. /agent/fatoujarju → "fatoujarju" */
+export function parseAgentSlugFromAgentPath(pathname: string): string | null {
+  const match = pathname.match(/^\/agent\/([a-z0-9][a-z0-9-]{0,47})\/?$/i);
+  if (!match) return null;
+  return match[1].toLowerCase();
+}
+
+/** Legacy: /paul → "paul" */
 export function parseAgentSlugFromPath(pathname: string): string | null {
-  const match = pathname.match(/^\/([a-z0-9][a-z0-9-]{0,23})\/?$/i);
+  const match = pathname.match(/^\/([a-z0-9][a-z0-9-]{0,47})\/?$/i);
   if (!match) return null;
   const slug = match[1].toLowerCase();
   if (AGENT_RESERVED_PATHS.has(slug)) return null;

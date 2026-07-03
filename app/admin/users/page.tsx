@@ -337,7 +337,7 @@ function AdminUsersContent() {
                       rel="noopener noreferrer"
                       className="text-xs text-emerald-400 hover:underline"
                     >
-                      beteseaviator.com/{u.agentSlug}
+                      beteseaviator.com/agent/{u.agentSlug}
                     </a>
                   ) : (
                     "—"

@@ -174,8 +174,8 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
               </div>
             </div>
             <p className="mt-1 text-[10px] text-slate-600">
-              Example: customer opens <strong>beteseaviator.com/{slug}</strong> → signs up → you get
-              credit.
+              Example: customer opens <strong>beteseaviator.com/agent/{slug}</strong> → signs up → you earn
+              GGR commission on their play.
             </p>
           </div>
 

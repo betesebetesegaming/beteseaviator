@@ -27,7 +27,7 @@ function slugify(input: string): string {
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 24);
+    .slice(0, 48);
 }
 
 /** Creates a unique slug doc inside a transaction-free flow (create() is atomic). */

@@ -281,8 +281,8 @@ export function OperationsHub() {
       {tab === "agents" && isAdmin && (
         <div className="space-y-4">
           <p className="text-sm text-slate-400">
-            Every agent / marketer — sales (GGR), customer deposits, accounts opened today, and
-            lifetime customers. Click a row to see their customers.
+            Every agent / marketer — sales (GGR), deposits, customers opened today. Customers linked to
+            an agent earn that agent commission on play. Click a row to see their customers.
           </p>
           <label className="block max-w-md text-sm">
             <span className="mb-1 text-slate-400">Search agents</span>

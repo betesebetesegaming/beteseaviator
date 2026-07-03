@@ -126,7 +126,10 @@ function AdminAgentsContent() {
         <ol className="mt-2 list-decimal space-y-1 pl-5">
           <li>Click <strong>Create Agent Account</strong> and set name, username, and password.</li>
           <li>Give the agent their username + password for staff sign-in.</li>
-          <li>Share their customer link (<code className="text-violet-200">beteseaviator.com/username</code>).</li>
+          <li>
+            Share their link (<code className="text-violet-200">beteseaviator.com/agent/firstnamesurname</code>
+            ) — customers and GGR commission stay under that agent.
+          </li>
           <li>Turn on <strong>Cash desk</strong> below if they handle shop cash.</li>
         </ol>
         <p className="mt-3 text-xs text-violet-200/70">
@@ -181,7 +184,7 @@ function AdminAgentsContent() {
                       rel="noopener noreferrer"
                       className="text-xs text-emerald-400 hover:underline"
                     >
-                      beteseaviator.com/{u.agentSlug}
+                      beteseaviator.com/agent/{u.agentSlug}
                     </a>
                   ) : (
                     "—"

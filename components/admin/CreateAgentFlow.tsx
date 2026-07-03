@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Plus } from "lucide-react";
 import { adminCreateUser, errorMessage } from "@/lib/api";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
+import { agentSignupUrl, slugifyAgentName } from "@/lib/agentLinks";
 import { STAFF_LOGIN_PATH } from "@/lib/staff-routes";
 import { Button, Input, Modal } from "@/components/ui";
 
@@ -20,44 +21,47 @@ type Props = {
   autoOpen?: boolean;
 };
 
-/** Admin-only: opens the first staff account for a new agent marketer. */
+/** Admin-only: opens agent account — link uses full first + surname. */
 export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen = false }: Props) {
   const [open, setOpen] = useState(autoOpen);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   const [form, setForm] = useState({
     name: "",
-    username: "",
     email: "",
     password: "",
   });
 
+  const linkPreview = useMemo(() => {
+    const slug = slugifyAgentName(form.name);
+    if (!slug) return null;
+    return agentSignupUrl(slug).replace(/^https?:\/\//, "");
+  }, [form.name]);
+
   function resetForm() {
-    setForm({ name: "", username: "", email: "", password: "" });
+    setForm({ name: "", email: "", password: "" });
   }
 
   async function submit() {
     const name = form.name.trim();
-    const username = form.username.trim().toLowerCase();
     const email = form.email.trim().toLowerCase();
     const password = form.password;
-    if (!name) return toast.error("Enter the agent's full name.");
-    if (password.length < 8) return toast.error("Staff password must be at least 8 characters.");
-    if (!username && !email) {
-      return toast.error("Add a username (e.g. paul) or email so they can sign in.");
+    if (!name) return toast.error("Enter first name and surname together (e.g. Fatou Jarju).");
+    if (slugifyAgentName(name).length < 3) {
+      return toast.error("Name is too short for a signup link — use first and surname.");
     }
+    if (password.length < 8) return toast.error("Staff password must be at least 8 characters.");
 
     setCreating(true);
     try {
       const res = await adminCreateUser({
         role: "agent",
         name,
-        username: username || undefined,
         email: email || undefined,
         password,
       });
       if (!res.slug) {
-        toast.error("Agent created but username link is missing — use Fix agent logins on All Users.");
+        toast.error("Agent created but link is missing — use Fix agent logins on All Users.");
         setOpen(false);
         resetForm();
         return;
@@ -65,12 +69,12 @@ export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen
       setCreated({
         slug: res.slug,
         name,
-        loginId: username || res.slug,
+        loginId: res.slug,
         password,
       });
       setOpen(false);
       resetForm();
-      toast.success(`Agent account created for ${name}.`);
+      toast.success(`Agent ${name} created — customers under this link earn them GGR commission.`);
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
@@ -89,29 +93,29 @@ export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen
       <Modal open={open} onClose={() => setOpen(false)} title="Create agent account (admin only)">
         <div className="space-y-4">
           <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
-            Only BETESE admin can open an agent&apos;s first staff account. Agents cannot self-register —
-            give them the username and password below after you create the account.
+            Use the agent&apos;s <strong>full name</strong> (first + surname). Their customer link becomes{" "}
+            <strong>beteseaviator.com/agent/firstnamesurname</strong>. Everyone who signs up or is opened
+            under them counts for their GGR commission.
           </p>
           <Input
-            label="Full name"
-            placeholder="Paul Jallow"
+            label="Full name (first + surname)"
+            placeholder="Fatou Jarju"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
+          {linkPreview ? (
+            <p className="text-xs text-emerald-300">
+              Customer link: <code className="text-emerald-100">{linkPreview}</code>
+            </p>
+          ) : null}
           <Input
-            label="Username (sign-in + customer link — e.g. paul → beteseaviator.com/paul)"
-            placeholder="paul"
-            value={form.username}
-            onChange={(e) => setForm({ ...form, username: e.target.value })}
-          />
-          <Input
-            label="Email (optional — if they prefer email sign-in)"
+            label="Email (optional — sign in at /admin/login)"
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
           <Input
-            label="Password (min 8 characters — share securely with the agent)"
+            label="Password (min 8 characters — share with agent)"
             type="password"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -125,7 +129,7 @@ export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen
       <Modal
         open={!!created}
         onClose={() => setCreated(null)}
-        title="Agent account ready — share with agent"
+        title="Agent ready — share link & login"
       >
         {created && (
           <div className="space-y-4">
@@ -146,13 +150,10 @@ export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen
                 </div>
               </dl>
               <p className="mt-3 text-xs text-emerald-200/80">
-                Copy these details for the agent. They use this to sign in and manage customers — they
-                cannot create their own staff account.
+                Customers from this link or opened by {created.name} play under them — agent earns
+                commission on their GGR.
               </p>
             </div>
-            <p className="text-sm text-slate-400">
-              Customer signup link for this agent:
-            </p>
             <AgentMarketingLinks slug={created.slug} agentName={created.name} />
             <Button className="w-full" onClick={() => setCreated(null)}>
               Done

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   AGENT_RESERVED_PATHS,
+  parseAgentSlugFromAgentPath,
   parseAgentSlugFromHost,
   SITE_ORIGIN,
 } from "@/lib/agentLinks";
@@ -11,8 +12,8 @@ const AGENT_DOMAIN =
   "beteseaviator.com";
 
 /**
- * Agent links: beteseaviator.com/paul (path) or paul.beteseaviator.com (legacy subdomain).
- * Both open /play with ?ref=paul so sign-ups attach to that agent.
+ * Agent links: beteseaviator.com/agent/fatoujarju (path) or legacy /paul or paul.beteseaviator.com.
+ * Sign-ups attach to that agent — their play counts for agent GGR commission.
  */
 export function middleware(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
@@ -35,7 +36,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const pathMatch = url.pathname.match(/^\/([a-z0-9][a-z0-9-]{0,23})\/?$/i);
+  const agentPathSlug = parseAgentSlugFromAgentPath(url.pathname);
+  if (agentPathSlug) {
+    url.pathname = "/play";
+    if (!url.searchParams.has("ref")) url.searchParams.set("ref", agentPathSlug);
+    if (!url.searchParams.has("signup")) url.searchParams.set("signup", "1");
+    return NextResponse.redirect(url);
+  }
+
+  const pathMatch = url.pathname.match(/^\/([a-z0-9][a-z0-9-]{0,47})\/?$/i);
   if (pathMatch) {
     const pathSlug = pathMatch[1].toLowerCase();
     if (!AGENT_RESERVED_PATHS.has(pathSlug)) {

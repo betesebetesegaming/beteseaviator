@@ -8,7 +8,7 @@ const STEPS = [
   {
     icon: QrCode,
     title: "1. Share your link",
-    body: "Send beteseaviator.com/yourname on WhatsApp, SMS, or let customers scan your QR code.",
+    body: "Share beteseaviator.com/agent/yourfullname — customers who register or you open count for your GGR commission.",
     color: "text-emerald-300",
   },
   {
