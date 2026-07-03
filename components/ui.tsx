@@ -208,9 +208,17 @@ export function EmptyState({ message }: { message: string }) {
   );
 }
 
-export function Th({ children }: { children: ReactNode }) {
+export function Th({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+    <th
+      className={`px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 ${className}`}
+    >
       {children}
     </th>
   );

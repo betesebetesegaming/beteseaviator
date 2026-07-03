@@ -19,7 +19,7 @@ import { formatPlayerId } from "@/lib/playerId";
 import type { Role, TransactionType } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Select, TableShell, Td, Th } from "@/components/ui";
 
-const TABS = ["overview", "live", "transactions", "network"] as const;
+const TABS = ["overview", "agents", "live", "transactions", "network"] as const;
 type Tab = (typeof TABS)[number];
 
 const TX_TYPES: TransactionType[] = [
@@ -46,9 +46,12 @@ export function OperationsHub() {
   const [data, setData] = useState<OperationsHubResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [agentFilter, setAgentFilter] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setRefreshing(true);
+    setLoadError(null);
     try {
       const res = await getOperationsHub({
         type: typeFilter === "all" ? undefined : typeFilter,
@@ -56,7 +59,9 @@ export function OperationsHub() {
       });
       setData(res);
     } catch (e) {
-      console.error(errorMessage(e));
+      const msg = errorMessage(e);
+      setLoadError(msg);
+      console.error(msg);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -78,6 +83,7 @@ export function OperationsHub() {
         t.userId.toLowerCase().includes(q) ||
         (t.userName ?? "").toLowerCase().includes(q) ||
         (t.playerId ?? "").toLowerCase().includes(q) ||
+        (t.agentName ?? "").toLowerCase().includes(q) ||
         t.reference.toLowerCase().includes(q) ||
         t.description.toLowerCase().includes(q)
     );
@@ -95,9 +101,13 @@ export function OperationsHub() {
 
   const filteredNetwork = useMemo(() => {
     if (!data) return [];
+    let list = data.network;
+    if (agentFilter) {
+      list = list.filter((m) => m.role === "player" && m.parentId === agentFilter);
+    }
     const q = search.trim().toLowerCase();
-    if (!q) return data.network;
-    return data.network.filter(
+    if (!q) return list;
+    return list.filter(
       (m) =>
         m.name.toLowerCase().includes(q) ||
         (m.phone ?? "").includes(q) ||
@@ -105,7 +115,25 @@ export function OperationsHub() {
         (m.playerId ?? "").toLowerCase().includes(q) ||
         (m.parentName ?? "").toLowerCase().includes(q)
     );
+  }, [data, search, agentFilter]);
+
+  const filteredAgents = useMemo(() => {
+    if (!data?.agents) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return data.agents;
+    return data.agents.filter(
+      (a) =>
+        a.name.toLowerCase().includes(q) ||
+        (a.agentSlug ?? "").toLowerCase().includes(q) ||
+        (a.phone ?? "").includes(q)
+    );
   }, [data, search]);
+
+  function viewAgentCustomers(agentId: string) {
+    setAgentFilter(agentId);
+    setSearch("");
+    setTab("network");
+  }
 
   const title = isAdmin ? "Platform operations" : "Agent operations";
   const subtitle = isAdmin
@@ -129,7 +157,7 @@ export function OperationsHub() {
       </div>
 
       <div className="flex flex-wrap gap-1 rounded-xl bg-slate-900/80 p-1">
-        {TABS.map((t) => (
+        {TABS.filter((t) => (t === "agents" ? isAdmin : true)).map((t) => (
           <button
             key={t}
             type="button"
@@ -140,10 +168,16 @@ export function OperationsHub() {
                 : "text-slate-400 hover:bg-white/5 hover:text-white"
             }`}
           >
-            {t === "network" ? "People" : t}
+            {t === "network" ? "Customers" : t === "agents" ? "Agents / vendors" : t}
           </button>
         ))}
       </div>
+
+      {loadError ? (
+        <Card className="border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-100">
+          Could not load operations data: {loadError}
+        </Card>
+      ) : null}
 
       {tab === "overview" && (
         <div className="space-y-6">
@@ -232,6 +266,76 @@ export function OperationsHub() {
         </div>
       )}
 
+      {tab === "agents" && isAdmin && (
+        <div className="space-y-4">
+          <p className="text-sm text-slate-400">
+            Every agent / marketer — sales (GGR), customer deposits, accounts opened today, and
+            lifetime customers. Click a row to see their customers.
+          </p>
+          <label className="block max-w-md text-sm">
+            <span className="mb-1 text-slate-400">Search agents</span>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
+              placeholder="Name, username, phone…"
+            />
+          </label>
+          {loading ? (
+            <EmptyState message="Loading agents…" />
+          ) : filteredAgents.length === 0 ? (
+            <EmptyState message="No agents found." />
+          ) : (
+            <TableShell>
+              <thead>
+                <tr>
+                  <Th>Agent / vendor</Th>
+                  <Th>Username</Th>
+                  <Th className="text-right">Opened today</Th>
+                  <Th className="text-right">Customers</Th>
+                  <Th className="text-right">Sales (GGR)</Th>
+                  <Th className="text-right">Deposits</Th>
+                  <Th className="text-right">Commission</Th>
+                  <Th>Status</Th>
+                  <Th>Action</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAgents.map((a) => (
+                  <tr key={a.uid}>
+                    <Td className="font-medium text-white">{a.name}</Td>
+                    <Td className="text-xs text-slate-400">{a.agentSlug ?? a.phone ?? "—"}</Td>
+                    <Td className="text-right tabular-nums">
+                      <span className={a.customersOpenedToday > 0 ? "font-semibold text-emerald-300" : ""}>
+                        {a.customersOpenedToday}
+                      </span>
+                    </Td>
+                    <Td className="text-right tabular-nums">{a.customerCount}</Td>
+                    <Td className="text-right tabular-nums">{formatXof(a.ggr)}</Td>
+                    <Td className="text-right tabular-nums">{formatXof(a.customerDeposits)}</Td>
+                    <Td className="text-right tabular-nums text-emerald-300">
+                      {formatXof(a.commissionEarned)}
+                    </Td>
+                    <Td>
+                      <Badge value={a.status} />
+                    </Td>
+                    <Td>
+                      <Button
+                        variant="secondary"
+                        className="!px-2.5 !py-1 text-xs"
+                        onClick={() => viewAgentCustomers(a.uid)}
+                      >
+                        View customers
+                      </Button>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </TableShell>
+          )}
+        </div>
+      )}
+
       {tab === "live" && (
         <div className="space-y-4">
           <label className="block max-w-md text-sm">
@@ -308,7 +412,7 @@ export function OperationsHub() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name, Player ID, reference…"
+                placeholder="Name, Player ID, agent, reference…"
                 className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
               />
             </label>
@@ -323,6 +427,7 @@ export function OperationsHub() {
                 <tr>
                   <Th>When</Th>
                   <Th>User</Th>
+                  {isAdmin ? <Th>Agent</Th> : null}
                   <Th>Type</Th>
                   <Th>Amount</Th>
                   <Th>Balance</Th>
@@ -339,9 +444,12 @@ export function OperationsHub() {
                     <Td>
                       <span className="block font-medium text-white">{t.userName ?? "—"}</span>
                       <span className="font-mono text-[10px] text-emerald-400/90">
-                        {t.playerId ?? `${t.userId.slice(0, 10)}…`}
+                        {t.playerId ?? (t.userId ? `${t.userId.slice(0, 10)}…` : "—")}
                       </span>
                     </Td>
+                    {isAdmin ? (
+                      <Td className="text-sm text-slate-300">{t.agentName ?? "—"}</Td>
+                    ) : null}
                     <Td>
                       <Badge value={t.type} />
                     </Td>
@@ -365,13 +473,24 @@ export function OperationsHub() {
 
       {tab === "network" && (
         <div className="space-y-4">
-          {isAdmin && (
+          {isAdmin && agentFilter && data?.agents ? (
+            <Card className="flex flex-wrap items-center justify-between gap-3 border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+              <span>
+                Showing customers for{" "}
+                <strong>{data.agents.find((a) => a.uid === agentFilter)?.name ?? "agent"}</strong>
+              </span>
+              <Button variant="secondary" className="!py-1 text-xs" onClick={() => setAgentFilter(null)}>
+                Show all customers
+              </Button>
+            </Card>
+          ) : null}
+          {isAdmin && !agentFilter && (
             <p className="text-sm text-slate-400">
-              Showing platform users. For full account management use{" "}
-              <Link href="/admin/users" className="text-emerald-400 hover:underline">
-                Users
-              </Link>
-              .
+              All customers with Player ID and owning agent. Open the{" "}
+              <button type="button" className="text-emerald-400 hover:underline" onClick={() => setTab("agents")}>
+                Agents / vendors
+              </button>{" "}
+              tab for sales and daily opens.
             </p>
           )}
           <label className="block max-w-md text-sm">
@@ -380,7 +499,7 @@ export function OperationsHub() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"
-              placeholder="Name, phone, username…"
+              placeholder="Name, phone, Player ID, agent…"
             />
           </label>
           {loading ? (
@@ -394,8 +513,9 @@ export function OperationsHub() {
                   <Th>Player ID</Th>
                   <Th>Name</Th>
                   <Th>Role</Th>
-                  {isAdmin ? <Th>Agent</Th> : null}
+                  {isAdmin ? <Th>Agent / vendor</Th> : null}
                   <Th>Login</Th>
+                  <Th>Joined</Th>
                   <Th>Balance</Th>
                   <Th>Status</Th>
                 </tr>
@@ -411,10 +531,13 @@ export function OperationsHub() {
                       <Badge value={m.role as Role} />
                     </Td>
                     {isAdmin ? (
-                      <Td className="text-sm text-slate-400">{m.parentName ?? "—"}</Td>
+                      <Td className="text-sm text-slate-300">{m.parentName ?? "—"}</Td>
                     ) : null}
                     <Td className="text-xs text-slate-400">
                       {m.phone ?? m.email ?? m.agentSlug ?? "—"}
+                    </Td>
+                    <Td className="whitespace-nowrap text-xs text-slate-400">
+                      {m.createdAt ? formatDate(new Date(m.createdAt)) : "—"}
                     </Td>
                     <Td>{m.balance !== undefined ? formatXof(m.balance) : "—"}</Td>
                     <Td>

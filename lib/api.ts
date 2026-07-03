@@ -333,6 +333,21 @@ export type OperationsHubResponse = {
     parentName?: string | null;
     createdAt?: number | null;
   }>;
+  agents?: Array<{
+    uid: string;
+    name: string;
+    agentSlug: string | null;
+    phone: string | null;
+    email: string | null;
+    status: string;
+    customerCount: number;
+    customersOpenedToday: number;
+    customerDeposits: number;
+    totalBets: number;
+    totalWins: number;
+    ggr: number;
+    commissionEarned: number;
+  }>;
   live: Array<{
     uid: string;
     name: string;
@@ -347,6 +362,8 @@ export type OperationsHubResponse = {
     userId: string;
     userName?: string;
     playerId?: string | null;
+    agentId?: string | null;
+    agentName?: string | null;
     type: string;
     amount: number;
     balanceBefore: number;

@@ -5,7 +5,7 @@ import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { UserPlus } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
-import { todayIso } from "@/lib/format";
+import { todayIso, formatXof } from "@/lib/format";
 import type { AgentDailyStats, UserProfile } from "@/lib/types";
 import { Card, Spinner, StatCard, TableShell, Td, Th } from "@/components/ui";
 
@@ -53,7 +53,7 @@ export function AdminDailyCustomerOpens() {
       setPlatformToday(snap.exists() ? Number(snap.data()?.newCustomers ?? 0) : 0);
     });
     const unsubAgents = onSnapshot(
-      query(collection(db, "users"), where("role", "==", "agent")),
+      query(collection(db, "users"), where("role", "in", ["agent", "super_agent", "sub_agent"])),
       (snap) => {
         setAgents(
           snap.docs
@@ -135,6 +135,8 @@ export function AdminDailyCustomerOpens() {
             <thead>
               <tr>
                 <Th>Agent / vendor</Th>
+                <Th className="text-right">Sales (GGR)</Th>
+                <Th className="text-right">Deposits</Th>
                 <Th className="text-right">Opened today</Th>
                 <Th className="text-right">Lifetime customers</Th>
               </tr>
@@ -143,9 +145,14 @@ export function AdminDailyCustomerOpens() {
               {rows.map((r) => {
                 const agent = agents!.find((a) => a.uid === r.uid);
                 const lifetime = agent?.stats?.customerCount ?? 0;
+                const stats = agent?.stats ?? {};
+                const ggr = Math.max(0, (stats.totalBets ?? 0) - (stats.totalWins ?? 0));
+                const deposits = stats.customerDeposits ?? 0;
                 return (
                   <tr key={r.uid}>
                     <Td className="font-medium">{r.name}</Td>
+                    <Td className="text-right tabular-nums text-slate-300">{formatXof(ggr)}</Td>
+                    <Td className="text-right tabular-nums text-slate-300">{formatXof(deposits)}</Td>
                     <Td className="text-right tabular-nums">
                       <span className={r.customersOpened > 0 ? "font-semibold text-emerald-300" : ""}>
                         {r.customersOpened}

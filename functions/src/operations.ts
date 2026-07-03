@@ -4,17 +4,19 @@ import {
   db,
   rtdb,
   requireRole,
+  todayIso,
   type ProfileData,
   type Role,
 } from "./helpers";
 import { formatPlayerId } from "./playerIds";
 
 const ONLINE_MS = 3 * 60 * 1000;
+const AGENT_ROLES = ["agent", "super_agent", "sub_agent"] as const;
 
 type NetworkMember = {
   uid: string;
   name: string;
-  role: Role;
+  role: Role | string;
   phone: string | null;
   email: string | null;
   agentSlug: string | null;
@@ -25,6 +27,22 @@ type NetworkMember = {
   parentId?: string | null;
   parentName?: string | null;
   createdAt?: number | null;
+};
+
+type AgentSummary = {
+  uid: string;
+  name: string;
+  agentSlug: string | null;
+  phone: string | null;
+  email: string | null;
+  status: string;
+  customerCount: number;
+  customersOpenedToday: number;
+  customerDeposits: number;
+  totalBets: number;
+  totalWins: number;
+  ggr: number;
+  commissionEarned: number;
 };
 
 type LiveUser = {
@@ -41,6 +59,8 @@ type LedgerRow = {
   userId: string;
   userName?: string;
   playerId?: string | null;
+  agentId?: string | null;
+  agentName?: string | null;
   type: string;
   amount: number;
   balanceBefore: number;
@@ -74,6 +94,31 @@ function memberFromDoc(
   };
 }
 
+function agentSummaryFromDoc(
+  d: QueryDocumentSnapshot,
+  opensByAgent: Map<string, number>,
+): AgentSummary {
+  const p = d.data() as ProfileData;
+  const stats = p.stats ?? {};
+  const totalBets = Number(stats.totalBets ?? 0);
+  const totalWins = Number(stats.totalWins ?? 0);
+  return {
+    uid: d.id,
+    name: p.name,
+    agentSlug: p.agentSlug,
+    phone: p.phone,
+    email: p.email,
+    status: p.status,
+    customerCount: Number(stats.customerCount ?? 0),
+    customersOpenedToday: opensByAgent.get(d.id) ?? 0,
+    customerDeposits: Number(stats.customerDeposits ?? 0),
+    totalBets,
+    totalWins,
+    ggr: Math.max(0, totalBets - totalWins),
+    commissionEarned: Number(stats.commissionEarned ?? 0),
+  };
+}
+
 async function loadNetwork(uid: string, profile: ProfileData): Promise<NetworkMember[]> {
   const parentNameByUid = new Map<string, string>([[uid, profile.name]]);
 
@@ -94,14 +139,67 @@ async function loadNetwork(uid: string, profile: ProfileData): Promise<NetworkMe
   return members;
 }
 
-async function loadAllPlatformUsers(limit: number): Promise<NetworkMember[]> {
-  const snap = await db.collection("users").limit(limit).get();
+async function loadAdminPlatformData(today: string): Promise<{
+  network: NetworkMember[];
+  agents: AgentSummary[];
+  parentIdByUid: Map<string, string>;
+}> {
+  const [agentSnap, playerSnap, dailySnap] = await Promise.all([
+    db.collection("users").where("role", "in", [...AGENT_ROLES]).get(),
+    db.collection("users").where("role", "==", "player").limit(2000).get(),
+    db.collection("agentDailyStats").where("date", "==", today).get(),
+  ]);
+
   const parentNameByUid = new Map<string, string>();
-  for (const d of snap.docs) {
+  for (const d of agentSnap.docs) {
     parentNameByUid.set(d.id, String(d.data().name ?? "Unknown"));
   }
-  const members = snap.docs.map((d) => memberFromDoc(d, parentNameByUid));
-  return members.sort((a, b) => a.name.localeCompare(b.name));
+
+  const opensByAgent = new Map<string, number>();
+  for (const d of dailySnap.docs) {
+    const row = d.data();
+    opensByAgent.set(String(row.agentId), Number(row.customersOpened ?? 0));
+  }
+
+  const agents = agentSnap.docs
+    .map((d) => agentSummaryFromDoc(d, opensByAgent))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const parentIdByUid = new Map<string, string>();
+  const playerMembers = playerSnap.docs.map((d) => {
+    const member = memberFromDoc(d, parentNameByUid);
+    if (member.parentId) parentIdByUid.set(member.uid, member.parentId);
+    return member;
+  });
+
+  const walletSnaps = await Promise.all(
+    playerMembers.map((m) => db.doc(`wallets/${m.uid}`).get()),
+  );
+  walletSnaps.forEach((snap, i) => {
+    if (snap.exists) playerMembers[i].balance = snap.data()?.balance as number;
+  });
+
+  const agentMembers: NetworkMember[] = agentSnap.docs.map((d) => {
+    const p = d.data() as ProfileData;
+    return {
+      uid: d.id,
+      name: p.name,
+      role: p.role,
+      phone: p.phone,
+      email: p.email,
+      agentSlug: p.agentSlug,
+      status: p.status,
+      parentId: p.parentId,
+      parentName: null,
+      createdAt: p.createdAt?.toMillis?.() ?? null,
+    };
+  });
+
+  const network = [...agentMembers, ...playerMembers].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+
+  return { network, agents, parentIdByUid };
 }
 
 function parsePresence(
@@ -133,9 +231,41 @@ async function loadTransactions(opts: {
   limit: number;
   nameByUid: Map<string, string>;
   playerIdByUid: Map<string, string>;
+  parentIdByUid: Map<string, string>;
+  agentNameByUid: Map<string, string>;
 }): Promise<LedgerRow[]> {
-  const { allowed, typeFilter, limit, nameByUid, playerIdByUid } = opts;
+  const {
+    allowed,
+    typeFilter,
+    limit,
+    nameByUid,
+    playerIdByUid,
+    parentIdByUid,
+    agentNameByUid,
+  } = opts;
   const rows: LedgerRow[] = [];
+
+  const enrich = (d: QueryDocumentSnapshot) => {
+    const t = d.data();
+    const userId = String(t.userId ?? "");
+    const agentId = parentIdByUid.get(userId) ?? null;
+    return {
+      id: d.id,
+      userId,
+      userName: nameByUid.get(userId),
+      playerId: playerIdByUid.get(userId) ?? null,
+      agentId,
+      agentName: agentId ? agentNameByUid.get(agentId) ?? null : null,
+      type: t.type,
+      amount: t.amount,
+      balanceBefore: t.balanceBefore,
+      balanceAfter: t.balanceAfter,
+      reference: t.reference,
+      description: t.description,
+      meta: t.meta,
+      createdAt: t.createdAt?.toMillis?.() ?? null,
+    };
+  };
 
   if (!allowed) {
     let q = db.collection("transactions").orderBy("createdAt", "desc").limit(limit);
@@ -147,23 +277,7 @@ async function loadTransactions(opts: {
         .limit(limit);
     }
     const snap = await q.get();
-    for (const d of snap.docs) {
-      const t = d.data();
-      rows.push({
-        id: d.id,
-        userId: t.userId,
-        userName: nameByUid.get(t.userId),
-        playerId: playerIdByUid.get(t.userId) ?? null,
-        type: t.type,
-        amount: t.amount,
-        balanceBefore: t.balanceBefore,
-        balanceAfter: t.balanceAfter,
-        reference: t.reference,
-        description: t.description,
-        meta: t.meta,
-        createdAt: t.createdAt?.toMillis?.() ?? null,
-      });
-    }
+    for (const d of snap.docs) rows.push(enrich(d));
     return rows;
   }
 
@@ -186,23 +300,7 @@ async function loadTransactions(opts: {
         .limit(limit);
     }
     const snap = await q.get();
-    for (const d of snap.docs) {
-      const t = d.data();
-      rows.push({
-        id: d.id,
-        userId: t.userId,
-        userName: nameByUid.get(t.userId),
-        playerId: playerIdByUid.get(t.userId) ?? null,
-        type: t.type,
-        amount: t.amount,
-        balanceBefore: t.balanceBefore,
-        balanceAfter: t.balanceAfter,
-        reference: t.reference,
-        description: t.description,
-        meta: t.meta,
-        createdAt: t.createdAt?.toMillis?.() ?? null,
-      });
-    }
+    for (const d of snap.docs) rows.push(enrich(d));
   }
 
   rows.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
@@ -217,27 +315,46 @@ export const getOperationsHub = onCall(async (req) => {
   const { uid, profile } = await requireRole(req, ["admin", "agent"]);
   const typeFilter = req.data?.type ? String(req.data.type) : null;
   const limit = Math.min(Math.max(Number(req.data?.limit) || 150, 1), 300);
+  const today = todayIso();
 
   const isAdmin = profile.role === "admin";
   let network: NetworkMember[] = [];
+  let agents: AgentSummary[] = [];
   let allowed: Set<string> | null = null;
   const nameByUid = new Map<string, string>();
   const playerIdByUid = new Map<string, string>();
+  const parentIdByUid = new Map<string, string>();
+  const agentNameByUid = new Map<string, string>();
 
   if (isAdmin) {
-    network = await loadAllPlatformUsers(500);
+    const platform = await loadAdminPlatformData(today);
+    network = platform.network;
+    agents = platform.agents;
+    for (const [userId, parentId] of platform.parentIdByUid) {
+      parentIdByUid.set(userId, parentId);
+    }
+    for (const a of agents) {
+      agentNameByUid.set(a.uid, a.name);
+      nameByUid.set(a.uid, a.name);
+    }
     for (const m of network) {
       nameByUid.set(m.uid, m.name);
       if (m.playerId) playerIdByUid.set(m.uid, m.playerId);
+      if (m.parentId) parentIdByUid.set(m.uid, m.parentId);
     }
     nameByUid.set(uid, profile.name);
   } else {
     network = await loadNetwork(uid, profile);
     allowed = new Set([uid, ...network.map((m) => m.uid)]);
     nameByUid.set(uid, profile.name);
+    agentNameByUid.set(uid, profile.name);
     for (const m of network) {
       nameByUid.set(m.uid, m.name);
       if (m.playerId) playerIdByUid.set(m.uid, m.playerId);
+      if (m.parentId) {
+        parentIdByUid.set(m.uid, m.parentId);
+        if (m.parentName) agentNameByUid.set(m.parentId, m.parentName);
+      }
     }
   }
 
@@ -253,12 +370,15 @@ export const getOperationsHub = onCall(async (req) => {
     limit,
     nameByUid,
     playerIdByUid,
+    parentIdByUid,
+    agentNameByUid,
   });
 
   return {
     scope: isAdmin ? "platform" : "network",
     role: profile.role,
     network,
+    agents: isAdmin ? agents : undefined,
     live,
     liveOnline: live.filter((r) => r.online).length,
     transactions,

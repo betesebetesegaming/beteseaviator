@@ -29,6 +29,13 @@ export interface ProfileData {
   referralCode?: string | null;
   referredBy?: string | null;
   createdAt?: admin.firestore.Timestamp | null;
+  stats?: {
+    customerCount?: number;
+    customerDeposits?: number;
+    totalBets?: number;
+    totalWins?: number;
+    commissionEarned?: number;
+  };
 }
 
 export const RESERVED_SLUGS = ["www", "admin", "api", "mail", "ftp", "betese", "app"];
