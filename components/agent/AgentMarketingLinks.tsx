@@ -2,8 +2,22 @@
 
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { Copy, ExternalLink, Link2, LogIn } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  Link2,
+  LogIn,
+  MessageCircle,
+  Smartphone,
+  QrCode,
+} from "lucide-react";
 import { buildAgentLinks, staffLoginUrl } from "@/lib/agentLinks";
+import {
+  AGENT_QR_USE_EXAMPLES,
+  agentSignupShareMessage,
+  smsShareUrl,
+  whatsAppShareUrl,
+} from "@/lib/agentShare";
 import { ReferralQrCode } from "@/components/shared/ReferralQrCode";
 import { Card } from "@/components/ui";
 
@@ -18,9 +32,14 @@ type Props = {
 export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }: Props) {
   const links = buildAgentLinks(slug);
   const loginUrl = staffLoginUrl();
-  const [copied, setCopied] = useState<"sub" | "ref" | "login" | null>(null);
+  const displayName = agentName?.trim() || slug;
+  const shareMessage = agentSignupShareMessage({
+    agentName: displayName,
+    signupUrl: links.subdomainUrl,
+  });
+  const [copied, setCopied] = useState<"sub" | "ref" | "login" | "msg" | null>(null);
 
-  async function copy(text: string, which: "sub" | "ref" | "login") {
+  async function copy(text: string, which: "sub" | "ref" | "login" | "msg") {
     await navigator.clipboard.writeText(text);
     setCopied(which);
     toast.success("Copied!");
@@ -29,39 +48,128 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
 
   if (compact) {
     return (
-      <div className="space-y-2 text-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={links.subdomainUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-emerald-300 hover:underline"
-          >
-            {links.subdomain}
-          </a>
-          <button
-            type="button"
-            onClick={() => copy(links.subdomainUrl, "sub")}
-            className="text-slate-500 hover:text-white"
-            title="Copy subdomain link"
-          >
-            <Copy size={14} />
-          </button>
+      <Card className="border-emerald-500/25 bg-emerald-500/5 p-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <ReferralQrCode
+            value={links.subdomainUrl}
+            label={`Scan — ${links.subdomain}`}
+            size={120}
+            downloadFileName={`betese-${slug}-qr`}
+            showDownload
+          />
+          <div className="min-w-0 flex-1 space-y-2 text-sm">
+            <p className="font-medium text-emerald-200">Share your signup QR</p>
+            <p className="text-xs text-slate-400">
+              Customers scan to register under you — use WhatsApp or SMS below.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={whatsAppShareUrl(shareMessage)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-2 text-xs font-semibold text-white hover:brightness-110"
+              >
+                <MessageCircle size={14} /> WhatsApp
+              </a>
+              <a
+                href={smsShareUrl(shareMessage)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/5"
+              >
+                <Smartphone size={14} /> SMS
+              </a>
+              <button
+                type="button"
+                onClick={() => copy(links.subdomainUrl, "sub")}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10"
+              >
+                <Copy size={14} /> {copied === "sub" ? "Copied" : "Copy link"}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
     <Card className="border-emerald-500/30 bg-emerald-500/5">
-      <div className="mb-3 flex items-center gap-2">
-        <Link2 size={18} className="text-emerald-300" />
+      <div className="mb-4 flex items-start gap-3">
+        <div className="rounded-lg bg-emerald-500/15 p-2">
+          <QrCode size={22} className="text-emerald-300" />
+        </div>
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
-            {agentName ? `${agentName}'s marketing links` : "Your marketing links"}
+            {agentName ? `${agentName}'s signup QR & links` : "Your signup QR & links"}
           </p>
+          <p className="mt-1 text-sm text-slate-300">
+            Every person who scans or opens your link registers as <strong>your customer</strong>{" "}
+            — you earn commission on their play.
+          </p>
+        </div>
+      </div>
+
+      <div className="mb-6 grid gap-6 rounded-xl border border-emerald-500/20 bg-slate-950/40 p-4 lg:grid-cols-[auto_1fr]">
+        <div className="flex flex-col items-center gap-3">
+          <ReferralQrCode
+            value={links.subdomainUrl}
+            label="Main signup QR (recommended)"
+            size={168}
+            downloadFileName={`betese-${slug}-signup-qr`}
+            showDownload
+          />
+          <code className="text-center text-xs text-emerald-200">{links.subdomain}</code>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+              Why use the QR code?
+            </p>
+            <ul className="space-y-2 text-sm text-slate-300">
+              {AGENT_QR_USE_EXAMPLES.map((line) => (
+                <li key={line} className="flex gap-2">
+                  <span className="text-emerald-400">•</span>
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+              Share via WhatsApp or SMS
+            </p>
+            <p className="mb-3 rounded-lg bg-slate-900/80 px-3 py-2 text-xs leading-relaxed text-slate-400">
+              {shareMessage}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={whatsAppShareUrl(shareMessage)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+              >
+                <MessageCircle size={16} /> Share on WhatsApp
+              </a>
+              <a
+                href={smsShareUrl(shareMessage)}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-slate-100 hover:bg-white/5"
+              >
+                <Smartphone size={16} /> Send SMS
+              </a>
+              <button
+                type="button"
+                onClick={() => copy(shareMessage, "msg")}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/40 px-4 py-2.5 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/10"
+              >
+                <Copy size={16} /> {copied === "msg" ? "Copied message" : "Copy message"}
+              </button>
+            </div>
+          </div>
+
           <p className="text-[11px] text-slate-500">
-            Share the link or QR — new players sign up under this agent automatically.
+            <strong className="text-slate-400">Where to find this:</strong> Agent Dashboard (top),
+            My Customers page, and Admin → Users when your account is created.
           </p>
         </div>
       </div>
@@ -70,7 +178,7 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
         <div className="space-y-3">
           <div>
             <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              Agent subdomain (recommended)
+              Agent subdomain link
             </p>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <code className="flex-1 overflow-x-auto rounded-lg bg-slate-950/70 px-3 py-2 text-sm text-emerald-200">
@@ -95,13 +203,14 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
               </div>
             </div>
             <p className="mt-1 text-[10px] text-slate-600">
-              Example: <strong>{slug}.beteseaviator.com</strong> — scan QR or open link to register.
+              Example: customer opens <strong>{slug}.beteseaviator.com</strong> → signs up → you
+              get credit.
             </p>
           </div>
 
           <div>
             <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              Referral link (main site)
+              Referral link (main website)
             </p>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <code className="flex-1 overflow-x-auto rounded-lg bg-slate-950/70 px-3 py-2 text-xs text-slate-300 sm:text-sm">
@@ -123,8 +232,7 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
                 <LogIn size={12} /> Agent dashboard login
               </p>
               <p className="mb-2 text-[11px] text-slate-400">
-                Agent marketers sign in here with the username and password BETESE admin set — not
-                for player signup.
+                For you to sign in — not for customer signup.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <code className="flex-1 overflow-x-auto rounded-lg bg-slate-950/70 px-3 py-2 text-xs text-sky-200">
@@ -142,17 +250,13 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
           ) : null}
         </div>
 
-        <div className="flex flex-col items-center gap-4 sm:flex-row lg:flex-col">
-          <ReferralQrCode
-            value={links.subdomainUrl}
-            label="Scan to sign up (agent link)"
-          />
-          <ReferralQrCode
-            value={links.referralUrl}
-            label="Scan — main site link"
-            size={120}
-          />
-        </div>
+        <ReferralQrCode
+          value={links.referralUrl}
+          label="Alternate QR — main site link"
+          size={120}
+          downloadFileName={`betese-${slug}-referral-qr`}
+          showDownload
+        />
       </div>
     </Card>
   );

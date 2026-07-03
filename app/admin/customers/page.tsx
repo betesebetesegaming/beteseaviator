@@ -21,6 +21,7 @@ import {
 } from "@/lib/api";
 import { formatDate, formatXof, normalizePhone } from "@/lib/format";
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
+import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import type { UserProfile } from "@/lib/types";
 import {
   Badge,
@@ -44,7 +45,7 @@ function copyText(label: string, value: string) {
 }
 
 export default function AgentPlayersPage() {
-  const { fbUser, wallet } = useAuth();
+  const { fbUser, wallet, profile } = useAuth();
   const [players, setPlayers] = useState<PlayerRow[] | null>(null);
   const [search, setSearch] = useState("");
 
@@ -160,6 +161,12 @@ export default function AgentPlayersPage() {
           </span>
         </Button>
       </div>
+
+      {profile?.agentSlug ? (
+        <div className="mb-5">
+          <AgentMarketingLinks slug={profile.agentSlug} agentName={profile.name} compact />
+        </div>
+      ) : null}
 
       <div className="relative mb-4 max-w-sm">
         <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />

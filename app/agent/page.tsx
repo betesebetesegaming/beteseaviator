@@ -17,8 +17,8 @@ export default function AgentDashboard() {
     <div>
       <h1 className="mb-1 text-xl font-bold">Welcome back, {profile?.name}</h1>
       <p className="mb-6 text-sm text-slate-400">
-        Share your agent marketing link or subdomain — every customer who signs up is attached to you
-        for commission.
+        Use your QR code below to bring new customers — scan, WhatsApp, or SMS. Every signup is
+        linked to you for commission.
       </p>
 
       {profile?.agentSlug ? (
