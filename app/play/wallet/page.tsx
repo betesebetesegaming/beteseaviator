@@ -1,6 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   collection,
@@ -33,7 +35,7 @@ import {
 } from "@/lib/playthrough";
 import type { PlatformSettings, WalletTransaction } from "@/lib/types";
 import { DEFAULT_SETTINGS } from "@/lib/types";
-import { PaymentSheet } from "@/components/PaymentSheet";
+import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 import { PaymentResultModal } from "@/components/PaymentResultModal";
 import { BonusOffersPanel, WalletBalanceCards } from "@/components/wallet/WalletBonusPanel";
 import { WalletFrozenNotice } from "@/components/wallet/WalletFrozenNotice";
@@ -41,10 +43,25 @@ import { ReferralPanel } from "@/components/wallet/ReferralPanel";
 import { OtpConfirmPanel, usePhoneOtp } from "@/components/PhoneOtpVerification";
 import { Badge, Button, Card, EmptyState, Input, Select, TableShell, Td, Th } from "@/components/ui";
 
+const PaymentSheet = dynamic(
+  () => import("@/components/PaymentSheet").then((m) => m.PaymentSheet),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/60">
+        <div className="w-full max-w-lg rounded-t-3xl bg-white p-8 text-center text-slate-700">
+          Loading payment methods…
+        </div>
+      </div>
+    ),
+  }
+);
+
 type Tab = "history" | "deposit" | "withdraw" | "refer";
 type WithdrawStep = "form" | "otp";
 
 export default function WalletPage() {
+  const router = useRouter();
   const { fbUser, profile, wallet } = useAuth();
   const frozen = Boolean(wallet?.frozen);
   const [tab, setTab] = useState<Tab>("history");
@@ -161,7 +178,7 @@ export default function WalletPage() {
       if (settled) return;
       settled = true;
       setPaymentResult(buildDepositResult(status, amount, method, ref));
-      window.history.replaceState({}, "", "/play/wallet");
+      router.replace("/play/wallet", { scroll: false });
     };
 
     const stopPolling = startDepositReconcilePolling(ref, () => settled, (status) => {
@@ -196,7 +213,7 @@ export default function WalletPage() {
       unsubRtdb();
       unsubFs();
     };
-  }, []);
+  }, [router]);
 
   async function submitMobileWithdrawal() {
     if (!fbUser || !profile) return;
@@ -499,20 +516,24 @@ export default function WalletPage() {
 
       {tab === "refer" && <ReferralPanel />}
 
-      <PaymentSheet
-        isOpen={depositOpen && !frozen}
-        onClose={() => setDepositOpen(false)}
-        user={{
-          id: fbUser.uid,
-          name: profile.name,
-          phone: profile.phone || undefined,
-          walletBalance: wallet?.balance ?? 0,
-        }}
-        minDeposit={settings.minDeposit}
-        frozen={frozen}
-        floatingKeypad
-        onDepositRequest={handleCreateDepositRequest}
-      />
+      <ClientErrorBoundary label="ModemPay checkout">
+        {depositOpen && !frozen ? (
+          <PaymentSheet
+            isOpen
+            onClose={() => setDepositOpen(false)}
+            user={{
+              id: fbUser.uid,
+              name: profile.name,
+              phone: profile.phone || undefined,
+              walletBalance: wallet?.balance ?? 0,
+            }}
+            minDeposit={settings.minDeposit}
+            frozen={frozen}
+            floatingKeypad
+            onDepositRequest={handleCreateDepositRequest}
+          />
+        ) : null}
+      </ClientErrorBoundary>
       <PaymentResultModal result={paymentResult} onClose={() => setPaymentResult(null)} />
     </div>
   );

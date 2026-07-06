@@ -37,10 +37,16 @@ function sortByTimestampDesc<T extends { timestamp?: string; requested_at?: stri
   });
 }
 
-function snapshotToList<T>(snap: { forEach: (cb: (c: { key: string | null; val: () => T }) => void) => void }): T[] {
+function snapshotToList<T extends { id?: string }>(
+  snap: { forEach: (cb: (c: { key: string | null; val: () => unknown }) => void) => void },
+): T[] {
   const rows: T[] = [];
   snap.forEach((child) => {
-    if (child.key) rows.push({ ...(child.val() as T), id: (child.val() as { id?: string }).id || child.key } as T);
+    if (!child.key) return;
+    const raw = child.val();
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+    const record = raw as Record<string, unknown>;
+    rows.push({ ...record, id: String(record.id || child.key) } as T);
   });
   return rows;
 }
@@ -130,19 +136,35 @@ export function subscribeDeposits(
 ): Unsubscribe {
   let realUnsub: Unsubscribe | null = null;
   let cancelled = false;
-  void loadRtdb().then(({ mod, db }) => {
-    if (cancelled) return;
-    const path = customerId
-      ? RTDB_PAYMENTS.customerDeposits(customerId)
-      : RTDB_PAYMENTS.deposits;
-    realUnsub = mod.onValue(mod.ref(db, path), (snap) => {
-      if (!snap.exists()) {
-        onRows([]);
-        return;
-      }
-      onRows(sortByTimestampDesc(snapshotToList<RtdbDepositRecord>(snap)));
+  void loadRtdb()
+    .then(({ mod, db }) => {
+      if (cancelled) return;
+      const path = customerId
+        ? RTDB_PAYMENTS.customerDeposits(customerId)
+        : RTDB_PAYMENTS.deposits;
+      realUnsub = mod.onValue(
+        mod.ref(db, path),
+        (snap) => {
+          try {
+            if (!snap.exists()) {
+              onRows([]);
+              return;
+            }
+            onRows(sortByTimestampDesc(snapshotToList<RtdbDepositRecord>(snap)).slice(0, 500));
+          } catch (err) {
+            console.error("subscribeDeposits snapshot parse failed", err);
+            onRows([]);
+          }
+        },
+        (err) => {
+          console.error("subscribeDeposits listener failed", err);
+          if (!cancelled) onRows([]);
+        },
+      );
+    })
+    .catch(() => {
+      if (!cancelled) onRows([]);
     });
-  });
   return () => {
     cancelled = true;
     if (realUnsub) {
@@ -158,19 +180,35 @@ export function subscribeWithdrawals(
 ): Unsubscribe {
   let realUnsub: Unsubscribe | null = null;
   let cancelled = false;
-  void loadRtdb().then(({ mod, db }) => {
-    if (cancelled) return;
-    const path = userId
-      ? RTDB_PAYMENTS.customerWithdrawals(userId)
-      : RTDB_PAYMENTS.withdrawals;
-    realUnsub = mod.onValue(mod.ref(db, path), (snap) => {
-      if (!snap.exists()) {
-        onRows([]);
-        return;
-      }
-      onRows(sortByTimestampDesc(snapshotToList<RtdbWithdrawalRecord>(snap)));
+  void loadRtdb()
+    .then(({ mod, db }) => {
+      if (cancelled) return;
+      const path = userId
+        ? RTDB_PAYMENTS.customerWithdrawals(userId)
+        : RTDB_PAYMENTS.withdrawals;
+      realUnsub = mod.onValue(
+        mod.ref(db, path),
+        (snap) => {
+          try {
+            if (!snap.exists()) {
+              onRows([]);
+              return;
+            }
+            onRows(sortByTimestampDesc(snapshotToList<RtdbWithdrawalRecord>(snap)).slice(0, 500));
+          } catch (err) {
+            console.error("subscribeWithdrawals snapshot parse failed", err);
+            onRows([]);
+          }
+        },
+        (err) => {
+          console.error("subscribeWithdrawals listener failed", err);
+          if (!cancelled) onRows([]);
+        },
+      );
+    })
+    .catch(() => {
+      if (!cancelled) onRows([]);
     });
-  });
   return () => {
     cancelled = true;
     if (realUnsub) {
@@ -186,12 +224,31 @@ export function subscribeDepositById(
 ): Unsubscribe {
   let realUnsub: Unsubscribe | null = null;
   let cancelled = false;
-  void loadRtdb().then(({ mod, db }) => {
-    if (cancelled) return;
-    realUnsub = mod.onValue(mod.ref(db, RTDB_PAYMENTS.deposit(depositId)), (snap) => {
-      onRecord(snap.exists() ? (snap.val() as RtdbDepositRecord) : null);
+  void loadRtdb()
+    .then(({ mod, db }) => {
+      if (cancelled) return;
+      realUnsub = mod.onValue(
+        mod.ref(db, RTDB_PAYMENTS.deposit(depositId)),
+        (snap) => {
+          if (!snap.exists()) {
+            onRecord(null);
+            return;
+          }
+          const raw = snap.val();
+          if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+            onRecord(null);
+            return;
+          }
+          onRecord({ ...(raw as RtdbDepositRecord), id: depositId });
+        },
+        () => {
+          if (!cancelled) onRecord(null);
+        },
+      );
+    })
+    .catch(() => {
+      if (!cancelled) onRecord(null);
     });
-  });
   return () => {
     cancelled = true;
     if (realUnsub) {

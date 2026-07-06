@@ -212,9 +212,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         externalRef,
         returnUrl:
           typeof window !== 'undefined'
-            ? floatingKeypad
-              ? `${window.location.origin}${window.location.pathname}?deposit=${externalRef}`
-              : `${window.location.origin}/play/wallet?deposit=${externalRef}`
+            ? `${window.location.origin}/play/wallet?deposit=${encodeURIComponent(externalRef)}`
             : undefined,
       }),
     });

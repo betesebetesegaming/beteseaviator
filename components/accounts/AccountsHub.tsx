@@ -10,6 +10,7 @@ import { ModemPayDepositsPanel } from "@/components/accounts/ModemPayDepositsPan
 import { ModemPayWithdrawalsPanel } from "@/components/accounts/ModemPayWithdrawalsPanel";
 import { LedgerTransactionsPanel } from "@/components/accounts/LedgerTransactionsPanel";
 import { AgentCommissionsPanel } from "@/components/accounts/AgentCommissionsPanel";
+import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 
 const ADMIN_TABS = [
   { id: "summary", label: "Summary" },
@@ -83,7 +84,9 @@ export function AccountsHub() {
         <>
           {adminTab === "summary" && <AdminPlatformSummary />}
           {adminTab === "deposits" && (
-            <ModemPayDepositsPanel customerIds={null} scopeLabel={scopeLabel} />
+            <ClientErrorBoundary label="ModemPay deposits">
+              <ModemPayDepositsPanel customerIds={null} scopeLabel={scopeLabel} />
+            </ClientErrorBoundary>
           )}
           {adminTab === "withdrawals" && (
             <ModemPayWithdrawalsPanel customerIds={null} scopeLabel={scopeLabel} />
@@ -97,11 +100,13 @@ export function AccountsHub() {
         <>
           {agentTab === "sales" && <AgentSalesSummary />}
           {agentTab === "deposits" && (
-            <ModemPayDepositsPanel
-              customerIds={customerIds}
-              customerNames={customerNames}
-              scopeLabel={scopeLabel}
-            />
+            <ClientErrorBoundary label="ModemPay deposits">
+              <ModemPayDepositsPanel
+                customerIds={customerIds}
+                customerNames={customerNames}
+                scopeLabel={scopeLabel}
+              />
+            </ClientErrorBoundary>
           )}
           {agentTab === "withdrawals" && (
             <ModemPayWithdrawalsPanel

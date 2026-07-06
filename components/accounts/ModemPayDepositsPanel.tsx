@@ -38,8 +38,8 @@ export function ModemPayDepositsPanel({
       .filter(
         (r) =>
           (r.customer_name ?? "").toLowerCase().includes(q) ||
-          r.customer_id.toLowerCase().includes(q) ||
-          r.id.toLowerCase().includes(q) ||
+          (r.customer_id ?? "").toLowerCase().includes(q) ||
+          (r.id ?? "").toLowerCase().includes(q) ||
           (r.transaction_id ?? "").toLowerCase().includes(q)
       )
       .slice(0, 200);
@@ -96,8 +96,8 @@ export function ModemPayDepositsPanel({
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id}>
+            {filtered.map((r, i) => (
+              <tr key={r.id || `deposit-${i}`}>
                 <Td className="whitespace-nowrap text-xs text-slate-400">
                   {r.timestamp ? formatDate(new Date(r.timestamp)) : "—"}
                 </Td>
@@ -105,9 +105,13 @@ export function ModemPayDepositsPanel({
                   <span className="block font-medium text-white">
                     {r.customer_name || customerNames?.get(r.customer_id) || "—"}
                   </span>
-                  <span className="font-mono text-[10px] text-slate-500">{r.customer_id.slice(0, 10)}…</span>
+                  <span className="font-mono text-[10px] text-slate-500">
+                    {r.customer_id ? `${r.customer_id.slice(0, 10)}…` : "—"}
+                  </span>
                 </Td>
-                <Td className="font-semibold tabular-nums text-emerald-300">{formatXof(r.amount)}</Td>
+                <Td className="font-semibold tabular-nums text-emerald-300">
+                  {formatXof(Number(r.amount) || 0)}
+                </Td>
                 <Td>{r.method || "—"}</Td>
                 <Td>
                   <Badge value={String(r.status || "pending").toLowerCase()} />

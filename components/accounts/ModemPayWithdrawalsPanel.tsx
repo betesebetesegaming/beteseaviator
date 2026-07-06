@@ -35,8 +35,8 @@ export function ModemPayWithdrawalsPanel({
       .filter(
         (r) =>
           (r.user_name ?? "").toLowerCase().includes(q) ||
-          r.user_id.toLowerCase().includes(q) ||
-          r.id.toLowerCase().includes(q) ||
+          (r.user_id ?? "").toLowerCase().includes(q) ||
+          (r.id ?? "").toLowerCase().includes(q) ||
           (r.recipient_phone ?? "").includes(q)
       )
       .slice(0, 200);
