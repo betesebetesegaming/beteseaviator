@@ -25,7 +25,7 @@ export {
   ensurePrimaryAdmin,
 } from "./auth";
 export { placeBet, cashout, pokeRound, gameTick } from "./game";
-export { adminResolvePayment } from "./payments";
+export { adminResolvePayment, requestWithdrawal } from "./payments";
 export {
   agentCreateCustomer,
   agentDepositToCustomer,

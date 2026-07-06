@@ -21,6 +21,7 @@ import { PHONE_HINT, normalizeGambiaPhone, normalizePhone } from "@/lib/gambiaPh
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
+import { readPendingDepositRef } from "@/lib/payments/pendingDepositSession";
 import { buildDepositResult, type PaymentResultPayload } from "@/lib/paymentResultPayload";
 import { formatSigned, formatDate, formatXof } from "@/lib/format";
 import { subscribePlatformSettings } from "@/lib/games/subscriptions";
@@ -170,8 +171,10 @@ export default function WalletPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const ref = new URLSearchParams(window.location.search).get("deposit");
-    if (!ref || !ref.startsWith("BETESE-")) return;
+    const ref = readPendingDepositRef();
+    if (!ref) return;
+
+    setTab("deposit");
 
     let settled = false;
     const showResult = (status: "Approved" | "Rejected", amount: number, method: string) => {

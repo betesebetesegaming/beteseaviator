@@ -7,6 +7,7 @@ import { PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { apiUrl } from "@/lib/apiUrl";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { isTerminalDepositStatus, startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
+import { rememberPendingDepositRef } from "@/lib/payments/pendingDepositSession";
 import { NumericKeypad } from "@/components/ui/NumericKeypad";
 
 type Method = 'AfriMoney' | 'Wave' | 'APS' | 'QMoney' | 'Card';
@@ -269,11 +270,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       setCheckoutUrl(url);
 
       if (isMobileCheckout()) {
-        try {
-          sessionStorage.setItem('betese_pending_deposit', externalRef);
-        } catch {
-          /* ignore */
-        }
+        rememberPendingDepositRef(externalRef);
         window.location.href = url;
         return;
       }

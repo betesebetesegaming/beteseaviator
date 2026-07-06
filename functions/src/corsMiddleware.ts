@@ -1,10 +1,22 @@
 import type { Application, Request, Response, NextFunction } from "express";
 import cors from "cors";
 
+const AGENT_DOMAIN =
+  process.env.AGENT_DOMAIN?.replace(/^https?:\/\//, "").replace(/\/$/, "") ||
+  process.env.NEXT_PUBLIC_AGENT_DOMAIN?.replace(/^https?:\/\//, "").replace(/\/$/, "") ||
+  "beteseaviator.com";
+
+/** Agent marketing subdomains, e.g. fatou.beteseaviator.com */
+const AGENT_SUBDOMAIN_ORIGIN = new RegExp(
+  `^https://[a-z0-9-]+\\.${AGENT_DOMAIN.replace(/\./g, "\\.")}$`,
+  "i"
+);
+
 /** Browser origins allowed to call public payment HTTP endpoints. */
 export const PAYMENT_HTTP_ORIGINS: (string | RegExp)[] = [
-  "https://beteseaviator.com",
-  "https://www.beteseaviator.com",
+  `https://${AGENT_DOMAIN}`,
+  `https://www.${AGENT_DOMAIN}`,
+  AGENT_SUBDOMAIN_ORIGIN,
   /^https:\/\/[a-z0-9-]+\.vercel\.app$/i,
   /^http:\/\/localhost(:\d+)?$/,
   /^http:\/\/127\.0\.0\.1(:\d+)?$/,

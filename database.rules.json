@@ -8,8 +8,41 @@
       }
     },
     "payments": {
-      ".read": true,
-      ".write": true
+      "deposits": {
+        ".read": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'agent' || auth.token.role == 'super_agent' || auth.token.role == 'sub_agent')",
+        "$depositId": {
+          ".read": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'agent' || auth.token.role == 'super_agent' || auth.token.role == 'sub_agent' || data.child('customer_id').val() == auth.uid)",
+          ".write": false
+        }
+      },
+      "withdrawals": {
+        ".read": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'agent' || auth.token.role == 'super_agent' || auth.token.role == 'sub_agent')",
+        "$withdrawalId": {
+          ".read": "auth != null && (auth.token.role == 'admin' || auth.token.role == 'agent' || auth.token.role == 'super_agent' || auth.token.role == 'sub_agent' || data.child('user_id').val() == auth.uid)",
+          ".write": false
+        }
+      },
+      "byCustomer": {
+        "$uid": {
+          "deposits": {
+            ".read": "auth != null && (auth.uid == $uid || auth.token.role == 'admin' || auth.token.role == 'agent' || auth.token.role == 'super_agent' || auth.token.role == 'sub_agent')",
+            "$depositId": {
+              ".read": "auth != null && (auth.uid == $uid || auth.token.role == 'admin' || auth.token.role == 'agent' || auth.token.role == 'super_agent' || auth.token.role == 'sub_agent')",
+              ".write": false
+            }
+          },
+          "withdrawals": {
+            ".read": "auth != null && (auth.uid == $uid || auth.token.role == 'admin' || auth.token.role == 'agent' || auth.token.role == 'super_agent' || auth.token.role == 'sub_agent')",
+            "$withdrawalId": {
+              ".read": "auth != null && (auth.uid == $uid || auth.token.role == 'admin' || auth.token.role == 'agent' || auth.token.role == 'super_agent' || auth.token.role == 'sub_agent')",
+              ".write": false
+            }
+          }
+        }
+      },
+      "checkouts": { ".read": false, ".write": false },
+      "intentIndex": { ".read": false, ".write": false },
+      "linkIndex": { ".read": false, ".write": false }
     },
     "presence": {
       "$uid": {

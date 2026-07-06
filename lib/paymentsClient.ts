@@ -32,7 +32,11 @@ export async function dbDepositRequest(request: {
     verificationSource: request.verificationSource,
     verificationMessage: request.verificationMessage,
   });
-  await rtdbWriteDeposit(row);
+  try {
+    await rtdbWriteDeposit(row);
+  } catch {
+    /* Backend checkout writes RTDB — client mirror is best-effort only. */
+  }
   const ts =
     request.timestamp instanceof Date
       ? request.timestamp.toISOString()
@@ -80,7 +84,11 @@ export async function dbCreateWithdrawalRequest(request: {
     payoutMethod: request.payoutMethod,
     recipientPhone: request.recipientPhone,
   });
-  await rtdbWriteWithdrawal(row);
+  try {
+    await rtdbWriteWithdrawal(row);
+  } catch {
+    /* Server payout handler writes RTDB — client mirror is best-effort only. */
+  }
   const requestedAt =
     request.requestedAt instanceof Date
       ? request.requestedAt.toISOString()
