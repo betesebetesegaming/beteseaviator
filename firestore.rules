@@ -1,4 +1,6 @@
 rules_version = '2';
+// Production rules — do NOT switch Firestore to "Test mode" in Firebase Console.
+// Deploy after edits: npm run deploy:rules
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -48,7 +50,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAdmin()
         || (signedIn() && uid() == userId)
-        || (isAgent() && userId in resource.data.ancestors);
+        || (isAgent() && uid() in resource.data.ancestors);
       allow write: if false;
     }
 

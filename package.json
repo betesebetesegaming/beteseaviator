@@ -9,7 +9,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes,database,storage"
   },
   "dependencies": {
     "firebase": "^12.14.0",
