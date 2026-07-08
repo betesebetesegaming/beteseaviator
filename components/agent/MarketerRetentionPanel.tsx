@@ -24,7 +24,7 @@ const SEGMENTS: { tier: HealthTier | "all"; label: string }[] = [
 
 /** Marketer-facing player-retention view — segments + welcome-back requests. */
 export function MarketerRetentionPanel() {
-  const { fbUser } = useAuth();
+  const { fbUser, profile } = useAuth();
   const [health, setHealth] = useState<PlayerHealth[] | null>(null);
   const [offers, setOffers] = useState<Record<string, SmartBonusOffer>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -103,6 +103,25 @@ export function MarketerRetentionPanel() {
       <h2 className="mb-3 flex items-center gap-2 font-semibold">
         <Brain size={16} className="text-violet-300" /> Player Retention (AI)
       </h2>
+
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2">
+          <div className="text-lg font-bold text-white">{counts.all}</div>
+          <div className="text-[10px] uppercase tracking-wide text-slate-400">Total Players</div>
+        </div>
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+          <div className="text-lg font-bold text-emerald-300">
+            {formatXof(profile?.stats?.customerDeposits ?? 0)}
+          </div>
+          <div className="text-[10px] uppercase tracking-wide text-slate-400">Total Deposits</div>
+        </div>
+        <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2">
+          <div className="text-lg font-bold text-violet-200">
+            {formatXof(profile?.stats?.commissionEarned ?? 0)}
+          </div>
+          <div className="text-[10px] uppercase tracking-wide text-slate-400">Commission Earned</div>
+        </div>
+      </div>
 
       <div className="mb-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
         {SEGMENTS.map((s) => {

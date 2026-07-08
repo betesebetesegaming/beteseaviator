@@ -64,6 +64,11 @@ export function isLiveOffer(status: SmartBonusOfferStatus | string | undefined):
   return status === "approved" || status === "sent";
 }
 
+/** Any offer occupying the player's single active slot (not yet terminal). */
+export function isActiveOfferStatus(status: SmartBonusOfferStatus | string | undefined): boolean {
+  return status === "pending" || status === "approved" || status === "sent" || status === "activated";
+}
+
 /** Milliseconds until an ISO expiry; negative if already expired. */
 export function msUntil(iso: string | undefined | null): number {
   if (!iso) return 0;

@@ -27,6 +27,8 @@ import { DEFAULT_SETTINGS, type PlatformSettings, type SmartBonusOffer } from "@
 import { formatXof } from "@/lib/format";
 import { formatPlayerId } from "@/lib/playerId";
 import { offerMessage, offerStatusMeta, tierMeta } from "@/lib/smartBonus";
+import { SmartBonusBriefing } from "@/components/admin/SmartBonusBriefing";
+import { SmartBonusReports } from "@/components/admin/SmartBonusReports";
 import {
   Button,
   Card,
@@ -58,6 +60,7 @@ export default function AdminSmartBonusPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState(false);
+  const [view, setView] = useState<"recommendations" | "briefing" | "reports">("recommendations");
 
   const [editTarget, setEditTarget] = useState<SmartBonusOffer | null>(null);
   const [editAmount, setEditAmount] = useState("");
@@ -212,6 +215,31 @@ export default function AdminSmartBonusPage() {
         </Card>
       )}
 
+      <div className="mb-5 flex gap-1 rounded-lg bg-slate-900 p-1 text-sm font-medium">
+        {(
+          [
+            ["recommendations", "Recommendations"],
+            ["briefing", "Daily briefing"],
+            ["reports", "Reports"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setView(key)}
+            className={`flex-1 rounded-md py-2 transition-colors ${
+              view === key ? "bg-violet-500 text-white" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === "briefing" && <SmartBonusBriefing offers={offers} />}
+      {view === "reports" && <SmartBonusReports offers={offers} />}
+
+      {view === "recommendations" && (
+        <>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Offers issued" value={stats.issued} />
         <StatCard label="Pending review" value={stats.pending} />
@@ -386,6 +414,8 @@ export default function AdminSmartBonusPage() {
             })}
           </tbody>
         </TableShell>
+      )}
+        </>
       )}
 
       {/* Edit modal */}
