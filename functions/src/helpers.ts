@@ -90,6 +90,8 @@ export const DEFAULT_SETTINGS = {
     enabled: false,
     /** Nightly job auto-creates pending offers for eligible players. */
     autoCreate: true,
+    /** Use Claude (ANTHROPIC_API_KEY) to size bonuses + write explanations. */
+    aiEnabled: false,
     /** Min days with no bet before a player is a welcome-back candidate. */
     inactiveDays: 30,
     /** Recommended bonus is clamped to this range (GMD). */

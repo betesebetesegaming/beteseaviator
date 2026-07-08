@@ -20,6 +20,7 @@ import {
   type Settings,
 } from "./helpers";
 import { playthroughRates, recordBonusWageringRequirement } from "./wagering";
+import { generateAiRecommendation, smartBonusAiEnabled } from "./smartBonusAi";
 
 const DAY_MS = 86_400_000;
 
@@ -30,6 +31,8 @@ const DAY_MS = 86_400_000;
 export interface SmartBonusConfig {
   enabled: boolean;
   autoCreate: boolean;
+  /** Use Claude to size bonuses + write explanations (falls back to rules). */
+  aiEnabled: boolean;
   inactiveDays: number;
   minBonus: number;
   maxBonus: number;
@@ -45,6 +48,7 @@ export function smartBonusConfig(settings: Settings): SmartBonusConfig {
   return {
     enabled: raw.enabled === true,
     autoCreate: raw.autoCreate !== false,
+    aiEnabled: raw.aiEnabled === true,
     inactiveDays: clampNum(raw.inactiveDays, 30, 1, 365),
     minBonus: clampNum(raw.minBonus, 50, 0, 1_000_000),
     maxBonus: clampNum(raw.maxBonus, 1000, 0, 1_000_000),
@@ -300,6 +304,10 @@ interface OfferSeed {
   expiryDays: number;
   actorId: string;
   actorRole: string;
+  /** Claude-authored outreach copy + provenance (empty when rule-based). */
+  outreachMessage?: string;
+  aiGenerated?: boolean;
+  confidence?: number | null;
 }
 
 /** Creates a pending offer if the player has no active one. Returns offer id or null. */
@@ -329,6 +337,9 @@ async function createOfferIfEligible(seed: OfferSeed): Promise<string | null> {
       wagerMultiplier: seed.wagerMultiplier,
       wagerRequired,
       reason: seed.reason,
+      outreachMessage: seed.outreachMessage ?? "",
+      aiGenerated: seed.aiGenerated === true,
+      confidence: seed.confidence ?? null,
       status: "pending" as OfferStatus,
       source: seed.source,
       requestedByAgent: seed.requestedByAgent ?? null,
@@ -442,6 +453,34 @@ async function analyzePlayer(
 
   const rec = recommendBonus(metrics, cfg, { hasActiveOffer, outstandingBonusWager, abuse });
 
+  // Effective recommendation — starts from the rule-based baseline, then the
+  // optional Claude layer may refine the amount/reason and add outreach copy.
+  let effectiveBonus = rec.bonusAmount;
+  let effectiveMatch = rec.matchDeposit;
+  let effectiveReason = rec.reason;
+  let outreachMessage = "";
+  let aiGenerated = false;
+  let confidence: number | null = null;
+
+  if (rec.eligible && !dryRun && smartBonusAiEnabled(cfg)) {
+    const ai = await generateAiRecommendation(
+      { name: String(u.name ?? "Player"), currency: "GMD" },
+      metrics,
+      cfg,
+      rec.bonusAmount
+    );
+    if (ai) {
+      effectiveBonus = ai.recommendedBonus;
+      effectiveMatch = round2(
+        cfg.matchPercent > 0 ? ai.recommendedBonus / cfg.matchPercent : ai.recommendedBonus
+      );
+      effectiveReason = ai.reason;
+      outreachMessage = ai.outreachMessage;
+      aiGenerated = true;
+      confidence = ai.confidence;
+    }
+  }
+
   // Daily health snapshot (drives admin/marketer dashboards + explanations).
   await db.doc(`playerHealth/${uid}`).set(
     {
@@ -454,11 +493,13 @@ async function analyzePlayer(
       healthScore: score,
       tier,
       ...metrics,
-      recommendedBonus: rec.bonusAmount,
-      matchDeposit: rec.matchDeposit,
+      recommendedBonus: effectiveBonus,
+      matchDeposit: effectiveMatch,
       eligible: rec.eligible,
-      reason: rec.eligible ? rec.reason : "",
+      reason: rec.eligible ? effectiveReason : "",
       ineligibleReason: rec.ineligibleReason ?? "",
+      aiGenerated,
+      confidence,
       hasActiveOffer,
       analyzedAt: FieldValue.serverTimestamp(),
     },
@@ -477,14 +518,17 @@ async function analyzePlayer(
     healthScore: score,
     tier,
     daysInactive: metrics.daysSinceLastBet,
-    bonusAmount: rec.bonusAmount,
-    matchDeposit: rec.matchDeposit,
+    bonusAmount: effectiveBonus,
+    matchDeposit: effectiveMatch,
     wagerMultiplier: cfg.wagerMultiplier,
-    reason: rec.reason,
+    reason: effectiveReason,
     source: "ai",
     expiryDays: cfg.expiryDays,
     actorId: "system",
     actorRole: "system",
+    outreachMessage,
+    aiGenerated,
+    confidence,
   });
   return offerId !== null;
 }

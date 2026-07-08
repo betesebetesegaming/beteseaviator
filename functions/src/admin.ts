@@ -468,6 +468,7 @@ export const adminSaveSettings = onCall(async (req) => {
     clean.smartBonus = {
       enabled: sb.enabled === true,
       autoCreate: sb.autoCreate !== false,
+      aiEnabled: sb.aiEnabled === true,
       inactiveDays: num("inactiveDays", 30, 1, 365),
       minBonus,
       maxBonus,

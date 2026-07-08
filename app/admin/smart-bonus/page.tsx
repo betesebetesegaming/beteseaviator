@@ -175,7 +175,7 @@ export default function AdminSmartBonusPage() {
 
   function sendVia(o: SmartBonusOffer, channel: "sms" | "whatsapp") {
     const phone = (o.phone ?? "").replace(/\D/g, "");
-    const msg = offerMessage(o.userName, o.bonusAmount, o.matchDeposit);
+    const msg = (o.outreachMessage ?? "").trim() || offerMessage(o.userName, o.bonusAmount, o.matchDeposit);
     if (typeof window !== "undefined" && phone) {
       const intl = phone.startsWith("220") ? phone : `220${phone}`;
       const href =
@@ -259,6 +259,22 @@ export default function AdminSmartBonusPage() {
               />
               Auto-create pending offers each night (uncheck to only score players)
             </label>
+            <label className="mt-2 flex items-start gap-2 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={sb.aiEnabled}
+                onChange={(e) => updateSb("aiEnabled", e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-violet-500"
+              />
+              <span>
+                <span className="font-medium text-violet-200">Use Claude AI</span> to size each bonus and write
+                the explanation + outreach message
+                <span className="block text-xs text-slate-500">
+                  Requires <code className="text-slate-400">ANTHROPIC_API_KEY</code> in functions/.env. Falls back
+                  to the rule-based engine automatically if unset or on any error.
+                </span>
+              </span>
+            </label>
             <Button className="mt-4" onClick={saveConfig} disabled={busy}>
               {busy ? "Saving…" : "Save settings"}
             </Button>
@@ -304,7 +320,14 @@ export default function AdminSmartBonusPage() {
               return (
                 <tr key={o.id}>
                   <Td>
-                    <div className="font-medium">{o.userName}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium">{o.userName}</span>
+                      {o.aiGenerated ? (
+                        <span className="rounded bg-violet-500/20 px-1 py-0.5 text-[9px] font-bold uppercase text-violet-200">
+                          AI
+                        </span>
+                      ) : null}
+                    </div>
                     <div className="font-mono text-xs text-slate-500">
                       {o.playerNumber ? formatPlayerId(o.playerNumber) : "—"}
                       {o.source === "agent_request" ? " · agent request" : ""}

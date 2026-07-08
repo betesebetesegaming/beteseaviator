@@ -197,6 +197,8 @@ export interface SmartBonusSettings {
   enabled: boolean;
   /** Nightly job auto-creates pending offers for eligible players. */
   autoCreate: boolean;
+  /** Use Claude to size bonuses + write explanations (falls back to rules). */
+  aiEnabled: boolean;
   /** Min days with no bet before a player is a welcome-back candidate. */
   inactiveDays: number;
   /** Recommended bonus is clamped to this range (GMD). */
@@ -240,6 +242,8 @@ export interface PlayerHealth {
   eligible: boolean;
   reason: string;
   ineligibleReason?: string;
+  aiGenerated?: boolean;
+  confidence?: number | null;
   hasActiveOffer?: boolean;
   analyzedAt: Timestamp | null;
 }
@@ -269,6 +273,10 @@ export interface SmartBonusOffer {
   wagerMultiplier: number;
   wagerRequired: number;
   reason: string;
+  /** Claude-authored outreach copy + provenance (empty when rule-based). */
+  outreachMessage?: string;
+  aiGenerated?: boolean;
+  confidence?: number | null;
   status: SmartBonusOfferStatus;
   source: "ai" | "agent_request";
   requestedByAgent?: string | null;
@@ -396,6 +404,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   smartBonus: {
     enabled: false,
     autoCreate: true,
+    aiEnabled: false,
     inactiveDays: 30,
     minBonus: 50,
     maxBonus: 1000,
