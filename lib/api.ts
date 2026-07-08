@@ -207,6 +207,33 @@ export const adminSaveSettings = call<Record<string, unknown>, { ok: true }>(
   "adminSaveSettings"
 );
 
+// ---------- Smart Bonus (player retention) ----------
+
+export const adminRunSmartBonusAnalysis = call<
+  { dryRun?: boolean },
+  { analyzed: number; offersCreated: number; expired: number; completed: number }
+>("adminRunSmartBonusAnalysis");
+
+export const smartBonusApprove = call<{ offerId: string }, { ok: true }>("smartBonusApprove");
+
+export const smartBonusEdit = call<
+  { offerId: string; bonusAmount: number; matchDeposit?: number },
+  { ok: true; bonusAmount: number; matchDeposit: number }
+>("smartBonusEdit");
+
+export const smartBonusReject = call<{ offerId: string; reason?: string }, { ok: true }>(
+  "smartBonusReject"
+);
+
+export const smartBonusSend = call<{ offerId: string; channel?: string }, { ok: true }>(
+  "smartBonusSend"
+);
+
+export const agentRequestSmartBonus = call<
+  { playerId: string },
+  { ok: true; offerId: string }
+>("agentRequestSmartBonus");
+
 export const adminSaveLobbyPromos = call<
   { slides: PromoSlide[]; ticker?: string[] },
   { ok: true }

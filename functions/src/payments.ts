@@ -21,6 +21,7 @@ import {
 import { applyDepositBonuses } from "./bonuses";
 import { applyEarlyWithdrawalPenalties, recordDepositPlaythrough } from "./wagering";
 import { onReferralDeposit } from "./referrals";
+import { maybeActivateSmartBonus } from "./smartBonus";
 
 // Per-provider webhook secrets. FAIL CLOSED: while a secret is unset, that
 // provider's webhooks are rejected and nobody can fake a deposit confirmation.
@@ -157,6 +158,8 @@ export const requestWithdrawal = onCall(async (req) => {
 /** Credits a confirmed deposit exactly once (idempotent under transaction). */
 async function settleDepositPaid(requestId: string, source: string): Promise<void> {
   const settings = await getSettings();
+  let creditedUserId = "";
+  let creditedAmount = 0;
   await db.runTransaction(async (tx) => {
     const ref = db.doc(`paymentRequests/${requestId}`);
     const snap = await tx.get(ref);
@@ -204,7 +207,14 @@ async function settleDepositPaid(requestId: string, source: string): Promise<voi
         { merge: true }
       );
     }
+    creditedUserId = String(r.userId);
+    creditedAmount = Number(r.amount);
   });
+
+  // Separate transaction: activate a pending Smart Bonus if this deposit qualifies.
+  if (creditedUserId && creditedAmount > 0) {
+    await maybeActivateSmartBonus(creditedUserId, creditedAmount, requestId);
+  }
 }
 
 /** Refunds a held withdrawal exactly once. */

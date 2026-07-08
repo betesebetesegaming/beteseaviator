@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { Suspense, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LogIn, UserPlus, Wallet, LogOut, UserCircle, Gift } from "lucide-react";
+import { LogIn, UserPlus, Wallet, LogOut, UserCircle, Gift, Sparkles } from "lucide-react";
 import { useAuth, homeFor } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
 import { formatXof } from "@/lib/format";
@@ -15,6 +15,7 @@ import { AgentReferralBanner } from "@/components/games/AgentReferralBanner";
 import { GameFloatingBar } from "@/components/games/GameFloatingBar";
 import { preconnectQTechGameHosts, warmLaunchCallableClient } from "@/lib/games/qtechLaunchCache";
 import { CustomerCareBar } from "@/components/CustomerCareBar";
+import { SmartBonusBanner } from "@/components/wallet/SmartBonusBanner";
 import { parseAgentSlugFromHost } from "@/lib/agentLinks";
 
 const PendingDepositReconciler = dynamic(
@@ -156,6 +157,13 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
                   </span>
                 )}
                 <Link
+                  href="/play/rewards"
+                  className="flex items-center gap-1.5 rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/10 px-2.5 py-1.5 text-xs font-semibold text-fuchsia-200 hover:bg-fuchsia-500/20"
+                  title="My Rewards & bonuses"
+                >
+                  <Sparkles size={14} /> <span className="hidden sm:inline">Rewards</span>
+                </Link>
+                <Link
                   href="/play/referral"
                   className="hidden items-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-1.5 text-xs font-semibold text-violet-200 hover:bg-violet-500/20 sm:flex"
                   title="Invite friends — earn bonus"
@@ -227,6 +235,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
           </div>
         </div>
       </header>
+      {isPlayer ? <SmartBonusBanner /> : null}
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
       <footer className="border-t border-white/10 px-4 py-4">
         <div className="mx-auto max-w-7xl">

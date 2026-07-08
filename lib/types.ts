@@ -192,6 +192,100 @@ export interface BonusSettings {
   weekend: WeekendBonusSettings;
 }
 
+export interface SmartBonusSettings {
+  /** Master switch for the whole retention engine. */
+  enabled: boolean;
+  /** Nightly job auto-creates pending offers for eligible players. */
+  autoCreate: boolean;
+  /** Min days with no bet before a player is a welcome-back candidate. */
+  inactiveDays: number;
+  /** Recommended bonus is clamped to this range (GMD). */
+  minBonus: number;
+  maxBonus: number;
+  /** Bonus as a fraction of the required matching deposit (1 = 100% match). */
+  matchPercent: number;
+  /** Times the bonus must be wagered before it converts to cash. */
+  wagerMultiplier: number;
+  /** Offer lifetime in days before it auto-expires. */
+  expiryDays: number;
+  /** Max simultaneous active Smart Bonus offers per player. */
+  maxConcurrent: number;
+}
+
+export type HealthTier = "very_active" | "active" | "at_risk" | "inactive" | "dormant";
+
+export interface PlayerHealth {
+  uid: string;
+  name: string;
+  phone: string | null;
+  playerNumber: number | null;
+  agentId: string | null;
+  ancestors?: string[];
+  healthScore: number;
+  tier: HealthTier;
+  daysSinceLastLogin: number;
+  daysSinceLastBet: number;
+  daysSinceLastDeposit: number;
+  avgDeposit: number;
+  avgWeeklyDeposits: number;
+  lifetimeDeposits: number;
+  lifetimeGgr: number;
+  activeBettingDays30: number;
+  depositCount: number;
+  betCount: number;
+  bonusHistoryCount: number;
+  bonusConversionCount: number;
+  recommendedBonus: number;
+  matchDeposit: number;
+  eligible: boolean;
+  reason: string;
+  ineligibleReason?: string;
+  hasActiveOffer?: boolean;
+  analyzedAt: Timestamp | null;
+}
+
+export type SmartBonusOfferStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "sent"
+  | "activated"
+  | "expired"
+  | "completed";
+
+export interface SmartBonusOffer {
+  id: string;
+  userId: string;
+  userName: string;
+  phone: string | null;
+  agentId: string | null;
+  ancestors?: string[];
+  playerNumber: number | null;
+  healthScore: number;
+  tier: HealthTier;
+  daysInactive: number;
+  bonusAmount: number;
+  matchDeposit: number;
+  wagerMultiplier: number;
+  wagerRequired: number;
+  reason: string;
+  status: SmartBonusOfferStatus;
+  source: "ai" | "agent_request";
+  requestedByAgent?: string | null;
+  createdAt: Timestamp | null;
+  expiresAt: string;
+  approvedBy?: string | null;
+  approvedAt?: Timestamp | null;
+  rejectedBy?: string | null;
+  rejectReason?: string | null;
+  sentAt?: Timestamp | null;
+  sentChannel?: string | null;
+  activatedAt?: Timestamp | null;
+  matchedDeposit?: number;
+  bonusCredited?: number;
+  completedAt?: Timestamp | null;
+}
+
 export interface PlayerReferralSettings {
   enabled: boolean;
   bonusAmount: number;
@@ -250,6 +344,7 @@ export interface PlatformSettings {
   providers: Record<PaymentProvider, boolean>;
   bonuses?: BonusSettings;
   playerReferral?: PlayerReferralSettings;
+  smartBonus?: SmartBonusSettings;
   customerCare?: CustomerCareSettings;
   qtech?: QTechSettings;
 }
@@ -297,6 +392,17 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     minQualifyingDeposit: 50,
     requireFirstBet: true,
     weeklyReleaseToPlay: true,
+  },
+  smartBonus: {
+    enabled: false,
+    autoCreate: true,
+    inactiveDays: 30,
+    minBonus: 50,
+    maxBonus: 1000,
+    matchPercent: 1,
+    wagerMultiplier: 3,
+    expiryDays: 7,
+    maxConcurrent: 1,
   },
   customerCare: {
     phone: "2204176003",

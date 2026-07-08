@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, initAnalytics } from "./firebase";
 import { db } from "./firestore";
 import { loginPathFor } from "./staff-routes";
@@ -166,6 +166,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsubWallet();
     };
   }, [fbUser?.uid]);
+
+  // Persist a throttled last-login timestamp for players (drives Smart Bonus
+  // login-recency scoring). users/{uid} is read-only from clients, so we use a
+  // dedicated self-writable playerActivity/{uid} doc. Throttled to ~1/hour.
+  useEffect(() => {
+    const uid = fbUser?.uid;
+    if (!uid || profile?.role !== "player") return;
+    try {
+      const key = `betese:lastLoginPing:${uid}`;
+      const last = Number(window.localStorage.getItem(key) ?? 0);
+      if (Date.now() - last < 60 * 60 * 1000) return;
+      window.localStorage.setItem(key, String(Date.now()));
+      void setDoc(
+        doc(db, "playerActivity", uid),
+        { lastLoginAt: serverTimestamp() },
+        { merge: true }
+      ).catch(() => undefined);
+    } catch {
+      /* localStorage unavailable / offline — login recency stays approximate */
+    }
+  }, [fbUser?.uid, profile?.role]);
 
   const logout = async () => {
     explicitSignOutRef.current = true;

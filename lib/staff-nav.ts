@@ -15,6 +15,7 @@ import {
   ListOrdered,
   Gift,
   Calculator,
+  Brain,
 } from "lucide-react";
 import type { Role } from "@/lib/types";
 import { isAgentRole, roleLabel as sharedRoleLabel } from "@/lib/roles";
@@ -118,6 +119,12 @@ export const STAFF_NAV: StaffNavItem[] = [
     roles: ["admin"],
   },
   {
+    href: "/admin/smart-bonus",
+    label: "Smart Bonus (AI)",
+    icon: Brain,
+    roles: ["admin"],
+  },
+  {
     href: "/admin/accounts",
     label: "Accounts",
     icon: Calculator,
@@ -144,6 +151,7 @@ export const ADMIN_ONLY_PREFIXES = [
   "/admin/withdrawals",
   "/admin/promotions",
   "/admin/bonuses",
+  "/admin/smart-bonus",
   "/admin/games",
   "/admin/qtech",
   "/admin/reports",

@@ -183,6 +183,49 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /** Smart Bonus — AI player-retention. Cloud Functions write everything. */
+    match /playerHealth/{userId} {
+      allow read: if isAdmin()
+        || (signedIn() && uid() == userId)
+        || (isAgent() && uid() in resource.data.ancestors);
+      allow write: if false;
+    }
+
+    match /smartBonusOffers/{offerId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.userId == uid())
+        || (isAgent() && uid() in resource.data.ancestors);
+      allow write: if false;
+    }
+
+    match /smartBonusActive/{userId} {
+      allow read: if isAdmin() || (signedIn() && uid() == userId);
+      allow write: if false;
+    }
+
+    /** Persistent last-login ping — a player may only stamp their own lastLoginAt. */
+    match /playerActivity/{userId} {
+      allow read: if isAdmin()
+        || (signedIn() && uid() == userId)
+        || (isAgent() && uid() in userDoc(userId).ancestors);
+      allow create: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(['lastLoginAt']);
+      allow update: if signedIn() && uid() == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt']);
+      allow delete: if false;
+    }
+
+    /** Audit log + abuse flags — admin read only, functions write. */
+    match /smartBonusEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /smartBonusAbuse/{userId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

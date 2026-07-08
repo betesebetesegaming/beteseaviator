@@ -23,6 +23,10 @@ export function mergePlatformSettings(data: Partial<PlatformSettings> | null | u
       ...DEFAULT_SETTINGS.playerReferral!,
       ...(d.playerReferral ?? {}),
     },
+    smartBonus: {
+      ...DEFAULT_SETTINGS.smartBonus!,
+      ...(d.smartBonus ?? {}),
+    },
     customerCare: {
       ...DEFAULT_SETTINGS.customerCare!,
       ...(d.customerCare ?? {}),

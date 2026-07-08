@@ -6,6 +6,7 @@ import { applyDepositBonuses } from "./bonuses";
 import { bumpDailyStats, bumpPlatformStats, db, getSettings, todayIso, walletRead, walletWrite } from "./helpers";
 import { recordDepositPlaythrough } from "./wagering";
 import { onReferralDeposit } from "./referrals";
+import { maybeActivateSmartBonus } from "./smartBonus";
 
 export async function syncAviatorWalletCredit(
   uid: string,
@@ -50,6 +51,9 @@ export async function syncAviatorWalletCredit(
     bumpPlatformStats(tx, { totalDeposits: amount });
     bumpDailyStats(tx, todayIso(depositAt), { deposits: amount });
   });
+
+  // Separate transaction: activate a pending Smart Bonus if this deposit qualifies.
+  await maybeActivateSmartBonus(uid, amount, externalRef);
 
   return { bonuses: applied };
 }

@@ -84,6 +84,26 @@ export const DEFAULT_SETTINGS = {
     minQualifyingDeposit: 50,
     requireFirstBet: true,
   },
+  /** BETESE Smart Bonus — AI player-retention / welcome-back engine. */
+  smartBonus: {
+    /** Master switch: nightly analysis + offers only run when true. */
+    enabled: false,
+    /** Nightly job auto-creates pending offers for eligible players. */
+    autoCreate: true,
+    /** Min days with no bet before a player is a welcome-back candidate. */
+    inactiveDays: 30,
+    /** Recommended bonus is clamped to this range (GMD). */
+    minBonus: 50,
+    maxBonus: 1000,
+    /** Bonus as a fraction of the required matching deposit (1 = 100% match). */
+    matchPercent: 1,
+    /** Times the bonus must be wagered before it converts to cash. */
+    wagerMultiplier: 3,
+    /** Offer lifetime in days before it auto-expires. */
+    expiryDays: 7,
+    /** Max simultaneous active Smart Bonus offers per player. */
+    maxConcurrent: 1,
+  },
   customerCare: {
     phone: "2204176003",
     whatsapp: "2204176003",
@@ -181,6 +201,10 @@ export async function getSettings(): Promise<Settings> {
     playerReferral: {
       ...DEFAULT_SETTINGS.playerReferral,
       ...(data.playerReferral ?? {}),
+    },
+    smartBonus: {
+      ...DEFAULT_SETTINGS.smartBonus,
+      ...(data.smartBonus ?? {}),
     },
     qtech: {
       ...DEFAULT_SETTINGS.qtech!,

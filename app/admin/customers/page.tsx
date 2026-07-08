@@ -29,6 +29,7 @@ import {
 import { PasswordStrengthHint } from "@/components/PasswordStrengthHint";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { AgentQuickStart } from "@/components/agent/AgentQuickStart";
+import { MarketerRetentionPanel } from "@/components/agent/MarketerRetentionPanel";
 import { AgentCustomerCashActions } from "@/components/agent/AgentCashDesk";
 import { CustomerCreatedSuccess } from "@/components/agent/CustomerCreatedSuccess";
 import type { UserProfile } from "@/lib/types";
@@ -191,6 +192,8 @@ export default function AgentPlayersPage() {
           <AgentMarketingLinks slug={profile.agentSlug} agentName={profile.name} compact />
         </div>
       ) : null}
+
+      <MarketerRetentionPanel />
 
       <div className="relative mb-4 max-w-sm">
         <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />

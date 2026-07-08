@@ -450,6 +450,34 @@ export const adminSaveSettings = onCall(async (req) => {
     };
   }
 
+  if (data.smartBonus && typeof data.smartBonus === "object") {
+    const sb = data.smartBonus as Record<string, unknown>;
+    const num = (key: string, fallback: number, min: number, max: number): number => {
+      if (sb[key] === undefined) return fallback;
+      const v = Number(sb[key]);
+      if (!Number.isFinite(v) || v < min || v > max) {
+        throw new HttpsError("invalid-argument", `Invalid Smart Bonus ${key}.`);
+      }
+      return v;
+    };
+    const minBonus = num("minBonus", 50, 0, 1_000_000);
+    const maxBonus = num("maxBonus", 1000, 0, 1_000_000);
+    if (maxBonus < minBonus) {
+      throw new HttpsError("invalid-argument", "Smart Bonus max must be ≥ min.");
+    }
+    clean.smartBonus = {
+      enabled: sb.enabled === true,
+      autoCreate: sb.autoCreate !== false,
+      inactiveDays: num("inactiveDays", 30, 1, 365),
+      minBonus,
+      maxBonus,
+      matchPercent: num("matchPercent", 1, 0.01, 5),
+      wagerMultiplier: num("wagerMultiplier", 3, 0, 100),
+      expiryDays: num("expiryDays", 7, 1, 90),
+      maxConcurrent: num("maxConcurrent", 1, 1, 10),
+    };
+  }
+
   if (data.customerCare && typeof data.customerCare === "object") {
     const cc = data.customerCare as Record<string, unknown>;
     clean.customerCare = {

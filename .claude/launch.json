@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sportsbook",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd C:\\Users\\Dell\\Desktop\\sportsbook && npm run dev -- --port 5174"],
+      "port": 5174,
+      "autoPort": false
+    },
+    {
+      "name": "aviator",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "3009"],
+      "port": 3009
+    }
+  ]
+}

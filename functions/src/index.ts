@@ -61,6 +61,15 @@ export {
   adminRunQTechCwTest,
 } from "./admin";
 export { processCommissions, adminRunCommissions } from "./commissions";
+export {
+  runSmartBonusAnalysis,
+  adminRunSmartBonusAnalysis,
+  smartBonusApprove,
+  smartBonusEdit,
+  smartBonusReject,
+  smartBonusSend,
+  agentRequestSmartBonus,
+} from "./smartBonus";
 
 export { getOperationsHub } from "./operations";
 export {

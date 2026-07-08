@@ -69,6 +69,7 @@ export default function WalletPage() {
   const [transactions, setTransactions] = useState<WalletTransaction[] | null>(null);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [depositOpen, setDepositOpen] = useState(false);
+  const [depositPrefill, setDepositPrefill] = useState<number | undefined>(undefined);
   const [paymentResult, setPaymentResult] = useState<PaymentResultPayload | null>(null);
 
   const [withdrawMethod, setWithdrawMethod] = useState<"Wave" | "AfriMoney">("Wave");
@@ -128,6 +129,24 @@ export default function WalletPage() {
   }, [fbUser]);
 
   useEffect(() => subscribePlatformSettings(setSettings), []);
+
+  // Smart Bonus "Activate" deep-link: /play/wallet?deposit=<amount> pre-fills the
+  // matching deposit and opens the payment sheet. Also honors ?tab=deposit|refer.
+  useEffect(() => {
+    if (typeof window === "undefined" || frozen) return;
+    const params = new URLSearchParams(window.location.search);
+    const depositParam = Number(params.get("deposit"));
+    const tabParam = params.get("tab");
+    if (Number.isFinite(depositParam) && depositParam > 0) {
+      setDepositPrefill(depositParam);
+      setTab("deposit");
+      setDepositOpen(true);
+      router.replace("/play/wallet", { scroll: false });
+    } else if (tabParam === "deposit" || tabParam === "withdraw" || tabParam === "refer") {
+      setTab(tabParam as Tab);
+      router.replace("/play/wallet", { scroll: false });
+    }
+  }, [frozen, router]);
 
   useEffect(() => {
     if (profile?.phone && !withdrawPhone) setWithdrawPhone(profile.phone);
@@ -523,13 +542,17 @@ export default function WalletPage() {
         {depositOpen && !frozen ? (
           <PaymentSheet
             isOpen
-            onClose={() => setDepositOpen(false)}
+            onClose={() => {
+              setDepositOpen(false);
+              setDepositPrefill(undefined);
+            }}
             user={{
               id: fbUser.uid,
               name: profile.name,
               phone: profile.phone || undefined,
               walletBalance: wallet?.balance ?? 0,
             }}
+            initialAmount={depositPrefill}
             minDeposit={settings.minDeposit}
             frozen={frozen}
             floatingKeypad
