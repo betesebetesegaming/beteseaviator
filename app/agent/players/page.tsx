@@ -19,6 +19,7 @@ import {
   errorMessage,
 } from "@/lib/api";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
+import { AgentCreateAgentFlow } from "@/components/agent/AgentCreateAgentFlow";
 import { AgentCustomerCashActions } from "@/components/agent/AgentCashDesk";
 import { CustomerCreatedSuccess } from "@/components/agent/CustomerCreatedSuccess";
 import { formatXof, normalizePhone, todayIso } from "@/lib/format";
@@ -167,11 +168,14 @@ export default function AgentPlayersPage() {
             ) : null}
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <span className="flex items-center gap-1.5">
-            <Plus size={16} /> Add Customer
-          </span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <AgentCreateAgentFlow />
+          <Button onClick={() => setCreateOpen(true)}>
+            <span className="flex items-center gap-1.5">
+              <Plus size={16} /> Add Customer
+            </span>
+          </Button>
+        </div>
       </div>
 
       {profile?.cashOpsEnabled ? (

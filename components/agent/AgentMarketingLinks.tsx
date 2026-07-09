@@ -5,7 +5,6 @@ import toast from "react-hot-toast";
 import {
   Copy,
   ExternalLink,
-  Link2,
   LogIn,
   MessageCircle,
   Smartphone,
@@ -83,7 +82,7 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
         <div className="flex flex-col items-center gap-3">
           <ReferralQrCode
             value={links.signupUrl}
-            label="Main signup QR (recommended)"
+            label="Your agent QR"
             size={168}
             downloadFileName={`betese-${slug}-signup-qr`}
             showDownload
@@ -145,11 +144,11 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
+      <div className="grid gap-4">
         <div className="space-y-3">
           <div>
             <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              Your signup link (recommended)
+              Your agent link (give this to customers)
             </p>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <code className="flex-1 overflow-x-auto rounded-lg bg-slate-950/70 px-3 py-2 text-sm text-emerald-200">
@@ -174,45 +173,8 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
               </div>
             </div>
             <p className="mt-1 text-[10px] text-slate-600">
-              Example: customer opens <strong>beteseaviator.com/agent/{slug}</strong> → signs up → you earn
-              GGR commission on their play.
+              Customers who open this link register under you → you earn GGR commission on their play.
             </p>
-          </div>
-
-          <div>
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              Legacy subdomain (still works)
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <code className="flex-1 overflow-x-auto rounded-lg bg-slate-950/70 px-3 py-2 text-xs text-slate-400">
-                {links.subdomainUrl}
-              </code>
-              <button
-                type="button"
-                onClick={() => copy(links.subdomainUrl, "ref")}
-                className="flex items-center justify-center gap-1 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-400 hover:bg-white/5"
-              >
-                <Copy size={14} /> Copy
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              Referral link (main website)
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <code className="flex-1 overflow-x-auto rounded-lg bg-slate-950/70 px-3 py-2 text-xs text-slate-300 sm:text-sm">
-                {links.referralUrl}
-              </code>
-              <button
-                type="button"
-                onClick={() => copy(links.referralUrl, "ref")}
-                className="flex items-center justify-center gap-1 rounded-lg border border-emerald-500/40 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10"
-              >
-                <Copy size={14} /> {copied === "ref" ? "Copied" : "Copy"}
-              </button>
-            </div>
           </div>
 
           {showStaffLogin ? (
@@ -238,14 +200,6 @@ export function AgentMarketingLinks({ slug, agentName, compact, showStaffLogin }
             </div>
           ) : null}
         </div>
-
-        <ReferralQrCode
-          value={links.referralUrl}
-          label="Alternate QR — main site link"
-          size={120}
-          downloadFileName={`betese-${slug}-referral-qr`}
-          showDownload
-        />
       </div>
     </Card>
   );

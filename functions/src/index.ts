@@ -28,6 +28,7 @@ export { placeBet, cashout, pokeRound, gameTick } from "./game";
 export { adminResolvePayment, requestWithdrawal } from "./payments";
 export {
   agentCreateCustomer,
+  agentCreateAgent,
   agentDepositToCustomer,
 } from "./agent";
 export {

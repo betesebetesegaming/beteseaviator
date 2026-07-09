@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { Gift, Sparkles, Cake, Crown, Users, Megaphone } from "lucide-react";
+import { Gift, Sparkles, Crown, Users, Megaphone } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { isLiveOffer } from "@/lib/smartBonus";
@@ -87,13 +87,6 @@ export default function RewardsPage() {
           status="Invite & earn"
           tone="good"
           href="/play/referral"
-        />
-        <RewardTile
-          icon={<Cake size={18} />}
-          title="Birthday Bonus"
-          desc="A little something on your special day."
-          status="Coming soon"
-          tone="muted"
         />
         <RewardTile
           icon={<Crown size={18} />}

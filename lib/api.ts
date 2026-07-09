@@ -42,6 +42,17 @@ export const agentCreateCustomer = call<
   { uid: string; playerNumber: number; playerId: string }
 >("agentCreateCustomer");
 
+export const agentCreateAgent = call<
+  {
+    name: string;
+    password: string;
+    email?: string;
+    username?: string;
+    linkMode?: "first" | "full";
+  },
+  { uid: string; slug: string }
+>("agentCreateAgent");
+
 export const adminBackfillPlayerIds = call<
   { limit?: number },
   { ok: true; updated: string[]; count: number }
@@ -447,6 +458,9 @@ export function errorMessage(e: unknown): string {
     const msg = err.message != null ? String(err.message) : "";
     const cleaned = msg.replace(/^(functions\/[\w-]+:?\s*)/i, "").trim();
     if (cleaned && cleaned.toUpperCase() !== "INTERNAL") return cleaned;
+    if (err.code?.includes("invalid-argument")) {
+      return cleaned || "Check your details and try again.";
+    }
     if (err.code?.includes("internal")) {
       return "Server error — please try again in a moment.";
     }

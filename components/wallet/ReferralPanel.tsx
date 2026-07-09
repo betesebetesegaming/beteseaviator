@@ -162,7 +162,7 @@ export function ReferralPanel() {
       <p className="text-center text-xs text-slate-500">
         This is your <strong>friend invite</strong> — not an agent shop link. Agents use{" "}
         <Link href="/play" className="text-emerald-400 hover:underline">
-          beteseaviator.com/agentname
+          beteseaviator.com/agent/name
         </Link>
         .
       </p>
