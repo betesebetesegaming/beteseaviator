@@ -3,6 +3,10 @@ import { allocatePlayerNumber, formatPlayerId } from "./playerIds";
 import { assertValidPassword } from "./passwordPolicy";
 import { isAgentRole } from "./roles";
 import {
+  requireOtpVerifiedForPhone,
+  consumeOtpVerifiedForPhone,
+} from "./otpVerification";
+import {
   auth,
   db,
   FieldValue,
@@ -178,6 +182,16 @@ export const agentDepositToCustomer = onCall(async (req) => {
     throw new HttpsError("permission-denied", "This customer is not in your tree.");
   }
 
+  // Customer must authorise the transfer with a fresh OTP sent to their phone.
+  const customerPhone = String(customer.phone ?? "").trim();
+  if (!customerPhone) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Customer has no phone number on file — cannot send an authorisation code.",
+    );
+  }
+  await requireOtpVerifiedForPhone(customerPhone);
+
   await db.runTransaction(async (tx) => {
     const agentWallet = await walletRead(tx, uid);
     const customerWallet = await walletRead(tx, customerId);
@@ -207,5 +221,6 @@ export const agentDepositToCustomer = onCall(async (req) => {
     }
   });
 
+  await consumeOtpVerifiedForPhone(customerPhone).catch(() => undefined);
   return { ok: true };
 });

@@ -20,6 +20,7 @@ import {
 } from "@/lib/api";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { AgentCustomerCashActions } from "@/components/agent/AgentCashDesk";
+import { CustomerOtpGate } from "@/components/shared/CustomerOtpGate";
 import { CustomerCreatedSuccess } from "@/components/agent/CustomerCreatedSuccess";
 import { formatXof, normalizePhone, todayIso } from "@/lib/format";
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
@@ -56,6 +57,7 @@ export default function AgentPlayersPage() {
 
   const [depositTarget, setDepositTarget] = useState<PlayerRow | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
+  const [depositVerified, setDepositVerified] = useState(false);
   const [busy, setBusy] = useState(false);
   const [createdSuccess, setCreatedSuccess] = useState<{
     name: string;
@@ -134,17 +136,29 @@ export default function AgentPlayersPage() {
     }
   }
 
+  function openDeposit(target: PlayerRow) {
+    setDepositVerified(false);
+    setDepositAmount("");
+    setDepositTarget(target);
+  }
+
+  function closeDeposit() {
+    setDepositTarget(null);
+    setDepositVerified(false);
+    setDepositAmount("");
+  }
+
   async function deposit() {
     if (!depositTarget) return;
     const amt = Number(depositAmount);
     if (!Number.isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount.");
     if (amt > (wallet?.balance ?? 0)) return toast.error("Insufficient agent balance.");
+    if (!depositVerified) return toast.error("Get the customer's code and verify it first.");
     setBusy(true);
     try {
       await agentDepositToCustomer({ customerId: depositTarget.uid, amount: amt });
       toast.success(`Deposited ${formatXof(amt)} to ${depositTarget.name}.`);
-      setDepositTarget(null);
-      setDepositAmount("");
+      closeDeposit();
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
@@ -231,7 +245,8 @@ export default function AgentPlayersPage() {
                   <AgentCustomerCashActions
                     customer={p}
                     cashOpsEnabled={Boolean(profile?.cashOpsEnabled)}
-                    onFloatDeposit={() => setDepositTarget(p)}
+                    isAdmin={profile?.role === "admin"}
+                    onFloatDeposit={() => openDeposit(p)}
                   />
                 </Td>
               </tr>
@@ -265,7 +280,7 @@ export default function AgentPlayersPage() {
 
       <Modal
         open={!!depositTarget}
-        onClose={() => setDepositTarget(null)}
+        onClose={closeDeposit}
         title={`Deposit to ${depositTarget?.name ?? ""}${depositTarget?.playerNumber ? ` (${formatPlayerId(depositTarget.playerNumber)})` : ""}`}
       >
         <div className="space-y-4">
@@ -280,7 +295,13 @@ export default function AgentPlayersPage() {
             value={depositAmount}
             onChange={(e) => setDepositAmount(e.target.value)}
           />
-          <Button className="w-full" onClick={deposit} disabled={busy}>
+          <CustomerOtpGate
+            phone={depositTarget?.phone}
+            customerName={depositTarget?.name ?? ""}
+            verified={depositVerified}
+            onVerified={() => setDepositVerified(true)}
+          />
+          <Button className="w-full" onClick={deposit} disabled={busy || !depositVerified}>
             {busy ? "Transferring…" : "Deposit"}
           </Button>
         </div>

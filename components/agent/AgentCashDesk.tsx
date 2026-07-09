@@ -6,10 +6,13 @@ import { Banknote, HandCoins } from "lucide-react";
 import {
   agentOtcCashDeposit,
   agentOtcCashWithdraw,
+  adminOtcCashDeposit,
+  adminOtcCashWithdraw,
   errorMessage,
 } from "@/lib/api";
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
 import { formatXof } from "@/lib/format";
+import { CustomerOtpGate } from "@/components/shared/CustomerOtpGate";
 import type { UserProfile } from "@/lib/types";
 import { Button, Input, Modal } from "@/components/ui";
 
@@ -20,11 +23,14 @@ type Props = {
   customer: PlayerRow;
   onClose: () => void;
   mode: "deposit" | "withdraw";
+  /** Admin acts on any customer via the admin callables (no cash-desk gate). */
+  isAdmin?: boolean;
 };
 
-export function AgentCashDeskModal({ cashOpsEnabled, customer, onClose, mode }: Props) {
+export function AgentCashDeskModal({ cashOpsEnabled, customer, onClose, mode, isAdmin }: Props) {
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [verified, setVerified] = useState(false);
   const [withdrawalCode, setWithdrawalCode] = useState<string | null>(null);
 
   const playerId = playerDisplayId(customer);
@@ -33,21 +39,26 @@ export function AgentCashDeskModal({ cashOpsEnabled, customer, onClose, mode }: 
   async function submit() {
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount.");
-    if (!cashOpsEnabled) {
+    if (!isAdmin && !cashOpsEnabled) {
       return toast.error("Cash desk is not enabled. Ask admin to turn it on.");
+    }
+    if (!verified) {
+      return toast.error("Get the customer's code and verify it first.");
     }
 
     setBusy(true);
     try {
       if (mode === "deposit") {
-        await agentOtcCashDeposit({ customerId: customer.uid, amount: amt });
+        const depositFn = isAdmin ? adminOtcCashDeposit : agentOtcCashDeposit;
+        await depositFn({ customerId: customer.uid, amount: amt });
         toast.success(`Cash deposit ${formatXof(amt)} credited to ${customer.name}.`);
         onClose();
       } else {
         if (amt > (customer.balance ?? 0)) {
           return toast.error("Customer balance is too low.");
         }
-        const res = await agentOtcCashWithdraw({ customerId: customer.uid, amount: amt });
+        const withdrawFn = isAdmin ? adminOtcCashWithdraw : agentOtcCashWithdraw;
+        const res = await withdrawFn({ customerId: customer.uid, amount: amt });
         setWithdrawalCode(res.withdrawalCode);
         toast.success("Cash withdrawal recorded.");
       }
@@ -114,7 +125,17 @@ export function AgentCashDeskModal({ cashOpsEnabled, customer, onClose, mode }: 
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
-            <Button className="w-full" onClick={() => void submit()} disabled={busy}>
+            <CustomerOtpGate
+              phone={customer.phone}
+              customerName={customer.name}
+              verified={verified}
+              onVerified={() => setVerified(true)}
+            />
+            <Button
+              className="w-full"
+              onClick={() => void submit()}
+              disabled={busy || !verified}
+            >
               {busy
                 ? "Processing…"
                 : mode === "deposit"
@@ -132,14 +153,18 @@ type RowActionsProps = {
   customer: PlayerRow;
   cashOpsEnabled: boolean;
   onFloatDeposit: () => void;
+  /** Admin sees cash actions for any customer, no cash-desk gate. */
+  isAdmin?: boolean;
 };
 
 export function AgentCustomerCashActions({
   customer,
   cashOpsEnabled,
   onFloatDeposit,
+  isAdmin,
 }: RowActionsProps) {
   const [cashMode, setCashMode] = useState<"deposit" | "withdraw" | null>(null);
+  const showCash = isAdmin || cashOpsEnabled;
 
   return (
     <>
@@ -154,7 +179,7 @@ export function AgentCustomerCashActions({
             <Banknote size={13} /> Float
           </span>
         </Button>
-        {cashOpsEnabled ? (
+        {showCash ? (
           <>
             <Button
               variant="secondary"
@@ -182,6 +207,7 @@ export function AgentCustomerCashActions({
       {cashMode ? (
         <AgentCashDeskModal
           cashOpsEnabled={cashOpsEnabled}
+          isAdmin={isAdmin}
           customer={customer}
           mode={cashMode}
           onClose={() => setCashMode(null)}
