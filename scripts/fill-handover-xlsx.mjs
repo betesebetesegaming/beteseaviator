@@ -6,6 +6,11 @@ import XLSX from "xlsx";
 const WALLET_URL =
   "https://us-central1-beteseaviator-a05ae.cloudfunctions.net/qtcwApi";
 const REWARDS_URL = `${WALLET_URL}/bonus/reward`;
+const BRAND_URL = "https://www.beteseaviator.com/play";
+const CASHIER_URL = "https://www.beteseaviator.com/play/wallet";
+const VERIFY_TOKEN_URL = `${WALLET_URL}/qtplay/verify-token`;
+// Operator office/admin public IP (detected). Add office/VPN IPs as needed.
+const OFFICE_IP = "197.231.207.198";
 
 /**
  * Single source of truth for the Pass-Key: the value deployed to the wallet
@@ -33,14 +38,14 @@ const VALUES_BY_ROW = {
   9: "Gambia",
   10: "Google Cloud Firebase (us-central1)",
   11: "Common Wallet",
-  14: "To be provided if required",
-  15: "Serverless (no fixed inbound IP). QTech calls our wallet URL.",
-  16: "To be provided if required",
-  17: "Serverless (no fixed inbound IP).",
-  20: "BETESE IT — care@beteseaviator.com (update if needed)",
-  21: "BETESE Finance — care@beteseaviator.com (update if needed)",
-  22: "BETESE Operations — care@beteseaviator.com (update if needed)",
-  23: "BETESE — care@beteseaviator.com (update if needed)",
+  14: `${OFFICE_IP} (operator office/admin IP - add any additional office or VPN IPs)`,
+  15: "Dynamic Google Cloud egress (serverless, no fixed IP). Please confirm if a static source IP is mandatory; a Cloud NAT static IP can be provisioned on request.",
+  16: `${OFFICE_IP} (same office/admin IP as staging)`,
+  17: "Dynamic Google Cloud egress (serverless, no fixed IP). Static Cloud NAT IP can be provisioned on request.",
+  20: "Gregory — gregory@beteseaviator.com",
+  21: "Gregory — gregory@beteseaviator.com",
+  22: "Gregory — gregory@beteseaviator.com",
+  23: "Gregory — gregory@beteseaviator.com",
   26: WALLET_URL,
   27: PASS_KEY,
   28: "Not implemented",
@@ -49,15 +54,15 @@ const VALUES_BY_ROW = {
   31: PASS_KEY,
   32: "Not implemented",
   33: REWARDS_URL,
-  36: "N/A — web integration only",
-  37: "N/A",
-  38: "N/A",
-  39: "N/A",
-  40: "N/A",
-  41: "N/A",
-  42: "N/A",
-  43: "N/A",
-  44: "N/A",
+  36: "BETESE",
+  37: "BETESE Aviator",
+  38: BRAND_URL,
+  39: BRAND_URL,
+  40: `${VERIFY_TOKEN_URL} (enabled on QT Play onboarding)`,
+  41: `${VERIFY_TOKEN_URL} (enabled on QT Play onboarding)`,
+  42: "Browser",
+  43: CASHIER_URL,
+  44: CASHIER_URL,
 };
 
 const src =

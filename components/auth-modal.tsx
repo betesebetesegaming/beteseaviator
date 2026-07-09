@@ -124,6 +124,7 @@ export function AuthModal({
   const [phoneCountry, setPhoneCountry] = useState<PhoneCountryCode>("GM");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [resetError, setResetError] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [otpGatewayStatus, setOtpGatewayStatus] = useState<OtpGatewayStatus>("unknown");
 
@@ -268,7 +269,7 @@ export function AuthModal({
       } catch (e: unknown) {
         const code = (e as { code?: string }).code;
         if (code === "auth/weak-password") {
-          throw new Error("Use 4–8 letters or numbers. If it still fails, try 6 or more characters.");
+          throw new Error("Use 6–8 letters or numbers.");
         }
         if (code !== "auth/email-already-in-use") throw e;
         await signInWithEmailAndPassword(auth, authEmail, password);
@@ -360,11 +361,19 @@ export function AuthModal({
   }
 
   async function submitPasswordReset() {
+    setResetError("");
     const phoneCheck = validatePhoneFields();
     if (!phoneCheck.ok) return toast.error(phoneCheck.error);
     const pwCheck = validatePassword(password);
-    if (!pwCheck.ok) return toast.error(pwCheck.message);
-    if (password !== confirm) return toast.error("Passwords do not match.");
+    if (!pwCheck.ok) {
+      setResetError(pwCheck.message);
+      return toast.error(pwCheck.message);
+    }
+    if (password !== confirm) {
+      const msg = "Passwords do not match.";
+      setResetError(msg);
+      return toast.error(msg);
+    }
     setBusy(true);
     try {
       await resetPlayerPassword({ phone: phoneCheck.normalized, password });
@@ -373,8 +382,11 @@ export function AuthModal({
       setFormStep("details");
       setPassword("");
       setConfirm("");
+      setResetError("");
     } catch (e) {
-      toast.error(errorMessage(e));
+      const msg = errorMessage(e);
+      setResetError(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -421,7 +433,7 @@ export function AuthModal({
   const modalSubtitle = showOtpScreen
     ? "We sent a one-time password to your phone. Enter the 6-digit code below."
     : showResetScreen
-      ? "Pick a password (4–8 letters or numbers)."
+      ? "Pick a password (6–8 letters or numbers)."
       : mode === "forgot"
         ? "Enter your registered Gambian mobile number — we'll verify by SMS."
         : mode === "complete"
@@ -470,7 +482,10 @@ export function AuthModal({
             type="password"
             value={password}
             maxLength={PASSWORD_MAX}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (resetError) setResetError("");
+            }}
           />
           <PasswordStrengthHint length={password.length} />
           <Input
@@ -478,8 +493,16 @@ export function AuthModal({
             type="password"
             value={confirm}
             maxLength={PASSWORD_MAX}
-            onChange={(e) => setConfirm(e.target.value)}
+            onChange={(e) => {
+              setConfirm(e.target.value);
+              if (resetError) setResetError("");
+            }}
           />
+          {resetError ? (
+            <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+              {resetError}
+            </p>
+          ) : null}
           <Button className="w-full" onClick={() => void submitPasswordReset()} disabled={busy}>
             {busy ? "Updating…" : "Update password"}
           </Button>

@@ -21,7 +21,7 @@ import { LOBBY_NAV, type LobbyNavCategory } from "@/lib/games/promotions";
 
 const PromoBannerCarousel = dynamic(
   () => import("./PromoBannerCarousel").then((m) => ({ default: m.PromoBannerCarousel })),
-  { ssr: false, loading: () => <div className="h-36 animate-pulse rounded-2xl bg-white/5 sm:h-44" /> },
+  { ssr: false, loading: () => <div className="aspect-[1920/360] max-h-[360px] animate-pulse rounded-2xl bg-white/5" /> },
 );
 
 type LobbySection = {

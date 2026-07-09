@@ -400,6 +400,7 @@ function AdminUsersContent() {
             onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
           >
             <option value="player">Customer</option>
+            <option value="agent">Agent</option>
             <option value="admin">Admin</option>
           </Select>
           <Input

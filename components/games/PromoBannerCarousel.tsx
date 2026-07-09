@@ -4,33 +4,23 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { activeLobbySlides, lobbyTicker, subscribeLobbyPromos } from "@/lib/promotions/lobbyPromos";
-import type { LobbyPromoConfig, PromoSlide } from "@/lib/games/promotions";
+import { type LobbyPromoConfig, type PromoSlide } from "@/lib/games/promotions";
 
-function SlideLayer({
-  slide,
-  active,
-}: {
-  slide: PromoSlide;
-  active: boolean;
-}) {
-  return (
-    <div
-      className={`absolute inset-0 transition-opacity duration-700 ${
-        active ? "opacity-100" : "pointer-events-none opacity-0"
-      }`}
-    >
+function SlideLayer({ slide }: { slide: PromoSlide }) {
+  const isImageBanner = Boolean(slide.imageUrl);
+
+  const inner = (
+    <>
       {slide.imageUrl ? (
-        <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={slide.imageUrl}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/50 to-black/20" />
-        </>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={slide.imageUrl}
+          alt={slide.title || "Promotion"}
+          loading="eager"
+          decoding="sync"
+          fetchPriority="high"
+          className="absolute inset-0 h-full w-full object-cover object-center"
+        />
       ) : (
         <>
           <div className={`absolute inset-0 bg-gradient-to-r ${slide.gradient}`} />
@@ -38,43 +28,78 @@ function SlideLayer({
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_10%_80%,rgba(0,128,0,0.2),transparent_50%)]" />
         </>
       )}
-      <div className="relative flex h-full flex-col justify-center px-5 sm:px-8 md:px-10">
-        <p className={`text-[10px] font-black uppercase tracking-[0.25em] ${slide.accent} opacity-90`}>
-          Promotion
-        </p>
-        {slide.title && (
-          <h2 className="mt-1 max-w-lg text-xl font-black text-white drop-shadow sm:text-2xl md:text-3xl">
-            {slide.title}
-          </h2>
-        )}
-        {slide.subtitle && (
-          <p className="mt-1 max-w-md text-xs text-white/90 drop-shadow sm:text-sm">{slide.subtitle}</p>
-        )}
-        {slide.href && slide.cta && (
-          <Link
-            href={slide.href}
-            className="mt-3 inline-flex w-fit rounded-lg bg-[var(--lobby-accent)] px-4 py-1.5 text-xs font-black uppercase tracking-wide text-black transition hover:brightness-110"
-          >
-            {slide.cta}
-          </Link>
-        )}
-      </div>
-    </div>
+
+      {!isImageBanner && (
+        <div className="relative flex h-full flex-col justify-center px-5 sm:px-8 md:px-10">
+          <p className={`text-[10px] font-black uppercase tracking-[0.25em] ${slide.accent} opacity-90`}>
+            Promotion
+          </p>
+          {slide.title && (
+            <h2 className="mt-1 max-w-lg text-xl font-black text-white drop-shadow sm:text-2xl md:text-3xl">
+              {slide.title}
+            </h2>
+          )}
+          {slide.subtitle && (
+            <p className="mt-1 max-w-md text-xs text-white/90 drop-shadow sm:text-sm">{slide.subtitle}</p>
+          )}
+          {slide.href && slide.cta && (
+            <Link
+              href={slide.href}
+              className="mt-3 inline-flex w-fit rounded-lg bg-[var(--lobby-accent)] px-4 py-1.5 text-xs font-black uppercase tracking-wide text-black transition hover:brightness-110"
+            >
+              {slide.cta}
+            </Link>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  if (isImageBanner && slide.href) {
+    return (
+      <Link href={slide.href} className="absolute inset-0 block" aria-label={slide.title || "Promotion"}>
+        {inner}
+      </Link>
+    );
+  }
+
+  return <div className="absolute inset-0">{inner}</div>;
+}
+
+function BannerFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <section className="space-y-0 overflow-hidden rounded-2xl border border-white/10">
+      <div className="relative w-full aspect-[1920/360] max-h-[360px]">{children}</div>
+    </section>
   );
 }
 
 export function PromoBannerCarousel() {
   const [index, setIndex] = useState(0);
-  const [config, setConfig] = useState<LobbyPromoConfig | null>(null);
+  /** undefined = waiting for first Firestore snapshot (avoids default-slide flash). */
+  const [config, setConfig] = useState<LobbyPromoConfig | null | undefined>(undefined);
 
-  useEffect(() => subscribeLobbyPromos(setConfig), []);
+  useEffect(() => subscribeLobbyPromos((next) => setConfig(next)), []);
 
-  const slides = useMemo(() => activeLobbySlides(config), [config]);
-  const ticker = useMemo(() => lobbyTicker(config), [config]);
+  const slides = useMemo(
+    () => (config === undefined ? [] : activeLobbySlides(config)),
+    [config],
+  );
+  const ticker = useMemo(() => lobbyTicker(config ?? null), [config]);
+
+  const slideKey = useMemo(() => slides.map((s) => s.id).join("|"), [slides]);
 
   useEffect(() => {
     setIndex(0);
-  }, [slides.length]);
+  }, [slideKey]);
+
+  useEffect(() => {
+    slides.forEach((slide) => {
+      if (!slide.imageUrl) return;
+      const img = new Image();
+      img.src = slide.imageUrl;
+    });
+  }, [slides]);
 
   useEffect(() => {
     if (slides.length <= 1) return;
@@ -84,14 +109,23 @@ export function PromoBannerCarousel() {
     return () => clearInterval(id);
   }, [slides.length]);
 
+  if (config === undefined) {
+    return (
+      <BannerFrame>
+        <div className="absolute inset-0 animate-pulse bg-white/5" />
+      </BannerFrame>
+    );
+  }
+
   if (slides.length === 0) return null;
+
+  const activeSlide = slides[index];
+  if (!activeSlide) return null;
 
   return (
     <section className="space-y-0 overflow-hidden rounded-2xl border border-white/10">
-      <div className="relative h-36 sm:h-44 md:h-52">
-        {slides.map((s, i) => (
-          <SlideLayer key={s.id} slide={s} active={i === index} />
-        ))}
+      <div className="relative w-full aspect-[1920/360] max-h-[360px]">
+        <SlideLayer key={activeSlide.id} slide={activeSlide} />
 
         {slides.length > 1 && (
           <>

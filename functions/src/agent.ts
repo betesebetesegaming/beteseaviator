@@ -17,7 +17,6 @@ import {
   bumpPlatformStats,
   RESERVED_SLUGS,
   staffLoginKey,
-  staffLoginEmail,
   recordCustomersOpened,
   type ProfileData,
 } from "./helpers";
@@ -161,117 +160,6 @@ export const agentCreateCustomer = onCall(async (req) => {
     ancestors: [uid],
   });
   return created;
-});
-
-/**
- * Shared: create a standalone AGENT account.
- *
- * Used both when an admin opens an agent and when an existing agent recruits a
- * new one. New agents are FLAT/independent: `ancestors` is always empty, so the
- * creator earns NO commission from the new agent's players. `createdByAgent` is
- * kept only as a provenance record for "agents I opened".
- */
-export async function createAgentAccount(opts: {
-  name: string;
-  password: string;
-  email?: string;
-  username?: string;
-  linkMode?: "first" | "full";
-  createdByAgent?: string | null;
-}): Promise<{ uid: string; slug: string }> {
-  const name = opts.name.trim();
-  if (!name) throw new HttpsError("invalid-argument", "Name is required.");
-  const password = String(opts.password ?? "");
-  if (password.length < 8) {
-    throw new HttpsError("invalid-argument", "Staff password must be at least 8 characters.");
-  }
-  const email = opts.email ? opts.email.toLowerCase().trim() : "";
-  const username = opts.username ? opts.username.trim() : "";
-  const linkMode = opts.linkMode === "full" ? "full" : "first";
-  const hasEmail = email.includes("@");
-  const loginKey = staffLoginKey(username || name);
-  if (!hasEmail && !loginKey) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Provide an email or a username/name they can sign in with."
-    );
-  }
-
-  const provisionalAuthEmail = hasEmail ? email : staffLoginEmail(loginKey);
-  let uid: string;
-  try {
-    const u = await auth.createUser({ email: provisionalAuthEmail, password, displayName: name });
-    uid = u.uid;
-  } catch (e: unknown) {
-    if ((e as { code?: string }).code === "auth/email-already-exists") {
-      throw new HttpsError("already-exists", "This login is already registered.");
-    }
-    throw e;
-  }
-
-  const slugSource = username || (linkMode === "first" ? name.split(/\s+/)[0] || name : name);
-  let slug: string;
-  try {
-    slug = await claimSlug(slugSource, uid, name);
-  } catch (e) {
-    // Roll back the orphaned auth user so a taken username doesn't strand a login.
-    await auth.deleteUser(uid).catch(() => undefined);
-    throw e;
-  }
-
-  if (!hasEmail) {
-    const finalAuthEmail = staffLoginEmail(slug);
-    if (finalAuthEmail !== provisionalAuthEmail) {
-      await auth.updateUser(uid, { email: finalAuthEmail });
-    }
-  }
-
-  await auth.setCustomUserClaims(uid, { role: "agent" });
-
-  const batch = db.batch();
-  batch.set(db.doc(`users/${uid}`), {
-    name,
-    email: hasEmail ? email : null,
-    phone: null,
-    role: "agent",
-    parentId: null,
-    agentSlug: slug,
-    staffLoginId: slug,
-    ancestors: [],
-    createdByAgent: opts.createdByAgent ?? null,
-    status: "active",
-    stats: {},
-    createdAt: FieldValue.serverTimestamp(),
-  });
-  batch.set(db.doc(`wallets/${uid}`), {
-    balance: 0,
-    bonusBalance: 0,
-    currency: "GMD",
-    frozen: false,
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-  batch.set(db.doc("stats/platform"), { agentCount: FieldValue.increment(1) }, { merge: true });
-  await batch.commit();
-
-  await ensureAgentLoginDocs(uid, { name, role: "agent", agentSlug: slug, status: "active" });
-
-  return { uid, slug };
-}
-
-/**
- * An existing agent opens a NEW, independent agent account to grow the network.
- * Flat model: the recruiting agent earns nothing from the new agent's players.
- */
-export const agentCreateAgent = onCall(async (req) => {
-  const { uid } = await requireRole(req, ["agent"]);
-  return createAgentAccount({
-    name: String(req.data?.name ?? ""),
-    password: String(req.data?.password ?? ""),
-    email: req.data?.email ? String(req.data.email) : undefined,
-    username: req.data?.username ? String(req.data.username) : undefined,
-    linkMode: String(req.data?.linkMode ?? "first") === "full" ? "full" : "first",
-    createdByAgent: uid,
-  });
 });
 
 /** Atomic transfer from the agent's wallet into one of THEIR customers' wallets. */

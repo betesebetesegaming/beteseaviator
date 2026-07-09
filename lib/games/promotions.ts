@@ -1,5 +1,11 @@
 import type { Game } from "@/lib/types";
 
+/** Recommended lobby banner upload size (16:3). */
+export const LOBBY_BANNER_WIDTH = 1920;
+export const LOBBY_BANNER_HEIGHT = 360;
+export const LOBBY_BANNER_ASPECT = "1920/360" as const;
+export const LOBBY_BANNER_SIZE_LABEL = `${LOBBY_BANNER_WIDTH}×${LOBBY_BANNER_HEIGHT}px`;
+
 export type PromoSlide = {
   id: string;
   title: string;

@@ -28,7 +28,7 @@ import {
   requireOtpVerifiedForPhone,
 } from "./otpVerification";
 import { allocatePlayerNumber, formatPlayerId } from "./playerIds";
-import { assertValidPassword } from "./passwordPolicy";
+import { assertValidPassword, PASSWORD_MIN, PASSWORD_MAX } from "./passwordPolicy";
 import { verifySmsOtp } from "./routes/otp";
 import { isAgentRole, isStaffRole as isStaffRoleCheck } from "./roles";
 
@@ -186,6 +186,87 @@ export const completeRegistration = onCall(async (req) => {
   };
 });
 
+function mapAuthUpdateError(err: unknown): never {
+  const code = (err as { code?: string }).code || "";
+  const message = (err as { message?: string }).message || "";
+  if (code === "auth/invalid-password" || code === "auth/weak-password") {
+    throw new HttpsError(
+      "invalid-argument",
+      `Password must be ${PASSWORD_MIN}–${PASSWORD_MAX} letters or numbers.`,
+    );
+  }
+  if (code === "auth/user-not-found") {
+    throw new HttpsError("not-found", "Login account not found. Contact support.");
+  }
+  if (code === "auth/email-already-exists") {
+    throw new HttpsError(
+      "failed-precondition",
+      "This phone is linked to another login. Contact support to fix your account.",
+    );
+  }
+  throw new HttpsError("internal", message || "Could not update password. Please try again.");
+}
+
+/** Update Firebase Auth password for a player phone account (handles email conflicts safely). */
+async function updatePlayerAuthPassword(
+  uid: string,
+  phone: string,
+  password: string,
+  displayName?: string,
+): Promise<string> {
+  const authEmail = phoneToEmail(phone);
+  let record;
+  try {
+    record = await auth.getUser(uid);
+  } catch {
+    throw new HttpsError("not-found", "Login account not found. Contact support.");
+  }
+
+  const updates: { password: string; email?: string; displayName?: string } = { password };
+  if (displayName) updates.displayName = displayName;
+  if (!record.email || record.email !== authEmail) {
+    updates.email = authEmail;
+  }
+
+  try {
+    await auth.updateUser(uid, updates);
+    return authEmail;
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code || "";
+    if (code === "auth/email-already-exists") {
+      let emailOwnerUid: string | null = null;
+      try {
+        emailOwnerUid = (await auth.getUserByEmail(authEmail)).uid;
+      } catch {
+        emailOwnerUid = null;
+      }
+
+      if (emailOwnerUid && emailOwnerUid !== uid) {
+        const [orphanProfile, orphanWallet] = await Promise.all([
+          db.doc(`users/${emailOwnerUid}`).get(),
+          db.doc(`wallets/${emailOwnerUid}`).get(),
+        ]);
+        if (!orphanProfile.exists && !orphanWallet.exists) {
+          await auth.deleteUser(emailOwnerUid);
+          await auth.updateUser(uid, updates);
+          return authEmail;
+        }
+      }
+
+      try {
+        await auth.updateUser(uid, {
+          password,
+          ...(displayName ? { displayName } : {}),
+        });
+        return record.email || authEmail;
+      } catch (retryErr) {
+        mapAuthUpdateError(retryErr);
+      }
+    }
+    mapAuthUpdateError(err);
+  }
+}
+
 /** Player self-service password reset — requires a fresh Africell OTP for the phone. */
 export const resetPlayerPassword = onCall({ invoker: "public" }, async (req) => {
   const phone = normalizePhone(String(req.data?.phone ?? ""));
@@ -214,8 +295,12 @@ export const resetPlayerPassword = onCall({ invoker: "public" }, async (req) => 
     throw new HttpsError("permission-denied", "Use the staff portal to reset this account.");
   }
 
-  const authEmail = phoneToEmail(phone);
-  await auth.updateUser(uid, { email: authEmail, password, displayName: profile.name || undefined });
+  const authEmail = await updatePlayerAuthPassword(
+    uid,
+    phone,
+    password,
+    profile.name || undefined,
+  );
   await consumeOtpVerifiedForPhone(phone);
 
   return { ok: true as const, phone, authEmail };
@@ -262,8 +347,12 @@ export const resetPlayerPasswordWithOtp = onCall({ invoker: "public" }, async (r
     throw new HttpsError("permission-denied", "Use the staff portal to reset this account.");
   }
 
-  const authEmail = phoneToEmail(phone);
-  await auth.updateUser(uid, { email: authEmail, password, displayName: profile.name || undefined });
+  const authEmail = await updatePlayerAuthPassword(
+    uid,
+    phone,
+    password,
+    profile.name || undefined,
+  );
 
   return { ok: true as const, phone, authEmail };
 });

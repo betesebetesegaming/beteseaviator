@@ -1,6 +1,6 @@
 import { HttpsError } from "firebase-functions/v2/https";
 
-export const PASSWORD_MIN = 4;
+export const PASSWORD_MIN = 6;
 export const PASSWORD_MAX = 8;
 
 export function assertValidPassword(password: string, field = "Password"): void {

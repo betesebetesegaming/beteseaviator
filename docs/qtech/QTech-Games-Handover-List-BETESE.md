@@ -40,10 +40,10 @@
 
 | No. | Required info | Value |
 |-----|---------------|-------|
-| 1 | IT manager Skype & email | BETESE IT — care@beteseaviator.com *(update if needed)* |
-| 2 | Finance manager Skype & email | BETESE Finance — care@beteseaviator.com *(update if needed)* |
-| 3 | Game release contact & email | BETESE Operations — care@beteseaviator.com *(update if needed)* |
-| 4 | Campaign manager / casino manager contact & email | BETESE — care@beteseaviator.com *(update if needed)* |
+| 1 | IT manager Skype & email | Gregory — gregory@beteseaviator.com |
+| 2 | Finance manager Skype & email | Gregory — gregory@beteseaviator.com |
+| 3 | Game release contact & email | Gregory — gregory@beteseaviator.com |
+| 4 | Campaign manager / casino manager contact & email | Gregory — gregory@beteseaviator.com |
 
 ---
 

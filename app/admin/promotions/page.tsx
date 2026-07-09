@@ -8,7 +8,7 @@ import { db } from "@/lib/firestore";
 import { adminSaveLobbyPromos, errorMessage } from "@/lib/api";
 import { gamePlayPath } from "@/lib/games/api";
 import { filterLobbyGames } from "@/lib/games/catalog";
-import { PROMO_TICKER, type LobbyPromoConfig, type PromoSlide } from "@/lib/games/promotions";
+import { LOBBY_BANNER_SIZE_LABEL, PROMO_TICKER, type LobbyPromoConfig, type PromoSlide } from "@/lib/games/promotions";
 import { subscribeLobbyPromos, uploadPromoBannerImage } from "@/lib/promotions/lobbyPromos";
 import type { Game } from "@/lib/types";
 import { Button, Card, Input } from "@/components/ui";
@@ -141,8 +141,9 @@ export default function AdminPromotionsPage() {
       <div>
         <h1 className="mb-1 text-xl font-bold">Lobby promotions</h1>
         <p className="text-sm text-slate-400">
-          Upload banner photos and text for the scrolling display on the game lobby. Use a game
-          screenshot or any advert image — it appears on the top carousel at{" "}
+          Upload banner photos and text for the scrolling display on the game lobby. Recommended image
+          size: <strong className="text-white">{LOBBY_BANNER_SIZE_LABEL}</strong> (PNG or JPG, 16:3
+          ratio). Full-size images display without text overlay — it appears on the top carousel at{" "}
           <strong className="text-white">/play</strong>.
         </p>
       </div>
@@ -151,29 +152,26 @@ export default function AdminPromotionsPage() {
       {previewSlides[0] && (
         <Card>
           <p className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">Preview</p>
-          <div className="relative h-40 overflow-hidden rounded-xl border border-white/10 sm:h-48">
+          <div className="relative aspect-[1920/360] max-h-[360px] overflow-hidden rounded-xl border border-white/10">
             {previewSlides[0].imageUrl ? (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previewSlides[0].imageUrl}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent" />
-              </>
-            ) : (
-              <div
-                className={`absolute inset-0 bg-gradient-to-r ${previewSlides[0].gradient}`}
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={previewSlides[0].imageUrl}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover object-center"
               />
+            ) : (
+              <div className={`absolute inset-0 bg-gradient-to-r ${previewSlides[0].gradient}`} />
             )}
-            <div className="relative flex h-full flex-col justify-center px-6">
-              <p className="text-[10px] font-black uppercase tracking-widest text-betese-yellow">
-                Promotion
-              </p>
-              <p className="mt-1 text-xl font-black text-white">{previewSlides[0].title || "Title"}</p>
-              <p className="mt-1 text-sm text-white/75">{previewSlides[0].subtitle}</p>
-            </div>
+            {!previewSlides[0].imageUrl && (
+              <div className="relative flex h-full flex-col justify-center px-6">
+                <p className="text-[10px] font-black uppercase tracking-widest text-betese-yellow">
+                  Promotion
+                </p>
+                <p className="mt-1 text-xl font-black text-white">{previewSlides[0].title || "Title"}</p>
+                <p className="mt-1 text-sm text-white/75">{previewSlides[0].subtitle}</p>
+              </div>
+            )}
           </div>
         </Card>
       )}
@@ -208,10 +206,10 @@ export default function AdminPromotionsPage() {
           {/* image upload */}
           <div className="rounded-xl border border-dashed border-white/15 bg-slate-950/50 p-4">
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-              Banner image (screenshot / advert)
+              Banner image — {LOBBY_BANNER_SIZE_LABEL} PNG or JPG recommended
             </p>
             {slide.imageUrl ? (
-              <div className="relative mb-3 h-32 overflow-hidden rounded-lg sm:h-40">
+              <div className="relative mb-3 aspect-[1920/360] max-h-48 overflow-hidden rounded-lg">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={slide.imageUrl} alt="" className="h-full w-full object-cover" />
                 <button
@@ -223,7 +221,7 @@ export default function AdminPromotionsPage() {
                 </button>
               </div>
             ) : (
-              <div className="mb-3 flex h-32 items-center justify-center rounded-lg bg-slate-900 text-slate-500 sm:h-40">
+              <div className="mb-3 flex aspect-[1920/360] max-h-48 items-center justify-center rounded-lg bg-slate-900 text-slate-500">
                 <ImagePlus size={32} strokeWidth={1.25} />
               </div>
             )}

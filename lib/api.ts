@@ -42,17 +42,6 @@ export const agentCreateCustomer = call<
   { uid: string; playerNumber: number; playerId: string }
 >("agentCreateCustomer");
 
-export const agentCreateAgent = call<
-  {
-    name: string;
-    password: string;
-    email?: string;
-    username?: string;
-    linkMode?: "first" | "full";
-  },
-  { uid: string; slug: string }
->("agentCreateAgent");
-
 export const adminBackfillPlayerIds = call<
   { limit?: number },
   { ok: true; updated: string[]; count: number }

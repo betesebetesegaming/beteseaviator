@@ -30,12 +30,12 @@ Production — QT Back Office IP    (same as staging / your office IP)
 Production — API IP               Serverless. If QTech requires a fixed outbound IP for us calling
                                   their API, we will provide a Cloud NAT static IP on request.
 
-3. Contact Details (update with your team)
-------------------------------------------
-IT Manager Skype & Email          (your IT contact)
-Finance Manager Skype & Email     (your finance contact)
-Game Release Contact & Email      (your game / ops contact)
-Campaign Manager Contact & Email  (optional)
+3. Contact Details
+------------------
+IT Manager Skype & Email          Gregory — gregory@beteseaviator.com
+Finance Manager Skype & Email     Gregory — gregory@beteseaviator.com
+Game Release Contact & Email      Gregory — gregory@beteseaviator.com
+Campaign Manager Contact & Email  Gregory — gregory@beteseaviator.com
 
 Common Wallet — your implementation (BETESE hosts wallet)
 ---------------------------------------------------------

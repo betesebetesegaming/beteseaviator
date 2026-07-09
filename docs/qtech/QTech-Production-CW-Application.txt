@@ -43,8 +43,7 @@ We will wait for your confirmation before enabling real-money QTech games for pl
    QTech calls our wallet Base URL above over the public internet.
 
 7. Email address for receiving production account credentials
-   care@beteseaviator.com
-   (Update if you prefer a different contact.)
+   gregory@beteseaviator.com
 
 ----------------------------------------------------------------------
 Additional notes:
