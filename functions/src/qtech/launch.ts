@@ -89,8 +89,8 @@ async function fetchLaunchUrl(
     device: args.device,
     returnUrl: cfg.lobbyUrl,
     walletSessionId: args.walletSession,
-    betLimitCode: "1",
   };
+  // betLimitCode 1–5 are EUR/CNY tiers — omit for GMD so QTech uses the game default.
   if (args.displayName?.trim()) {
     payload.displayName = args.displayName.trim().slice(0, 50);
   }

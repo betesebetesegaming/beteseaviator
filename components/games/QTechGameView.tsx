@@ -17,6 +17,9 @@ import type { Game } from "@/lib/types";
 import { Button, Spinner } from "@/components/ui";
 import { WalletFrozenNotice } from "@/components/wallet/WalletFrozenNotice";
 
+const IFRAME_ALLOW =
+  "fullscreen *; autoplay *; payment *; encrypted-media *; clipboard-write *";
+
 type Props = {
   game: Game;
   immersive?: boolean;
@@ -27,13 +30,13 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
   const { fbUser, profile, wallet, loading } = useAuth();
   const { openAuth } = useAuthModal();
   const device = qtechPlayDevice();
-  // Demo: localStorage. Real: short sessionStorage handoff from lobby sheet prefetch.
   const [launchUrl, setLaunchUrl] = useState<string | null>(() =>
     readCachedQTechLaunchUrl(game.id, demo, device),
   );
   const [launching, setLaunching] = useState(() => !readCachedQTechLaunchUrl(game.id, demo, device));
   const [error, setError] = useState<string | null>(null);
   const startedRef = useRef(false);
+  const redirectedRef = useRef(false);
 
   const needsProfile = !!fbUser && !profile && !loading;
   const isPlayer = !!profile && profile.role === "player" && profile.status === "active";
@@ -47,6 +50,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
       if (force) {
         clearCachedQTechLaunchUrl(game.id, demo, playDevice);
         setLaunchUrl(null);
+        redirectedRef.current = false;
       }
       const url = await prefetchQTechLaunch({
         gameId: game.id,
@@ -80,14 +84,23 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     if (loading) return;
     if (isPlayer && !frozen) {
       startedRef.current = true;
-      // Prefer the single handoff URL from Play Now — never launch a second time.
       if (launchUrl) return;
       void loadGame(false);
     }
   }, [demo, frozen, isPlayer, launchUrl, loadGame, loading]);
 
+  // Real money: full-page launch (not iframe). Spribe/QTech often disconnect inside
+  // iframes because Chrome blocks unload handlers and third-party session setup.
+  // HOME / returnUrl brings the player back to /play.
   useEffect(() => {
-    if (!immersive) return;
+    if (demo || !launchUrl || redirectedRef.current) return;
+    redirectedRef.current = true;
+    clearCachedQTechLaunchUrl(game.id, false, qtechPlayDevice());
+    window.location.replace(launchUrl);
+  }, [demo, game.id, launchUrl]);
+
+  useEffect(() => {
+    if (!immersive || !demo) return;
     const html = document.documentElement;
     const body = document.body;
     const prevHtmlOverflow = html.style.overflow;
@@ -101,7 +114,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
       body.style.overflow = prevBodyOverflow;
       body.style.backgroundColor = prevBodyBg;
     };
-  }, [immersive]);
+  }, [demo, immersive]);
 
   if (!demo && (!fbUser || !isPlayer)) {
     return (
@@ -122,20 +135,25 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     return <WalletFrozenNotice />;
   }
 
-  if (launchUrl) {
+  // Real money redirects away — show spinner until navigation completes.
+  if (!demo && (launchUrl || launching)) {
+    return <Spinner label={`Opening ${game.name}…`} />;
+  }
+
+  if (launchUrl && demo) {
     if (immersive) {
       return (
         <>
           {launching ? (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80">
-              <Spinner label="Starting game…" />
+              <Spinner label="Starting demo…" />
             </div>
           ) : null}
           <iframe
             title={game.name}
             src={launchUrl}
             className="game-iframe-full fixed inset-0 z-[10] h-[100dvh] w-full border-0 bg-black"
-            allow="fullscreen; autoplay; payment"
+            allow={IFRAME_ALLOW}
             referrerPolicy="no-referrer-when-downgrade"
             loading="eager"
           />
@@ -144,7 +162,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
             onClick={() => void loadGame(true)}
             disabled={launching}
             className="fixed bottom-[max(5.75rem,calc(env(safe-area-inset-bottom)+5.25rem))] left-3 z-[65] flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/70 backdrop-blur-sm active:bg-black/60 disabled:opacity-40"
-            title="Reload game"
+            title="Reload demo"
           >
             <RefreshCw size={14} className={launching ? "animate-spin" : ""} />
           </button>
@@ -154,23 +172,12 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
 
     return (
       <div className="space-y-3">
-        <div className="flex justify-end">
-          <Button
-            className="mt-4 px-3 py-1.5 text-xs"
-            variant="secondary"
-            onClick={() => void loadGame(true)}
-            disabled={launching}
-          >
-            <RefreshCw size={14} className="mr-1.5 inline" />
-            Reload game
-          </Button>
-        </div>
         <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
           <iframe
             title={game.name}
             src={launchUrl}
             className="aspect-[9/16] w-full min-h-[520px] bg-black sm:aspect-[16/10] sm:min-h-[480px]"
-            allow="fullscreen; autoplay"
+            allow={IFRAME_ALLOW}
             referrerPolicy="no-referrer-when-downgrade"
             loading="eager"
           />
