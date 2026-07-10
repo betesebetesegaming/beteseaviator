@@ -410,7 +410,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     maxBonus: 1000,
     matchPercent: 1,
     wagerMultiplier: 3,
-    expiryDays: 7,
+    expiryDays: 3,
     maxConcurrent: 1,
   },
   customerCare: {

@@ -54,7 +54,7 @@ export function smartBonusConfig(settings: Settings): SmartBonusConfig {
     maxBonus: clampNum(raw.maxBonus, 1000, 0, 1_000_000),
     matchPercent: clampNum(raw.matchPercent, 1, 0.01, 5),
     wagerMultiplier: clampNum(raw.wagerMultiplier, fallbackMult, 0, 100),
-    expiryDays: clampNum(raw.expiryDays, 7, 1, 90),
+    expiryDays: clampNum(raw.expiryDays, 3, 1, 90),
     maxConcurrent: clampNum(raw.maxConcurrent, 1, 1, 10),
   };
 }
