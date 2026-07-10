@@ -69,16 +69,6 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     preconnectQTechGameHosts();
   }, []);
 
-  // Real launch URLs are single-use — clear handoff once the iframe has it.
-  useEffect(() => {
-    if (!launchUrl || demo) return;
-    clearCachedQTechLaunchUrl(game.id, false, qtechPlayDevice());
-  }, [demo, game.id, launchUrl]);
-
-  useEffect(() => {
-    preconnectQTechGameHosts();
-  }, []);
-
   useEffect(() => {
     if (startedRef.current) return;
     if (demo) {
@@ -90,7 +80,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     if (loading) return;
     if (isPlayer && !frozen) {
       startedRef.current = true;
-      // Handoff from lobby sheet may already have the URL — don't launch twice.
+      // Prefer the single handoff URL from Play Now — never launch a second time.
       if (launchUrl) return;
       void loadGame(false);
     }

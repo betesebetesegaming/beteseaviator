@@ -29,9 +29,12 @@ function GamePageContent() {
   }, [gameId, rawGameId, router, searchParams]);
 
   useEffect(() => {
+    // Demo only. Real-money must launch exactly once (from Play Now) — a second
+    // launchQTechGame call invalidates the wallet session and shows disconnect.
+    if (!isDemo) return;
     void prefetchQTechLaunch({
       gameId,
-      demo: isDemo,
+      demo: true,
       device: qtechPlayDevice(),
     });
   }, [gameId, isDemo]);
