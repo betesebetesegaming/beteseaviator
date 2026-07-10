@@ -82,6 +82,7 @@ export async function ensureQTechGameDocs(): Promise<string[]> {
 
 export async function getQTechSetupStatus(): Promise<{
   walletUrl: string;
+  walletUrlStaging: string;
   walletReady: boolean;
   launchReady: boolean;
   integrationEnabled: boolean;
@@ -133,9 +134,11 @@ export async function getQTechSetupStatus(): Promise<{
 
   const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "beteseaviator-a05ae";
   const walletUrl = `https://us-central1-${projectId}.cloudfunctions.net/qtcwApi`;
+  const walletUrlStaging = `https://us-central1-${projectId}.cloudfunctions.net/qtcwApiStg`;
 
   return {
     walletUrl,
+    walletUrlStaging,
     walletReady,
     launchReady,
     integrationEnabled: cfg.enabled,

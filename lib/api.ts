@@ -303,6 +303,7 @@ export const adminSetGameStatus = call<
 
 export type QTechSetupStatus = {
   walletUrl: string;
+  walletUrlStaging: string;
   walletReady: boolean;
   launchReady: boolean;
   integrationEnabled: boolean;

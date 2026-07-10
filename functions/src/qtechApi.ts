@@ -845,3 +845,23 @@ export const qtcwApi = onRequest(
   },
   app
 );
+
+/**
+ * Staging-only Common Wallet endpoint for QTech INT.
+ * QTech requires a different wallet URL for staging vs production — do not reuse qtcwApi.
+ */
+export const qtcwApiStg = onRequest(
+  {
+    region: "us-central1",
+    memory: "512MiB",
+    timeoutSeconds: 540,
+    minInstances: 0,
+    maxInstances: 5,
+    cpu: 1,
+    concurrency: 20,
+    invoker: "public",
+    vpcConnector: "projects/beteseaviator-a05ae/locations/us-central1/connectors/betese-qtech",
+    vpcConnectorEgressSettings: "ALL_TRAFFIC",
+  },
+  app
+);
