@@ -1,10 +1,11 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { subscribeGame, fetchGame } from "@/lib/games/api";
 import { readCachedGameDoc, prefetchQTechLaunch, qtechPlayDevice } from "@/lib/games/qtechLaunchCache";
+import { LEGACY_GAME_ID_ALIASES, resolveLobbyGameId } from "@/lib/games/legacyGameIds";
 import { isPlayerLobbyGame } from "@/lib/games/catalog";
 import type { Game } from "@/lib/types";
 import { QTechGameView } from "@/components/games/QTechGameView";
@@ -12,11 +13,20 @@ import { Spinner } from "@/components/ui";
 
 function GamePageContent() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const gameId = params.id;
+  const rawGameId = params.id;
+  const gameId = resolveLobbyGameId(rawGameId);
   const isDemo = searchParams.get("mode") === "demo";
   const [game, setGame] = useState<Game | null>(() => readCachedGameDoc(gameId));
   const [gameLoading, setGameLoading] = useState(() => !readCachedGameDoc(gameId));
+
+  useEffect(() => {
+    if (LEGACY_GAME_ID_ALIASES[rawGameId]) {
+      const qs = searchParams.toString();
+      router.replace(`/play/game/${gameId}${qs ? `?${qs}` : ""}`);
+    }
+  }, [gameId, rawGameId, router, searchParams]);
 
   useEffect(() => {
     void prefetchQTechLaunch({

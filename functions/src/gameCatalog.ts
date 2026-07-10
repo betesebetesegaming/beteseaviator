@@ -27,6 +27,24 @@ export function qtechGameDocId(qtechGameId: string): string {
   return `qt-${slug}`;
 }
 
+/**
+ * Old native / early-QTech lobby ids → current QTech lobby docs.
+ * Keeps bookmarks, promo banners, and cached links working after native games were removed.
+ */
+export const LEGACY_GAME_ID_ALIASES: Record<string, string> = {
+  aviator: "qt-spb-aviator",
+  "aviator-turbo": "qt-spb-aviator",
+  "qtech-aviator": "qt-spb-aviator",
+  crash: "qt-spb-aviator",
+  "crash-turbo": "qt-spb-aviator",
+  "qtech-crash": "qt-spb-aviator",
+};
+
+export function resolveLobbyGameId(gameId: string): string {
+  const id = gameId.trim();
+  return LEGACY_GAME_ID_ALIASES[id] ?? id;
+}
+
 type SpribeSeed = {
   qtechGameId: string;
   name: string;

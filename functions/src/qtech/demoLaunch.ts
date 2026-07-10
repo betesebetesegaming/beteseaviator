@@ -1,6 +1,6 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import { db } from "../helpers";
-import { isCatalogQTechGameId } from "../gameCatalog";
+import { isCatalogQTechGameId, resolveLobbyGameId } from "../gameCatalog";
 import { getQTechAccessToken, qtechNetworkError } from "./auth";
 import { getQTechSettings } from "./config";
 
@@ -30,7 +30,8 @@ export function deriveQtechGameIdFromDocId(gameId: string): string | null {
   return isCatalogQTechGameId(qtechGameId) ? qtechGameId : null;
 }
 
-async function loadActiveQTechGame(gameId: string): Promise<{ qtechGameId: string }> {
+async function loadActiveQTechGame(rawGameId: string): Promise<{ qtechGameId: string }> {
+  const gameId = resolveLobbyGameId(rawGameId);
   const cached = gameMetaCache.get(gameId);
   if (cached && cached.expiresAt > Date.now()) {
     return { qtechGameId: cached.qtechGameId };
@@ -51,7 +52,8 @@ async function loadActiveQTechGame(gameId: string): Promise<{ qtechGameId: strin
   return { qtechGameId };
 }
 
-async function resolveQtechGameId(gameId: string): Promise<string> {
+async function resolveQtechGameId(rawGameId: string): Promise<string> {
+  const gameId = resolveLobbyGameId(rawGameId);
   const derived = deriveQtechGameIdFromDocId(gameId);
   if (derived) return derived;
   const { qtechGameId } = await loadActiveQTechGame(gameId);

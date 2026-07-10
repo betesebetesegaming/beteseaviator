@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
 import { errorMessage } from "@/lib/api";
 import {
+  clearCachedQTechLaunchUrl,
   prefetchQTechLaunch,
   preconnectQTechGameHosts,
   qtechPlayDevice,
@@ -26,10 +27,11 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
   const { fbUser, profile, wallet, loading } = useAuth();
   const { openAuth } = useAuthModal();
   const device = qtechPlayDevice();
+  // Only demo URLs may be restored from cache — real launch URLs are single-use.
   const [launchUrl, setLaunchUrl] = useState<string | null>(() =>
-    readCachedQTechLaunchUrl(game.id, demo, device),
+    demo ? readCachedQTechLaunchUrl(game.id, true, device) : null,
   );
-  const [launching, setLaunching] = useState(() => !readCachedQTechLaunchUrl(game.id, demo, device));
+  const [launching, setLaunching] = useState(() => !(demo && readCachedQTechLaunchUrl(game.id, true, device)));
   const [error, setError] = useState<string | null>(null);
   const startedRef = useRef(false);
 
@@ -37,15 +39,20 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
   const isPlayer = !!profile && profile.role === "player" && profile.status === "active";
   const frozen = Boolean(wallet?.frozen);
 
-  const loadGame = useCallback(async () => {
+  const loadGame = useCallback(async (force = false) => {
     setLaunching(true);
     setError(null);
     try {
       const playDevice = qtechPlayDevice();
+      if (force) {
+        clearCachedQTechLaunchUrl(game.id, demo, playDevice);
+        setLaunchUrl(null);
+      }
       const url = await prefetchQTechLaunch({
         gameId: game.id,
         demo,
         device: playDevice,
+        force,
       });
       if (!url) throw new Error("Could not start this game. Try again.");
       setLaunchUrl(url);
@@ -67,14 +74,13 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     if (demo) {
       startedRef.current = true;
       if (launchUrl) return;
-      void loadGame();
+      void loadGame(false);
       return;
     }
     if (loading) return;
     if (isPlayer && !frozen) {
       startedRef.current = true;
-      if (launchUrl) return;
-      void loadGame();
+      void loadGame(false);
     }
   }, [demo, frozen, isPlayer, launchUrl, loadGame, loading]);
 
@@ -133,7 +139,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
           />
           <button
             type="button"
-            onClick={() => void loadGame()}
+            onClick={() => void loadGame(true)}
             disabled={launching}
             className="fixed bottom-[max(5.75rem,calc(env(safe-area-inset-bottom)+5.25rem))] left-3 z-[65] flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/70 backdrop-blur-sm active:bg-black/60 disabled:opacity-40"
             title="Reload game"
@@ -150,7 +156,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
           <Button
             className="mt-4 px-3 py-1.5 text-xs"
             variant="secondary"
-            onClick={() => void loadGame()}
+            onClick={() => void loadGame(true)}
             disabled={launching}
           >
             <RefreshCw size={14} className="mr-1.5 inline" />
@@ -175,7 +181,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     return (
       <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-8 text-center">
         <p className="text-red-100">{error}</p>
-        <Button className="mt-4" onClick={() => void loadGame()} disabled={launching}>
+        <Button className="mt-4" onClick={() => void loadGame(true)} disabled={launching}>
           <RefreshCw size={16} className="mr-2 inline" />
           Try again
         </Button>

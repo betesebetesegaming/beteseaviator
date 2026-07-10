@@ -801,12 +801,21 @@ app.get("/bootstrap/run-cw-certification", async (req, res) => {
 
 app.use(qtechErrorMiddleware);
 
+// Live wallet hot path: QTech calls this on every balance/bet/win. It must
+// answer in well under QTech's timeout or the game shows "disconnected".
+// So it overrides the fractional-CPU / concurrency-1 global defaults:
+//  - minInstances 1 keeps an instance warm (no cold-start timeouts)
+//  - cpu 1 gives a full vCPU so wallet transactions finish fast
+//  - concurrency 40 lets one warm instance serve many players at once
 export const qtcwApi = onRequest(
   {
     region: "us-central1",
     memory: "512MiB",
     timeoutSeconds: 540,
+    minInstances: 1,
     maxInstances: 10,
+    cpu: 1,
+    concurrency: 40,
     invoker: "public",
     vpcConnector: "projects/beteseaviator-a05ae/locations/us-central1/connectors/betese-qtech",
     vpcConnectorEgressSettings: "ALL_TRAFFIC",

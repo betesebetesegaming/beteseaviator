@@ -1,5 +1,6 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
+import { resolveLobbyGameId } from "../gameCatalog";
 import { db, requireRole } from "../helpers";
 import { getQTechAccessToken, qtechNetworkError } from "./auth";
 import { getQTechSettings } from "./config";
@@ -7,7 +8,12 @@ import { fetchDemoLaunchUrl, parsePlayDevice, resolveDemoLaunchUrl } from "./dem
 import { createWalletSession } from "./session";
 
 /** Route outbound QTech API calls through Cloud NAT static IP (QTech IP whitelist). */
+// Game-launch path: overrides the fractional-CPU / concurrency-1 global
+// defaults so opening a game is fast (full vCPU, parallel launches).
 export const QTECH_OUTBOUND = {
+  memory: "512MiB" as const,
+  cpu: 1,
+  concurrency: 20,
   vpcConnector: "projects/beteseaviator-a05ae/locations/us-central1/connectors/betese-qtech",
   vpcConnectorEgressSettings: "ALL_TRAFFIC" as const,
 };
@@ -15,10 +21,11 @@ export const QTECH_OUTBOUND = {
 const gameMetaCache = new Map<string, { qtechGameId: string; expiresAt: number }>();
 const GAME_META_CACHE_MS = 10 * 60 * 1000;
 
-async function loadActiveQTechGame(gameId: string): Promise<{ qtechGameId: string }> {
+async function loadActiveQTechGame(rawGameId: string): Promise<{ gameId: string; qtechGameId: string }> {
+  const gameId = resolveLobbyGameId(rawGameId);
   const cached = gameMetaCache.get(gameId);
   if (cached && cached.expiresAt > Date.now()) {
-    return { qtechGameId: cached.qtechGameId };
+    return { gameId, qtechGameId: cached.qtechGameId };
   }
 
   const gameSnap = await db.doc(`games/${gameId}`).get();
@@ -33,7 +40,7 @@ async function loadActiveQTechGame(gameId: string): Promise<{ qtechGameId: strin
     throw new HttpsError("failed-precondition", "QTech game ID is not configured for this game.");
   }
   gameMetaCache.set(gameId, { qtechGameId, expiresAt: Date.now() + GAME_META_CACHE_MS });
-  return { qtechGameId };
+  return { gameId, qtechGameId };
 }
 
 /**
@@ -97,19 +104,23 @@ async function fetchLaunchUrl(
   return launchUrl;
 }
 
-/** Player launches a QTech-hosted Aviator/Crash game. */
-export const launchQTechGame = onCall(QTECH_OUTBOUND, async (req) => {
+/** Player launches a QTech-hosted Aviator/Crash game. Kept warm so the
+ *  real player path never pays a cold start when opening a game. */
+export const launchQTechGame = onCall({ ...QTECH_OUTBOUND, minInstances: 1 }, async (req) => {
   const { uid, profile } = await requireRole(req, ["player"]);
   const gameId = String(req.data?.gameId || "").trim();
   if (!gameId) throw new HttpsError("invalid-argument", "gameId is required.");
 
   const device = parsePlayDevice(req.data?.device);
-  const [{ qtechGameId }, cfg] = await Promise.all([loadActiveQTechGame(gameId), getQTechSettings()]);
+  const [{ gameId: lobbyGameId, qtechGameId }, cfg] = await Promise.all([
+    loadActiveQTechGame(gameId),
+    getQTechSettings(),
+  ]);
   if (!cfg.enabled) {
     throw new HttpsError("failed-precondition", "QTech integration is disabled in admin settings.");
   }
 
-  const walletSession = await createWalletSession(uid, gameId, qtechGameId);
+  const walletSession = await createWalletSession(uid, lobbyGameId, qtechGameId);
   const launchUrl = await fetchLaunchUrl(cfg, {
     playerId: uid,
     displayName: profile.name,

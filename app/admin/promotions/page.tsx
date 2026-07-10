@@ -46,7 +46,7 @@ export default function AdminPromotionsPage() {
           title: "Fly high with Aviator",
           subtitle: "Cash out before the crash — win real GMD on BETESE",
           cta: "Play now",
-          href: "/play/game/aviator",
+          href: "/play/game/qt-spb-aviator",
           imageUrl: "/promotions/aviator-ad.png",
           gradient: "from-red-700 via-rose-900 to-black",
           accent: "text-betese-yellow",
@@ -263,7 +263,7 @@ export default function AdminPromotionsPage() {
               label="Link URL"
               value={slide.href ?? ""}
               onChange={(e) => updateSlide(slide.id, { href: e.target.value })}
-              placeholder="/play/game/aviator"
+              placeholder="/play/game/qt-spb-aviator"
             />
           </div>
 
