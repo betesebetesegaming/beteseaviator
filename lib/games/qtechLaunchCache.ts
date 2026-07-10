@@ -6,9 +6,15 @@ import { resolveLobbyGameId } from "@/lib/games/legacyGameIds";
 import type { Game } from "@/lib/types";
 
 const GAME_DOC_PREFIX = "betese-game-doc-v1:";
-const LAUNCH_URL_PREFIX = "betese-qtech-launch-v3:";
-/** Demo URLs are reusable. Real-money launch URLs are single-use — never persist them. */
+const LAUNCH_URL_PREFIX = "betese-qtech-launch-v4:";
+/** Demo URLs are reusable in localStorage. */
 const DEMO_LAUNCH_TTL_MS = 15 * 60 * 1000;
+/**
+ * Real-money launch URLs are single-use at QTech. Keep a short sessionStorage
+ * handoff so Play Now → game page can reuse the URL we already fetched
+ * (not a second launch). Cleared after consume / after TTL.
+ */
+const REAL_HANDOFF_TTL_MS = 60_000;
 const GAME_DOC_TTL_MS = 30 * 60 * 1000;
 
 type LaunchCacheEntry = { url: string; at: number };
@@ -29,17 +35,35 @@ function launchKey(gameId: string, demo: boolean, device: QTechPlayDevice): stri
   return `${LAUNCH_URL_PREFIX}${resolveLobbyGameId(gameId)}:${demo ? "demo" : "real"}:${device}`;
 }
 
+function readSessionHandoff(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const entry = JSON.parse(raw) as LaunchCacheEntry;
+    if (!entry?.url || Date.now() - entry.at > REAL_HANDOFF_TTL_MS) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    return entry.url;
+  } catch {
+    return null;
+  }
+}
+
 export function readCachedQTechLaunchUrl(
   gameId: string,
   demo: boolean,
   device: QTechPlayDevice,
 ): string | null {
-  // Real-money QTech launch URLs are single-use. Reusing a cached URL shows
-  // Spribe's "You have been disconnected" screen after the first open.
-  if (!demo) return null;
+  const id = resolveLobbyGameId(gameId);
+  const key = launchKey(id, demo, device);
+
+  if (!demo) return readSessionHandoff(key);
+
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(launchKey(gameId, demo, device));
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     const entry = JSON.parse(raw) as LaunchCacheEntry;
     if (!entry?.url || Date.now() - entry.at > DEMO_LAUNCH_TTL_MS) return null;
@@ -55,11 +79,17 @@ export function writeCachedQTechLaunchUrl(
   url: string,
   device: QTechPlayDevice,
 ): void {
-  if (!demo) return;
   if (typeof window === "undefined") return;
+  const id = resolveLobbyGameId(gameId);
+  const key = launchKey(id, demo, device);
+  const entry: LaunchCacheEntry = { url, at: Date.now() };
+
   try {
-    const entry: LaunchCacheEntry = { url, at: Date.now() };
-    localStorage.setItem(launchKey(gameId, demo, device), JSON.stringify(entry));
+    if (!demo) {
+      sessionStorage.setItem(key, JSON.stringify(entry));
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify(entry));
   } catch {
     /* quota — ignore */
   }
@@ -71,11 +101,25 @@ export function clearCachedQTechLaunchUrl(
   device: QTechPlayDevice,
 ): void {
   if (typeof window === "undefined") return;
+  const id = resolveLobbyGameId(gameId);
+  const key = launchKey(id, demo, device);
   try {
-    localStorage.removeItem(launchKey(gameId, demo, device));
+    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
   } catch {
     /* ignore */
   }
+}
+
+/** Take the handoff URL once so a later reload cannot reuse a spent launch URL. */
+export function consumeCachedQTechLaunchUrl(
+  gameId: string,
+  demo: boolean,
+  device: QTechPlayDevice,
+): string | null {
+  const url = readCachedQTechLaunchUrl(gameId, demo, device);
+  if (url && !demo) clearCachedQTechLaunchUrl(gameId, demo, device);
+  return url;
 }
 
 export async function prefetchQTechLaunch(opts: {

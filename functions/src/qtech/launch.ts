@@ -1,10 +1,17 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { onInit } from "firebase-functions/v2/core";
 import { logger } from "firebase-functions/v2";
 import { resolveLobbyGameId } from "../gameCatalog";
 import { db, requireRole } from "../helpers";
 import { getQTechAccessToken, qtechNetworkError } from "./auth";
 import { getQTechSettings } from "./config";
-import { fetchDemoLaunchUrl, parsePlayDevice, resolveDemoLaunchUrl } from "./demoLaunch";
+import {
+  deriveQtechGameIdFromDocId,
+  fetchDemoLaunchUrl,
+  parsePlayDevice,
+  resolveDemoLaunchUrl,
+  warmDemoLaunchDependencies,
+} from "./demoLaunch";
 import { createWalletSession } from "./session";
 
 /** Route outbound QTech API calls through Cloud NAT static IP (QTech IP whitelist). */
@@ -18,6 +25,11 @@ export const QTECH_OUTBOUND = {
   vpcConnectorEgressSettings: "ALL_TRAFFIC" as const,
 };
 
+/** Keep QTech auth token warm on the always-on launch instance. */
+onInit(() => {
+  warmDemoLaunchDependencies();
+});
+
 const gameMetaCache = new Map<string, { qtechGameId: string; expiresAt: number }>();
 const GAME_META_CACHE_MS = 10 * 60 * 1000;
 
@@ -26,6 +38,13 @@ async function loadActiveQTechGame(rawGameId: string): Promise<{ gameId: string;
   const cached = gameMetaCache.get(gameId);
   if (cached && cached.expiresAt > Date.now()) {
     return { gameId, qtechGameId: cached.qtechGameId };
+  }
+
+  // Catalog ids (qt-spb-aviator → SPB-aviator) skip a Firestore round-trip.
+  const derived = deriveQtechGameIdFromDocId(gameId);
+  if (derived) {
+    gameMetaCache.set(gameId, { qtechGameId: derived, expiresAt: Date.now() + GAME_META_CACHE_MS });
+    return { gameId, qtechGameId: derived };
   }
 
   const gameSnap = await db.doc(`games/${gameId}`).get();
@@ -55,9 +74,10 @@ async function fetchLaunchUrl(
     qtechGameId: string;
     walletSession: string;
     device: "mobile" | "desktop";
+    accessToken?: string;
   },
 ): Promise<string> {
-  const token = await getQTechAccessToken(cfg);
+  const token = args.accessToken || (await getQTechAccessToken(cfg));
   const url = `${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(args.qtechGameId)}/launch-url`;
 
   const payload: Record<string, unknown> = {
@@ -107,6 +127,7 @@ async function fetchLaunchUrl(
 /** Player launches a QTech-hosted Aviator/Crash game. Kept warm so the
  *  real player path never pays a cold start when opening a game. */
 export const launchQTechGame = onCall({ ...QTECH_OUTBOUND, minInstances: 1 }, async (req) => {
+  const started = Date.now();
   const { uid, profile } = await requireRole(req, ["player"]);
   const gameId = String(req.data?.gameId || "").trim();
   if (!gameId) throw new HttpsError("invalid-argument", "gameId is required.");
@@ -120,13 +141,25 @@ export const launchQTechGame = onCall({ ...QTECH_OUTBOUND, minInstances: 1 }, as
     throw new HttpsError("failed-precondition", "QTech integration is disabled in admin settings.");
   }
 
-  const walletSession = await createWalletSession(uid, lobbyGameId, qtechGameId);
+  // Session write + QTech token in parallel — biggest win on launch latency.
+  const [walletSession, accessToken] = await Promise.all([
+    createWalletSession(uid, lobbyGameId, qtechGameId),
+    getQTechAccessToken(cfg),
+  ]);
+
   const launchUrl = await fetchLaunchUrl(cfg, {
     playerId: uid,
     displayName: profile.name,
     qtechGameId,
     walletSession,
     device,
+    accessToken,
+  });
+
+  logger.info("QTech real launch ready", {
+    gameId: lobbyGameId,
+    qtechGameId,
+    ms: Date.now() - started,
   });
 
   return { launchUrl, walletSession };

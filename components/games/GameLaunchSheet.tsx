@@ -36,18 +36,24 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
     if (!open) return;
     setSrc(primaryUrl);
     cacheGameDoc(game);
-    void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
+    const device = qtechPlayDevice();
+    // Start demo + real launch while the player reads the sheet — biggest UX win.
+    void prefetchQTechLaunch({ gameId: game.id, demo: true, device });
+    if (isPlayer) {
+      void prefetchQTechLaunch({ gameId: game.id, demo: false, device });
+    }
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [open, primaryUrl, game]);
+  }, [open, primaryUrl, game, isPlayer]);
 
   if (!open) return null;
 
   const playReal = () => {
     onClose();
     if (isPlayer) {
+      // Prefer awaiting an already-started prefetch so the game page has a URL ready.
       void prefetchQTechLaunch({ gameId: game.id, demo: false, device: qtechPlayDevice() });
       router.push(gamePlayPath(game));
       return;

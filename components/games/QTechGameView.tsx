@@ -27,11 +27,11 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
   const { fbUser, profile, wallet, loading } = useAuth();
   const { openAuth } = useAuthModal();
   const device = qtechPlayDevice();
-  // Only demo URLs may be restored from cache — real launch URLs are single-use.
+  // Demo: localStorage. Real: short sessionStorage handoff from lobby sheet prefetch.
   const [launchUrl, setLaunchUrl] = useState<string | null>(() =>
-    demo ? readCachedQTechLaunchUrl(game.id, true, device) : null,
+    readCachedQTechLaunchUrl(game.id, demo, device),
   );
-  const [launching, setLaunching] = useState(() => !(demo && readCachedQTechLaunchUrl(game.id, true, device)));
+  const [launching, setLaunching] = useState(() => !readCachedQTechLaunchUrl(game.id, demo, device));
   const [error, setError] = useState<string | null>(null);
   const startedRef = useRef(false);
 
@@ -69,6 +69,16 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     preconnectQTechGameHosts();
   }, []);
 
+  // Real launch URLs are single-use — clear handoff once the iframe has it.
+  useEffect(() => {
+    if (!launchUrl || demo) return;
+    clearCachedQTechLaunchUrl(game.id, false, qtechPlayDevice());
+  }, [demo, game.id, launchUrl]);
+
+  useEffect(() => {
+    preconnectQTechGameHosts();
+  }, []);
+
   useEffect(() => {
     if (startedRef.current) return;
     if (demo) {
@@ -80,6 +90,8 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     if (loading) return;
     if (isPlayer && !frozen) {
       startedRef.current = true;
+      // Handoff from lobby sheet may already have the URL — don't launch twice.
+      if (launchUrl) return;
       void loadGame(false);
     }
   }, [demo, frozen, isPlayer, launchUrl, loadGame, loading]);
