@@ -7,7 +7,7 @@ import { Loader2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
 import { errorMessage } from "@/lib/api";
-import { gameDemoPath, gamePlayPath } from "@/lib/games/paths";
+import { gameDemoPath } from "@/lib/games/paths";
 import { cacheGameDoc, prefetchQTechLaunch, qtechPlayDevice } from "@/lib/games/qtechLaunchCache";
 import { gameLobbyImageUrl } from "@/lib/games/lobbyImages";
 import { qtechCdnBannerImage } from "@/lib/games/qtechImages";
@@ -39,7 +39,6 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
     if (!open) return;
     setSrc(primaryUrl);
     cacheGameDoc(game);
-    // Demo only — real-money launch URLs are single-use; never prefetch them early.
     void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
     document.body.style.overflow = "hidden";
     return () => {
@@ -56,7 +55,8 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
     }
     setRealLoading(true);
     try {
-      // Exactly ONE real launch for this play — hand off URL to the game page.
+      // Exactly one real launch, then leave BETESE for QTech full-page.
+      // Skipping /play/game avoids React hydration bugs and iframe disconnects.
       const url = await prefetchQTechLaunch({
         gameId: game.id,
         demo: false,
@@ -64,11 +64,9 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
         force: true,
       });
       if (!url) throw new Error("Could not start this game. Try again.");
-      onClose();
-      router.push(gamePlayPath(game));
+      window.location.assign(url);
     } catch (e) {
       toast.error(errorMessage(e));
-    } finally {
       setRealLoading(false);
     }
   };

@@ -22,6 +22,29 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "2mb" }));
 
+// Log every QTech wallet hit so we can see if real-money games reach us.
+app.use((req, _res, next) => {
+  if (
+    req.path.startsWith("/accounts") ||
+    req.path.startsWith("/transactions") ||
+    req.path.startsWith("/bonus")
+  ) {
+    logger.info("QTech wallet request", {
+      method: req.method,
+      path: req.path,
+      hasPassKey: Boolean(req.header("Pass-Key") || req.header("pass-key")),
+      hasWalletSession: Boolean(
+        req.header("Wallet-Session") ||
+          req.header("wallet-session") ||
+          req.header("Wallet-Session-Id"),
+      ),
+      playerId: req.params.playerId || req.body?.playerId || null,
+      gameId: req.query.gameId || req.body?.gameId || null,
+    });
+  }
+  next();
+});
+
 function setPlayerHttpCors(req: express.Request, res: express.Response): void {
   const origin = req.headers.origin;
   if (origin && isAllowedPaymentOrigin(origin)) {

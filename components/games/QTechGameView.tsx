@@ -29,11 +29,10 @@ type Props = {
 export function QTechGameView({ game, immersive = false, demo = false }: Props) {
   const { fbUser, profile, wallet, loading } = useAuth();
   const { openAuth } = useAuthModal();
-  const device = qtechPlayDevice();
-  const [launchUrl, setLaunchUrl] = useState<string | null>(() =>
-    readCachedQTechLaunchUrl(game.id, demo, device),
-  );
-  const [launching, setLaunching] = useState(() => !readCachedQTechLaunchUrl(game.id, demo, device));
+  // Always start null on server+client to avoid React hydration error #418
+  // (sessionStorage differs between SSR and browser).
+  const [launchUrl, setLaunchUrl] = useState<string | null>(null);
+  const [launching, setLaunching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const startedRef = useRef(false);
   const redirectedRef = useRef(false);
@@ -73,30 +72,43 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     preconnectQTechGameHosts();
   }, []);
 
+  // Restore handoff / cached demo URL only after mount (client-only).
   useEffect(() => {
     if (startedRef.current) return;
+    const device = qtechPlayDevice();
+    const cached = readCachedQTechLaunchUrl(game.id, demo, device);
+
     if (demo) {
       startedRef.current = true;
-      if (launchUrl) return;
+      if (cached) {
+        setLaunchUrl(cached);
+        setLaunching(false);
+        return;
+      }
       void loadGame(false);
       return;
     }
-    if (loading) return;
-    if (isPlayer && !frozen) {
-      startedRef.current = true;
-      if (launchUrl) return;
-      void loadGame(false);
-    }
-  }, [demo, frozen, isPlayer, launchUrl, loadGame, loading]);
 
-  // Real money: full-page launch (not iframe). Spribe/QTech often disconnect inside
-  // iframes because Chrome blocks unload handlers and third-party session setup.
-  // HOME / returnUrl brings the player back to /play.
+    if (loading) return;
+    if (!isPlayer || frozen) {
+      setLaunching(false);
+      return;
+    }
+    startedRef.current = true;
+    if (cached) {
+      setLaunchUrl(cached);
+      setLaunching(false);
+      return;
+    }
+    void loadGame(false);
+  }, [demo, frozen, game.id, isPlayer, loadGame, loading]);
+
+  // Real money: full-page QTech (HOME returns to lobby). Avoids iframe disconnect.
   useEffect(() => {
     if (demo || !launchUrl || redirectedRef.current) return;
     redirectedRef.current = true;
     clearCachedQTechLaunchUrl(game.id, false, qtechPlayDevice());
-    window.location.replace(launchUrl);
+    window.location.assign(launchUrl);
   }, [demo, game.id, launchUrl]);
 
   useEffect(() => {
@@ -135,7 +147,6 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     return <WalletFrozenNotice />;
   }
 
-  // Real money redirects away — show spinner until navigation completes.
   if (!demo && (launchUrl || launching)) {
     return <Spinner label={`Opening ${game.name}…`} />;
   }
