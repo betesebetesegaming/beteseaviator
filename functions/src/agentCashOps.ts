@@ -8,6 +8,7 @@ import {
 import {
   db,
   FieldValue,
+  normalizePhone,
   requireRole,
   round2,
   todayIso,
@@ -43,14 +44,53 @@ async function requireAgentCashOps(agentUid: string): Promise<ProfileData> {
   return profile;
 }
 
-async function assertAgentCustomer(agentUid: string, customerId: string): Promise<ProfileData> {
-  const customerSnap = await db.doc(`users/${customerId}`).get();
-  if (!customerSnap.exists) throw new HttpsError("not-found", "Customer not found.");
-  const customer = customerSnap.data() as ProfileData;
-  if (customer.role !== "player" || !(customer.ancestors ?? []).includes(agentUid)) {
-    throw new HttpsError("permission-denied", "This customer is not in your network.");
+/**
+ * Find ANY player by BTE Player ID (e.g. "BTE-00042" or "42") or phone number.
+ * Cash-desk agents serve walk-in customers who opened their own account, so this
+ * is intentionally not limited to the agent's own network — every cash move is
+ * still authorised by the customer's own OTP.
+ */
+async function findCustomerByIdOrPhone(
+  raw: string,
+): Promise<(ProfileData & { uid: string }) | null> {
+  const cleaned = raw.trim();
+  if (!cleaned) return null;
+
+  // Player ID: "BTE-00042", "bte00042", or a bare number.
+  const idMatch = cleaned.toUpperCase().replace(/\s/g, "").match(/^(?:BTE-?)?0*(\d+)$/);
+  if (idMatch) {
+    const num = Number(idMatch[1]);
+    if (num > 0) {
+      const snap = await db
+        .collection("users")
+        .where("role", "==", "player")
+        .where("playerNumber", "==", num)
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        const d = snap.docs[0];
+        return { uid: d.id, ...(d.data() as ProfileData) };
+      }
+    }
   }
-  return customer;
+
+  // Phone: normalise to the 7-digit storage key, then use the phones/{key} index.
+  const phoneKey = normalizePhone(cleaned);
+  if (phoneKey) {
+    const phoneDoc = await db.doc(`phones/${phoneKey}`).get();
+    if (phoneDoc.exists) {
+      const uid = String(phoneDoc.data()?.uid ?? "");
+      if (uid) {
+        const userSnap = await db.doc(`users/${uid}`).get();
+        if (userSnap.exists) {
+          const data = userSnap.data() as ProfileData;
+          if (data.role === "player") return { uid, ...data };
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 /** Admin may act on any customer account (no agent-tree restriction). */
@@ -205,7 +245,7 @@ export const agentOtcCashDeposit = onCall(async (req) => {
   await requireAgentCashOps(uid);
   const customerId = String(req.data?.customerId ?? "");
   const amount = round2(Number(req.data?.amount));
-  const customer = await assertAgentCustomer(uid, customerId);
+  const customer = await getCustomerPlayer(customerId);
   return doCashDeposit({ actorUid: uid, actorName: profile.name, customerId, customer, amount });
 });
 
@@ -215,8 +255,37 @@ export const agentOtcCashWithdraw = onCall(async (req) => {
   await requireAgentCashOps(uid);
   const customerId = String(req.data?.customerId ?? "");
   const amount = round2(Number(req.data?.amount));
-  const customer = await assertAgentCustomer(uid, customerId);
+  const customer = await getCustomerPlayer(customerId);
   return doCashWithdraw({ actorUid: uid, actorName: profile.name, customerId, customer, amount });
+});
+
+/**
+ * Cash-desk agent looks up ANY customer by Player ID or phone so they can serve
+ * walk-ins who are not in their own network. Gated by the admin-controlled cash
+ * desk; the actual money move still needs the customer's OTP.
+ */
+export const agentLookupCustomer = onCall(async (req) => {
+  const { uid } = await requireRole(req, ["agent"]);
+  await requireAgentCashOps(uid);
+  const q = String(req.data?.query ?? "").trim();
+  if (!q) throw new HttpsError("invalid-argument", "Enter a Player ID or phone number.");
+
+  const customer = await findCustomerByIdOrPhone(q);
+  if (!customer) {
+    throw new HttpsError("not-found", "No customer found with that Player ID or phone.");
+  }
+
+  const walletSnap = await db.doc(`wallets/${customer.uid}`).get();
+  const balance = walletSnap.exists ? round2(Number(walletSnap.data()?.balance ?? 0)) : 0;
+
+  return {
+    uid: customer.uid,
+    name: customer.name ?? "",
+    phone: customer.phone ?? "",
+    playerNumber: customer.playerNumber ?? null,
+    playerId: customerPlayerId(customer, customer.uid),
+    balance,
+  };
 });
 
 /** Admin credits any customer's wallet against cash received (OTP-authorised). */

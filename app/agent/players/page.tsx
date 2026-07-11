@@ -19,7 +19,7 @@ import {
   errorMessage,
 } from "@/lib/api";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
-import { AgentCustomerCashActions } from "@/components/agent/AgentCashDesk";
+import { AgentCustomerCashActions, AgentServeAnyCustomer } from "@/components/agent/AgentCashDesk";
 import { CustomerOtpGate } from "@/components/shared/CustomerOtpGate";
 import { CustomerCreatedSuccess } from "@/components/agent/CustomerCreatedSuccess";
 import { formatXof, normalizePhone, todayIso } from "@/lib/format";
@@ -200,6 +200,8 @@ export default function AgentPlayersPage() {
           <AgentMarketingLinks slug={profile.agentSlug} agentName={profile.name} compact />
         </div>
       ) : null}
+
+      <AgentServeAnyCustomer cashOpsEnabled={Boolean(profile?.cashOpsEnabled)} />
 
       <div className="relative mb-4 max-w-sm">
         <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />

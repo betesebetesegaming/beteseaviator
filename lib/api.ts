@@ -145,6 +145,18 @@ export const agentOtcCashWithdraw = call<
   }
 >("agentOtcCashWithdraw");
 
+export const agentLookupCustomer = call<
+  { query: string },
+  {
+    uid: string;
+    name: string;
+    phone: string;
+    playerNumber: number | null;
+    playerId: string;
+    balance: number;
+  }
+>("agentLookupCustomer");
+
 export const adminOtcCashDeposit = call<
   { customerId: string; amount: number },
   { ok: true; playerId: string; amount: number }

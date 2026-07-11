@@ -34,6 +34,7 @@ export {
   adminSetAgentCashOps,
   agentOtcCashDeposit,
   agentOtcCashWithdraw,
+  agentLookupCustomer,
   adminOtcCashDeposit,
   adminOtcCashWithdraw,
 } from "./agentCashOps";

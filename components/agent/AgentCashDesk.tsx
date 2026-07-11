@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import toast from "react-hot-toast";
-import { Banknote, HandCoins } from "lucide-react";
+import { Banknote, HandCoins, Search } from "lucide-react";
 import {
   agentOtcCashDeposit,
   agentOtcCashWithdraw,
+  agentLookupCustomer,
   adminOtcCashDeposit,
   adminOtcCashWithdraw,
   errorMessage,
@@ -14,7 +15,7 @@ import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
 import { formatXof } from "@/lib/format";
 import { CustomerOtpGate } from "@/components/shared/CustomerOtpGate";
 import type { UserProfile } from "@/lib/types";
-import { Button, Input, Modal } from "@/components/ui";
+import { Button, Card, Input, Modal } from "@/components/ui";
 
 type PlayerRow = UserProfile & { balance?: number };
 
@@ -214,5 +215,114 @@ export function AgentCustomerCashActions({
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * Cash-desk agents can serve ANY customer — including people who opened their own
+ * account and are not in the agent's network. Look them up by Player ID or phone,
+ * then Credit (cash) / Withdraw. Only rendered when the agent's cash desk is on.
+ */
+export function AgentServeAnyCustomer({ cashOpsEnabled }: { cashOpsEnabled: boolean }) {
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<PlayerRow | null>(null);
+  const [mode, setMode] = useState<"deposit" | "withdraw" | null>(null);
+
+  async function find(e?: FormEvent) {
+    e?.preventDefault();
+    const q = query.trim();
+    if (!q) return toast.error("Enter a Player ID or phone number.");
+    setBusy(true);
+    try {
+      const c = await agentLookupCustomer({ query: q });
+      // Only the fields AgentCashDeskModal needs; cast through unknown to satisfy PlayerRow.
+      setResult({
+        uid: c.uid,
+        name: c.name,
+        phone: c.phone,
+        playerNumber: c.playerNumber ?? undefined,
+        balance: c.balance,
+        role: "player",
+        status: "active",
+      } as unknown as PlayerRow);
+    } catch (err) {
+      setResult(null);
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!cashOpsEnabled) return null;
+
+  return (
+    <Card className="mb-5 p-4">
+      <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-white">
+        <Search size={15} /> Serve any customer (not only yours)
+      </div>
+      <p className="mb-3 text-xs text-slate-400">
+        Credit or pay out a customer who opened their own account. Enter their Player ID (e.g.
+        BTE-00042) or phone number.
+      </p>
+      <form onSubmit={find} className="flex gap-2">
+        <Input
+          placeholder="Player ID or phone…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <Button type="submit" disabled={busy}>
+          {busy ? "Finding…" : "Find"}
+        </Button>
+      </form>
+
+      {result ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-slate-950/50 px-3 py-2.5">
+          <div className="text-sm">
+            <span className="font-mono font-semibold text-emerald-300">
+              {playerDisplayId(result)}
+            </span>{" "}
+            <span className="font-medium">{result.name}</span>
+            <span className="text-slate-400">
+              {" "}
+              · {result.phone || "no phone"} · Balance{" "}
+              {result.balance === undefined ? "—" : formatXof(result.balance)}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              className="!px-2.5 !py-1 text-xs text-emerald-200"
+              onClick={() => setMode("deposit")}
+            >
+              <span className="flex items-center gap-1">
+                <Banknote size={13} /> Credit (cash)
+              </span>
+            </Button>
+            <Button
+              variant="secondary"
+              className="!px-2.5 !py-1 text-xs text-amber-200"
+              onClick={() => setMode("withdraw")}
+            >
+              <span className="flex items-center gap-1">
+                <HandCoins size={13} /> Withdraw
+              </span>
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {mode && result ? (
+        <AgentCashDeskModal
+          cashOpsEnabled={cashOpsEnabled}
+          customer={result}
+          mode={mode}
+          onClose={() => {
+            setMode(null);
+            void find();
+          }}
+        />
+      ) : null}
+    </Card>
   );
 }

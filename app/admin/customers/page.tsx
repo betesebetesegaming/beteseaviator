@@ -30,7 +30,7 @@ import { PasswordStrengthHint } from "@/components/PasswordStrengthHint";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { AgentQuickStart } from "@/components/agent/AgentQuickStart";
 import { MarketerRetentionPanel } from "@/components/agent/MarketerRetentionPanel";
-import { AgentCustomerCashActions } from "@/components/agent/AgentCashDesk";
+import { AgentCustomerCashActions, AgentServeAnyCustomer } from "@/components/agent/AgentCashDesk";
 import { CustomerOtpGate } from "@/components/shared/CustomerOtpGate";
 import { CustomerCreatedSuccess } from "@/components/agent/CustomerCreatedSuccess";
 import type { UserProfile } from "@/lib/types";
@@ -208,6 +208,8 @@ export default function AgentPlayersPage() {
       ) : null}
 
       <MarketerRetentionPanel />
+
+      <AgentServeAnyCustomer cashOpsEnabled={Boolean(profile?.cashOpsEnabled)} />
 
       <div className="relative mb-4 max-w-sm">
         <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
