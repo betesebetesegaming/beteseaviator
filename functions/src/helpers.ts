@@ -40,7 +40,20 @@ export interface ProfileData {
   };
 }
 
-export const RESERVED_SLUGS = ["www", "admin", "api", "mail", "ftp", "betese", "app"];
+export const RESERVED_SLUGS = [
+  "www",
+  "admin",
+  "api",
+  "mail",
+  "ftp",
+  "betese",
+  "app",
+  "privacy",
+  "terms",
+  "play",
+  "agent",
+  "suspended",
+];
 
 export const PROVIDERS = ["wave", "afrimoney", "aps", "qmoney"] as const;
 export type Provider = (typeof PROVIDERS)[number];

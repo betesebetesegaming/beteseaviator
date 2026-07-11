@@ -81,5 +81,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|promotions).*)"],
+  // Keep /privacy (and /terms) out of agent-slug redirects so store listings can link here.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|promotions|privacy|terms).*)"],
 };

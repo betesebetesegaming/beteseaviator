@@ -30,6 +30,8 @@ export const AGENT_RESERVED_PATHS = new Set([
   "api",
   "r",
   "promotions",
+  "privacy",
+  "terms",
   "favicon.ico",
   "icon.png",
   "_next",
