@@ -10,7 +10,7 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
-import { Search, Snowflake, SlidersHorizontal } from "lucide-react";
+import { Search, Snowflake, Banknote, HandCoins } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { adminAdjustWallet, adminFreezeWallet, errorMessage } from "@/lib/api";
 import { formatXof, normalizePhone } from "@/lib/format";
@@ -35,6 +35,7 @@ export default function AdminWalletsPage() {
   const [search, setSearch] = useState("");
 
   const [adjustTarget, setAdjustTarget] = useState<Row | null>(null);
+  const [adjustMode, setAdjustMode] = useState<"credit" | "withdraw">("credit");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -73,20 +74,32 @@ export default function AdminWalletsPage() {
     return list;
   }, [users, wallets, search]);
 
+  function openAdjust(row: Row, mode: "credit" | "withdraw") {
+    setAdjustMode(mode);
+    setAmount("");
+    setReason("");
+    setAdjustTarget(row);
+  }
+
   async function adjust() {
     if (!adjustTarget) return;
     const amt = Number(amount);
-    if (!Number.isFinite(amt) || amt === 0)
-      return toast.error("Enter a non-zero amount (negative to debit).");
+    if (!Number.isFinite(amt) || amt <= 0)
+      return toast.error("Enter an amount greater than zero.");
+    if (adjustMode === "withdraw" && amt > (adjustTarget.wallet?.balance ?? 0))
+      return toast.error("Amount is more than the wallet balance.");
     if (!reason.trim()) return toast.error("A reason is mandatory — it goes in the audit log.");
     setBusy(true);
     try {
+      const signed = adjustMode === "withdraw" ? -amt : amt;
       const res = await adminAdjustWallet({
         uid: adjustTarget.uid,
-        amount: amt,
+        amount: signed,
         reason: reason.trim(),
       });
-      toast.success(`Adjusted. New balance: ${formatXof(res.newBalance)}.`);
+      toast.success(
+        `${adjustMode === "withdraw" ? "Withdrew" : "Credited"} ${formatXof(amt)}. New balance: ${formatXof(res.newBalance)}.`,
+      );
       setAdjustTarget(null);
       setAmount("");
       setReason("");
@@ -114,8 +127,9 @@ export default function AdminWalletsPage() {
       <div className="mb-5">
         <h1 className="text-xl font-bold">Wallets</h1>
         <p className="text-sm text-slate-400">
-          Adjust any balance (with a mandatory, logged reason) or freeze a wallet. Frozen wallets
-          cannot bet or withdraw.
+          <strong>Credit</strong> (add money) or <strong>Withdraw</strong> (take money) on any
+          wallet — each needs a mandatory, logged reason. You can also freeze a wallet; frozen
+          wallets cannot bet or withdraw.
         </p>
       </div>
 
@@ -158,14 +172,25 @@ export default function AdminWalletsPage() {
                   <Badge value={r.wallet?.frozen ? "suspended" : "active"} />
                 </Td>
                 <Td>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       variant="secondary"
-                      className="!px-2.5 !py-1 text-xs"
-                      onClick={() => setAdjustTarget(r)}
+                      className="!px-2.5 !py-1 text-xs text-emerald-200"
+                      onClick={() => openAdjust(r, "credit")}
+                      title="Add money to this wallet"
                     >
                       <span className="flex items-center gap-1">
-                        <SlidersHorizontal size={13} /> Adjust
+                        <Banknote size={13} /> Credit
+                      </span>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="!px-2.5 !py-1 text-xs text-amber-200"
+                      onClick={() => openAdjust(r, "withdraw")}
+                      title="Take money from this wallet"
+                    >
+                      <span className="flex items-center gap-1">
+                        <HandCoins size={13} /> Withdraw
                       </span>
                     </Button>
                     <Button
@@ -189,17 +214,20 @@ export default function AdminWalletsPage() {
       <Modal
         open={!!adjustTarget}
         onClose={() => setAdjustTarget(null)}
-        title={`Adjust ${adjustTarget?.name ?? ""}'s wallet`}
+        title={`${adjustMode === "credit" ? "Credit" : "Withdraw from"} ${adjustTarget?.name ?? ""}'s wallet`}
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-400">
             Current balance:{" "}
-            <strong>{adjustTarget?.wallet ? formatXof(adjustTarget.wallet.balance) : "—"}</strong>.
-            Use a negative amount to debit.
+            <strong>{adjustTarget?.wallet ? formatXof(adjustTarget.wallet.balance) : "—"}</strong>.{" "}
+            {adjustMode === "credit"
+              ? "This amount will be added to the wallet."
+              : "This amount will be taken from the wallet."}
           </p>
           <Input
-            label="Amount (GMD, negative = debit)"
+            label="Amount (GMD)"
             type="number"
+            min={1}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
@@ -209,7 +237,11 @@ export default function AdminWalletsPage() {
             onChange={(e) => setReason(e.target.value)}
           />
           <Button className="w-full" onClick={adjust} disabled={busy}>
-            {busy ? "Adjusting…" : "Apply Adjustment"}
+            {busy
+              ? "Working…"
+              : adjustMode === "credit"
+                ? "Credit wallet"
+                : "Withdraw from wallet"}
           </Button>
         </div>
       </Modal>
