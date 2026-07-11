@@ -10,6 +10,7 @@ import { ModemPayDepositsPanel } from "@/components/accounts/ModemPayDepositsPan
 import { ModemPayWithdrawalsPanel } from "@/components/accounts/ModemPayWithdrawalsPanel";
 import { LedgerTransactionsPanel } from "@/components/accounts/LedgerTransactionsPanel";
 import { AgentCommissionsPanel } from "@/components/accounts/AgentCommissionsPanel";
+import { AgentServeAnyCustomer } from "@/components/agent/AgentCashDesk";
 import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 
 const ADMIN_TABS = [
@@ -98,6 +99,7 @@ export function AccountsHub() {
         </>
       ) : (
         <>
+          <AgentServeAnyCustomer cashOpsEnabled={Boolean(profile?.cashOpsEnabled)} />
           {agentTab === "sales" && <AgentSalesSummary />}
           {agentTab === "deposits" && (
             <ClientErrorBoundary label="ModemPay deposits">

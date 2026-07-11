@@ -254,20 +254,34 @@ export function AgentServeAnyCustomer({ cashOpsEnabled }: { cashOpsEnabled: bool
     }
   }
 
-  if (!cashOpsEnabled) return null;
+  if (!cashOpsEnabled) {
+    return (
+      <Card className="mb-5 border-dashed border-white/10 p-4 opacity-90">
+        <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-300">
+          <Search size={15} /> Credit / withdraw by Player ID or phone
+        </div>
+        <p className="text-xs text-slate-500">
+          Look up any customer with <span className="font-mono text-slate-400">BTE-00001</span> or
+          their phone, then Credit (cash) or Withdraw. Ask BETESE admin to turn on{" "}
+          <strong className="text-slate-400">Cash desk</strong> for your account first.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <Card className="mb-5 p-4">
       <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-white">
-        <Search size={15} /> Serve any customer (not only yours)
+        <Search size={15} /> Credit / withdraw by Player ID or phone
       </div>
       <p className="mb-3 text-xs text-slate-400">
-        Credit or pay out a customer who opened their own account. Enter their Player ID (e.g.
-        BTE-00042) or phone number.
+        Enter <span className="font-mono text-slate-300">BTE-00001</span> (or{" "}
+        <span className="font-mono text-slate-300">1</span>) or the customer&apos;s Gambian phone
+        number, then Credit (cash) or Withdraw. Works for walk-ins, not only your network.
       </p>
       <form onSubmit={find} className="flex gap-2">
         <Input
-          placeholder="Player ID or phone…"
+          placeholder="BTE-00001 or phone…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
