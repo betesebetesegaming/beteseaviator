@@ -32,6 +32,7 @@ export const AGENT_RESERVED_PATHS = new Set([
   "promotions",
   "privacy",
   "terms",
+  "delete-account",
   "favicon.ico",
   "icon.png",
   "_next",

@@ -50,6 +50,7 @@ export const RESERVED_SLUGS = [
   "app",
   "privacy",
   "terms",
+  "delete-account",
   "play",
   "agent",
   "suspended",
