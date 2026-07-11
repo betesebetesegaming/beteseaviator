@@ -29,13 +29,11 @@ type Props = {
 export function QTechGameView({ game, immersive = false, demo = false }: Props) {
   const { fbUser, profile, wallet, loading } = useAuth();
   const { openAuth } = useAuthModal();
-  // Always start null on server+client to avoid React hydration error #418
-  // (sessionStorage differs between SSR and browser).
+  // Always start null on server+client to avoid React hydration error #418.
   const [launchUrl, setLaunchUrl] = useState<string | null>(null);
   const [launching, setLaunching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const startedRef = useRef(false);
-  const redirectedRef = useRef(false);
 
   const needsProfile = !!fbUser && !profile && !loading;
   const isPlayer = !!profile && profile.role === "player" && profile.status === "active";
@@ -49,7 +47,6 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
       if (force) {
         clearCachedQTechLaunchUrl(game.id, demo, playDevice);
         setLaunchUrl(null);
-        redirectedRef.current = false;
       }
       const url = await prefetchQTechLaunch({
         gameId: game.id,
@@ -72,7 +69,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     preconnectQTechGameHosts();
   }, []);
 
-  // Restore handoff / cached demo URL only after mount (client-only).
+  // Restore handoff / cached URL only after mount (client-only).
   useEffect(() => {
     if (startedRef.current) return;
     const device = qtechPlayDevice();
@@ -98,21 +95,15 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     if (cached) {
       setLaunchUrl(cached);
       setLaunching(false);
+      // Real URLs are single-use — drop handoff after first paint into iframe.
+      clearCachedQTechLaunchUrl(game.id, false, device);
       return;
     }
     void loadGame(false);
   }, [demo, frozen, game.id, isPlayer, loadGame, loading]);
 
-  // Real money: full-page QTech (HOME returns to lobby). Avoids iframe disconnect.
   useEffect(() => {
-    if (demo || !launchUrl || redirectedRef.current) return;
-    redirectedRef.current = true;
-    clearCachedQTechLaunchUrl(game.id, false, qtechPlayDevice());
-    window.location.assign(launchUrl);
-  }, [demo, game.id, launchUrl]);
-
-  useEffect(() => {
-    if (!immersive || !demo) return;
+    if (!immersive) return;
     const html = document.documentElement;
     const body = document.body;
     const prevHtmlOverflow = html.style.overflow;
@@ -126,7 +117,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
       body.style.overflow = prevBodyOverflow;
       body.style.backgroundColor = prevBodyBg;
     };
-  }, [demo, immersive]);
+  }, [immersive]);
 
   if (!demo && (!fbUser || !isPlayer)) {
     return (
@@ -147,17 +138,13 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     return <WalletFrozenNotice />;
   }
 
-  if (!demo && (launchUrl || launching)) {
-    return <Spinner label={`Opening ${game.name}…`} />;
-  }
-
-  if (launchUrl && demo) {
+  if (launchUrl) {
     if (immersive) {
       return (
         <>
           {launching ? (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80">
-              <Spinner label="Starting demo…" />
+              <Spinner label={demo ? "Starting demo…" : `Opening ${game.name}…`} />
             </div>
           ) : null}
           <iframe
@@ -173,7 +160,7 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
             onClick={() => void loadGame(true)}
             disabled={launching}
             className="fixed bottom-[max(5.75rem,calc(env(safe-area-inset-bottom)+5.25rem))] left-3 z-[65] flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/70 backdrop-blur-sm active:bg-black/60 disabled:opacity-40"
-            title="Reload demo"
+            title="Reload game"
           >
             <RefreshCw size={14} className={launching ? "animate-spin" : ""} />
           </button>
@@ -183,6 +170,17 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
 
     return (
       <div className="space-y-3">
+        <div className="flex justify-end">
+          <Button
+            className="mt-4 px-3 py-1.5 text-xs"
+            variant="secondary"
+            onClick={() => void loadGame(true)}
+            disabled={launching}
+          >
+            <RefreshCw size={14} className="mr-1.5 inline" />
+            Reload game
+          </Button>
+        </div>
         <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
           <iframe
             title={game.name}
