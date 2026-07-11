@@ -2,11 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import toast from "react-hot-toast";
-import { Loader2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAuthModal } from "@/lib/auth-modal-context";
-import { errorMessage } from "@/lib/api";
 import { gameDemoPath, gamePlayPath } from "@/lib/games/paths";
 import { cacheGameDoc, prefetchQTechLaunch, qtechPlayDevice } from "@/lib/games/qtechLaunchCache";
 import { gameLobbyImageUrl } from "@/lib/games/lobbyImages";
@@ -32,8 +30,6 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
   }, [game.qtechGameId]);
 
   const [src, setSrc] = useState(primaryUrl);
-  const [demoLoading, setDemoLoading] = useState(false);
-  const [realLoading, setRealLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -48,46 +44,28 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
 
   if (!open) return null;
 
-  const playReal = async () => {
+  const playReal = () => {
     if (!isPlayer) {
       openAuth("register");
       return;
     }
-    setRealLoading(true);
-    try {
-      // One real launch, then stay on beteseaviator.com with the game in an iframe.
-      const url = await prefetchQTechLaunch({
-        gameId: game.id,
-        demo: false,
-        device: qtechPlayDevice(),
-        force: true,
-      });
-      if (!url) throw new Error("Could not start this game. Try again.");
-      onClose();
-      router.push(gamePlayPath(game));
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setRealLoading(false);
-    }
+    // Navigate immediately — game page owns a single launch (avoids double-wait on the sheet).
+    cacheGameDoc(game);
+    onClose();
+    router.push(gamePlayPath(game));
   };
 
-  const playDemo = async () => {
-    setDemoLoading(true);
-    try {
-      await prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
-      onClose();
-      router.push(gameDemoPath(game));
-    } finally {
-      setDemoLoading(false);
-    }
+  const playDemo = () => {
+    cacheGameDoc(game);
+    // Prefetch in background; game page will reuse the same in-flight request.
+    void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
+    onClose();
+    router.push(gameDemoPath(game));
   };
-
-  const busy = demoLoading || realLoading;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={busy ? undefined : onClose} aria-hidden />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden />
 
       <div className="relative w-full max-w-md overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
@@ -95,8 +73,7 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            disabled={busy}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"
             aria-label="Close"
           >
             <X size={18} />
@@ -118,21 +95,17 @@ export function GameLaunchSheet({ game, open, onClose }: Props) {
         <div className="space-y-3 p-4">
           <button
             type="button"
-            onClick={() => void playReal()}
-            disabled={busy}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#f5e042] py-4 text-center text-sm font-black uppercase tracking-widest text-black shadow-md active:scale-[0.99] disabled:opacity-70"
+            onClick={playReal}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#f5e042] py-4 text-center text-sm font-black uppercase tracking-widest text-black shadow-md active:scale-[0.99]"
           >
-            {realLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-            {realLoading ? "Starting…" : "Play now"}
+            Play now
           </button>
           <button
             type="button"
-            onClick={() => void playDemo()}
-            disabled={busy}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-black py-4 text-center text-sm font-black uppercase tracking-widest text-white active:scale-[0.99] disabled:opacity-70"
+            onClick={playDemo}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-black py-4 text-center text-sm font-black uppercase tracking-widest text-white active:scale-[0.99]"
           >
-            {demoLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-            {demoLoading ? "Opening demo…" : "Play demo"}
+            Play demo
           </button>
           <p className="text-center text-[11px] text-slate-500">
             Demo is free — no wallet needed. Sign up to play with real GMD.

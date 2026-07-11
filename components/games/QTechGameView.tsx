@@ -69,19 +69,23 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
     preconnectQTechGameHosts();
   }, []);
 
-  // Restore handoff / cached URL only after mount (client-only).
+  // Restore handoff / start launch after mount (client-only).
   useEffect(() => {
     if (startedRef.current) return;
     const device = qtechPlayDevice();
     const cached = readCachedQTechLaunchUrl(game.id, demo, device);
 
+    // Use a ready launch URL immediately — do not wait on auth (saves up to ~3s).
+    if (cached) {
+      startedRef.current = true;
+      setLaunchUrl(cached);
+      setLaunching(false);
+      if (!demo) clearCachedQTechLaunchUrl(game.id, false, device);
+      return;
+    }
+
     if (demo) {
       startedRef.current = true;
-      if (cached) {
-        setLaunchUrl(cached);
-        setLaunching(false);
-        return;
-      }
       void loadGame(false);
       return;
     }
@@ -92,13 +96,6 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
       return;
     }
     startedRef.current = true;
-    if (cached) {
-      setLaunchUrl(cached);
-      setLaunching(false);
-      // Real URLs are single-use — drop handoff after first paint into iframe.
-      clearCachedQTechLaunchUrl(game.id, false, device);
-      return;
-    }
     void loadGame(false);
   }, [demo, frozen, game.id, isPlayer, loadGame, loading]);
 
@@ -118,6 +115,10 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
       body.style.backgroundColor = prevBodyBg;
     };
   }, [immersive]);
+
+  if (!demo && loading && !launchUrl) {
+    return <Spinner label={`Opening ${game.name}…`} />;
+  }
 
   if (!demo && (!fbUser || !isPlayer)) {
     return (

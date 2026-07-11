@@ -92,18 +92,25 @@ export async function loadPlayer(uid: string): Promise<{
 }
 
 export async function getBalanceForPlayer(uid: string): Promise<{ balance: number; currency: string }> {
-  const player = await loadPlayer(uid);
-  if (player.blocked) {
+  const [userSnap, walletSnap] = await Promise.all([
+    db.doc(`users/${uid}`).get(),
+    db.doc(`wallets/${uid}`).get(),
+  ]);
+  if (!userSnap.exists || userSnap.data()?.role !== "player") {
     throw qtechError("ACCOUNT_BLOCKED", 403);
   }
-  const walletSnap = await db.doc(`wallets/${uid}`).get();
+  const status = userSnap.data()?.status;
+  const frozen = walletSnap.exists && Boolean(walletSnap.data()?.frozen);
+  if (status !== "active" || frozen) {
+    throw qtechError("ACCOUNT_BLOCKED", 403);
+  }
   const balance = walletSnap.exists
     ? playableBalance({
         balance: Number(walletSnap.data()?.balance ?? 0),
         bonusBalance: Number(walletSnap.data()?.bonusBalance ?? 0),
       })
     : 0;
-  return { balance, currency: player.currency };
+  return { balance, currency: String(walletSnap.data()?.currency || "GMD") };
 }
 
 export function qtechError(code: QTechErrorCode, status: number, message?: string): QTechHttpError {

@@ -110,10 +110,13 @@ export async function verifySessionHandler(req: Request, res: Response): Promise
     const playerId = String(req.params.playerId || "");
     const session = await requireValidSession(req, res, playerId, "verifySession");
     if (!session) return;
-    await touchWalletSession(walletSession(req) ?? "");
-    const cfg = await getQTechSettings();
-    const { balance, currency } = await getBalanceForPlayer(session.uid);
-    sendSuccess(res, { balance, currency: currency || cfg.currency });
+    // Don't block the game connect on session TTL refresh.
+    void touchWalletSession(walletSession(req) ?? "").catch(() => undefined);
+    const [cfg, bal] = await Promise.all([
+      getQTechSettings(),
+      getBalanceForPlayer(session.uid),
+    ]);
+    sendSuccess(res, { balance: bal.balance, currency: bal.currency || cfg.currency });
   } catch (e) {
     handleWalletError(res, e);
   }
