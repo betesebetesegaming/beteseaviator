@@ -206,11 +206,18 @@ function AdminAgentsContent() {
                     </Button>
                     <Button
                       variant="secondary"
-                      className={`!px-2.5 !py-1 text-xs ${u.cashOpsEnabled ? "text-amber-200" : ""}`}
+                      className={`!px-2.5 !py-1 text-xs ${
+                        u.cashOpsEnabled ? "text-emerald-200" : "text-sky-200"
+                      }`}
                       disabled={busyUid === u.uid}
                       onClick={() => toggleCashOps(u)}
+                      title={
+                        u.cashOpsEnabled
+                          ? "Cash desk is ON — this agent can credit (+ Cash) and pay out (− Cash) customer wallets. Click to turn OFF."
+                          : "Turn ON to let this agent credit and withdraw customer cash at the shop (+ Cash / − Cash)."
+                      }
                     >
-                      {u.cashOpsEnabled ? "Cash desk on" : "Cash desk off"}
+                      {u.cashOpsEnabled ? "✓ Cash desk: ON" : "Enable cash desk"}
                     </Button>
                     <Button
                       variant={u.status === "active" ? "danger" : "secondary"}

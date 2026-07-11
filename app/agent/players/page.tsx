@@ -190,8 +190,8 @@ export default function AgentPlayersPage() {
 
       {profile?.cashOpsEnabled ? (
         <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-          <strong>Cash desk enabled</strong> — + Cash when customer pays you; − Cash when you pay
-          them (withdrawal code with Player ID).
+          <strong>Cash desk enabled</strong> — <em>Credit (cash)</em> when a customer pays you;
+          <em>Withdraw</em> when you pay them out (you get a withdrawal code with their Player ID).
         </p>
       ) : null}
 
@@ -281,7 +281,7 @@ export default function AgentPlayersPage() {
       <Modal
         open={!!depositTarget}
         onClose={closeDeposit}
-        title={`Deposit to ${depositTarget?.name ?? ""}${depositTarget?.playerNumber ? ` (${formatPlayerId(depositTarget.playerNumber)})` : ""}`}
+        title={`Credit ${depositTarget?.name ?? ""}${depositTarget?.playerNumber ? ` (${formatPlayerId(depositTarget.playerNumber)})` : ""} — from your balance`}
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-400">
@@ -302,7 +302,7 @@ export default function AgentPlayersPage() {
             onVerified={() => setDepositVerified(true)}
           />
           <Button className="w-full" onClick={deposit} disabled={busy || !depositVerified}>
-            {busy ? "Transferring…" : "Deposit"}
+            {busy ? "Crediting…" : "Credit customer"}
           </Button>
         </div>
       </Modal>

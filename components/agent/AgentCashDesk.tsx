@@ -73,7 +73,7 @@ export function AgentCashDeskModal({ cashOpsEnabled, customer, onClose, mode, is
     <Modal
       open
       onClose={onClose}
-      title={mode === "deposit" ? `Cash deposit — ${customer.name}` : `Cash withdraw — ${customer.name}`}
+      title={mode === "deposit" ? `Credit (cash) — ${customer.name}` : `Withdraw — ${customer.name}`}
     >
       <div className="space-y-4">
         {officeId ? (
@@ -139,7 +139,7 @@ export function AgentCashDeskModal({ cashOpsEnabled, customer, onClose, mode, is
               {busy
                 ? "Processing…"
                 : mode === "deposit"
-                  ? "Record cash deposit"
+                  ? "Credit wallet (cash)"
                   : "Pay cash & get code"}
             </Button>
           </>
@@ -173,10 +173,10 @@ export function AgentCustomerCashActions({
           variant="secondary"
           className="!px-2.5 !py-1 text-xs"
           onClick={onFloatDeposit}
-          title="Transfer from your agent commission balance"
+          title="Credit customer from your own agent balance"
         >
           <span className="flex items-center gap-1">
-            <Banknote size={13} /> Float
+            <Banknote size={13} /> Credit (balance)
           </span>
         </Button>
         {showCash ? (
@@ -185,10 +185,10 @@ export function AgentCustomerCashActions({
               variant="secondary"
               className="!px-2.5 !py-1 text-xs text-emerald-200"
               onClick={() => setCashMode("deposit")}
-              title="Physical cash received at shop"
+              title="Customer paid physical cash — credit their wallet"
             >
               <span className="flex items-center gap-1">
-                <Banknote size={13} /> + Cash
+                <Banknote size={13} /> Credit (cash)
               </span>
             </Button>
             <Button
@@ -198,7 +198,7 @@ export function AgentCustomerCashActions({
               title="Pay customer cash — generates withdrawal code"
             >
               <span className="flex items-center gap-1">
-                <HandCoins size={13} /> − Cash
+                <HandCoins size={13} /> Withdraw
               </span>
             </Button>
           </>
