@@ -188,20 +188,13 @@ export default function AgentPlayersPage() {
         </Button>
       </div>
 
-      {profile?.cashOpsEnabled ? (
-        <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-          <strong>Cash desk enabled</strong> — <em>Credit (cash)</em> when a customer pays you;
-          <em>Withdraw</em> when you pay them out (you get a withdrawal code with their Player ID).
-        </p>
-      ) : null}
-
       {profile?.agentSlug ? (
         <div className="mb-5">
           <AgentMarketingLinks slug={profile.agentSlug} agentName={profile.name} compact />
         </div>
       ) : null}
 
-      <AgentServeAnyCustomer cashOpsEnabled={Boolean(profile?.cashOpsEnabled)} />
+      <AgentServeAnyCustomer />
 
       <div className="relative mb-4 max-w-sm">
         <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
@@ -246,7 +239,6 @@ export default function AgentPlayersPage() {
                 <Td>
                   <AgentCustomerCashActions
                     customer={p}
-                    cashOpsEnabled={Boolean(profile?.cashOpsEnabled)}
                     isAdmin={profile?.role === "admin"}
                     onFloatDeposit={() => openDeposit(p)}
                   />

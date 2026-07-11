@@ -28,22 +28,6 @@ function withdrawalToken(): string {
   return out;
 }
 
-async function requireAgentCashOps(agentUid: string): Promise<ProfileData> {
-  const snap = await db.doc(`users/${agentUid}`).get();
-  if (!snap.exists) throw new HttpsError("not-found", "Agent profile not found.");
-  const profile = snap.data() as ProfileData;
-  if (!isAgentRole(profile.role)) {
-    throw new HttpsError("permission-denied", "Only agents can use cash desk operations.");
-  }
-  if (!profile.cashOpsEnabled) {
-    throw new HttpsError(
-      "permission-denied",
-      "Cash desk is not enabled for your account. Ask BETESE admin to turn it on.",
-    );
-  }
-  return profile;
-}
-
 /**
  * Find ANY player by BTE Player ID (e.g. "BTE-00042" or "42") or phone number.
  * Cash-desk agents serve walk-in customers who opened their own account, so this
@@ -239,20 +223,18 @@ export const adminSetAgentCashOps = onCall(async (req) => {
   return { ok: true, uid, cashOpsEnabled: enabled };
 });
 
-/** Agent receives physical cash and credits the customer wallet (OTP-authorised, no float debit). */
+/** Agent receives physical cash and credits any customer wallet (OTP-authorised, no float debit). */
 export const agentOtcCashDeposit = onCall(async (req) => {
   const { uid, profile } = await requireRole(req, ["agent"]);
-  await requireAgentCashOps(uid);
   const customerId = String(req.data?.customerId ?? "");
   const amount = round2(Number(req.data?.amount));
   const customer = await getCustomerPlayer(customerId);
   return doCashDeposit({ actorUid: uid, actorName: profile.name, customerId, customer, amount });
 });
 
-/** Agent pays physical cash — OTP-authorised debit + office withdrawal code. */
+/** Agent pays physical cash to any customer — OTP-authorised debit + office withdrawal code. */
 export const agentOtcCashWithdraw = onCall(async (req) => {
   const { uid, profile } = await requireRole(req, ["agent"]);
-  await requireAgentCashOps(uid);
   const customerId = String(req.data?.customerId ?? "");
   const amount = round2(Number(req.data?.amount));
   const customer = await getCustomerPlayer(customerId);
@@ -260,13 +242,11 @@ export const agentOtcCashWithdraw = onCall(async (req) => {
 });
 
 /**
- * Cash-desk agent looks up ANY customer by Player ID or phone so they can serve
- * walk-ins who are not in their own network. Gated by the admin-controlled cash
- * desk; the actual money move still needs the customer's OTP.
+ * Any agent looks up ANY customer by Player ID or phone (walk-ins included).
+ * The actual money move still needs the customer's OTP.
  */
 export const agentLookupCustomer = onCall(async (req) => {
-  const { uid } = await requireRole(req, ["agent"]);
-  await requireAgentCashOps(uid);
+  await requireRole(req, ["agent"]);
   const q = String(req.data?.query ?? "").trim();
   if (!q) throw new HttpsError("invalid-argument", "Enter a Player ID or phone number.");
 

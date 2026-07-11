@@ -99,7 +99,7 @@ export function AccountsHub() {
         </>
       ) : (
         <>
-          <AgentServeAnyCustomer cashOpsEnabled={Boolean(profile?.cashOpsEnabled)} />
+          <AgentServeAnyCustomer />
           {agentTab === "sales" && <AgentSalesSummary />}
           {agentTab === "deposits" && (
             <ClientErrorBoundary label="ModemPay deposits">

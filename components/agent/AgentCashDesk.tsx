@@ -20,15 +20,16 @@ import { Button, Card, Input, Modal } from "@/components/ui";
 type PlayerRow = UserProfile & { balance?: number };
 
 type Props = {
-  cashOpsEnabled: boolean;
+  /** @deprecated Any agent may use cash ops; kept for call-site compatibility. */
+  cashOpsEnabled?: boolean;
   customer: PlayerRow;
   onClose: () => void;
   mode: "deposit" | "withdraw";
-  /** Admin acts on any customer via the admin callables (no cash-desk gate). */
+  /** Admin uses admin OTC callables. */
   isAdmin?: boolean;
 };
 
-export function AgentCashDeskModal({ cashOpsEnabled, customer, onClose, mode, isAdmin }: Props) {
+export function AgentCashDeskModal({ customer, onClose, mode, isAdmin }: Props) {
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [verified, setVerified] = useState(false);
@@ -40,9 +41,6 @@ export function AgentCashDeskModal({ cashOpsEnabled, customer, onClose, mode, is
   async function submit() {
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount.");
-    if (!isAdmin && !cashOpsEnabled) {
-      return toast.error("Cash desk is not enabled. Ask admin to turn it on.");
-    }
     if (!verified) {
       return toast.error("Get the customer's code and verify it first.");
     }
@@ -107,12 +105,12 @@ export function AgentCashDeskModal({ cashOpsEnabled, customer, onClose, mode, is
               {mode === "deposit" ? (
                 <>
                   Customer gave you physical cash — this credits their wallet directly (does not use
-                  your commission balance).
+                  your commission balance). Customer must approve with OTP.
                 </>
               ) : (
                 <>
                   Pay the customer cash from the shop — their wallet is debited and you receive a
-                  withdrawal code with their Player ID.
+                  withdrawal code with their Player ID. Customer must approve with OTP.
                 </>
               )}
             </p>
@@ -152,20 +150,18 @@ export function AgentCashDeskModal({ cashOpsEnabled, customer, onClose, mode, is
 
 type RowActionsProps = {
   customer: PlayerRow;
-  cashOpsEnabled: boolean;
+  /** @deprecated Ignored — any agent can use cash credit/withdraw. */
+  cashOpsEnabled?: boolean;
   onFloatDeposit: () => void;
-  /** Admin sees cash actions for any customer, no cash-desk gate. */
   isAdmin?: boolean;
 };
 
 export function AgentCustomerCashActions({
   customer,
-  cashOpsEnabled,
   onFloatDeposit,
   isAdmin,
 }: RowActionsProps) {
   const [cashMode, setCashMode] = useState<"deposit" | "withdraw" | null>(null);
-  const showCash = isAdmin || cashOpsEnabled;
 
   return (
     <>
@@ -180,34 +176,29 @@ export function AgentCustomerCashActions({
             <Banknote size={13} /> Credit (balance)
           </span>
         </Button>
-        {showCash ? (
-          <>
-            <Button
-              variant="secondary"
-              className="!px-2.5 !py-1 text-xs text-emerald-200"
-              onClick={() => setCashMode("deposit")}
-              title="Customer paid physical cash — credit their wallet"
-            >
-              <span className="flex items-center gap-1">
-                <Banknote size={13} /> Credit (cash)
-              </span>
-            </Button>
-            <Button
-              variant="secondary"
-              className="!px-2.5 !py-1 text-xs text-amber-200"
-              onClick={() => setCashMode("withdraw")}
-              title="Pay customer cash — generates withdrawal code"
-            >
-              <span className="flex items-center gap-1">
-                <HandCoins size={13} /> Withdraw
-              </span>
-            </Button>
-          </>
-        ) : null}
+        <Button
+          variant="secondary"
+          className="!px-2.5 !py-1 text-xs text-emerald-200"
+          onClick={() => setCashMode("deposit")}
+          title="Customer paid physical cash — credit their wallet"
+        >
+          <span className="flex items-center gap-1">
+            <Banknote size={13} /> Credit (cash)
+          </span>
+        </Button>
+        <Button
+          variant="secondary"
+          className="!px-2.5 !py-1 text-xs text-amber-200"
+          onClick={() => setCashMode("withdraw")}
+          title="Pay customer cash — generates withdrawal code"
+        >
+          <span className="flex items-center gap-1">
+            <HandCoins size={13} /> Withdraw
+          </span>
+        </Button>
       </div>
       {cashMode ? (
         <AgentCashDeskModal
-          cashOpsEnabled={cashOpsEnabled}
           isAdmin={isAdmin}
           customer={customer}
           mode={cashMode}
@@ -219,11 +210,10 @@ export function AgentCustomerCashActions({
 }
 
 /**
- * Cash-desk agents can serve ANY customer — including people who opened their own
- * account and are not in the agent's network. Look them up by Player ID or phone,
- * then Credit (cash) / Withdraw. Only rendered when the agent's cash desk is on.
+ * Any agent can look up ANY customer by Player ID or phone, then Credit (cash) /
+ * Withdraw. Customer OTP is still required for every money move.
  */
-export function AgentServeAnyCustomer({ cashOpsEnabled }: { cashOpsEnabled: boolean }) {
+export function AgentServeAnyCustomer(_props?: { cashOpsEnabled?: boolean }) {
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PlayerRow | null>(null);
@@ -236,7 +226,6 @@ export function AgentServeAnyCustomer({ cashOpsEnabled }: { cashOpsEnabled: bool
     setBusy(true);
     try {
       const c = await agentLookupCustomer({ query: q });
-      // Only the fields AgentCashDeskModal needs; cast through unknown to satisfy PlayerRow.
       setResult({
         uid: c.uid,
         name: c.name,
@@ -254,21 +243,6 @@ export function AgentServeAnyCustomer({ cashOpsEnabled }: { cashOpsEnabled: bool
     }
   }
 
-  if (!cashOpsEnabled) {
-    return (
-      <Card className="mb-5 border-dashed border-white/10 p-4 opacity-90">
-        <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-300">
-          <Search size={15} /> Credit / withdraw by Player ID or phone
-        </div>
-        <p className="text-xs text-slate-500">
-          Look up any customer with <span className="font-mono text-slate-400">BTE-00001</span> or
-          their phone, then Credit (cash) or Withdraw. Ask BETESE admin to turn on{" "}
-          <strong className="text-slate-400">Cash desk</strong> for your account first.
-        </p>
-      </Card>
-    );
-  }
-
   return (
     <Card className="mb-5 p-4">
       <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-white">
@@ -277,7 +251,7 @@ export function AgentServeAnyCustomer({ cashOpsEnabled }: { cashOpsEnabled: bool
       <p className="mb-3 text-xs text-slate-400">
         Enter <span className="font-mono text-slate-300">BTE-00001</span> (or{" "}
         <span className="font-mono text-slate-300">1</span>) or the customer&apos;s Gambian phone
-        number, then Credit (cash) or Withdraw. Works for walk-ins, not only your network.
+        number, then Credit (cash) or Withdraw. Works for any customer. OTP required.
       </p>
       <form onSubmit={find} className="flex gap-2">
         <Input
@@ -328,7 +302,6 @@ export function AgentServeAnyCustomer({ cashOpsEnabled }: { cashOpsEnabled: bool
 
       {mode && result ? (
         <AgentCashDeskModal
-          cashOpsEnabled={cashOpsEnabled}
           customer={result}
           mode={mode}
           onClose={() => {
