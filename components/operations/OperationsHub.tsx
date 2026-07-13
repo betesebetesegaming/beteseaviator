@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getOperationsHub, type OperationsHubResponse, errorMessage } from "@/lib/api";
-import { formatDate, formatSigned, formatXof } from "@/lib/format";
+import { formatDate, formatXof } from "@/lib/format";
 import { formatPlayerId } from "@/lib/playerId";
 import type { Role, TransactionType } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Select, TableShell, Td, Th } from "@/components/ui";
