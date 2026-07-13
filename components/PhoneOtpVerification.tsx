@@ -68,7 +68,9 @@ export function usePhoneOtp(phone: string) {
       setOtpSent(true);
       setOtpVerified(false);
       setOtpCooldown(OTP_RESEND_SECONDS);
-      setInfo(`Code sent to your phone. It expires in ${Math.round((result.expirySeconds || 300) / 60)} minutes.`);
+      setInfo(
+        `Code sent to your phone. Delivery can take up to a minute. It expires in ${Math.round((result.expirySeconds || 300) / 60)} minutes.`,
+      );
       return true;
     } finally {
       setIsSending(false);

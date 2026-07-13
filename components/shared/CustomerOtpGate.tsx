@@ -35,7 +35,7 @@ export function CustomerOtpGate({ phone, customerName, verified, onVerified }: P
       const res = await sendSignupOtp(cleanPhone);
       if (!res.ok) return toast.error(res.error || "Could not send the code. Try again.");
       setSent(true);
-      toast.success(`Code sent to ${customerName || "the customer"}'s phone.`);
+      toast.success(`Code sent to ${customerName || "the customer"}'s phone. Delivery can take up to a minute.`);
     } finally {
       setSending(false);
     }

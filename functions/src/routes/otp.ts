@@ -30,7 +30,7 @@ async function proxyPmuOtp(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(55000),
+      signal: AbortSignal.timeout(Number(process.env.PMU_OTP_TIMEOUT_MS || 20000)),
     });
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     return { httpStatus: res.status, data };
@@ -260,7 +260,8 @@ async function sendViaAfricell(msisdn: string, message: string): Promise<{ messa
   const username = process.env.AFRICELL_SMS_USERNAME || "";
   const password = process.env.AFRICELL_SMS_PASSWORD || "";
   const sender = process.env.AFRICELL_SMS_SENDER || "Betese";
-  const timeoutMs = Number(process.env.AFRICELL_SMS_TIMEOUT_MS || 25000);
+  // Keep this short so a hung gateway fails over to PMU instead of spinning ~50s.
+  const timeoutMs = Number(process.env.AFRICELL_SMS_TIMEOUT_MS || 10000);
 
   if (!baseUrl || !username || !password) {
     throw new Error(
@@ -271,44 +272,43 @@ async function sendViaAfricell(msisdn: string, message: string): Promise<{ messa
   const url = `${baseUrl}/api/sendsms?sender=${encodeURIComponent(sender)}&msisdn=${encodeURIComponent(msisdn)}`;
   const basic = Buffer.from(`${username}:${password}`).toString("base64");
 
-  let lastError = "Africell SMS gateway unreachable";
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const result = await httpsPost(
-      url,
-      {
-        "Content-Type": "text/plain; charset=utf-8",
-        Authorization: `Basic ${basic}`,
-      },
-      message,
-      timeoutMs,
-    );
+  const result = await httpsPost(
+    url,
+    {
+      "Content-Type": "text/plain; charset=utf-8",
+      Authorization: `Basic ${basic}`,
+    },
+    message,
+    timeoutMs,
+  );
 
-    if (result.error) {
-      lastError = `Africell SMS gateway unreachable: ${result.error}`;
-      if (attempt === 0 && /timeout/i.test(result.error)) continue;
-      throw new Error(lastError);
-    }
-
-    const parsed = parseAfricellSmsResponse(result.body, result.httpStatus);
-    const { statusCode, gatewayMessage, messageId } = parsed;
-
-    if (statusCode !== 200) {
-      if (statusCode === 407) {
-        throw new Error(
-          "Africell SMS account has no tokens. Contact Africell to top up the Betese sender account.",
-        );
-      }
-      throw new Error(`Africell gateway error (${statusCode}): ${gatewayMessage}`);
-    }
-
-    logger.info("Africell SMS sent", { msisdn, statusCode, messageId, attempt });
-    return { messageId };
+  if (result.error) {
+    throw new Error(`Africell SMS gateway unreachable: ${result.error} (${result.elapsedMs}ms)`);
   }
 
-  throw new Error(lastError);
+  const parsed = parseAfricellSmsResponse(result.body, result.httpStatus);
+  const { statusCode, gatewayMessage, messageId } = parsed;
+
+  if (statusCode !== 200) {
+    if (statusCode === 407) {
+      throw new Error(
+        "Africell SMS account has no tokens. Contact Africell to top up the Betese sender account.",
+      );
+    }
+    throw new Error(`Africell gateway error (${statusCode}): ${gatewayMessage}`);
+  }
+
+  logger.info("Africell SMS sent", {
+    msisdn,
+    statusCode,
+    messageId,
+    elapsedMs: result.elapsedMs,
+  });
+  return { messageId };
 }
 
 export async function sendOtpHandler(req: Request, res: Response): Promise<void> {
+  const started = Date.now();
   const body = (req.body || {}) as { phone?: string; code?: string; message?: string; probe?: boolean | string };
 
   if (body.probe === true) {
@@ -377,19 +377,55 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
   const smsText = messageTemplate.replace("{{code}}", code);
 
   if (storeHashForVerification) {
+    const expiresAt = Date.now() + OTP_TTL_SECONDS * 1000;
+    const persist = db.collection("otp_codes").doc(msisdn).set({
+      phone: msisdn,
+      code_hash: hashOtp(code, msisdn, otpSalt),
+      expires_at: new Date(expiresAt).toISOString(),
+      attempts: 0,
+      created_at: new Date().toISOString(),
+    });
+
     try {
-      const expiresAt = Date.now() + OTP_TTL_SECONDS * 1000;
-      await db.collection("otp_codes").doc(msisdn).set({
-        phone: msisdn,
-        code_hash: hashOtp(code, msisdn, otpSalt),
-        expires_at: new Date(expiresAt).toISOString(),
-        attempts: 0,
-        created_at: new Date().toISOString(),
+      // Start Africell at the same time as Firestore so SMS isn't delayed by the write.
+      const [{ messageId }] = await Promise.all([sendViaAfricell(msisdn, smsText), persist]);
+      logger.info("OTP send complete", {
+        msisdn,
+        path: "africell",
+        elapsedMs: Date.now() - started,
       });
+      res.json({ ok: true, messageId, expirySeconds: OTP_TTL_SECONDS });
+      return;
     } catch (err) {
-      logger.error("OTP persistence failed", err);
-      res.status(500).json({
-        error: `Failed to persist OTP: ${err instanceof Error ? err.message : String(err)}`,
+      await db.collection("otp_codes").doc(msisdn).delete().catch(() => undefined);
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn("Local Africell SMS failed, trying PMU OTP proxy", {
+        msisdn,
+        msg,
+        elapsedMs: Date.now() - started,
+      });
+
+      const proxied = await proxyPmuOtp("sendOtp", { phone: phoneInput });
+      if (proxied.httpStatus >= 200 && proxied.httpStatus < 300 && proxied.data.ok === true) {
+        logger.info("OTP sent via PMU proxy", {
+          msisdn,
+          elapsedMs: Date.now() - started,
+        });
+        res.json(proxied.data);
+        return;
+      }
+
+      logger.error("Africell SMS dispatch failed", {
+        msisdn,
+        msg,
+        pmuError: proxied.data.error,
+        elapsedMs: Date.now() - started,
+      });
+      const timedOut = /timeout|abort|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|fetch failed/i.test(msg);
+      res.status(502).json({
+        error: timedOut ? "Africell SMS gateway timed out." : msg,
+        detail: timedOut ? msg : undefined,
+        pmuError: proxied.data.error,
       });
       return;
     }
@@ -397,32 +433,34 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
 
   try {
     const { messageId } = await sendViaAfricell(msisdn, smsText);
+    logger.info("OTP send complete", {
+      msisdn,
+      path: "africell",
+      elapsedMs: Date.now() - started,
+    });
     res.json({ ok: true, messageId, expirySeconds: OTP_TTL_SECONDS });
   } catch (err) {
-    if (storeHashForVerification) {
-      await db.collection("otp_codes").doc(msisdn).delete().catch(() => undefined);
-    }
     const msg = err instanceof Error ? err.message : String(err);
-    logger.warn("Local Africell SMS failed, trying PMU OTP proxy", { msisdn, msg });
+    logger.warn("Local Africell SMS failed, trying PMU OTP proxy", {
+      msisdn,
+      msg,
+      elapsedMs: Date.now() - started,
+    });
 
     const proxied = await proxyPmuOtp("sendOtp", { phone: phoneInput });
     if (proxied.httpStatus >= 200 && proxied.httpStatus < 300 && proxied.data.ok === true) {
-      logger.info("OTP sent via PMU proxy", { msisdn });
+      logger.info("OTP sent via PMU proxy", { msisdn, elapsedMs: Date.now() - started });
       res.json(proxied.data);
       return;
     }
 
     logger.error("Africell SMS dispatch failed", { msisdn, msg, pmuError: proxied.data.error });
     const timedOut = /timeout|abort|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|fetch failed/i.test(msg);
-    if (timedOut) {
-      res.status(502).json({
-        error: "Africell SMS gateway timed out.",
-        detail: msg,
-        pmuError: proxied.data.error,
-      });
-      return;
-    }
-    res.status(502).json({ error: msg, pmuError: proxied.data.error });
+    res.status(502).json({
+      error: timedOut ? "Africell SMS gateway timed out." : msg,
+      detail: timedOut ? msg : undefined,
+      pmuError: proxied.data.error,
+    });
   }
 }
 

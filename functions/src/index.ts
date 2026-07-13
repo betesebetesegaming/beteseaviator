@@ -86,8 +86,17 @@ export {
  *
  * WARNING: Do NOT add Firebase Phone Auth callables here. SMS = Africell only.
  */
-export const sendOtp = createHttpFunction(sendOtpHandler, { timeoutSeconds: 60 });
-export const verifyOtp = createHttpFunction(verifyOtpHandler);
+export const sendOtp = createHttpFunction(sendOtpHandler, {
+  timeoutSeconds: 60,
+  // Keep one warm instance — cold starts add 2–10s before Africell is even called.
+  minInstances: 1,
+  memory: "256MiB",
+});
+export const verifyOtp = createHttpFunction(verifyOtpHandler, {
+  timeoutSeconds: 30,
+  minInstances: 1,
+  memory: "256MiB",
+});
 
 /** ModemPay — same handlers as betesepmu (single Cloud Function to save quota). */
 export { modempayApi } from "./modempayApi";
