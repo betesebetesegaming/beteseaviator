@@ -227,11 +227,17 @@ export function Th({
 export function Td({
   children,
   className = "",
+  title,
 }: {
   children: ReactNode;
   className?: string;
+  title?: string;
 }) {
-  return <td className={`px-3 py-2.5 text-sm text-slate-200 ${className}`}>{children}</td>;
+  return (
+    <td className={`px-3 py-2.5 text-sm text-slate-200 ${className}`} title={title}>
+      {children}
+    </td>
+  );
 }
 
 export function TableShell({ children }: { children: ReactNode }) {
