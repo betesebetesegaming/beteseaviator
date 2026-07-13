@@ -31,25 +31,41 @@ export function AdminAccountBook() {
   const [channelFilter, setChannelFilter] = useState<"all" | "cashdesk" | "modempay" | "other">("all");
   const [typeFilter, setTypeFilter] = useState<"money" | "deposit" | "withdrawal" | "all">("money");
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
     setRefreshing(true);
     setError(null);
-    try {
-      const type =
-        typeFilter === "deposit" || typeFilter === "withdrawal" ? typeFilter : undefined;
-      const res = await getOperationsHub({ type, limit: 300 });
-      setData(res);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    const type =
+      typeFilter === "deposit" || typeFilter === "withdrawal" ? typeFilter : undefined;
+    void getOperationsHub({ type, limit: 300 })
+      .then((res) => {
+        if (!cancelled) setData(res);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(errorMessage(e));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [typeFilter]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const reload = useCallback(() => {
+    setRefreshing(true);
+    setError(null);
+    const type =
+      typeFilter === "deposit" || typeFilter === "withdrawal" ? typeFilter : undefined;
+    void getOperationsHub({ type, limit: 300 })
+      .then((res) => setData(res))
+      .catch((e) => setError(errorMessage(e)))
+      .finally(() => setRefreshing(false));
+  }, [typeFilter]);
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -103,7 +119,7 @@ export function AdminAccountBook() {
             cash desk vs ModemPay.
           </p>
         </div>
-        <Button variant="secondary" className="gap-2" onClick={() => void load()} disabled={refreshing}>
+        <Button variant="secondary" className="gap-2" onClick={reload} disabled={refreshing}>
           <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           Refresh
         </Button>

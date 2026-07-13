@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import {
   Radio,
   Receipt,
-  Users,
   UserPlus,
   UserCog,
   RefreshCw,
