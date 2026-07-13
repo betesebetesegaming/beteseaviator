@@ -40,6 +40,7 @@ export function OperationsHub() {
 
   const initialTab = (searchParams.get("tab") as Tab) || "overview";
   const initialSearch = searchParams.get("search") ?? "";
+  const initialAgent = searchParams.get("agent") ?? null;
   const [tab, setTab] = useState<Tab>(TABS.includes(initialTab) ? initialTab : "overview");
   const [typeFilter, setTypeFilter] = useState("all");
   const [search, setSearch] = useState(initialSearch);
@@ -47,7 +48,7 @@ export function OperationsHub() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [agentFilter, setAgentFilter] = useState<string | null>(null);
+  const [agentFilter, setAgentFilter] = useState<string | null>(initialAgent);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -55,7 +56,7 @@ export function OperationsHub() {
     try {
       const res = await getOperationsHub({
         type: typeFilter === "all" ? undefined : typeFilter,
-        limit: 200,
+        limit: isAdmin ? 300 : 200,
       });
       setData(res);
     } catch (e) {
@@ -66,7 +67,7 @@ export function OperationsHub() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [typeFilter]);
+  }, [typeFilter, isAdmin]);
 
   useEffect(() => {
     void load();
@@ -134,10 +135,27 @@ export function OperationsHub() {
     );
   }, [data, search]);
 
+  const txMoneyTotals = useMemo(() => {
+    const deposits = filteredTx
+      .filter((t) => t.type === "deposit")
+      .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
+    const withdrawals = filteredTx
+      .filter((t) => t.type === "withdrawal")
+      .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
+    return { deposits, withdrawals };
+  }, [filteredTx]);
+
   function viewAgentCustomers(agentId: string) {
     setAgentFilter(agentId);
     setSearch("");
     setTab("network");
+  }
+
+  function viewAgentLedger(agentId: string) {
+    setAgentFilter(agentId);
+    setTypeFilter("all");
+    setSearch("");
+    setTab("transactions");
   }
 
   const title = isAdmin ? "Platform operations" : "Agent operations";
@@ -332,13 +350,22 @@ export function OperationsHub() {
                       <Badge value={a.status} />
                     </Td>
                     <Td>
-                      <Button
-                        variant="secondary"
-                        className="!px-2.5 !py-1 text-xs"
-                        onClick={() => viewAgentCustomers(a.uid)}
-                      >
-                        View customers
-                      </Button>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button
+                          variant="secondary"
+                          className="!px-2.5 !py-1 text-xs"
+                          onClick={() => viewAgentCustomers(a.uid)}
+                        >
+                          Customers
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="!px-2.5 !py-1 text-xs text-emerald-200"
+                          onClick={() => viewAgentLedger(a.uid)}
+                        >
+                          Ledger
+                        </Button>
+                      </div>
                     </Td>
                   </tr>
                 ))}
@@ -406,9 +433,27 @@ export function OperationsHub() {
       {tab === "transactions" && (
         <div className="space-y-4">
           <p className="text-sm text-slate-400">
-            Every deposit, bet, win, and withdrawal — with transaction ID, customer, Player ID, and
-            agent name.
+            Full book — time, Player ID, deposit / withdraw amount, and agent name (click agent to
+            filter).
           </p>
+          {isAdmin ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Card className="p-3 text-sm">
+                <p className="text-xs text-slate-500">Deposits in view</p>
+                <p className="text-lg font-semibold text-emerald-300">{formatXof(txMoneyTotals.deposits)}</p>
+              </Card>
+              <Card className="p-3 text-sm">
+                <p className="text-xs text-slate-500">Withdrawals in view</p>
+                <p className="text-lg font-semibold text-amber-200">
+                  {formatXof(txMoneyTotals.withdrawals)}
+                </p>
+              </Card>
+              <Card className="p-3 text-sm">
+                <p className="text-xs text-slate-500">Rows</p>
+                <p className="text-lg font-semibold">{filteredTx.length}</p>
+              </Card>
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-3">
             <Select
               label="Type"
@@ -457,43 +502,64 @@ export function OperationsHub() {
             <TableShell>
               <thead>
                 <tr>
-                  <Th>Tx ID</Th>
-                  <Th>When</Th>
-                  <Th>Customer</Th>
+                  <Th>Time</Th>
                   <Th>Player ID</Th>
+                  <Th>Customer</Th>
                   {isAdmin ? <Th>Agent</Th> : null}
+                  <Th className="text-right">Deposit</Th>
+                  <Th className="text-right">Withdraw</Th>
                   <Th>Type</Th>
-                  <Th>Amount</Th>
-                  <Th>Reference</Th>
+                  <Th>Details</Th>
+                  <Th>Tx ID</Th>
                 </tr>
               </thead>
               <tbody>
-                {filteredTx.map((t) => (
-                  <tr key={t.id}>
-                    <Td className="max-w-[7rem] font-mono text-[10px] text-sky-300">
-                      <span title={t.id}>{t.id.length > 12 ? `${t.id.slice(0, 10)}…` : t.id}</span>
-                    </Td>
-                    <Td className="whitespace-nowrap text-xs text-slate-400">
-                      {t.createdAt ? formatDate(new Date(t.createdAt)) : "—"}
-                    </Td>
-                    <Td className="font-medium text-white">{t.userName ?? "—"}</Td>
-                    <Td className="font-mono text-xs text-emerald-300">{t.playerId ?? "—"}</Td>
-                    {isAdmin ? (
-                      <Td className="text-sm font-medium text-violet-200">{t.agentName ?? "Direct"}</Td>
-                    ) : null}
-                    <Td>
-                      <Badge value={t.type} />
-                    </Td>
-                    <Td
-                      className={`font-semibold ${t.amount >= 0 ? "text-emerald-300" : "text-rose-300"}`}
-                    >
-                      {formatSigned(t.amount)}
-                    </Td>
-                    <Td className="max-w-[8rem] truncate font-mono text-[10px] text-slate-500">
-                      <span title={t.reference}>{t.reference}</span>
-                    </Td>
-                  </tr>
-                ))}
+                {filteredTx.map((t) => {
+                  const deposit = t.type === "deposit" ? Math.abs(Number(t.amount) || 0) : 0;
+                  const withdraw = t.type === "withdrawal" ? Math.abs(Number(t.amount) || 0) : 0;
+                  return (
+                    <tr key={t.id}>
+                      <Td className="whitespace-nowrap text-xs text-slate-400">
+                        {t.createdAt ? formatDate(new Date(t.createdAt)) : "—"}
+                      </Td>
+                      <Td className="font-mono text-sm font-semibold text-emerald-300">
+                        {t.playerId ?? "—"}
+                      </Td>
+                      <Td className="font-medium text-white">{t.userName ?? "—"}</Td>
+                      {isAdmin ? (
+                        <Td>
+                          {t.agentId && t.agentName ? (
+                            <button
+                              type="button"
+                              className="font-medium text-violet-300 hover:underline"
+                              onClick={() => viewAgentLedger(t.agentId!)}
+                              title="Filter ledger to this agent"
+                            >
+                              {t.agentName}
+                            </button>
+                          ) : (
+                            <span className="text-slate-500">{t.agentName ?? "Direct"}</span>
+                          )}
+                        </Td>
+                      ) : null}
+                      <Td className="text-right tabular-nums font-semibold text-emerald-300">
+                        {deposit > 0 ? formatXof(deposit) : "—"}
+                      </Td>
+                      <Td className="text-right tabular-nums font-semibold text-amber-200">
+                        {withdraw > 0 ? formatXof(withdraw) : "—"}
+                      </Td>
+                      <Td>
+                        <Badge value={t.type} />
+                      </Td>
+                      <Td className="max-w-[12rem] truncate text-xs text-slate-400" title={t.description}>
+                        {t.description || t.reference}
+                      </Td>
+                      <Td className="max-w-[6rem] truncate font-mono text-[10px] text-sky-300" title={t.id}>
+                        {t.id.slice(0, 10)}…
+                      </Td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </TableShell>
           )}

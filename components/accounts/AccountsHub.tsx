@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useAgentCustomerIds } from "@/lib/hooks/useAgentCustomerIds";
 import { AdminPlatformSummary } from "@/components/accounts/AdminPlatformSummary";
+import { AdminAccountBook } from "@/components/accounts/AdminAccountBook";
 import { AgentSalesSummary } from "@/components/accounts/AgentSalesSummary";
 import { ModemPayDepositsPanel } from "@/components/accounts/ModemPayDepositsPanel";
 import { ModemPayWithdrawalsPanel } from "@/components/accounts/ModemPayWithdrawalsPanel";
@@ -15,6 +16,7 @@ import { AgentServeAnyCustomer } from "@/components/agent/AgentCashDesk";
 import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 
 const ADMIN_TABS = [
+  { id: "book", label: "Full account book" },
   { id: "summary", label: "Summary" },
   { id: "deposits", label: "ModemPay Deposits" },
   { id: "withdrawals", label: "ModemPay Withdrawals" },
@@ -38,11 +40,11 @@ export function AccountsHub() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const searchParams = useSearchParams();
-  const initial = searchParams.get("tab") || (isAdmin ? "summary" : "sales");
+  const initial = searchParams.get("tab") || (isAdmin ? "book" : "sales");
   const [tab, setTab] = useState<string>(initial);
   const { customerIds, customerNames } = useAgentCustomerIds(isAdmin ? undefined : profile?.uid);
 
-  const adminTab = ADMIN_TABS.some((t) => t.id === tab) ? (tab as AdminTab) : "summary";
+  const adminTab = ADMIN_TABS.some((t) => t.id === tab) ? (tab as AdminTab) : "book";
   const agentTab = AGENT_TABS.some((t) => t.id === tab) ? (tab as AgentTab) : "sales";
 
   const scopeLabel = useMemo(
@@ -61,7 +63,7 @@ export function AccountsHub() {
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-400">
           {isAdmin
-            ? "One place for game revenue (GGR), QTech share, agent commissions, and every ModemPay deposit & withdrawal."
+            ? "Full account book (time, Player ID, deposit/withdraw, agent), GGR, ModemPay, and commissions."
             : "See your sales (GGR), cash desk book, ModemPay payments, and commission."}
         </p>
       </div>
@@ -85,6 +87,11 @@ export function AccountsHub() {
 
       {isAdmin ? (
         <>
+          {adminTab === "book" && (
+            <ClientErrorBoundary label="Full account book">
+              <AdminAccountBook />
+            </ClientErrorBoundary>
+          )}
           {adminTab === "summary" && <AdminPlatformSummary />}
           {adminTab === "deposits" && (
             <ClientErrorBoundary label="ModemPay deposits">
