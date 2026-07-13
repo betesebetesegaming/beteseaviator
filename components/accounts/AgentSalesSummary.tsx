@@ -11,16 +11,16 @@ import {
   filterModemPayWithdrawals,
   sumModemPayAmount,
 } from "@/lib/modemPayAccounting";
-import { formatXof } from "@/lib/format";
+import { formatXof, todayIso } from "@/lib/format";
 import {
   monthRangeIso,
   sumAgentCommissions,
   sumAgentGgr,
   weekRangeIso,
 } from "@/lib/ggrAccounting";
-import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { collection, doc, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { db } from "@/lib/firestore";
-import type { Commission } from "@/lib/types";
+import type { AgentDailyStats, Commission } from "@/lib/types";
 import { AgentPeriodStats } from "@/components/staff/AgentPeriodStats";
 import { Card, StatCard } from "@/components/ui";
 
@@ -55,6 +55,8 @@ export function AgentSalesSummary() {
 
   const [deposits, setDeposits] = useState<RtdbDepositRecord[]>([]);
   const [withdrawals, setWithdrawals] = useState<RtdbWithdrawalRecord[]>([]);
+  const today = useMemo(() => todayIso(), []);
+  const [cashToday, setCashToday] = useState<AgentDailyStats | null>(null);
 
   useEffect(() => {
     const unsubD = subscribeDeposits(undefined, setDeposits);
@@ -64,6 +66,13 @@ export function AgentSalesSummary() {
       unsubW();
     };
   }, []);
+
+  useEffect(() => {
+    if (!agentId) return;
+    return onSnapshot(doc(db, "agentDailyStats", `${agentId}_${today}`), (snap) => {
+      setCashToday(snap.exists() ? (snap.data() as AgentDailyStats) : null);
+    });
+  }, [agentId, today]);
 
   const lifetimeGgr = Math.max(0, (stats.totalBets ?? 0) - (stats.totalWins ?? 0));
 
@@ -122,8 +131,8 @@ export function AgentSalesSummary() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-slate-400">
-        Your sales (GGR from customers), commissions, and their ModemPay deposits &amp; withdrawals.
-        Use the tabs above for full payment and transaction lists.
+        Your sales (GGR from customers), commissions, cash desk book for today, and ModemPay
+        payments. Use <strong>Cash desk book</strong> for every OTP credit/payout you handled.
       </p>
 
       <AgentPeriodStats />
@@ -131,8 +140,16 @@ export function AgentSalesSummary() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Lifetime sales (GGR)" value={formatXof(lifetimeGgr)} hint="all time from your customers" />
         <StatCard label="Commission in wallet" value={formatXof(wallet?.balance ?? 0)} hint="available now" />
-        <StatCard label="Commission earned (life)" value={formatXof(stats.commissionEarned ?? 0)} />
-        <StatCard label="Your customers" value={customerIds?.size ?? 0} />
+        <StatCard
+          label="Cash credits today"
+          value={formatXof(Number(cashToday?.cashDeposits ?? 0))}
+          hint={`${today} · cash desk`}
+        />
+        <StatCard
+          label="Cash payouts today"
+          value={formatXof(Number(cashToday?.cashWithdrawals ?? 0))}
+          hint={`${today} · cash desk`}
+        />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">

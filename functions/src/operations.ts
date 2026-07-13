@@ -1,4 +1,4 @@
-import type { DocumentSnapshot, QueryDocumentSnapshot } from "firebase-admin/firestore";
+import type { DocumentSnapshot, QueryDocumentSnapshot, QuerySnapshot } from "firebase-admin/firestore";
 import { onCall } from "firebase-functions/v2/https";
 import {
   db,
@@ -233,6 +233,8 @@ async function loadTransactions(opts: {
   playerIdByUid: Map<string, string>;
   parentIdByUid: Map<string, string>;
   agentNameByUid: Map<string, string>;
+  /** Also include cash-desk moves this agent performed (walk-in customers). */
+  includeOtcByAgentId?: string | null;
 }): Promise<LedgerRow[]> {
   const {
     allowed,
@@ -242,20 +244,31 @@ async function loadTransactions(opts: {
     playerIdByUid,
     parentIdByUid,
     agentNameByUid,
+    includeOtcByAgentId,
   } = opts;
   const rows: LedgerRow[] = [];
+  const seen = new Set<string>();
 
   const enrich = (d: QueryDocumentSnapshot) => {
     const t = d.data();
     const userId = String(t.userId ?? "");
-    const agentId = parentIdByUid.get(userId) ?? null;
+    const meta = (t.meta ?? {}) as Record<string, unknown>;
+    const otcAgentId = typeof meta.agentId === "string" ? meta.agentId : null;
+    const agentId = otcAgentId || parentIdByUid.get(userId) || null;
     return {
       id: d.id,
       userId,
       userName: nameByUid.get(userId),
-      playerId: playerIdByUid.get(userId) ?? null,
+      playerId:
+        (typeof meta.playerId === "string" ? meta.playerId : null) ||
+        playerIdByUid.get(userId) ||
+        null,
       agentId,
-      agentName: agentId ? agentNameByUid.get(agentId) ?? null : null,
+      agentName: agentId
+        ? (typeof meta.agentName === "string" ? meta.agentName : null) ||
+          agentNameByUid.get(agentId) ||
+          null
+        : null,
       type: t.type,
       amount: t.amount,
       balanceBefore: t.balanceBefore,
@@ -267,6 +280,14 @@ async function loadTransactions(opts: {
     };
   };
 
+  const pushSnap = (snap: QuerySnapshot) => {
+    for (const d of snap.docs) {
+      if (seen.has(d.id)) continue;
+      seen.add(d.id);
+      rows.push(enrich(d));
+    }
+  };
+
   if (!allowed) {
     let q = db.collection("transactions").orderBy("createdAt", "desc").limit(limit);
     if (typeFilter && typeFilter !== "all") {
@@ -276,31 +297,45 @@ async function loadTransactions(opts: {
         .orderBy("createdAt", "desc")
         .limit(limit);
     }
-    const snap = await q.get();
-    for (const d of snap.docs) rows.push(enrich(d));
-    return rows;
+    pushSnap(await q.get());
+  } else {
+    const ids = [...allowed];
+    if (ids.length > 0) {
+      for (let i = 0; i < ids.length; i += 30) {
+        const chunk = ids.slice(i, i + 30);
+        let q = db
+          .collection("transactions")
+          .where("userId", "in", chunk)
+          .orderBy("createdAt", "desc")
+          .limit(limit);
+        if (typeFilter && typeFilter !== "all") {
+          q = db
+            .collection("transactions")
+            .where("userId", "in", chunk)
+            .where("type", "==", typeFilter)
+            .orderBy("createdAt", "desc")
+            .limit(limit);
+        }
+        pushSnap(await q.get());
+      }
+    }
   }
 
-  const ids = [...allowed];
-  if (ids.length === 0) return [];
-
-  for (let i = 0; i < ids.length; i += 30) {
-    const chunk = ids.slice(i, i + 30);
+  if (includeOtcByAgentId) {
     let q = db
       .collection("transactions")
-      .where("userId", "in", chunk)
+      .where("meta.agentId", "==", includeOtcByAgentId)
       .orderBy("createdAt", "desc")
       .limit(limit);
     if (typeFilter && typeFilter !== "all") {
       q = db
         .collection("transactions")
-        .where("userId", "in", chunk)
+        .where("meta.agentId", "==", includeOtcByAgentId)
         .where("type", "==", typeFilter)
         .orderBy("createdAt", "desc")
         .limit(limit);
     }
-    const snap = await q.get();
-    for (const d of snap.docs) rows.push(enrich(d));
+    pushSnap(await q.get());
   }
 
   rows.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
@@ -372,6 +407,7 @@ export const getOperationsHub = onCall(async (req) => {
     playerIdByUid,
     parentIdByUid,
     agentNameByUid,
+    includeOtcByAgentId: isAdmin ? null : uid,
   });
 
   return {

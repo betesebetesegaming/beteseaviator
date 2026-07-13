@@ -371,6 +371,12 @@ export interface AgentDailyStats {
   agentId: string;
   date: string;
   customersOpened: number;
+  /** OTC cash credits handled by this agent today. */
+  cashDeposits?: number;
+  cashDepositCount?: number;
+  /** OTC cash payouts handled by this agent today. */
+  cashWithdrawals?: number;
+  cashWithdrawalCount?: number;
 }
 
 import { DEFAULT_BONUS_SETTINGS } from "./bonuses";

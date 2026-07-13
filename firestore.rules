@@ -75,6 +75,7 @@ service cloud.firestore {
           resource.data.userId == uid()
           || userDoc(resource.data.userId).parentId == uid()
           || uid() in userDoc(resource.data.userId).ancestors
+          || resource.data.meta.agentId == uid()
         ))
       );
       allow write: if false;

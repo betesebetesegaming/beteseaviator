@@ -138,13 +138,26 @@ async function doCashDeposit(opts: {
     });
     bumpDailyStats(tx, todayIso(), { deposits: amount });
     bumpPlatformStats(tx, { totalDeposits: amount });
-    for (const agentId of customer.ancestors ?? []) {
+    const date = todayIso();
+    // Attribute cash desk credit to the acting agent (walk-ins included) + tree ancestors.
+    const attributed = new Set<string>([actorUid, ...(customer.ancestors ?? [])]);
+    for (const agentId of attributed) {
       tx.set(
         db.doc(`users/${agentId}`),
         { stats: { customerDeposits: FieldValue.increment(amount) } },
         { merge: true },
       );
     }
+    tx.set(
+      db.doc(`agentDailyStats/${actorUid}_${date}`),
+      {
+        agentId: actorUid,
+        date,
+        cashDeposits: FieldValue.increment(amount),
+        cashDepositCount: FieldValue.increment(1),
+      },
+      { merge: true },
+    );
   });
 
   await consumeOtpVerifiedForPhone(phone).catch(() => undefined);
@@ -199,6 +212,17 @@ async function doCashWithdraw(opts: {
     });
     bumpDailyStats(tx, todayIso(), { withdrawals: amount });
     bumpPlatformStats(tx, { totalWithdrawals: amount });
+    const date = todayIso();
+    tx.set(
+      db.doc(`agentDailyStats/${actorUid}_${date}`),
+      {
+        agentId: actorUid,
+        date,
+        cashWithdrawals: FieldValue.increment(amount),
+        cashWithdrawalCount: FieldValue.increment(1),
+      },
+      { merge: true },
+    );
   });
 
   await consumeOtpVerifiedForPhone(phone).catch(() => undefined);

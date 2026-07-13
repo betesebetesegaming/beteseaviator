@@ -10,6 +10,7 @@ import { ModemPayDepositsPanel } from "@/components/accounts/ModemPayDepositsPan
 import { ModemPayWithdrawalsPanel } from "@/components/accounts/ModemPayWithdrawalsPanel";
 import { LedgerTransactionsPanel } from "@/components/accounts/LedgerTransactionsPanel";
 import { AgentCommissionsPanel } from "@/components/accounts/AgentCommissionsPanel";
+import { AgentCashDeskBook } from "@/components/accounts/AgentCashDeskBook";
 import { AgentServeAnyCustomer } from "@/components/agent/AgentCashDesk";
 import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 
@@ -23,8 +24,9 @@ const ADMIN_TABS = [
 
 const AGENT_TABS = [
   { id: "sales", label: "My Sales" },
-  { id: "deposits", label: "Customer Deposits" },
-  { id: "withdrawals", label: "Customer Withdrawals" },
+  { id: "cashdesk", label: "Cash desk book" },
+  { id: "deposits", label: "ModemPay Deposits" },
+  { id: "withdrawals", label: "ModemPay Withdrawals" },
   { id: "transactions", label: "My Transactions" },
   { id: "commissions", label: "My Commissions" },
 ] as const;
@@ -60,7 +62,7 @@ export function AccountsHub() {
         <p className="mt-1 max-w-3xl text-sm text-slate-400">
           {isAdmin
             ? "One place for game revenue (GGR), QTech share, agent commissions, and every ModemPay deposit & withdrawal."
-            : "See your customer sales (GGR), their ModemPay deposits and withdrawals, and your commission."}
+            : "See your sales (GGR), cash desk book, ModemPay payments, and commission."}
         </p>
       </div>
 
@@ -101,6 +103,11 @@ export function AccountsHub() {
         <>
           <AgentServeAnyCustomer />
           {agentTab === "sales" && <AgentSalesSummary />}
+          {agentTab === "cashdesk" && (
+            <ClientErrorBoundary label="Cash desk book">
+              <AgentCashDeskBook />
+            </ClientErrorBoundary>
+          )}
           {agentTab === "deposits" && (
             <ClientErrorBoundary label="ModemPay deposits">
               <ModemPayDepositsPanel
@@ -118,7 +125,7 @@ export function AccountsHub() {
             />
           )}
           {agentTab === "transactions" && (
-            <LedgerTransactionsPanel scopeLabel="Your wallet and your customers" />
+            <LedgerTransactionsPanel scopeLabel="Your wallet, your customers, and your cash desk moves" />
           )}
           {agentTab === "commissions" && <AgentCommissionsPanel adminView={false} />}
         </>
