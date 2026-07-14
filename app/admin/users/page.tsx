@@ -228,15 +228,14 @@ function AdminUsersContent() {
             <Link href="/admin/agents" className="text-emerald-400 hover:underline">
               Agents
             </Link>
-            . Use <strong>Create Admin</strong> below for extra admin logins.
+            .
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => void backfillPlayerIds()} disabled={backfillingIds}>
-            {backfillingIds ? "Assigning…" : "Assign Player IDs"}
-          </Button>
-          <Button variant="secondary" onClick={() => void syncAgentLogins()} disabled={syncingAgents}>
-            {syncingAgents ? "Syncing…" : "Fix agent logins"}
+          <Button onClick={() => openCreate("admin")}>
+            <span className="flex items-center gap-1.5">
+              <Plus size={16} /> Create Admin
+            </span>
           </Button>
           <Button variant="secondary" onClick={() => openCreate("player")}>
             <span className="flex items-center gap-1.5">
@@ -250,12 +249,31 @@ function AdminUsersContent() {
               </span>
             </Button>
           </Link>
-          <Button onClick={() => openCreate("admin")}>
-            <span className="flex items-center gap-1.5">
-              <Plus size={16} /> Create Admin
-            </span>
+          <Button variant="secondary" onClick={() => void backfillPlayerIds()} disabled={backfillingIds}>
+            {backfillingIds ? "Assigning…" : "Assign Player IDs"}
+          </Button>
+          <Button variant="secondary" onClick={() => void syncAgentLogins()} disabled={syncingAgents}>
+            {syncingAgents ? "Syncing…" : "Fix agent logins"}
           </Button>
         </div>
+      </div>
+
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-4">
+        <div className="min-w-0 text-sm text-emerald-50/95">
+          <p className="font-semibold text-emerald-200">Need another admin login?</p>
+          <p className="mt-1 text-emerald-100/80">
+            Name + password (min 8). Optional email / login ID. They sign in at{" "}
+            <Link href="/admin/login" className="underline">
+              /admin/login
+            </Link>
+            .
+          </p>
+        </div>
+        <Button onClick={() => openCreate("admin")}>
+          <span className="flex items-center gap-1.5">
+            <Plus size={16} /> Create Admin
+          </span>
+        </Button>
       </div>
 
       <div className="mb-5 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-50/90">
@@ -263,24 +281,6 @@ function AdminUsersContent() {
           <strong>Password help:</strong> Admin cannot view existing passwords (they are encrypted).
           Use <strong>Reset password</strong> on any customer or agent to set a new one and share it
           with them when they have sign-in problems.
-        </p>
-      </div>
-
-      <div className="mb-5 rounded-xl border border-sky-500/25 bg-sky-500/10 p-4 text-sm text-sky-50/90">
-        <p>
-          <strong>Create Admin</strong> — name + password (min 8). Optional email and staff login ID
-          (e.g. <span className="font-mono">ops</span>). They sign in at{" "}
-          <Link href="/admin/login" className="text-sky-200 underline">
-            /admin/login
-          </Link>{" "}
-          with that email, login ID, or name.
-        </p>
-        <p className="mt-2">
-          <strong>Agents</strong> — use the{" "}
-          <Link href="/admin/agents" className="text-sky-200 underline">
-            Agents
-          </Link>{" "}
-          page. <strong>Create Customer</strong> is for player wallets.
         </p>
       </div>
 
