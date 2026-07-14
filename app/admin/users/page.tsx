@@ -189,7 +189,11 @@ function AdminUsersContent() {
         password,
         parentId: parentId || null,
       });
-      toast.success(`User created${res.slug ? ` — username "${res.slug}"` : ""}.`);
+      toast.success(
+        role === "admin"
+          ? `Admin created. Sign in at /admin/login with ${email.trim() || username.trim() || name.trim()}.`
+          : `User created${res.slug ? ` — username "${res.slug}"` : ""}.`,
+      );
       setCreateOpen(false);
       setForm({
         role: "player",
@@ -220,11 +224,11 @@ function AdminUsersContent() {
         <div>
           <h1 className="text-xl font-bold">All Users</h1>
           <p className="text-sm text-slate-400">
-            Customers, admins, and Player IDs. Agent staff accounts are created under{" "}
+            Customers, admins, and Player IDs. Agents are created under{" "}
             <Link href="/admin/agents" className="text-emerald-400 hover:underline">
               Agents
             </Link>
-            .
+            . Use <strong>Create Admin</strong> below for extra admin logins.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -246,6 +250,11 @@ function AdminUsersContent() {
               </span>
             </Button>
           </Link>
+          <Button onClick={() => openCreate("admin")}>
+            <span className="flex items-center gap-1.5">
+              <Plus size={16} /> Create Admin
+            </span>
+          </Button>
         </div>
       </div>
 
@@ -259,12 +268,19 @@ function AdminUsersContent() {
 
       <div className="mb-5 rounded-xl border border-sky-500/25 bg-sky-500/10 p-4 text-sm text-sky-50/90">
         <p>
-          <strong>Agent staff accounts</strong> are admin-only — use the{" "}
+          <strong>Create Admin</strong> — name + password (min 8). Optional email and staff login ID
+          (e.g. <span className="font-mono">ops</span>). They sign in at{" "}
+          <Link href="/admin/login" className="text-sky-200 underline">
+            /admin/login
+          </Link>{" "}
+          with that email, login ID, or name.
+        </p>
+        <p className="mt-2">
+          <strong>Agents</strong> — use the{" "}
           <Link href="/admin/agents" className="text-sky-200 underline">
             Agents
           </Link>{" "}
-          page to create an agent&apos;s first login. Use <strong>Create Customer</strong> here for player
-          wallets.
+          page. <strong>Create Customer</strong> is for player wallets.
         </p>
       </div>
 
@@ -462,8 +478,18 @@ function AdminUsersContent() {
           {form.role === "player" ? (
             <PasswordStrengthHint length={form.password.length} />
           ) : null}
+          {isStaffRole && form.role === "admin" ? (
+            <p className="rounded-lg border border-white/10 bg-slate-950/50 px-3 py-2 text-xs text-slate-400">
+              New admins get full backend access. Share the password securely — it cannot be viewed
+              again (only reset).
+            </p>
+          ) : null}
           <Button className="w-full" onClick={create} disabled={creating}>
-            {creating ? "Creating…" : "Create"}
+            {creating
+              ? "Creating…"
+              : form.role === "admin"
+                ? "Create admin"
+                : "Create"}
           </Button>
         </div>
       </Modal>
