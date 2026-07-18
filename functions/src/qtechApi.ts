@@ -70,13 +70,26 @@ app.get("/player/demo-launch", async (req, res) => {
   }
   try {
     const { parsePlayDevice, resolveDemoLaunchUrl, warmDemoLaunchDependencies } = await import("./qtech/demoLaunch");
+    const { qtechEnvironmentLabel } = await import("./qtech/runtimeCache");
+    const { getQTechSettings } = await import("./qtech/config");
     warmDemoLaunchDependencies();
     const device = parsePlayDevice(String(req.query.device ?? "mobile"));
-    const launchUrl = await resolveDemoLaunchUrl(gameId, device);
-    res.status(200).json({ launchUrl });
+    const [launchUrl, cfg] = await Promise.all([
+      resolveDemoLaunchUrl(gameId, device),
+      getQTechSettings(),
+    ]);
+    res.status(200).json({
+      launchUrl,
+      env: qtechEnvironmentLabel(cfg.apiBaseUrl),
+    });
   } catch (e) {
-    logger.warn("player demo-launch failed", { gameId, err: e instanceof Error ? e.message : String(e) });
-    const message = e instanceof Error ? e.message : "demo_launch_failed";
+    const message =
+      e && typeof e === "object" && "message" in e
+        ? String((e as { message?: string }).message || "demo_launch_failed")
+        : e instanceof Error
+          ? e.message
+          : "demo_launch_failed";
+    logger.warn("player demo-launch failed", { gameId, err: message });
     res.status(502).json({ error: "demo_launch_failed", message });
   }
 });

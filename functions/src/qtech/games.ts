@@ -86,6 +86,9 @@ export async function getQTechSetupStatus(): Promise<{
   walletReady: boolean;
   launchReady: boolean;
   integrationEnabled: boolean;
+  environment: "production" | "integration";
+  apiBaseUrl: string;
+  operatorId: string;
   missing: string[];
   games: Array<{
     id: string;
@@ -98,6 +101,7 @@ export async function getQTechSetupStatus(): Promise<{
   }>;
 }> {
   const { getQTechSettings } = await import("./config");
+  const { qtechEnvironmentLabel, isIntApiBase } = await import("./runtimeCache");
   const cfg = await getQTechSettings();
   const missing: string[] = [];
 
@@ -112,6 +116,9 @@ export async function getQTechSetupStatus(): Promise<{
     if (!cfg.apiBaseUrl) missing.push("API base URL (required when launch is enabled)");
     if (!cfg.operatorId) missing.push("Operator ID (required when launch is enabled)");
     if (!cfg.apiPassword) missing.push("API password (required when launch is enabled)");
+  }
+  if (cfg.enabled && cfg.apiBaseUrl && isIntApiBase(cfg.apiBaseUrl)) {
+    missing.push("API still on Integration (api-int) — use https://api.qtplatform.com for production");
   }
 
   const qtechSnap = await db.collection("games").where("engine", "==", "qtech").get();
@@ -142,6 +149,9 @@ export async function getQTechSetupStatus(): Promise<{
     walletReady,
     launchReady,
     integrationEnabled: cfg.enabled,
+    environment: qtechEnvironmentLabel(cfg.apiBaseUrl),
+    apiBaseUrl: cfg.apiBaseUrl,
+    operatorId: cfg.operatorId,
     missing: [...new Set(missing)],
     games,
   };

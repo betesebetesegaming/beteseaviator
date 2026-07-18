@@ -319,6 +319,10 @@ export type QTechSetupStatus = {
   walletReady: boolean;
   launchReady: boolean;
   integrationEnabled: boolean;
+  /** Current QTech API environment from Admin credentials. */
+  environment?: "production" | "integration";
+  apiBaseUrl?: string;
+  operatorId?: string;
   missing: string[];
   games: Array<{
     id: string;

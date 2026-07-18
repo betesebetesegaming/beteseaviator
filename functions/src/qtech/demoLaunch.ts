@@ -1,19 +1,25 @@
 import { HttpsError } from "firebase-functions/v2/https";
+import { logger } from "firebase-functions/v2";
 import { db } from "../helpers";
 import { isCatalogQTechGameId, resolveLobbyGameId } from "../gameCatalog";
-import { getQTechAccessToken, qtechNetworkError } from "./auth";
+import { getQTechAccessToken, qtechNetworkError, shouldRefreshQTechToken } from "./auth";
 import { getQTechSettings } from "./config";
+import {
+  demoLaunchCacheGet,
+  demoLaunchCacheSet,
+  isIntApiBase,
+  qtechEnvironmentLabel,
+} from "./runtimeCache";
 
 export type QTechPlayDevice = "mobile" | "desktop";
 
 const gameMetaCache = new Map<string, { qtechGameId: string; expiresAt: number }>();
 const GAME_META_CACHE_MS = 10 * 60 * 1000;
-const demoLaunchCache = new Map<string, { url: string; expiresAt: number }>();
 /** Match client localStorage TTL — reuse URLs across warm instances. */
 export const DEMO_LAUNCH_CACHE_MS = 20 * 60 * 1000;
 
-function demoLaunchCacheKey(qtechGameId: string, device: string): string {
-  return `${qtechGameId}:${device}`;
+function demoLaunchCacheKey(qtechGameId: string, device: string, apiBaseUrl: string): string {
+  return `${apiBaseUrl.replace(/\/+$/, "")}|${qtechGameId}|${device}`;
 }
 
 export function parsePlayDevice(raw: string | undefined): QTechPlayDevice {
@@ -60,24 +66,13 @@ async function resolveQtechGameId(rawGameId: string): Promise<string> {
   return qtechGameId;
 }
 
-/** Demo / fun mode — no wallet session (play for free). */
-export async function fetchDemoLaunchUrl(
+async function requestDemoLaunchUrl(
   cfg: Awaited<ReturnType<typeof getQTechSettings>>,
   qtechGameId: string,
   device: QTechPlayDevice,
-  playerId = "demo",
-): Promise<string> {
-  const cacheKey = demoLaunchCacheKey(qtechGameId, device);
-  const cached = demoLaunchCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.url;
-  }
-
-  if (!cfg.apiBaseUrl || !cfg.operatorId || !cfg.apiPassword) {
-    throw new HttpsError("failed-precondition", "QTech API credentials are not configured.");
-  }
-
-  const token = await getQTechAccessToken(cfg);
+  playerId: string,
+  accessToken: string,
+): Promise<{ ok: true; url: string } | { ok: false; status: number; body: Record<string, unknown> }> {
   let res: Response;
   try {
     res = await fetch(`${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(qtechGameId)}/launch-url`, {
@@ -85,7 +80,7 @@ export async function fetchDemoLaunchUrl(
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         playerId: playerId.slice(0, 34),
@@ -102,16 +97,61 @@ export async function fetchDemoLaunchUrl(
   }
 
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
+  if (!res.ok) return { ok: false, status: res.status, body };
+  const launchUrl = String(body.url || "");
+  if (!launchUrl) {
+    throw new HttpsError("failed-precondition", "QTech demo did not return a game URL.");
+  }
+  return { ok: true, url: launchUrl };
+}
+
+/** Demo / fun mode — no wallet session (play for free). */
+export async function fetchDemoLaunchUrl(
+  cfg: Awaited<ReturnType<typeof getQTechSettings>>,
+  qtechGameId: string,
+  device: QTechPlayDevice,
+  playerId = "demo",
+): Promise<string> {
+  const cacheKey = demoLaunchCacheKey(qtechGameId, device, cfg.apiBaseUrl);
+  const cached = demoLaunchCacheGet(cacheKey, cfg.apiBaseUrl);
+  if (cached) return cached;
+
+  if (!cfg.apiBaseUrl || !cfg.operatorId || !cfg.apiPassword) {
+    throw new HttpsError("failed-precondition", "QTech API credentials are not configured.");
+  }
+
+  let token = await getQTechAccessToken(cfg);
+  let result = await requestDemoLaunchUrl(cfg, qtechGameId, device, playerId, token);
+
+  // One automatic retry after credential / environment switches leave a warm INT token.
+  if (!result.ok && shouldRefreshQTechToken(result.status, result.body)) {
+    logger.warn("QTech demo launch token rejected — refreshing", {
+      qtechGameId,
+      status: result.status,
+      env: qtechEnvironmentLabel(cfg.apiBaseUrl),
+    });
+    token = await getQTechAccessToken(cfg, { forceRefresh: true });
+    result = await requestDemoLaunchUrl(cfg, qtechGameId, device, playerId, token);
+  }
+
+  if (!result.ok) {
     throw new HttpsError(
       "failed-precondition",
-      String(body.message || body.code || "QTech could not load demo for this game."),
+      String(result.body.message || result.body.code || "QTech could not load demo for this game."),
     );
   }
-  const launchUrl = String(body.url || "");
-  if (!launchUrl) throw new HttpsError("failed-precondition", "QTech demo did not return a game URL.");
-  demoLaunchCache.set(cacheKey, { url: launchUrl, expiresAt: Date.now() + DEMO_LAUNCH_CACHE_MS });
-  return launchUrl;
+
+  // Guard: production API must not hand us an INT launcher URL.
+  if (isIntApiBase(cfg.apiBaseUrl) === false && /client\.int\.|gl-int\./i.test(result.url)) {
+    logger.error("QTech production demo returned INT launcher URL", { qtechGameId, url: result.url });
+    throw new HttpsError(
+      "failed-precondition",
+      "QTech returned an integration launcher URL while production API is configured. Contact QTech.",
+    );
+  }
+
+  demoLaunchCacheSet(cacheKey, result.url, cfg.apiBaseUrl, DEMO_LAUNCH_CACHE_MS);
+  return result.url;
 }
 
 /** Resolve demo launch URL for a Firestore game doc id. */

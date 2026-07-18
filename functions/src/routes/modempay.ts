@@ -16,7 +16,7 @@ import {
   type ModemPayPayoutNetwork,
 } from '../modempay';
 import { adminDb } from '../adminModem';
-import { db, bumpDailyStats, bumpPlatformStats, getSettings, round2, todayIso, walletRead, walletWrite } from '../helpers';
+import { db, bumpDailyStats, bumpPlatformStats, getSettings, MIN_DEPOSIT_GMD, round2, todayIso, walletRead, walletWrite } from '../helpers';
 import { applyEarlyWithdrawalPenalties, evaluateEarlyWithdrawal, parsePlaythroughWallet } from '../wagering';
 import { syncAviatorWalletCredit } from '../walletSync';
 import { consumeOtpVerifiedForPhone, requireOtpVerifiedForPhone } from '../otpVerification';
@@ -121,9 +121,9 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
 
   const customerId = body.customerId ? String(body.customerId).trim() : '';
   if (customerId) {
-    const settings = await getSettings();
-    if (!Number.isFinite(amount) || amount < settings.minDeposit) {
-      res.status(400).json({ error: `Minimum deposit is ${settings.minDeposit} GMD.` });
+    await getSettings();
+    if (!Number.isFinite(amount) || amount < MIN_DEPOSIT_GMD) {
+      res.status(400).json({ error: `Minimum deposit is GMD ${MIN_DEPOSIT_GMD}.` });
       return;
     }
     const walletSnap = await db.doc(`wallets/${customerId}`).get();

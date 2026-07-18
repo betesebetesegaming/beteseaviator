@@ -14,6 +14,7 @@ import {
   staffLoginEmail,
   staffLoginKey,
   resolveStaffAuthEmail,
+  MIN_DEPOSIT_GMD,
   type ProfileData,
   type Role,
 } from "./helpers";
@@ -320,7 +321,7 @@ export const adminSaveSettings = onCall(async (req) => {
     if (data[k] !== undefined) {
       const v = Number(data[k]);
       if (!Number.isFinite(v) || v < 0) throw new HttpsError("invalid-argument", `Invalid ${k}.`);
-      clean[k] = v;
+      clean[k] = k === "minDeposit" ? MIN_DEPOSIT_GMD : v;
     }
   }
   if (
@@ -340,6 +341,9 @@ export const adminSaveSettings = onCall(async (req) => {
   }
   if ((clean.earlyWithdrawalFeeRate as number | undefined) !== undefined && (clean.earlyWithdrawalFeeRate as number) > 1) {
     throw new HttpsError("invalid-argument", "Early withdrawal fee must be a fraction, e.g. 0.15 = 15%.");
+  }
+  if ((clean.minDeposit as number | undefined) !== undefined && (clean.minDeposit as number) < MIN_DEPOSIT_GMD) {
+    throw new HttpsError("invalid-argument", `Minimum deposit is GMD ${MIN_DEPOSIT_GMD}.`);
   }
   if (data.apiProviderRate !== undefined) {
     const rate = Number(data.apiProviderRate);
@@ -513,6 +517,10 @@ export const adminSaveSettings = onCall(async (req) => {
   }
 
   await db.doc("settings/platform").set(clean, { merge: true });
+  if (clean.qtech) {
+    const { clearAllQTechRuntimeCaches } = await import("./qtech/clearCaches");
+    clearAllQTechRuntimeCaches();
+  }
   return { ok: true };
 });
 
@@ -1048,6 +1056,8 @@ export const adminSaveQTechSettings = onCall(async (req) => {
     lobbyUrl: String(qt.lobbyUrl ?? "https://www.beteseaviator.com/play").trim().slice(0, 256),
   };
   await db.doc("settings/platform").set({ qtech }, { merge: true });
+  const { clearAllQTechRuntimeCaches } = await import("./qtech/clearCaches");
+  clearAllQTechRuntimeCaches();
   const { getQTechSetupStatus } = await import("./qtech/games");
   const status = await getQTechSetupStatus();
   return { ok: true, ...status };

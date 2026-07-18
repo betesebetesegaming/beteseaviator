@@ -380,6 +380,9 @@ export interface AgentDailyStats {
 }
 
 import { DEFAULT_BONUS_SETTINGS } from "./bonuses";
+import { MIN_DEPOSIT_GMD } from "./depositLimits";
+
+export { MIN_DEPOSIT_GMD } from "./depositLimits";
 
 export const DEFAULT_SETTINGS: PlatformSettings = {
   agentRate: 0.05,
@@ -389,7 +392,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   apiProviderName: "QTech",
   minBet: 1,
   maxBet: 100_000,
-  minDeposit: 25,
+  minDeposit: MIN_DEPOSIT_GMD,
   minWithdrawal: 100,
   minAutoCashout: 1.01,
   maxAutoCashout: 100,

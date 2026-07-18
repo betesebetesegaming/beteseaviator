@@ -73,6 +73,7 @@ export default function AgentPlayersPage() {
     name: string;
     playerId: string;
     phone: string;
+    password: string;
   } | null>(null);
 
   useEffect(() => {
@@ -129,12 +130,13 @@ export default function AgentPlayersPage() {
     setBusy(true);
     try {
       const name = newName.trim();
-      const res = await agentCreateCustomer({ name, phone, password: newPassword });
+      const password = newPassword;
+      const res = await agentCreateCustomer({ name, phone, password });
       setCreateOpen(false);
       setNewName("");
       setNewPhone("");
       setNewPassword("");
-      setCreatedSuccess({ name, playerId: res.playerId, phone });
+      setCreatedSuccess({ name, playerId: res.playerId, phone, password });
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
@@ -354,6 +356,7 @@ export default function AgentPlayersPage() {
         customerName={createdSuccess?.name ?? ""}
         playerId={createdSuccess?.playerId ?? ""}
         phone={createdSuccess?.phone ?? ""}
+        password={createdSuccess?.password ?? ""}
         agentSlug={profile?.agentSlug}
         agentName={profile?.name}
       />

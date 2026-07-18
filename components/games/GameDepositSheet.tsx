@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { DEFAULT_SETTINGS } from "@/lib/types";
-import { subscribePlatformSettings } from "@/lib/games/subscriptions";
+import { MIN_DEPOSIT_GMD } from "@/lib/depositLimits";
 import { PaymentSheet } from "@/components/PaymentSheet";
 import { dbDepositRequest } from "@/lib/paymentsClient";
 import { normalizeGambiaPhone, PHONE_HINT } from "@/lib/gambiaPhone";
@@ -17,9 +16,6 @@ type Props = {
 /** Quick deposit while playing — keeps the game visible underneath. */
 export function GameDepositSheet({ open, onClose }: Props) {
   const { fbUser, profile, wallet } = useAuth();
-  const [minDeposit, setMinDeposit] = useState(DEFAULT_SETTINGS.minDeposit);
-
-  useEffect(() => subscribePlatformSettings((s) => setMinDeposit(s.minDeposit)), []);
 
   const handleDepositRequest = useCallback(
     async (
@@ -64,7 +60,7 @@ export function GameDepositSheet({ open, onClose }: Props) {
         phone: profile.phone ?? undefined,
         walletBalance: wallet?.balance,
       }}
-      minDeposit={minDeposit}
+      minDeposit={MIN_DEPOSIT_GMD}
       frozen={Boolean(wallet?.frozen)}
       onDepositRequest={handleDepositRequest}
       floatingKeypad

@@ -329,6 +329,22 @@ export default function AdminQTechPage() {
 
       <LobbyOrderEditor />
 
+      {/* Environment banner — prevents accidental INT launches after production cutover */}
+      {status?.environment === "production" ? (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+          <strong className="font-semibold">Production API active.</strong>{" "}
+          Games launch on real QTech hosts ({status.apiBaseUrl || "api.qtplatform.com"}
+          {status.operatorId ? ` · ${status.operatorId}` : ""}). Real-money bets apply when signed in.
+        </div>
+      ) : status?.environment === "integration" ? (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          <strong className="font-semibold">Integration (INT) API — not production.</strong>{" "}
+          SmartSoft titles can load slowly or stick on splash. Switch API base URL to{" "}
+          <code className="text-xs">https://api.qtplatform.com</code> and use production operator
+          credentials when ready.
+        </div>
+      ) : null}
+
       {/* Section 1 — Setup checklist */}
       <Card>
         <h2 className="mb-3 font-semibold">1. Setup checklist</h2>
@@ -336,6 +352,16 @@ export default function AdminQTechPage() {
           <StatusRow ok={Boolean(status?.walletReady)} label="Wallet Pass-Key configured" />
           <StatusRow ok={Boolean(status?.integrationEnabled)} label="Game launch enabled" />
           <StatusRow ok={Boolean(status?.launchReady)} label="Operator API credentials complete" />
+          <StatusRow
+            ok={status?.environment === "production"}
+            label={
+              status?.environment === "production"
+                ? "Production API (api.qtplatform.com)"
+                : status?.environment === "integration"
+                  ? "Still on Integration API (api-int) — switch for live players"
+                  : "QTech environment unknown — reload status"
+            }
+          />
           {qtechGames.map((g) => (
             <StatusRow
               key={g.id}
@@ -472,13 +498,20 @@ export default function AdminQTechPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             label="QTech API base URL"
-            placeholder="https://api-int.qtplatform.com"
+            placeholder="https://api.qtplatform.com"
             className="sm:col-span-2"
             value={qtech.apiBaseUrl ?? ""}
             onChange={(e) => setQtech({ ...qtech, apiBaseUrl: e.target.value })}
           />
+          {/api-int|int\.qtplatform/i.test(String(qtech.apiBaseUrl ?? "")) ? (
+            <p className="sm:col-span-2 text-xs text-amber-200">
+              This URL is Integration (sandbox). Production is{" "}
+              <code className="text-[11px]">https://api.qtplatform.com</code>.
+            </p>
+          ) : null}
           <Input
-            label="Operator ID"
+            label="Operator ID (API Username)"
+            placeholder="api_BETESEAviator"
             value={qtech.operatorId ?? ""}
             onChange={(e) => setQtech({ ...qtech, operatorId: e.target.value })}
           />

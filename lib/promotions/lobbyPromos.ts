@@ -12,13 +12,20 @@ import {
 const DOC_PATH = ["settings", "lobbyPromos"] as const;
 
 export function subscribeLobbyPromos(onConfig: (config: LobbyPromoConfig | null) => void): Unsubscribe {
-  return onSnapshot(doc(db, ...DOC_PATH), (snap) => {
-    if (!snap.exists()) {
+  return onSnapshot(
+    doc(db, ...DOC_PATH),
+    (snap) => {
+      if (!snap.exists()) {
+        onConfig(null);
+        return;
+      }
+      onConfig(snap.data() as LobbyPromoConfig);
+    },
+    () => {
+      // Permission/network errors — fall back to built-in default slides.
       onConfig(null);
-      return;
-    }
-    onConfig(snap.data() as LobbyPromoConfig);
-  });
+    },
+  );
 }
 
 export function activeLobbySlides(config: LobbyPromoConfig | null): PromoSlide[] {

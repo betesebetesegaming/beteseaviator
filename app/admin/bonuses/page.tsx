@@ -41,6 +41,9 @@ export default function AdminBonusesPage() {
     if (settings.minWithdrawal < 0 || settings.minDeposit < 0) {
       return toast.error("Minimum amounts cannot be negative.");
     }
+    if (settings.minDeposit < 25) {
+      return toast.error("Minimum deposit is GMD 25.");
+    }
     setBusy(true);
     try {
       await adminSaveSettings({
@@ -75,6 +78,10 @@ export default function AdminBonusesPage() {
         <p className="text-sm text-slate-300">
           Current minimum withdrawal:{" "}
           <span className="font-bold text-violet-200">{settings.minWithdrawal} GMD</span>
+        </p>
+        <p className="mt-1 text-sm text-slate-300">
+          Current minimum deposit:{" "}
+          <span className="font-bold text-violet-200">{settings.minDeposit} GMD</span>
         </p>
         <p className="mt-1 text-xs text-slate-500">
           Commission rates and bet limits are on{" "}

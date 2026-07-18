@@ -21,7 +21,25 @@ import { LOBBY_NAV, type LobbyNavCategory } from "@/lib/games/promotions";
 
 const PromoBannerCarousel = dynamic(
   () => import("./PromoBannerCarousel").then((m) => ({ default: m.PromoBannerCarousel })),
-  { ssr: false, loading: () => <div className="aspect-[1920/360] max-h-[360px] animate-pulse rounded-2xl bg-white/5" /> },
+  {
+    ssr: false,
+    loading: () => (
+      <section className="overflow-hidden rounded-2xl border border-white/10">
+        <div className="relative flex w-full aspect-[1920/360] max-h-[360px] items-center bg-gradient-to-r from-emerald-700 via-emerald-900 to-black px-5 sm:px-8">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-betese-yellow opacity-90">
+              Promotion
+            </p>
+            <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">Welcome to BETESE</h2>
+            <p className="mt-1 text-xs text-white/90 sm:text-sm">
+              Top up with Wave & AfriMoney — play QTech games
+            </p>
+          </div>
+        </div>
+        <div className="border-t border-white/10 bg-black py-2" />
+      </section>
+    ),
+  },
 );
 
 type LobbySection = {

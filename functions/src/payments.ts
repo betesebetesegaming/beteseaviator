@@ -6,6 +6,7 @@ import {
   db,
   FieldValue,
   getSettings,
+  MIN_DEPOSIT_GMD,
   normalizePhone,
   requireRole,
   round2,
@@ -55,8 +56,8 @@ export const requestDeposit = onCall(async (req) => {
     throw new HttpsError("failed-precondition", "This provider is currently disabled.");
   }
   if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
-  if (!Number.isFinite(amount) || amount < settings.minDeposit) {
-    throw new HttpsError("invalid-argument", `Minimum deposit is ${settings.minDeposit} GMD.`);
+  if (!Number.isFinite(amount) || amount < MIN_DEPOSIT_GMD) {
+    throw new HttpsError("invalid-argument", `Minimum deposit is GMD ${MIN_DEPOSIT_GMD}.`);
   }
 
   const reference = `DEP-${Date.now().toString(36).toUpperCase()}-${crypto

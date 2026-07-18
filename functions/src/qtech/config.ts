@@ -12,8 +12,24 @@ export type QTechSettings = {
   lobbyUrl: string;
 };
 
-let settingsCache: { at: number; value: QTechSettings } | null = null;
-const SETTINGS_CACHE_MS = 60_000;
+let settingsCache: { at: number; value: QTechSettings; fingerprint: string } | null = null;
+/** Short TTL so Firestore credential changes (even outside adminSave) pick up quickly. */
+const SETTINGS_CACHE_MS = 15_000;
+
+function settingsFingerprint(value: QTechSettings): string {
+  return [
+    value.enabled ? "1" : "0",
+    value.apiBaseUrl,
+    value.operatorId,
+    value.apiPassword,
+    value.passKey,
+  ].join("|");
+}
+
+/** Drop cached settings after Admin credential changes (INT ↔ production). */
+export function clearQTechSettingsCache(): void {
+  settingsCache = null;
+}
 
 /** Optional env fallbacks — primary source is Admin → QTech & Games (Firestore). */
 function env(name: string): string {
@@ -42,6 +58,20 @@ export async function getQTechSettings(): Promise<QTechSettings> {
     lang: String(stored?.lang || defaults.lang || "en_GM").trim(),
     lobbyUrl: String(stored?.lobbyUrl || defaults.lobbyUrl || "https://www.beteseaviator.com/play").trim(),
   };
-  settingsCache = { at: Date.now(), value };
+
+  const fingerprint = settingsFingerprint(value);
+  // If credentials changed under us (gcloud / Admin / another instance write), drop auth+demo caches.
+  if (settingsCache && settingsCache.fingerprint !== fingerprint) {
+    try {
+      const { clearQTechAccessTokenCache } = await import("./auth");
+      const { clearDemoLaunchCache } = await import("./runtimeCache");
+      clearQTechAccessTokenCache();
+      clearDemoLaunchCache();
+    } catch {
+      /* ignore circular warm-path failures */
+    }
+  }
+
+  settingsCache = { at: Date.now(), value, fingerprint };
   return value;
 }

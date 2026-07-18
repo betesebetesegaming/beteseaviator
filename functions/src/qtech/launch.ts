@@ -3,7 +3,7 @@ import { onInit } from "firebase-functions/v2/core";
 import { logger } from "firebase-functions/v2";
 import { resolveLobbyGameId } from "../gameCatalog";
 import { db, requireRole } from "../helpers";
-import { getQTechAccessToken, qtechNetworkError } from "./auth";
+import { getQTechAccessToken, qtechNetworkError, shouldRefreshQTechToken } from "./auth";
 import { getQTechSettings } from "./config";
 import {
   deriveQtechGameIdFromDocId,
@@ -12,6 +12,7 @@ import {
   resolveDemoLaunchUrl,
   warmDemoLaunchDependencies,
 } from "./demoLaunch";
+import { qtechEnvironmentLabel } from "./runtimeCache";
 import { createWalletSession } from "./session";
 
 /** Route outbound QTech API calls through Cloud NAT static IP (QTech IP whitelist). */
@@ -95,33 +96,60 @@ async function fetchLaunchUrl(
     payload.displayName = args.displayName.trim().slice(0, 50);
   }
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch (e) {
-    throw qtechNetworkError(e);
+  async function postLaunch(accessToken: string): Promise<{
+    ok: true;
+    url: string;
+  } | {
+    ok: false;
+    status: number;
+    body: Record<string, unknown>;
+  }> {
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      throw qtechNetworkError(e);
+    }
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return { ok: false, status: res.status, body };
+    const launchUrl = String(body.url || "");
+    if (!launchUrl) {
+      throw new HttpsError("failed-precondition", "QTech launch response did not include a game URL.");
+    }
+    return { ok: true, url: launchUrl };
   }
 
-  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
-    logger.error("QTech launch failed", { status: res.status, body, gameId: args.qtechGameId });
-    const msg = String(body.message || body.code || "QTech could not launch this game.");
+  let result = await postLaunch(token);
+  if (!result.ok && shouldRefreshQTechToken(result.status, result.body)) {
+    logger.warn("QTech real launch token rejected — refreshing", {
+      qtechGameId: args.qtechGameId,
+      status: result.status,
+      env: qtechEnvironmentLabel(cfg.apiBaseUrl),
+    });
+    const freshToken = await getQTechAccessToken(cfg, { forceRefresh: true });
+    result = await postLaunch(freshToken);
+  }
+
+  if (!result.ok) {
+    logger.error("QTech launch failed", {
+      status: result.status,
+      body: result.body,
+      gameId: args.qtechGameId,
+      env: qtechEnvironmentLabel(cfg.apiBaseUrl),
+    });
+    const msg = String(result.body.message || result.body.code || "QTech could not launch this game.");
     throw new HttpsError("failed-precondition", msg);
   }
 
-  const launchUrl = String(body.url || "");
-  if (!launchUrl) {
-    throw new HttpsError("failed-precondition", "QTech launch response did not include a game URL.");
-  }
-  return launchUrl;
+  return result.url;
 }
 
 /** Player launches a QTech-hosted Aviator/Crash game. Kept warm so the
@@ -160,6 +188,7 @@ export const launchQTechGame = onCall({ ...QTECH_OUTBOUND, minInstances: 1 }, as
     gameId: lobbyGameId,
     qtechGameId,
     ms: Date.now() - started,
+    env: qtechEnvironmentLabel(cfg.apiBaseUrl),
   });
 
   return { launchUrl, walletSession };

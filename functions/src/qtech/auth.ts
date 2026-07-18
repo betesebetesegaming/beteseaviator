@@ -1,9 +1,18 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { getQTechSettings } from "./config";
+import { isIntApiBase } from "./runtimeCache";
 
-type TokenCache = { token: string; expiresAt: number };
+type TokenCache = { key: string; token: string; expiresAt: number };
 let tokenCache: TokenCache | null = null;
+
+function tokenCacheKey(apiBaseUrl: string, operatorId: string, apiPassword: string): string {
+  return `${apiBaseUrl.replace(/\/+$/, "")}|${operatorId}|${apiPassword}`;
+}
+
+export function clearQTechAccessTokenCache(): void {
+  tokenCache = null;
+}
 
 export function qtechNetworkError(e: unknown): HttpsError {
   const cause = e instanceof Error ? String(e.cause ?? e.message) : String(e);
@@ -12,22 +21,35 @@ export function qtechNetworkError(e: unknown): HttpsError {
   return new HttpsError(
     "failed-precondition",
     ipBlocked
-      ? "QTech blocked our server IP. Ask QTech to whitelist outbound IP 35.226.2.98 for qa_BETESE (INT)."
-      : "Could not reach QTech API — check https://api-int.qtplatform.com is correct.",
+      ? "QTech blocked our server IP. Ask QTech to whitelist outbound IP 35.226.2.98 for your API account."
+      : "Could not reach QTech API — check the API base URL in Admin → QTech & Games.",
   );
+}
+
+function isInvalidTokenError(status: number, body: Record<string, unknown>): boolean {
+  if (status === 401 || status === 403) return true;
+  const detail = `${body.message || ""} ${body.error || ""} ${body.code || ""}`.toLowerCase();
+  return /invalid|expired|access.?token|unauthorized|authentication/i.test(detail);
 }
 
 /** QTech Common Wallet API v2.53 — section 4.1 Retrieve an Access Token. */
 export async function getQTechAccessToken(
   cfg?: Awaited<ReturnType<typeof getQTechSettings>>,
+  opts?: { forceRefresh?: boolean },
 ): Promise<string> {
-  if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) {
-    return tokenCache.token;
-  }
-
   const settings = cfg ?? (await getQTechSettings());
   if (!settings.apiBaseUrl || !settings.operatorId || !settings.apiPassword) {
     throw new HttpsError("failed-precondition", "QTech API credentials are not configured.");
+  }
+
+  const key = tokenCacheKey(settings.apiBaseUrl, settings.operatorId, settings.apiPassword);
+  if (
+    !opts?.forceRefresh &&
+    tokenCache &&
+    tokenCache.key === key &&
+    tokenCache.expiresAt > Date.now() + 60_000
+  ) {
+    return tokenCache.token;
   }
 
   const params = new URLSearchParams({
@@ -50,7 +72,14 @@ export async function getQTechAccessToken(
 
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
-    logger.error("QTech auth failed", { status: res.status, body });
+    tokenCache = null;
+    logger.error("QTech auth failed", {
+      status: res.status,
+      body,
+      env: isIntApiBase(settings.apiBaseUrl) ? "integration" : "production",
+      operatorId: settings.operatorId,
+      apiBaseUrl: settings.apiBaseUrl,
+    });
     const detail = String(body.message || body.error || body.code || "").trim();
     throw new HttpsError(
       "failed-precondition",
@@ -66,6 +95,11 @@ export async function getQTechAccessToken(
     throw new HttpsError("failed-precondition", "QTech auth response did not include a token.");
   }
 
-  tokenCache = { token, expiresAt: Date.now() + expiresIn };
+  tokenCache = { key, token, expiresAt: Date.now() + expiresIn };
   return token;
+}
+
+/** True when a launch/API response means the cached bearer token is dead. */
+export function shouldRefreshQTechToken(status: number, body: Record<string, unknown>): boolean {
+  return isInvalidTokenError(status, body);
 }

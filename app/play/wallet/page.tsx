@@ -23,6 +23,7 @@ import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
 import { readPendingDepositRef } from "@/lib/payments/pendingDepositSession";
 import { buildDepositResult, type PaymentResultPayload } from "@/lib/paymentResultPayload";
+import { MIN_DEPOSIT_GMD } from "@/lib/depositLimits";
 import { formatSigned, formatDate, formatXof } from "@/lib/format";
 import { subscribePlatformSettings } from "@/lib/games/subscriptions";
 import { mergeBonusSettings, withdrawalRulesCopy } from "@/lib/bonuses";
@@ -416,7 +417,7 @@ export default function WalletPage() {
         <Card>
           <h2 className="mb-2 font-semibold">Deposit via ModemPay</h2>
           <p className="mb-4 text-sm text-slate-400">
-            Minimum deposit {formatXof(settings.minDeposit)}. Wave, AfriMoney, APS, QMoney or card.
+            Deposits from GMD {MIN_DEPOSIT_GMD} and above. Wave, AfriMoney, APS, QMoney or card.
           </p>
           <Button className="w-full" onClick={() => setDepositOpen(true)}>
             Open payment methods
@@ -553,7 +554,7 @@ export default function WalletPage() {
               walletBalance: wallet?.balance ?? 0,
             }}
             initialAmount={depositPrefill}
-            minDeposit={settings.minDeposit}
+            minDeposit={MIN_DEPOSIT_GMD}
             frozen={frozen}
             floatingKeypad
             onDepositRequest={handleCreateDepositRequest}

@@ -6,7 +6,8 @@ import { resolveLobbyGameId } from "@/lib/games/legacyGameIds";
 import type { Game } from "@/lib/types";
 
 const GAME_DOC_PREFIX = "betese-game-doc-v1:";
-const LAUNCH_URL_PREFIX = "betese-qtech-launch-v5:";
+/** v6: flush INT-era cached launcher URLs after production cutover. */
+const LAUNCH_URL_PREFIX = "betese-qtech-launch-v6:";
 /** Demo URLs are reusable. */
 const DEMO_LAUNCH_TTL_MS = 15 * 60 * 1000;
 /**
@@ -37,9 +38,28 @@ function launchKey(gameId: string, demo: boolean, device: QTechPlayDevice): stri
   return `${LAUNCH_URL_PREFIX}${resolveLobbyGameId(gameId)}:${demo ? "demo" : "real"}:${device}`;
 }
 
+/** INT launcher hosts must not be reused after production switch. */
+export function isIntQTechLaunchUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host.includes(".int.") || host.startsWith("int.") || /-int\./.test(host);
+  } catch {
+    return /client\.int\.|gl-int\.|ps-int\.|api-int\./i.test(url);
+  }
+}
+
+function isUsableLaunchUrl(url: string | null | undefined): url is string {
+  if (!url || !url.startsWith("https://")) return false;
+  // Site runs on production — never reopen a cached INT splash from before cutover.
+  if (isIntQTechLaunchUrl(url)) return false;
+  return true;
+}
+
 function readRealHandoff(key: string): string | null {
   const mem = realMemoryHandoff.get(key);
-  if (mem?.url && Date.now() - mem.at <= REAL_HANDOFF_TTL_MS) return mem.url;
+  if (mem?.url && Date.now() - mem.at <= REAL_HANDOFF_TTL_MS && isUsableLaunchUrl(mem.url)) {
+    return mem.url;
+  }
   if (mem) realMemoryHandoff.delete(key);
 
   if (typeof window === "undefined") return null;
@@ -47,7 +67,7 @@ function readRealHandoff(key: string): string | null {
     const raw = sessionStorage.getItem(key);
     if (!raw) return null;
     const entry = JSON.parse(raw) as LaunchCacheEntry;
-    if (!entry?.url || Date.now() - entry.at > REAL_HANDOFF_TTL_MS) {
+    if (!entry?.url || Date.now() - entry.at > REAL_HANDOFF_TTL_MS || !isUsableLaunchUrl(entry.url)) {
       sessionStorage.removeItem(key);
       return null;
     }
@@ -73,7 +93,10 @@ export function readCachedQTechLaunchUrl(
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const entry = JSON.parse(raw) as LaunchCacheEntry;
-    if (!entry?.url || Date.now() - entry.at > DEMO_LAUNCH_TTL_MS) return null;
+    if (!entry?.url || Date.now() - entry.at > DEMO_LAUNCH_TTL_MS || !isUsableLaunchUrl(entry.url)) {
+      localStorage.removeItem(key);
+      return null;
+    }
     return entry.url;
   } catch {
     return null;
@@ -86,6 +109,8 @@ export function writeCachedQTechLaunchUrl(
   url: string,
   device: QTechPlayDevice,
 ): void {
+  if (!isUsableLaunchUrl(url)) return;
+
   const id = resolveLobbyGameId(gameId);
   const key = launchKey(id, demo, device);
   const entry: LaunchCacheEntry = { url, at: Date.now() };
@@ -127,6 +152,21 @@ export function clearCachedQTechLaunchUrl(
   }
 }
 
+/** One-shot cleanup of older INT-era launch cache keys. */
+export function purgeLegacyQTechLaunchCaches(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && /^betese-qtech-launch-v[1-5]:/.test(k)) keys.push(k);
+    }
+    for (const k of keys) localStorage.removeItem(k);
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function prefetchQTechLaunch(opts: {
   gameId: string;
   demo: boolean;
@@ -159,6 +199,10 @@ export async function prefetchQTechLaunch(opts: {
       } else {
         const res = await launchQTechGame({ gameId, device });
         launchUrl = res.launchUrl;
+      }
+      if (!isUsableLaunchUrl(launchUrl)) {
+        // If Admin temporarily points at INT, still return the URL — just don't cache it permanently.
+        return launchUrl.startsWith("https://") ? launchUrl : null;
       }
       writeCachedQTechLaunchUrl(gameId, demo, launchUrl, device);
       return launchUrl;
@@ -204,14 +248,14 @@ export function readCachedGameDoc(gameId: string): Game | null {
   }
 }
 
-/** Hint browser to open connections to QTech game hosts early. */
+/** Hint browser to open connections to production QTech hosts early. */
 export function preconnectQTechGameHosts(): void {
   if (typeof document === "undefined") return;
   for (const href of [
-    "https://client.int.qtlauncher.com",
-    "https://gl-int.qtplatform.com",
-    "https://ps-int.qtplatform.com",
-    "https://api-int.qtplatform.com",
+    "https://client.qtlauncher.com",
+    "https://gl.qtplatform.com",
+    "https://ps.qtplatform.com",
+    "https://api.qtplatform.com",
   ]) {
     if (document.querySelector(`link[rel="preconnect"][href="${href}"]`)) continue;
     const link = document.createElement("link");

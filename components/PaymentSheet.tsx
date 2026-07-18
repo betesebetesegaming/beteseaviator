@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firestore';
 import { PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { apiUrl } from "@/lib/apiUrl";
+import { depositPresetAmounts, MIN_DEPOSIT_GMD } from "@/lib/depositLimits";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { isTerminalDepositStatus, startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
 import { rememberPendingDepositRef } from "@/lib/payments/pendingDepositSession";
@@ -93,7 +94,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   onClose,
   user,
   initialAmount,
-  minDeposit = 25,
+  minDeposit: _minDepositProp = MIN_DEPOSIT_GMD,
   frozen = false,
   floatingKeypad = false,
   onDepositRequest,
@@ -110,6 +111,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   const [trackingRef, setTrackingRef] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState<'Pending' | 'Approved' | 'Rejected' | null>(null);
+  const depositMin = MIN_DEPOSIT_GMD;
+  const presetAmounts = useMemo(() => depositPresetAmounts(depositMin), []);
 
   const dragStartY = useRef<number | null>(null);
   const [dragY, setDragY] = useState(0);
@@ -118,8 +121,10 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     if (!isOpen) return;
     setStage('choose');
     setMethod(null);
-    setAmount(initialAmount && initialAmount > 0 ? Math.ceil(initialAmount) : '');
-    setAmountText(initialAmount && initialAmount > 0 ? String(Math.ceil(initialAmount)) : '');
+    const defaultAmount =
+      initialAmount && initialAmount > 0 ? Math.ceil(initialAmount) : depositMin;
+    setAmount(defaultAmount);
+    setAmountText(String(defaultAmount));
     setKeypadOpen(false);
     setPhone(user.phone || '');
     setBusy(false);
@@ -244,8 +249,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       setMessage({ ok: false, text: 'Enter a valid amount.' });
       return;
     }
-    if (numAmount < minDeposit) {
-      setMessage({ ok: false, text: `Minimum deposit is ${minDeposit} GMD.` });
+    if (numAmount < depositMin) {
+      setMessage({ ok: false, text: `Minimum deposit is GMD ${depositMin}.` });
       return;
     }
     const normalizedPhone = normalizeGambiaPhone(phone);
@@ -395,7 +400,9 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-slate-600 mb-1">Amount (GMD)</label>
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-600 mb-1">
+                  Amount — GMD {depositMin} and above
+                </label>
                 <input
                   type="text"
                   inputMode={floatingKeypad ? "none" : "decimal"}
@@ -412,11 +419,14 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                     setAmount(Number.isFinite(n) ? n : '');
                   }}
                   onFocus={() => floatingKeypad && setKeypadOpen(true)}
-                  placeholder={`Min ${minDeposit}`}
+                  placeholder={`e.g. ${depositMin} GMD`}
                   className="w-full p-3 border-2 border-slate-300 rounded-xl text-lg font-black text-slate-900 bg-white placeholder:text-slate-400 focus:border-betese-green focus:ring-2 focus:ring-green-600/25 focus:outline-none"
                 />
+                <p className="mt-1 text-xs font-bold text-slate-500">
+                  Minimum deposit is GMD {depositMin}. Enter {depositMin} or more.
+                </p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {[25, 50, 100, 200, 500].map((preset) => (
+                  {presetAmounts.map((preset) => (
                     <button
                       key={preset}
                       type="button"

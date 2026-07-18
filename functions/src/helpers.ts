@@ -59,6 +59,21 @@ export const RESERVED_SLUGS = [
 export const PROVIDERS = ["wave", "afrimoney", "aps", "qmoney"] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
+/** Platform minimum wallet top-up (GMD). Deposits accept this amount and above. */
+export const MIN_DEPOSIT_GMD = 25;
+
+let minDepositMigrationQueued = false;
+
+/** One-time write: legacy Firestore minDeposit (e.g. 50) → 25 GMD. */
+function ensureMinDepositMigration(stored: unknown): void {
+  const n = Number(stored);
+  if (minDepositMigrationQueued || !Number.isFinite(n) || n === MIN_DEPOSIT_GMD) return;
+  minDepositMigrationQueued = true;
+  db.doc("settings/platform")
+    .set({ minDeposit: MIN_DEPOSIT_GMD }, { merge: true })
+    .catch((err) => console.warn("minDeposit migration failed", err));
+}
+
 export const DEFAULT_SETTINGS = {
   agentRate: 0.05,
   subAgentRate: 0.05,
@@ -67,7 +82,7 @@ export const DEFAULT_SETTINGS = {
   apiProviderName: "API Provider",
   minBet: 1,
   maxBet: 100_000,
-  minDeposit: 25,
+  minDeposit: MIN_DEPOSIT_GMD,
   minWithdrawal: 100,
   minAutoCashout: 1.01,
   maxAutoCashout: 100,
@@ -199,9 +214,12 @@ export function txnReference(): string {
 export async function getSettings(): Promise<Settings> {
   const snap = await db.doc("settings/platform").get();
   const data = snap.data() ?? {};
+  const { minDeposit: storedMinDeposit, ...platformRest } = data;
+  ensureMinDepositMigration(storedMinDeposit);
   return {
     ...DEFAULT_SETTINGS,
-    ...data,
+    ...platformRest,
+    minDeposit: MIN_DEPOSIT_GMD,
     providers: { ...DEFAULT_SETTINGS.providers, ...(data.providers ?? {}) },
     bonusGamesLabel:
       typeof data.bonusGamesLabel === "string" && data.bonusGamesLabel.trim()

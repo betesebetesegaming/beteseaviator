@@ -1,12 +1,15 @@
 import { mergeBonusSettings } from "@/lib/bonuses";
+import { MIN_DEPOSIT_GMD } from "@/lib/depositLimits";
 import { DEFAULT_SETTINGS, type PlatformSettings } from "@/lib/types";
 
 /** Merge Firestore `settings/platform` with app defaults (client + admin). */
 export function mergePlatformSettings(data: Partial<PlatformSettings> | null | undefined): PlatformSettings {
   const d = data ?? {};
+  const { minDeposit: _storedMin, ...rest } = d;
   return {
     ...DEFAULT_SETTINGS,
-    ...d,
+    ...rest,
+    minDeposit: MIN_DEPOSIT_GMD,
     providers: { ...DEFAULT_SETTINGS.providers, ...(d.providers ?? {}) },
     bonuses: mergeBonusSettings(d.bonuses),
     apiProviderName: d.apiProviderName ?? DEFAULT_SETTINGS.apiProviderName,
