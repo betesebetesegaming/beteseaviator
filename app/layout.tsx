@@ -14,9 +14,21 @@ export const metadata: Metadata = {
   title: "BETESE Aviator",
   description:
     "BETESE Aviator — crash game platform. Deposit with mobile money, bet, cash out before the crash.",
+  applicationName: "BETESE Aviator",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "BETESE Aviator",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
-    icon: [{ url: "/icon.png", type: "image/png" }],
-    apple: [{ url: "/icon.png", type: "image/png" }],
+    icon: [
+      { url: "/app-icon.png", type: "image/png" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: [{ url: "/app-icon.png", type: "image/png", sizes: "180x180" }],
   },
 };
 
@@ -24,8 +36,12 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
-  themeColor: "#0b0b0b",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0b0b0b" },
+    { media: "(prefers-color-scheme: light)", color: "#0b0b0b" },
+  ],
 };
 
 export default function RootLayout({

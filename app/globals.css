@@ -19,6 +19,15 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  /* Safari + iOS WebView: fill the screen including notch / home indicator */
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  height: -webkit-fill-available;
 }
 
 /** White payment modals/sheets must not inherit the app dark-theme text color. */

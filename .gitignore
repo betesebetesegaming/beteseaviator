@@ -57,3 +57,10 @@ docs/qtech/*-filled.xlsx
 docs/qtech/QTech-Games-Handover-List-BETESE-filled.xlsx
 # Working tester config holds the live Pass-Key — keep local; commit cw_qtcw_tester.cfg.example instead
 docs/qtech/cw_qtcw_tester.cfg
+
+# Python bytecode from QTech tester docs
+docs/qtech/__pycache__/
+**/__pycache__/
+
+# Capacitor local
+.capacitor/

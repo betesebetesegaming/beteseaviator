@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b0b0b" />
+    <title>BETESE Aviator</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0b0b0b;
+        color: #f1f5f9;
+        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right)
+          env(safe-area-inset-bottom) env(safe-area-inset-left);
+      }
+      .wrap {
+        max-width: 20rem;
+        padding: 1.5rem;
+      }
+      img {
+        width: 96px;
+        height: 96px;
+        border-radius: 22px;
+        object-fit: cover;
+        margin: 0 auto 1rem;
+        display: block;
+      }
+      h1 {
+        font-size: 1.1rem;
+        margin: 0 0 0.5rem;
+        letter-spacing: 0.04em;
+      }
+      p {
+        margin: 0;
+        font-size: 0.85rem;
+        color: #94a3b8;
+        line-height: 1.45;
+      }
+      a {
+        color: #34d399;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <img src="app-icon.png" alt="BETESE Aviator" />
+      <h1>BETESE Aviator</h1>
+      <p>
+        Loading the live site…<br />
+        If this stays blank, open
+        <a href="https://www.beteseaviator.com/play">beteseaviator.com</a>
+        and check your connection.
+      </p>
+    </div>
+    <script>
+      // Prefer live site immediately when this fallback is shown offline/bundled.
+      setTimeout(function () {
+        if (location.protocol === "file:" || location.hostname === "localhost") return;
+        location.replace("https://www.beteseaviator.com/play");
+      }, 800);
+    </script>
+  </body>
+</html>
