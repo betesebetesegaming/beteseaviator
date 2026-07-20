@@ -21,7 +21,7 @@ import { PHONE_HINT, normalizeGambiaPhone, normalizePhone } from "@/lib/gambiaPh
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
-import { readPendingDepositRef } from "@/lib/payments/pendingDepositSession";
+import { readPendingDepositRef, isModemPayDepositRef } from "@/lib/payments/pendingDepositSession";
 import { buildDepositResult, type PaymentResultPayload } from "@/lib/paymentResultPayload";
 import { MIN_DEPOSIT_GMD } from "@/lib/depositLimits";
 import { formatSigned, formatDate, formatXof } from "@/lib/format";
@@ -134,10 +134,13 @@ export default function WalletPage() {
 
   // Smart Bonus "Activate" deep-link: /play/wallet?deposit=<amount> pre-fills the
   // matching deposit and opens the payment sheet. Also honors ?tab=deposit|refer.
+  // Ignore ModemPay return refs (BETESE-…).
   useEffect(() => {
     if (typeof window === "undefined" || frozen) return;
     const params = new URLSearchParams(window.location.search);
-    const depositParam = Number(params.get("deposit"));
+    const depositRaw = params.get("deposit");
+    if (isModemPayDepositRef(depositRaw)) return;
+    const depositParam = Number(depositRaw);
     const tabParam = params.get("tab");
     if (Number.isFinite(depositParam) && depositParam > 0) {
       setDepositPrefill(depositParam);
@@ -205,11 +208,16 @@ export default function WalletPage() {
       router.replace("/play/wallet", { scroll: false });
     };
 
-    const stopPolling = startDepositReconcilePolling(ref, () => settled, (status) => {
-      if (status === "Approved" || status === "Rejected") {
-        /* amount/method filled in when RTDB/Firestore snapshot arrives */
-      }
-    });
+    const stopPolling = startDepositReconcilePolling(
+      ref,
+      () => settled,
+      (status) => {
+        if (status === "Approved" || status === "Rejected") {
+          /* amount/method filled in when RTDB/Firestore snapshot arrives */
+        }
+      },
+      { immediate: true },
+    );
 
     const unsubRtdb = subscribeDepositById(ref, (record) => {
       if (!record) return;

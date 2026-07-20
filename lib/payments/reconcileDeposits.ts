@@ -1,11 +1,17 @@
 import { apiUrl } from "@/lib/apiUrl";
 import type { RtdbDepositRecord } from "./rtdbRecords";
 
-/** Wait this long after checkout before first reconcile attempt. */
+/** Wait this long after checkout before first reconcile attempt (background sweep). */
 export const RECONCILE_AFTER_MS = 20_000;
+
+/** When returning from Wave/AfriMoney, check credit status almost immediately. */
+export const RECONCILE_RETURN_FIRST_MS = 1_500;
 
 /** How often to retry reconcile for still-pending deposits. */
 export const RECONCILE_INTERVAL_MS = 10_000;
+
+/** Faster polling right after the player returns from checkout. */
+export const RECONCILE_RETURN_INTERVAL_MS = 3_000;
 
 /** Stop auto-reconciling a still-Pending deposit older than this — it needs a
  *  manual reconcile / support, not an endless retry loop hammering the API. */
@@ -92,18 +98,21 @@ export function sweepPendingDeposits(
 
 /**
  * Poll reconcile for one checkout ref (payment sheet / return URL flows).
- * First attempt after RECONCILE_AFTER_MS, then every RECONCILE_INTERVAL_MS.
+ * Return flow polls almost immediately so the wallet updates without a long wait.
  */
 export function startDepositReconcilePolling(
   externalRef: string,
   isSettled: () => boolean,
-  onStatus?: (status: string) => void
+  onStatus?: (status: string) => void,
+  opts?: { immediate?: boolean }
 ): () => void {
   let stopped = false;
   const started = Date.now();
+  const firstDelay = opts?.immediate ? RECONCILE_RETURN_FIRST_MS : RECONCILE_AFTER_MS;
+  const interval = opts?.immediate ? RECONCILE_RETURN_INTERVAL_MS : RECONCILE_INTERVAL_MS;
 
   const poll = async () => {
-    await new Promise((r) => setTimeout(r, RECONCILE_AFTER_MS));
+    await new Promise((r) => setTimeout(r, firstDelay));
     while (!stopped && !isSettled() && Date.now() - started < RECONCILE_MAX_MS) {
       try {
         const result = await reconcileDepositExternalRef(externalRef);
@@ -115,7 +124,7 @@ export function startDepositReconcilePolling(
         /* non-fatal */
       }
       if (isSettled()) break;
-      await new Promise((r) => setTimeout(r, RECONCILE_INTERVAL_MS));
+      await new Promise((r) => setTimeout(r, interval));
     }
   };
 

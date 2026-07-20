@@ -161,9 +161,14 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       applyStatus(String(snap.data()?.status || 'Pending'));
     });
 
-    const stopPolling = startDepositReconcilePolling(trackingRef, () => settled, (status) => {
-      if (isTerminalDepositStatus(status)) applyStatus(status);
-    });
+    const stopPolling = startDepositReconcilePolling(
+      trackingRef,
+      () => settled,
+      (status) => {
+        if (isTerminalDepositStatus(status)) applyStatus(status);
+      },
+      { immediate: true },
+    );
 
     return () => {
       settled = true;
@@ -234,7 +239,11 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       qmoney: 'QMoney',
       card: 'Card',
     };
-    await onDepositRequest(numAmount, labelByProvider[provider], cleanPhone, externalRef);
+    // Do not block checkout redirect on client Firestore/RTDB mirrors —
+    // ModemPay already created the pending deposit server-side.
+    void Promise.resolve(
+      onDepositRequest(numAmount, labelByProvider[provider], cleanPhone, externalRef),
+    ).catch(() => undefined);
     return { transactionId: externalRef, checkoutUrl: data.checkoutUrl as string };
   };
 
@@ -275,9 +284,13 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       const { checkoutUrl: url } = await handleModemPay(providerKey, numAmount, cleanPhone, externalRef);
       setCheckoutUrl(url);
 
+      // Remember ref before leaving so return from Wave/AfriMoney can resume status.
+      rememberPendingDepositRef(externalRef);
+
       if (isMobileCheckout()) {
-        rememberPendingDepositRef(externalRef);
-        window.location.href = url;
+        // Full navigation keeps ModemPay / Wave in the same browser session
+        // (app deep-links often hang on "Opening Wave app...").
+        window.location.assign(url);
         return;
       }
 

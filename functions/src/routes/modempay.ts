@@ -125,7 +125,6 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
 
   const customerId = body.customerId ? String(body.customerId).trim() : '';
   if (customerId) {
-    await getSettings();
     if (!Number.isFinite(amount) || amount < MIN_DEPOSIT_GMD) {
       res.status(400).json({ error: `Minimum deposit is GMD ${MIN_DEPOSIT_GMD}.` });
       return;
@@ -166,37 +165,51 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
 
     // Persist a pending checkout marker so the webhook can reconcile it later.
     const createdAt = new Date().toISOString();
-    await adminDb.collection('modempay_checkouts').doc(body.externalRef).set({
-      external_ref: body.externalRef,
-      session_id: result.sessionId,
-      payment_link_id: result.paymentLinkId || null,
-      intent_secret: result.intentSecret || null,
-      method: provider,
-      amount,
-      customer_id: body.customerId || null,
-      customer_phone: body.customerPhone || null,
-      customer_name: body.customerName || null,
-      status: 'pending',
-      created_at: createdAt,
-    }, { merge: true }).catch(err => logger.warn('Checkout marker write failed', err));
+    const methodLabel = mapModemPayMethodLabel(provider);
 
-    await syncCheckoutToRtdb({
-      external_ref: body.externalRef,
-      session_id: result.sessionId || null,
-      payment_link_id: result.paymentLinkId || null,
-      intent_secret: result.intentSecret || null,
-      method: provider,
-      amount,
-      customer_id: body.customerId || null,
-      customer_phone: body.customerPhone || null,
-      customer_name: body.customerName || null,
-      status: 'pending',
-      created_at: createdAt,
-    }).catch(err => logger.warn('RTDB checkout sync failed', err));
+    // Respond as soon as ModemPay returns a URL — persist markers in parallel after.
+    res.json({
+      ok: true,
+      checkoutUrl: result.checkoutUrl,
+      sessionId: result.sessionId,
+      provider,
+      externalRef: body.externalRef,
+    });
+
+    const persistTasks: Promise<unknown>[] = [
+      adminDb.collection('modempay_checkouts').doc(body.externalRef).set({
+        external_ref: body.externalRef,
+        session_id: result.sessionId,
+        payment_link_id: result.paymentLinkId || null,
+        intent_secret: result.intentSecret || null,
+        method: provider,
+        amount,
+        customer_id: body.customerId || null,
+        customer_phone: body.customerPhone || null,
+        customer_name: body.customerName || null,
+        status: 'pending',
+        created_at: createdAt,
+      }, { merge: true }).catch(err => logger.warn('Checkout marker write failed', err)),
+      syncCheckoutToRtdb({
+        external_ref: body.externalRef,
+        session_id: result.sessionId || null,
+        payment_link_id: result.paymentLinkId || null,
+        intent_secret: result.intentSecret || null,
+        method: provider,
+        amount,
+        customer_id: body.customerId || null,
+        customer_phone: body.customerPhone || null,
+        customer_name: body.customerName || null,
+        status: 'pending',
+        created_at: createdAt,
+      }).catch(err => logger.warn('RTDB checkout sync failed', err)),
+    ];
 
     if (result.sessionId) {
-      await linkPaymentIntentIndex(result.sessionId, body.externalRef)
-        .catch(err => logger.warn('intentIndex link failed', { sessionId: result.sessionId, externalRef: body.externalRef, err }));
+      persistTasks.push(
+        linkPaymentIntentIndex(result.sessionId, body.externalRef)
+          .catch(err => logger.warn('intentIndex link failed', { sessionId: result.sessionId, externalRef: body.externalRef, err })),
+      );
     } else {
       logger.warn('ModemPay /v1/payments did not return a session id — webhook will rely on hint matching', {
         externalRef: body.externalRef,
@@ -204,12 +217,13 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       });
     }
     if (result.paymentLinkId) {
-      await linkPaymentLinkIndex(result.paymentLinkId, body.externalRef)
-        .catch(err => logger.warn('linkIndex link failed', { paymentLinkId: result.paymentLinkId, externalRef: body.externalRef, err }));
+      persistTasks.push(
+        linkPaymentLinkIndex(result.paymentLinkId, body.externalRef)
+          .catch(err => logger.warn('linkIndex link failed', { paymentLinkId: result.paymentLinkId, externalRef: body.externalRef, err })),
+      );
     }
 
     if (body.customerId && body.externalRef) {
-      const methodLabel = mapModemPayMethodLabel(provider);
       const pendingDeposit: RtdbDepositRecord = {
         id: body.externalRef,
         customer_id: body.customerId,
@@ -224,33 +238,32 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
         verification_source: 'webhook',
         verification_message: 'Waiting for ModemPay to confirm payment before your wallet is credited.',
       };
-      await syncDepositToRtdb(pendingDeposit).catch(err => logger.warn('RTDB deposit sync failed', err));
-      await adminDb.collection('deposit_requests').doc(body.externalRef).set({
-        id: body.externalRef,
-        amount: Number(amount.toFixed(2)),
-        method: methodLabel,
-        transaction_id: body.customerPhone || null,
-        customer_id: body.customerId,
-        customer_name: body.customerName || null,
-        status: 'Pending',
-        timestamp: createdAt,
-        provider_reference: body.externalRef,
-        verification_status: 'PendingProviderConfirmation',
-        verification_source: 'webhook',
-        verification_message: 'Waiting for ModemPay to confirm payment before your wallet is credited.',
-      }, { merge: true }).catch(err => logger.warn('Firestore deposit_request write failed', err));
+      persistTasks.push(
+        syncDepositToRtdb(pendingDeposit).catch(err => logger.warn('RTDB deposit sync failed', err)),
+        adminDb.collection('deposit_requests').doc(body.externalRef).set({
+          id: body.externalRef,
+          amount: Number(amount.toFixed(2)),
+          method: methodLabel,
+          transaction_id: body.customerPhone || null,
+          customer_id: body.customerId,
+          customer_name: body.customerName || null,
+          status: 'Pending',
+          timestamp: createdAt,
+          provider_reference: body.externalRef,
+          verification_status: 'PendingProviderConfirmation',
+          verification_source: 'webhook',
+          verification_message: 'Waiting for ModemPay to confirm payment before your wallet is credited.',
+        }, { merge: true }).catch(err => logger.warn('Firestore deposit_request write failed', err)),
+      );
     }
 
-    res.json({
-      ok: true,
-      checkoutUrl: result.checkoutUrl,
-      sessionId: result.sessionId,
-      provider,
-      externalRef: body.externalRef,
-    });
+    await Promise.all(persistTasks);
+    return;
   } catch (err) {
     logger.error('Checkout error', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    if (!res.headersSent) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
   }
 }
 
