@@ -18,7 +18,7 @@ function depositBonusesActive(settings: { bonusCampaignEndsAt?: string | null })
 export type BonusKind = "firstDeposit" | "weeklyCrash" | "weekend";
 
 const BONUS_DESCRIPTIONS: Record<BonusKind, string> = {
-  firstDeposit: "First deposit bonus",
+  firstDeposit: "Deposit bonus (50% on every deposit)",
   weeklyCrash: "Weekly crash bonus",
   weekend: "Weekend bonus (Friday night deposit)",
 };
@@ -82,10 +82,13 @@ export function applyDepositBonuses(
   const userUpdates: Record<string, unknown> = {};
   const user = args.userData ?? {};
 
-  const firstAmount = calcBonusAmount(args.depositAmount, bonuses.firstDeposit);
-  if (firstAmount > 0 && !user.firstDepositBonusClaimed) {
-    applied.push({ kind: "firstDeposit", amount: firstAmount });
-    userUpdates.firstDepositBonusClaimed = true;
+  // firstDeposit rule = every confirmed deposit (50% match), not one-time only.
+  const everyDepositAmount = calcBonusAmount(args.depositAmount, bonuses.firstDeposit);
+  if (everyDepositAmount > 0) {
+    applied.push({ kind: "firstDeposit", amount: everyDepositAmount });
+    if (!user.firstDepositBonusClaimed) {
+      userUpdates.firstDepositBonusClaimed = true;
+    }
   }
 
   const weekKey = isoWeekKey(args.depositAt);

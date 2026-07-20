@@ -96,13 +96,13 @@ export const DEFAULT_SETTINGS = {
   bonusCampaignEndsAt: "",
   providers: { wave: true, afrimoney: true, aps: true, qmoney: true } as Record<string, boolean>,
   bonuses: {
-    firstDeposit: { enabled: true, percent: 0.5, maxAmount: 500, minDeposit: 100 },
-    weeklyCrash: { enabled: true, percent: 0.1, maxAmount: 200, minDeposit: 200 },
+    firstDeposit: { enabled: true, percent: 0.5, maxAmount: 10_000, minDeposit: 20 },
+    weeklyCrash: { enabled: false, percent: 0.1, maxAmount: 200, minDeposit: 200 },
     weekend: {
-      enabled: true,
+      enabled: false,
       percent: 0.25,
       maxAmount: 300,
-      minDeposit: 100,
+      minDeposit: 20,
       fridayStartHour: 18,
       sundayEndHour: 23,
     },

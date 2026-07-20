@@ -108,7 +108,7 @@ function BonusRuleEditor({
             value={rule.playerTerms ?? ""}
             onChange={(e) => onChange({ playerTerms: e.target.value })}
             rows={3}
-            placeholder="e.g. Get 50% extra on your first deposit. You must play through your total deposit before withdrawing. Early withdrawal: 15% fee deducted."
+            placeholder="e.g. Get 50% extra on every deposit. Bonus is for play only — must wager before withdrawing."
             className="mt-1 w-full resize-y rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm leading-relaxed text-white"
           />
         </label>

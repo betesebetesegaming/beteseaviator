@@ -10,27 +10,27 @@ export const DEFAULT_BONUS_SETTINGS: BonusSettings = {
   firstDeposit: {
     enabled: true,
     percent: 0.5,
-    maxAmount: 500,
-    minDeposit: 100,
+    maxAmount: 10_000,
+    minDeposit: 20,
   },
   weeklyCrash: {
-    enabled: true,
+    enabled: false,
     percent: 0.1,
     maxAmount: 200,
     minDeposit: 200,
   },
   weekend: {
-    enabled: true,
+    enabled: false,
     percent: 0.25,
     maxAmount: 300,
-    minDeposit: 100,
+    minDeposit: 20,
     fridayStartHour: 18,
     sundayEndHour: 23,
   },
 };
 
 export const BONUS_LABELS: Record<keyof BonusSettings, string> = {
-  firstDeposit: "First deposit bonus",
+  firstDeposit: "Every deposit bonus (50%)",
   weeklyCrash: "Weekly crash bonus",
   weekend: "Weekend bonus",
 };
@@ -63,7 +63,10 @@ export function bonusRuleSummary(key: keyof BonusSettings, rule: BonusRuleSettin
   if (key === "weeklyCrash") {
     return `${formatBonusPercent(rule)} ${cap} · once per week · ${min}`;
   }
-  return `${formatBonusPercent(rule)} ${cap} · one-time · ${min}`;
+  if (key === "firstDeposit") {
+    return `${formatBonusPercent(rule)} on every deposit · ${cap} · ${min}`;
+  }
+  return `${formatBonusPercent(rule)} ${cap} · ${min}`;
 }
 
 export function isWeekendBonusWindow(at: Date, rule: BonusSettings["weekend"]): boolean {
