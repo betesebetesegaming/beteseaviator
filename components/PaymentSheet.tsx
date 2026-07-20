@@ -330,28 +330,28 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       setLiveStatus('Pending');
       setStage('confirm');
 
-      // Always keep our sheet open + polling. Full-page redirects into the Wave
-      // app often hang on "Opening Wave app..." and the deposit never completes.
+      // Mobile: open ModemPay checkout in this tab so return_url brings the
+      // player back after Wave approves. Popups + pay.wave.com deep links often
+      // hang and never deduct.
+      if (isMobileCheckout()) {
+        window.location.assign(url);
+        return;
+      }
+
       try {
         const opened = window.open(url, '_blank', 'noopener,noreferrer');
-        if (!opened && isMobileCheckout()) {
-          // Popup blocked — open checkout in this tab as last resort.
+        if (!opened) {
           window.location.assign(url);
           return;
         }
       } catch {
-        if (isMobileCheckout()) {
-          window.location.assign(url);
-          return;
-        }
+        window.location.assign(url);
+        return;
       }
 
       setMessage({
         ok: true,
-        text:
-          method === 'Wave'
-            ? 'Wave checkout opened. Approve the payment in Wave (if Wave is stuck on “Opening app…”, close Wave, open it from your home screen, then approve). Status updates here automatically.'
-            : `${method} checkout opened. Approve the prompt on your phone — status updates here instantly.`,
+        text: `Checkout opened. Approve ${method} on your phone — your wallet updates automatically when payment succeeds.`,
       });
     } catch (err: any) {
       setMessage({ ok: false, text: err?.message || 'Payment failed. Please try again.' });
@@ -583,7 +583,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                 </div>
                 {liveStatus === 'Pending' && (
                   <p className="mt-3 text-xs font-bold text-amber-700">
-                    Approve in Wave / your wallet app. If Wave stuck on “Opening app…”, close Wave, open it from your home screen, and approve the payment. We check ModemPay every few seconds.
+                    Complete payment on the ModemPay page, then approve in Wave when asked. Your wallet updates automatically when it succeeds.
                   </p>
                 )}
                 {liveStatus === 'Pending' && checkoutUrl && (

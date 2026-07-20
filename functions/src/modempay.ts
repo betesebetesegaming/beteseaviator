@@ -143,11 +143,12 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
     data?: Record<string, unknown>;
   };
   const inner = envelope.data || (data as Record<string, unknown>);
-  const checkoutUrl =
+  let checkoutUrl =
     (inner.payment_link as string | undefined) ||
     (inner.checkout_url as string | undefined) ||
     (inner.url as string | undefined) ||
-    (inner.payment_url as string | undefined);
+    (inner.payment_url as string | undefined) ||
+    null;
 
   const sessionId =
     (inner.payment_intent_id as string | undefined) ||
@@ -155,6 +156,20 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
     null;
 
   const intentSecret = (inner.intent_secret as string | undefined) || null;
+
+  // Direct Wave/AfriMoney links (pay.wave.com etc.) often open the wallet app but
+  // never finish the charge — ModemPay stays on requires_payment_method. Prefer the
+  // hosted ModemPay checkout page, which completes the payment handoff correctly.
+  if (sessionId && isFragileWalletDeepLink(checkoutUrl)) {
+    try {
+      const retrieved = await retrievePaymentIntent(sessionId);
+      const hosted = extractHostedCheckoutUrl(retrieved.data);
+      if (hosted) checkoutUrl = hosted;
+    } catch (err) {
+      logger.warn('Could not resolve ModemPay hosted checkout link', { sessionId, err });
+    }
+  }
+
   const paymentLinkId =
     (inner.payment_link_id as string | undefined) ||
     (checkoutUrl?.match(/checkout\.modempay\.com\/([a-f0-9-]+)/i)?.[1] ?? null);
@@ -162,6 +177,31 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
   const apiOk = ok && envelope.status !== false && !!checkoutUrl;
 
   return { ok: apiOk, status, checkoutUrl, sessionId, paymentLinkId, intentSecret, raw: data };
+}
+
+function isFragileWalletDeepLink(url: string | null | undefined): boolean {
+  if (!url) return true;
+  try {
+    // Prefer ModemPay hosted checkout over Wave/APS wallet deep links.
+    return !new URL(url).hostname.toLowerCase().includes('modempay.com');
+  } catch {
+    return true;
+  }
+}
+
+function extractHostedCheckoutUrl(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const row = data as Record<string, unknown>;
+  const candidates = [row.link, row.payment_link, row.checkout_url, row.url];
+  for (const c of candidates) {
+    if (typeof c !== 'string' || !c.trim()) continue;
+    try {
+      if (new URL(c).hostname.toLowerCase().includes('modempay.com')) return c;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
 }
 
 // -----------------------------------------------------------------------------

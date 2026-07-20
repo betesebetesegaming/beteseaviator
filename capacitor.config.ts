@@ -19,6 +19,8 @@ const config: CapacitorConfig = {
       "*.modempay.com",
       "checkout.modempay.com",
       "pay.modempay.com",
+      "pay.wave.com",
+      "*.wave.com",
       "client.qtlauncher.com",
       "*.qtlauncher.com",
       "*.qtplatform.com",
