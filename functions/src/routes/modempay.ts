@@ -277,6 +277,10 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       sessionId: result.sessionId,
       provider,
       externalRef: body.externalRef,
+      intentStatus: result.intentStatus || null,
+      // Direct Wave/AfriMoney: customer must approve in the wallet app.
+      // Do not force a full-page redirect away from Betese.
+      awaitWalletApproval: provider !== 'card',
     });
 
     await Promise.race([

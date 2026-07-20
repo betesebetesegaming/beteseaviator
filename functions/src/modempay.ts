@@ -105,12 +105,17 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
     .replace(/\D/g, '')
     .replace(/^220/, '');
 
+  const webhookCallback =
+    process.env.MODEMPAY_CALLBACK_URL ||
+    'https://us-central1-beteseaviator-a05ae.cloudfunctions.net/modempayApi/modempay-webhook';
+
   const dataPayload: Record<string, unknown> = {
     amount: input.amount,
     currency: input.currency || 'GMD',
     from_sdk: false,
     return_url: input.successUrl,
     cancel_url: input.cancelUrl || input.successUrl,
+    callback_url: webhookCallback,
     title: input.description || 'Wallet top-up',
     description: input.description,
     metadata: {
@@ -121,10 +126,15 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
     },
   };
 
-  // Mobile-money deposits require network + account_number on ModemPay /v1/payments.
+  // Mobile money = ModemPay "direct charge": network + 7-digit account_number.
+  // Create returns status "processing" and a Wave (or wallet) pay link. Do NOT
+  // swap that for checkout.modempay.com — hosted checkout leaves direct intents
+  // Abandoned/Expired without ever charging Wave.
   if (input.method !== 'card') {
     dataPayload.network = input.method;
     if (accountNumber) dataPayload.account_number = accountNumber;
+  } else {
+    dataPayload.payment_methods = ['card'];
   }
 
   if (input.customer?.name) dataPayload.customer_name = input.customer.name;
@@ -143,7 +153,7 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
     data?: Record<string, unknown>;
   };
   const inner = envelope.data || (data as Record<string, unknown>);
-  let checkoutUrl =
+  const checkoutUrl =
     (inner.payment_link as string | undefined) ||
     (inner.checkout_url as string | undefined) ||
     (inner.url as string | undefined) ||
@@ -156,52 +166,28 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
     null;
 
   const intentSecret = (inner.intent_secret as string | undefined) || null;
-
-  // Direct Wave/AfriMoney links (pay.wave.com etc.) often open the wallet app but
-  // never finish the charge — ModemPay stays on requires_payment_method. Prefer the
-  // hosted ModemPay checkout page, which completes the payment handoff correctly.
-  if (sessionId && isFragileWalletDeepLink(checkoutUrl)) {
-    try {
-      const retrieved = await retrievePaymentIntent(sessionId);
-      const hosted = extractHostedCheckoutUrl(retrieved.data);
-      if (hosted) checkoutUrl = hosted;
-    } catch (err) {
-      logger.warn('Could not resolve ModemPay hosted checkout link', { sessionId, err });
-    }
-  }
+  const intentStatus = typeof inner.status === 'string' ? inner.status : null;
 
   const paymentLinkId =
     (inner.payment_link_id as string | undefined) ||
-    (checkoutUrl?.match(/checkout\.modempay\.com\/([a-f0-9-]+)/i)?.[1] ?? null);
+    (checkoutUrl?.match(/checkout\.modempay\.com\/([a-f0-9-]+)/i)?.[1] ??
+      checkoutUrl?.match(/pay\.wave\.com\/c\/([a-z0-9-]+)/i)?.[1] ??
+      null);
 
-  const apiOk = ok && envelope.status !== false && !!checkoutUrl;
+  // Direct Wave charges are valid even while still "processing" — customer must
+  // approve in the Wave app. checkoutUrl is the Wave pay link for that.
+  const apiOk = ok && envelope.status !== false && (!!checkoutUrl || !!sessionId);
 
-  return { ok: apiOk, status, checkoutUrl, sessionId, paymentLinkId, intentSecret, raw: data };
-}
-
-function isFragileWalletDeepLink(url: string | null | undefined): boolean {
-  if (!url) return true;
-  try {
-    // Prefer ModemPay hosted checkout over Wave/APS wallet deep links.
-    return !new URL(url).hostname.toLowerCase().includes('modempay.com');
-  } catch {
-    return true;
-  }
-}
-
-function extractHostedCheckoutUrl(data: unknown): string | null {
-  if (!data || typeof data !== 'object') return null;
-  const row = data as Record<string, unknown>;
-  const candidates = [row.link, row.payment_link, row.checkout_url, row.url];
-  for (const c of candidates) {
-    if (typeof c !== 'string' || !c.trim()) continue;
-    try {
-      if (new URL(c).hostname.toLowerCase().includes('modempay.com')) return c;
-    } catch {
-      /* ignore */
-    }
-  }
-  return null;
+  return {
+    ok: apiOk,
+    status,
+    checkoutUrl,
+    sessionId,
+    paymentLinkId,
+    intentSecret,
+    intentStatus,
+    raw: data,
+  };
 }
 
 // -----------------------------------------------------------------------------
