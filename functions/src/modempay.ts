@@ -153,29 +153,38 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
     data?: Record<string, unknown>;
   };
   const inner = envelope.data || (data as Record<string, unknown>);
-  const checkoutUrl =
-    (inner.payment_link as string | undefined) ||
-    (inner.checkout_url as string | undefined) ||
-    (inner.url as string | undefined) ||
-    (inner.payment_url as string | undefined) ||
-    null;
 
   const sessionId =
     (inner.payment_intent_id as string | undefined) ||
     (inner.id as string | undefined) ||
     null;
 
+  const rawPayLink =
+    (inner.payment_link as string | undefined) ||
+    (inner.checkout_url as string | undefined) ||
+    (inner.url as string | undefined) ||
+    (inner.payment_url as string | undefined) ||
+    null;
+
+  // IMPORTANT: open ModemPay's hosted confirm page (checkout.modempay.com/{intent})
+  // — NOT the raw pay.wave.com link. ModemPay's direct charge PUSHES the payment
+  // into the customer's Wave app as a pending notification; the hosted page tells
+  // them to open Wave, find that notification, and approve it, and then verifies
+  // the status. The raw pay.wave.com link only says "Opening Wave app…" and leaves
+  // the charge unconfirmed, so the payment never completes. This hosted-page flow
+  // is what actually charges Wave (matches the working betesepmu deposit flow).
+  const checkoutBase = process.env.MODEMPAY_CHECKOUT_URL || 'https://checkout.modempay.com';
+  const checkoutUrl = sessionId ? `${checkoutBase}/${sessionId}` : rawPayLink;
+
   const intentSecret = (inner.intent_secret as string | undefined) || null;
   const intentStatus = typeof inner.status === 'string' ? inner.status : null;
 
   const paymentLinkId =
     (inner.payment_link_id as string | undefined) ||
-    (checkoutUrl?.match(/checkout\.modempay\.com\/([a-f0-9-]+)/i)?.[1] ??
-      checkoutUrl?.match(/pay\.wave\.com\/c\/([a-z0-9-]+)/i)?.[1] ??
+    (rawPayLink?.match(/checkout\.modempay\.com\/([a-f0-9-]+)/i)?.[1] ??
+      rawPayLink?.match(/pay\.wave\.com\/c\/([a-z0-9-]+)/i)?.[1] ??
       null);
 
-  // Direct Wave charges are valid even while still "processing" — customer must
-  // approve in the Wave app. checkoutUrl is the Wave pay link for that.
   const apiOk = ok && envelope.status !== false && (!!checkoutUrl || !!sessionId);
 
   return {
