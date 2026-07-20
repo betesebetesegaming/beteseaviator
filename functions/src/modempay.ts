@@ -128,8 +128,14 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
         redirect_url: input.successUrl,
         cancel_url: input.cancelUrl || input.successUrl,
         callback_url: webhookCallback,
+        // Our app already knows the customer, so DON'T make ModemPay's hosted
+        // page demand Full Name + Email again before showing Wave — that wall
+        // is where most deposits were abandoned (status requires_payment_method).
+        // Prefill the phone so the customer lands straight on "Pay with Wave".
         collect_customer_phone: true,
-        collect_customer_name: true,
+        collect_customer_name: false,
+        collect_customer_email: false,
+        ...(accountNumber ? { phone_number: accountNumber } : {}),
         metadata: {
           source: 'betese-aviator',
           method: input.method,

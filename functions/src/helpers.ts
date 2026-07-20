@@ -59,12 +59,19 @@ export const RESERVED_SLUGS = [
 export const PROVIDERS = ["wave", "afrimoney", "aps", "qmoney"] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
-/** Platform minimum wallet top-up (GMD). Deposits accept this amount and above. */
-export const MIN_DEPOSIT_GMD = 20;
+/**
+ * Platform minimum wallet top-up (GMD). Deposits accept this amount and above.
+ *
+ * NOTE: Wave (via ModemPay) rejects charges below its own floor. Live payment
+ * history shows every 20 GMD Wave charge FAILED while 50 GMD and up succeed.
+ * Keep this at or above the lowest amount that actually clears on Wave, or
+ * customers' deposits come back `failed` and their wallet is never credited.
+ */
+export const MIN_DEPOSIT_GMD = 25;
 
 let minDepositMigrationQueued = false;
 
-/** One-time write: legacy Firestore minDeposit (e.g. 50) → 20 GMD. */
+/** One-time write: legacy Firestore minDeposit (e.g. 50/20) → MIN_DEPOSIT_GMD. */
 function ensureMinDepositMigration(stored: unknown): void {
   const n = Number(stored);
   if (minDepositMigrationQueued || !Number.isFinite(n) || n === MIN_DEPOSIT_GMD) return;
