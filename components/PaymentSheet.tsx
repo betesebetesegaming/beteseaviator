@@ -330,55 +330,36 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         cleanPhone,
         externalRef,
       );
+      if (!url) {
+        throw new Error('Could not start checkout — no payment link returned.');
+      }
       setCheckoutUrl(url);
       rememberPendingDepositRef(externalRef);
       setTrackingRef(externalRef);
       setLiveStatus('Pending');
       setStage('confirm');
 
-      // Wave / mobile money: ModemPay already started a direct charge to this
-      // phone. Stay on Betese and ask the customer to approve in the wallet app.
-      // Auto-redirecting to ModemPay hosted checkout abandons the Wave charge
-      // (dashboard shows Abandoned / Processing / Expired, money never taken).
-      if (awaitWalletApproval || method !== 'Card') {
-        setMessage({
-          ok: true,
-          text: `Approve GMD ${numAmount.toFixed(0)} in your ${method} app for ${cleanPhone}. Keep this screen open — we credit your wallet when Wave confirms.`,
-        });
-        // Soft-open Wave pay link in a new tab (optional). Never leave this page
-        // as the only copy of the pending deposit UI.
-        if (url && !isMobileCheckout()) {
-          try {
-            window.open(url, '_blank', 'noopener,noreferrer');
-          } catch {
-            /* ignore */
-          }
-        }
-        return;
-      }
-
-      // Card: hosted ModemPay checkout
-      if (url) {
-        if (isMobileCheckout()) {
-          window.location.assign(url);
-          return;
-        }
-        try {
-          const opened = window.open(url, '_blank', 'noopener,noreferrer');
-          if (!opened) {
-            window.location.assign(url);
-            return;
-          }
-        } catch {
-          window.location.assign(url);
-          return;
-        }
-      }
-
       setMessage({
         ok: true,
-        text: 'Card checkout opened. Finish payment there — your wallet updates automatically.',
+        text: `Pay GMD ${numAmount.toFixed(0)} with ${method} on the ModemPay page. Choose ${method}, approve, then you return here automatically.`,
       });
+
+      // Always open ModemPay hosted checkout. Direct Wave deep-links abandon;
+      // payment links are the path that can actually charge Wave.
+      if (isMobileCheckout() || awaitWalletApproval === false) {
+        window.location.assign(url);
+        return;
+      }
+      try {
+        const opened = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!opened) {
+          window.location.assign(url);
+          return;
+        }
+      } catch {
+        window.location.assign(url);
+        return;
+      }
     } catch (err: any) {
       setMessage({ ok: false, text: err?.message || 'Payment failed. Please try again.' });
       setStage('enter-amount');
@@ -448,7 +429,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3">
           {stage === 'choose' && (
             <div className="space-y-3">
-              <p className="text-sm text-slate-600">Pick how you want to pay. For Wave, approve the charge in your Wave app after you tap Pay.</p>
+              <p className="text-sm text-slate-600">Pick how you want to pay. You will finish on the secure ModemPay page (Wave, AfriMoney, etc.).</p>
               {(Object.keys(methodMeta) as Method[]).map((m) => {
                 const meta = methodMeta[m];
                 return (
@@ -607,31 +588,22 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                     <p className="mt-1 text-xs text-slate-600">{message?.text}</p>
                   </div>
                 </div>
-                {liveStatus === 'Pending' && method && method !== 'Card' && (
+                {liveStatus === 'Pending' && (
                   <ol className="mt-3 text-xs font-bold text-amber-900 list-decimal pl-4 space-y-1">
-                    <li>Open your {method} app from the home screen (not the browser).</li>
-                    <li>
-                      Approve the BetEse payment of GMD{' '}
-                      {(typeof amount === 'number' ? amount : Number(amount) || 0).toFixed(0)}.
-                    </li>
-                    <li>Stay on this screen — your wallet updates automatically.</li>
+                    <li>On the ModemPay page, choose {method || 'Wave'}.</li>
+                    <li>Enter your phone and approve the payment.</li>
+                    <li>You will return here — wallet updates automatically.</li>
                   </ol>
-                )}
-                {liveStatus === 'Pending' && method === 'Card' && (
-                  <p className="mt-3 text-xs font-bold text-amber-700">
-                    Complete payment on the checkout page. Your wallet updates when it succeeds.
-                  </p>
                 )}
                 {liveStatus === 'Pending' && checkoutUrl && (
                   <button
                     type="button"
                     onClick={() => {
-                      const opened = window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
-                      if (!opened) window.location.assign(checkoutUrl);
+                      window.location.assign(checkoutUrl);
                     }}
                     className="mt-3 w-full py-3 rounded-xl border-2 border-amber-400 bg-white text-amber-900 font-black text-sm uppercase tracking-wide"
                   >
-                    {method && method !== 'Card' ? `Open ${method} payment link` : 'Open checkout again'}
+                    Open payment page again
                   </button>
                 )}
                 {liveStatus === 'Approved' && (

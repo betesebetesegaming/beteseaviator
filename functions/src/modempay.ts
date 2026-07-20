@@ -109,83 +109,84 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
     process.env.MODEMPAY_CALLBACK_URL ||
     'https://us-central1-beteseaviator-a05ae.cloudfunctions.net/modempayApi/modempay-webhook';
 
-  const dataPayload: Record<string, unknown> = {
-    amount: input.amount,
-    currency: input.currency || 'GMD',
-    from_sdk: false,
-    return_url: input.successUrl,
-    cancel_url: input.cancelUrl || input.successUrl,
-    callback_url: webhookCallback,
-    title: input.description || 'Wallet top-up',
-    description: input.description,
-    metadata: {
-      source: 'betese-aviator',
-      method: input.method,
-      external_reference: input.externalRef,
-      ...(input.metadata || {}),
-    },
-  };
+  const title = input.description || 'Betese wallet top-up';
+  const description = `${title} — ${input.method.toUpperCase()} GMD ${Number(input.amount).toFixed(0)}`;
 
-  // Mobile money = ModemPay "direct charge": network + 7-digit account_number.
-  // Create returns status "processing" and a Wave (or wallet) pay link. Do NOT
-  // swap that for checkout.modempay.com — hosted checkout leaves direct intents
-  // Abandoned/Expired without ever charging Wave.
-  if (input.method !== 'card') {
-    dataPayload.network = input.method;
-    if (accountNumber) dataPayload.account_number = accountNumber;
-  } else {
-    dataPayload.payment_methods = ['card'];
-  }
-
-  if (input.customer?.name) dataPayload.customer_name = input.customer.name;
-  if (input.customer?.email) dataPayload.customer_email = input.customer.email;
-  if (input.customer?.phone) dataPayload.customer_phone = input.customer.phone;
-
+  // Payment Links use ModemPay's hosted checkout (checkout.modempay.com/pay/…).
+  // Direct Wave charges (network + account_number) create Abandoned/Processing
+  // intents that never deduct — this account has 0 successful Wave transactions
+  // via that path. Hosted links are the working collection flow.
   const { ok, status, data } = await modemFetch({
     method: 'POST',
-    path: '/v1/payments',
-    body: { data: dataPayload },
+    path: '/v1/payment-links',
+    body: {
+      data: {
+        title,
+        description,
+        amount: input.amount,
+        currency: input.currency || 'GMD',
+        redirect_url: input.successUrl,
+        cancel_url: input.cancelUrl || input.successUrl,
+        callback_url: webhookCallback,
+        collect_customer_phone: true,
+        collect_customer_name: true,
+        metadata: {
+          source: 'betese-aviator',
+          method: input.method,
+          external_reference: input.externalRef,
+          customer_id: input.customer?.id || '',
+          customer_phone: accountNumber || input.customer?.phone || '',
+          ...(input.metadata || {}),
+        },
+      },
+    },
   });
 
   const envelope = data as {
-    status?: boolean;
+    status?: boolean | string;
     message?: string;
+    error?: string;
+    id?: string;
+    payment_link?: string;
+    unique_code?: string;
     data?: Record<string, unknown>;
   };
-  const inner = envelope.data || (data as Record<string, unknown>);
+
+  // Payment-links API returns the link object at the top level (not always wrapped).
+  const row = (envelope.data && typeof envelope.data === 'object' ? envelope.data : data) as Record<string, unknown>;
   const checkoutUrl =
-    (inner.payment_link as string | undefined) ||
-    (inner.checkout_url as string | undefined) ||
-    (inner.url as string | undefined) ||
-    (inner.payment_url as string | undefined) ||
+    (typeof row.payment_link === 'string' && row.payment_link) ||
+    (typeof envelope.payment_link === 'string' && envelope.payment_link) ||
     null;
-
-  const sessionId =
-    (inner.payment_intent_id as string | undefined) ||
-    (inner.id as string | undefined) ||
-    null;
-
-  const intentSecret = (inner.intent_secret as string | undefined) || null;
-  const intentStatus = typeof inner.status === 'string' ? inner.status : null;
 
   const paymentLinkId =
-    (inner.payment_link_id as string | undefined) ||
-    (checkoutUrl?.match(/checkout\.modempay\.com\/([a-f0-9-]+)/i)?.[1] ??
-      checkoutUrl?.match(/pay\.wave\.com\/c\/([a-z0-9-]+)/i)?.[1] ??
-      null);
+    (typeof row.id === 'string' && row.id) ||
+    (typeof envelope.id === 'string' && envelope.id) ||
+    null;
 
-  // Direct Wave charges are valid even while still "processing" — customer must
-  // approve in the Wave app. checkoutUrl is the Wave pay link for that.
-  const apiOk = ok && envelope.status !== false && (!!checkoutUrl || !!sessionId);
+  const uniqueCode =
+    (typeof row.unique_code === 'string' && row.unique_code) ||
+    (typeof envelope.unique_code === 'string' && envelope.unique_code) ||
+    null;
+
+  const resolvedUrl =
+    checkoutUrl ||
+    (uniqueCode ? `https://checkout.modempay.com/pay/${uniqueCode}` : null);
+
+  const apiOk = ok && !!resolvedUrl;
+
+  if (!apiOk) {
+    logger.warn('ModemPay payment-link creation failed', { status, data });
+  }
 
   return {
     ok: apiOk,
     status,
-    checkoutUrl,
-    sessionId,
+    checkoutUrl: resolvedUrl,
+    sessionId: null as string | null,
     paymentLinkId,
-    intentSecret,
-    intentStatus,
+    intentSecret: null as string | null,
+    intentStatus: 'requires_payment_method',
     raw: data,
   };
 }
