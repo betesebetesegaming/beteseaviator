@@ -343,11 +343,19 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       if (awaitWalletApproval || method !== 'Card') {
         setMessage({
           ok: true,
-          text: `Approve GMD ${numAmount.toFixed(0)} in your ${method} app for ${cleanPhone}. Keep this screen open — we credit your wallet when Wave confirms.`,
+          text: `Approve GMD ${numAmount.toFixed(0)} in your ${method} app for ${cleanPhone}. After you pay in Wave, come back here — your wallet updates automatically.`,
         });
-        // Soft-open Wave pay link in a new tab (optional). Never leave this page
-        // as the only copy of the pending deposit UI.
-        if (url && !isMobileCheckout()) {
+        // The direct charge is already started (status "processing") and `url`
+        // is the real Wave deep-link (pay.wave.com/c/…). Take the customer
+        // straight into Wave to approve. On mobile that opens the Wave app with
+        // the payment loaded; the returnUrl brings them back to the wallet where
+        // the pending deposit reconciles. On desktop, open Wave in a new tab so
+        // the pending screen stays visible for QR scanning.
+        if (url) {
+          if (isMobileCheckout()) {
+            window.location.assign(url);
+            return;
+          }
           try {
             window.open(url, '_blank', 'noopener,noreferrer');
           } catch {
