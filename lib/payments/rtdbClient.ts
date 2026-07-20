@@ -51,63 +51,41 @@ function snapshotToList<T extends { id?: string }>(
   return rows;
 }
 
-export async function rtdbWriteDeposit(record: RtdbDepositRecord): Promise<void> {
-  const { mod, db } = await loadRtdb();
-  const updates: Record<string, RtdbDepositRecord> = {
-    [RTDB_PAYMENTS.deposit(record.id)]: record,
-  };
-  if (record.customer_id) {
-    updates[`${RTDB_PAYMENTS.customerDeposits(record.customer_id)}/${record.id}`] = record;
-  }
-  await mod.update(mod.ref(db), updates);
+/**
+ * Client RTDB payment writes are intentionally no-ops.
+ *
+ * database.rules.json sets payments/* .write = false for clients (Admin SDK /
+ * Cloud Functions own those paths). Calling update(ref(db), multipath) still
+ * triggers Firebase's "FIREBASE WARNING: update at / failed: permission_denied"
+ * even when callers catch the promise — so we skip the write entirely.
+ * Server checkout / payout handlers already mirror deposits & withdrawals.
+ */
+export async function rtdbWriteDeposit(_record: RtdbDepositRecord): Promise<void> {
+  return;
 }
 
-export async function rtdbPatchDeposit(id: string, customerId: string | undefined, patch: Partial<RtdbDepositRecord>): Promise<void> {
-  // Per-field paths so update() merges instead of replacing the whole node.
-  // A slash-containing key in update() is treated as a full-write at that
-  // path — passing the patch object whole would wipe amount/customer_id/etc.
-  const updates: Record<string, unknown> = {};
-  for (const [field, value] of Object.entries(patch)) {
-    if (value === undefined) continue;
-    updates[`${RTDB_PAYMENTS.deposit(id)}/${field}`] = value;
-    if (customerId) {
-      updates[`${RTDB_PAYMENTS.customerDeposits(customerId)}/${id}/${field}`] = value;
-    }
-  }
-  if (Object.keys(updates).length === 0) return;
-  const { mod, db } = await loadRtdb();
-  await mod.update(mod.ref(db), updates);
+export async function rtdbPatchDeposit(
+  _id: string,
+  _customerId: string | undefined,
+  _patch: Partial<RtdbDepositRecord>,
+): Promise<void> {
+  return;
 }
 
-export async function rtdbWriteWithdrawal(record: RtdbWithdrawalRecord): Promise<void> {
-  const { mod, db } = await loadRtdb();
-  const updates: Record<string, RtdbWithdrawalRecord> = {
-    [RTDB_PAYMENTS.withdrawal(record.id)]: record,
-  };
-  if (record.user_id) {
-    updates[`${RTDB_PAYMENTS.customerWithdrawals(record.user_id)}/${record.id}`] = record;
-  }
-  await mod.update(mod.ref(db), updates);
+export async function rtdbWriteWithdrawal(_record: RtdbWithdrawalRecord): Promise<void> {
+  return;
 }
 
-export async function rtdbPatchWithdrawal(id: string, userId: string | undefined, patch: Partial<RtdbWithdrawalRecord>): Promise<void> {
-  // Per-field paths — see rtdbPatchDeposit for the why.
-  const updates: Record<string, unknown> = {};
-  for (const [field, value] of Object.entries(patch)) {
-    if (value === undefined) continue;
-    updates[`${RTDB_PAYMENTS.withdrawal(id)}/${field}`] = value;
-    if (userId) {
-      updates[`${RTDB_PAYMENTS.customerWithdrawals(userId)}/${id}/${field}`] = value;
-    }
-  }
-  if (Object.keys(updates).length === 0) return;
-  const { mod, db } = await loadRtdb();
-  await mod.update(mod.ref(db), updates);
+export async function rtdbPatchWithdrawal(
+  _id: string,
+  _userId: string | undefined,
+  _patch: Partial<RtdbWithdrawalRecord>,
+): Promise<void> {
+  return;
 }
 
-export async function rtdbWriteCheckout(record: RtdbCheckoutRecord): Promise<void> {
-  const { mod, db } = await loadRtdb();
-  await mod.set(mod.ref(db, RTDB_PAYMENTS.checkout(record.external_ref)), record);
+export async function rtdbWriteCheckout(_record: RtdbCheckoutRecord): Promise<void> {
+  return;
 }
 
 export async function rtdbFetchDeposits(limit = 200): Promise<RtdbDepositRecord[]> {
