@@ -152,13 +152,13 @@ export function BonusesWalletSettingsFields({ settings, onChange }: Props) {
         <AdminTextArea
           label="Deposit bonuses intro (shown on player wallet)"
           hint="Leave blank for the default intro. Write anything you want players to read first."
-          placeholder="Bonuses credit the player's bonus balance. Every deposit gets 50% match. Weekly/weekend can stack if enabled."
+          placeholder="Bonuses credit the player's bonus balance. First deposit is one-time; weekly/weekend only if enabled."
           value={settings.bonusIntroText ?? ""}
           onChange={(bonusIntroText) => onChange({ ...settings, bonusIntroText })}
           rows={3}
         />
         <BonusRuleEditor
-          title="Every deposit bonus (50% match)"
+          title="First deposit bonus (one-time only)"
           rule={bonusRules.firstDeposit}
           onChange={(patch) => updateBonus("firstDeposit", patch)}
         />

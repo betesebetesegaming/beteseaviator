@@ -30,7 +30,7 @@ export const DEFAULT_BONUS_SETTINGS: BonusSettings = {
 };
 
 export const BONUS_LABELS: Record<keyof BonusSettings, string> = {
-  firstDeposit: "Every deposit bonus (50%)",
+  firstDeposit: "First deposit bonus",
   weeklyCrash: "Weekly crash bonus",
   weekend: "Weekend bonus",
 };
@@ -64,7 +64,7 @@ export function bonusRuleSummary(key: keyof BonusSettings, rule: BonusRuleSettin
     return `${formatBonusPercent(rule)} ${cap} · once per week · ${min}`;
   }
   if (key === "firstDeposit") {
-    return `${formatBonusPercent(rule)} on every deposit · ${cap} · ${min}`;
+    return `${formatBonusPercent(rule)} on first deposit only · ${cap} · ${min}`;
   }
   return `${formatBonusPercent(rule)} ${cap} · ${min}`;
 }
