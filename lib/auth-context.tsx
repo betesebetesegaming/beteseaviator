@@ -2,8 +2,10 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -138,11 +140,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     const uid = fbUser.uid;
 
-    void getDoc(doc(db, "users", uid)).then((snap) => {
-      if (cancelled || auth.currentUser?.uid !== uid) return;
-      setProfile(snap.exists() ? ({ uid: snap.id, ...snap.data() } as UserProfile) : null);
-      setProfileReady(true);
-    });
+    void getDoc(doc(db, "users", uid))
+      .then((snap) => {
+        if (cancelled || auth.currentUser?.uid !== uid) return;
+        setProfile(snap.exists() ? ({ uid: snap.id, ...snap.data() } as UserProfile) : null);
+        setProfileReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setProfileReady(true);
+      });
 
     const unsubProfile = onSnapshot(
       doc(db, "users", uid),
@@ -188,29 +194,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [fbUser?.uid, profile?.role]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     explicitSignOutRef.current = true;
     const redirect = loginPathFor(profile?.role) || "/admin/login";
-    void signOut(auth).catch(() => undefined);
+    try {
+      await signOut(auth);
+    } catch {
+      /* redirect anyway */
+    }
     hardRedirect(redirect);
-  };
+  }, [profile?.role]);
 
   const sessionPending = !sessionResolved;
   const profilePending = !!fbUser && !profileReady;
   const loading =
     (sessionPending && !forceReady) || (profilePending && !profileForceReady);
 
+  const profileReadyResolved = profileReady || profileForceReady;
+
+  const value = useMemo(
+    () => ({
+      fbUser,
+      profile,
+      wallet,
+      loading,
+      profileReady: profileReadyResolved,
+      logout,
+    }),
+    [fbUser, profile, wallet, loading, profileReadyResolved, logout],
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        fbUser,
-        profile,
-        wallet,
-        loading,
-        profileReady: profileReady || profileForceReady,
-        logout,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

@@ -64,6 +64,9 @@ export function sweepPendingDeposits(
   lastTried: Map<string, number>
 ): void {
   const now = Date.now();
+  for (const [id, at] of lastTried) {
+    if (now - at > RECONCILE_MAX_AGE_MS) lastTried.delete(id);
+  }
   for (const req of deposits) {
     if (req.customer_id !== customerId) continue;
     if (String(req.status || "") !== "Pending") continue;

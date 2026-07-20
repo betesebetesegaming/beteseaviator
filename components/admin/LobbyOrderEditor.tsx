@@ -226,7 +226,9 @@ export function LobbyOrderEditor({ showPageHeader = false }: { showPageHeader?: 
   const [busy, setBusy] = useState(false);
   const [hidingId, setHidingId] = useState<string | null>(null);
 
-  useEffect(() => subscribeLobbyLayout(setSavedLayout), []);
+  useEffect(() => {
+    return subscribeLobbyLayout(setSavedLayout);
+  }, []);
 
   useEffect(() => {
     return onSnapshot(collection(db, "games"), (snap) => {

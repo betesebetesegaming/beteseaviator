@@ -64,6 +64,30 @@ export function playthroughRequiredWager(
   return round2(wallet.pendingDepositTotal * depositRate);
 }
 
+export function depositPlaythroughRemaining(
+  wallet: Pick<PlaythroughWallet, "pendingDepositTotal" | "depositWagerProgress">,
+  depositRate: number
+): number {
+  const required = playthroughRequiredWager(wallet, depositRate);
+  if (required <= 0) return 0;
+  return round2(Math.max(0, required - wallet.depositWagerProgress));
+}
+
+/** Returns an error message when withdrawal must wait for deposit play-through. */
+export function withdrawalPlaythroughBlockMessage(
+  wallet: Pick<PlaythroughWallet, "pendingDepositTotal" | "depositWagerProgress">,
+  settings: Settings
+): string | null {
+  const { depositRate } = playthroughRates(settings);
+  if (depositPlaythroughMet(wallet, depositRate)) return null;
+  const remaining = depositPlaythroughRemaining(wallet, depositRate);
+  const ratePct = Math.round(depositRate * 100);
+  return (
+    `You must play ${remaining} GMD more on games (${ratePct}% of your deposits) before you can withdraw. ` +
+    `Deposited funds cannot be withdrawn without playing first.`
+  );
+}
+
 /** New deposit adds to the amount that must be played before free withdrawal. */
 export function recordDepositPlaythrough(
   tx: FirebaseFirestore.Transaction,

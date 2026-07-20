@@ -156,6 +156,38 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "__name__", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "smartBonusOffers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "smartBonusOffers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ancestors", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "playerHealth",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ancestors", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "tier", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "agentDailyStats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date", "order": "ASCENDING" },
+        { "fieldPath": "agentId", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

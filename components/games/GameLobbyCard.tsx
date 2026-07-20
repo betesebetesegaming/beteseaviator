@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { cacheGameDoc, prefetchQTechLaunch, qtechPlayDevice } from "@/lib/games/qtechLaunchCache";
 import { gameLobbyImageUrl } from "@/lib/games/lobbyImages";
@@ -25,6 +25,22 @@ export function GameLobbyCard({ game, priority = false }: { game: Game; priority
   const [src, setSrc] = useState(primaryUrl);
   const [imgFailed, setImgFailed] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);
+    };
+  }, []);
+
+  const schedulePrefetch = () => {
+    cacheGameDoc(game);
+    if (prefetchTimerRef.current) return;
+    prefetchTimerRef.current = setTimeout(() => {
+      prefetchTimerRef.current = null;
+      void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
+    }, 300);
+  };
 
   useEffect(() => {
     setSrc(primaryUrl);
@@ -37,14 +53,8 @@ export function GameLobbyCard({ game, priority = false }: { game: Game; priority
     <>
       <button
         type="button"
-        onPointerEnter={() => {
-          cacheGameDoc(game);
-          void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
-        }}
-        onPointerDown={() => {
-          cacheGameDoc(game);
-          void prefetchQTechLaunch({ gameId: game.id, demo: true, device: qtechPlayDevice() });
-        }}
+        onPointerEnter={schedulePrefetch}
+        onPointerDown={schedulePrefetch}
         onClick={() => {
           cacheGameDoc(game);
           setSheetOpen(true);

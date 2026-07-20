@@ -60,11 +60,11 @@ export const PROVIDERS = ["wave", "afrimoney", "aps", "qmoney"] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
 /** Platform minimum wallet top-up (GMD). Deposits accept this amount and above. */
-export const MIN_DEPOSIT_GMD = 25;
+export const MIN_DEPOSIT_GMD = 20;
 
 let minDepositMigrationQueued = false;
 
-/** One-time write: legacy Firestore minDeposit (e.g. 50) → 25 GMD. */
+/** One-time write: legacy Firestore minDeposit (e.g. 50) → 20 GMD. */
 function ensureMinDepositMigration(stored: unknown): void {
   const n = Number(stored);
   if (minDepositMigrationQueued || !Number.isFinite(n) || n === MIN_DEPOSIT_GMD) return;

@@ -20,7 +20,12 @@ import {
   type ProfileData,
 } from "./helpers";
 import { applyDepositBonuses } from "./bonuses";
-import { applyEarlyWithdrawalPenalties, recordDepositPlaythrough } from "./wagering";
+import {
+  applyEarlyWithdrawalPenalties,
+  parsePlaythroughWallet,
+  recordDepositPlaythrough,
+  withdrawalPlaythroughBlockMessage,
+} from "./wagering";
 import { onReferralDeposit } from "./referrals";
 import { maybeActivateSmartBonus } from "./smartBonus";
 
@@ -105,31 +110,34 @@ export const requestWithdrawal = onCall(async (req) => {
     throw new HttpsError("invalid-argument", `Minimum withdrawal is ${settings.minWithdrawal} GMD.`);
   }
 
+  const walletSnap = await db.doc(`wallets/${uid}`).get();
+  const walletPreview = parsePlaythroughWallet(walletSnap.data(), walletSnap.exists);
+  const playthroughBlock = withdrawalPlaythroughBlockMessage(walletPreview, settings);
+  if (playthroughBlock) {
+    throw new HttpsError("failed-precondition", playthroughBlock);
+  }
+
   const ref = db.collection("paymentRequests").doc();
   await db.runTransaction(async (tx) => {
     const wallet = await walletRead(tx, uid);
-    const early = applyEarlyWithdrawalPenalties(tx, uid, wallet, amount, settings, ref.id);
-    if (!early.playthroughMet && early.payoutAmount < settings.minWithdrawal) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Payout after early withdrawal fee would be below minimum. Play more or withdraw a larger amount."
-      );
+    const playthroughBlockInTx = withdrawalPlaythroughBlockMessage(wallet, settings);
+    if (playthroughBlockInTx) {
+      throw new HttpsError("failed-precondition", playthroughBlockInTx);
     }
+    const early = applyEarlyWithdrawalPenalties(tx, uid, wallet, amount, settings, ref.id);
     walletWrite(tx, wallet, {
       uid,
       amount: -amount,
       type: "withdrawal",
-      description: early.playthroughMet
-        ? "Withdrawal"
-        : `Withdrawal — early fee ${early.fee} GMD`,
+      description: "Withdrawal",
       meta: {
         provider,
         phone,
         requestId: ref.id,
-        earlyWithdrawal: !early.playthroughMet,
-        fee: early.fee,
+        earlyWithdrawal: false,
+        fee: 0,
         payoutAmount: early.payoutAmount,
-        bonusForfeited: early.bonusForfeited,
+        bonusForfeited: 0,
       },
     });
     tx.set(ref, {

@@ -41,8 +41,8 @@ export default function AdminBonusesPage() {
     if (settings.minWithdrawal < 0 || settings.minDeposit < 0) {
       return toast.error("Minimum amounts cannot be negative.");
     }
-    if (settings.minDeposit < 25) {
-      return toast.error("Minimum deposit is GMD 25.");
+    if (settings.minDeposit < 20) {
+      return toast.error("Minimum deposit is GMD 20.");
     }
     setBusy(true);
     try {

@@ -71,7 +71,7 @@ export function GameFloatingBar() {
               type="button"
               onClick={() => setDepositOpen(true)}
               className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 active:scale-95"
-              title={`Add money — from GMD 25`}
+              title={`Add money — from GMD 20`}
               aria-label="Add money"
             >
               <Plus size={18} strokeWidth={2.5} />

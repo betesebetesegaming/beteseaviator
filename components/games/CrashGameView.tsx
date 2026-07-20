@@ -51,15 +51,27 @@ export function CrashGameView({ game }: Props) {
   const [session, setSession] = useState<GameSession | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => subscribePlatformSettings(setSettings), []);
-  useEffect(() => subscribeGameRound(game.id, setRound), [game.id]);
-  useEffect(() => subscribeServerTimeOffset(setOffset), []);
-  useEffect(() => subscribeCrashHistory(game.id, setHistory), [game.id]);
+  useEffect(() => {
+    return subscribePlatformSettings(setSettings);
+  }, []);
+  useEffect(() => {
+    return subscribeGameRound(game.id, setRound);
+  }, [game.id]);
+  useEffect(() => {
+    return subscribeServerTimeOffset(setOffset);
+  }, []);
+  useEffect(() => {
+    return subscribeCrashHistory(game.id, setHistory);
+  }, [game.id]);
 
   useEffect(() => {
     let raf = 0;
-    const tick = () => {
-      setNow(Date.now());
+    let last = 0;
+    const tick = (ts: number) => {
+      if (ts - last >= 100) {
+        last = ts;
+        setNow(Date.now());
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -74,19 +86,22 @@ export function CrashGameView({ game }: Props) {
   useEffect(() => {
     if (!session?.id) return;
     return subscribeSessionUpdates(session.id, (s) => {
-      if (s.status === "won" && session.status === "active") {
-        toast.success(
-          `Cashed out at x${s.cashoutMultiplier?.toFixed(2)} — Won ${formatXof(s.winAmount ?? 0)}!`
-        );
-        setSession(null);
-      } else if (s.status === "lost" && session.status === "active") {
-        toast.error("Crashed! Bet lost.");
-        setSession(null);
-      } else {
-        setSession(s);
-      }
+      setSession((prev) => {
+        if (!prev || prev.id !== s.id) return s;
+        if (s.status === "won" && prev.status === "active") {
+          toast.success(
+            `Cashed out at x${s.cashoutMultiplier?.toFixed(2)} — Won ${formatXof(s.winAmount ?? 0)}!`
+          );
+          return null;
+        }
+        if (s.status === "lost" && prev.status === "active") {
+          toast.error("Crashed! Bet lost.");
+          return null;
+        }
+        return s;
+      });
     });
-  }, [session?.id, session?.status]);
+  }, [session?.id]);
 
   const serverNow = now + offset;
   const maxMultiplier = game.settings?.maxMultiplier ?? 100;

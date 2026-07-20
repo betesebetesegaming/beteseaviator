@@ -112,7 +112,9 @@ export function GameLobby() {
     });
   }, []);
 
-  useEffect(() => subscribeLobbyLayout(setLayout), []);
+  useEffect(() => {
+    return subscribeLobbyLayout(setLayout);
+  }, []);
 
   useEffect(() => {
     preconnectQTechGameHosts();
@@ -122,7 +124,7 @@ export function GameLobby() {
     if (!games?.length) return;
     const ordered = sortLobbyGames(games, layout);
     const picks = topPickGames(games, layout).map((g) => g.id);
-    const warmIds = picks.length ? picks : ordered.slice(0, 4).map((g) => g.id);
+    const warmIds = picks.length ? picks.slice(0, 2) : ordered.slice(0, 2).map((g) => g.id);
     warmDemoLaunches(warmIds);
   }, [games, layout]);
 

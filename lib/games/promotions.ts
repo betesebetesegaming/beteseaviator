@@ -31,7 +31,7 @@ export const PROMO_SLIDES: PromoSlide[] = [
   {
     id: "welcome",
     title: "Welcome to BETESE",
-    subtitle: "Top up from GMD 25 — Wave, AfriMoney & more. Play QTech games in GMD",
+    subtitle: "Top up from GMD 20 — Wave, AfriMoney & more. Play QTech games in GMD",
     cta: "Top up wallet",
     href: "/play/wallet",
     gradient: "from-emerald-700 via-emerald-900 to-black",

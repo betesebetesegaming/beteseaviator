@@ -16,6 +16,7 @@ import { GameFloatingBar } from "@/components/games/GameFloatingBar";
 import { preconnectQTechGameHosts, purgeLegacyQTechLaunchCaches, warmLaunchCallableClient } from "@/lib/games/qtechLaunchCache";
 import { CustomerCareBar } from "@/components/CustomerCareBar";
 import { SmartBonusBanner } from "@/components/wallet/SmartBonusBanner";
+import { PlayDepositReturnHandler } from "@/components/PlayDepositReturnHandler";
 import { parseAgentSlugFromHost } from "@/lib/agentLinks";
 
 const PendingDepositReconciler = dynamic(
@@ -91,6 +92,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
   const { fbUser, profile, wallet, loading, logout } = useAuth();
 
   const inGame = pathname?.startsWith("/play/game/");
+  const onWallet = pathname?.startsWith("/play/wallet");
   const isPlayer =
     !!profile && profile.role === "player" && profile.status === "active";
   const walletFrozen = Boolean(wallet?.frozen);
@@ -110,9 +112,9 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
         <Suspense fallback={null}>
           <PlayAuthFromQuery />
           <PlayStaffRedirect />
+          <PlayDepositReturnHandler />
         </Suspense>
         <PresenceTracker />
-        {isPlayer && !walletFrozen ? <PendingDepositReconciler /> : null}
         <div className="game-play-root relative min-h-[100dvh] bg-black">
           <Suspense fallback={null}>
             <GameFloatingBar />
@@ -128,9 +130,10 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
       <Suspense fallback={null}>
         <PlayAuthFromQuery />
         <PlayStaffRedirect />
+        <PlayDepositReturnHandler />
       </Suspense>
       <PresenceTracker />
-      {isPlayer && !walletFrozen ? <PendingDepositReconciler /> : null}
+      {isPlayer && !walletFrozen && onWallet ? <PendingDepositReconciler /> : null}
       <AgentReferralBanner />
       <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/75 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">

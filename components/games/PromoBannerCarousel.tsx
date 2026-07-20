@@ -79,7 +79,9 @@ export function PromoBannerCarousel() {
   /** null until Firestore responds — defaults still render so the lobby never shows an empty banner gap. */
   const [config, setConfig] = useState<LobbyPromoConfig | null>(null);
 
-  useEffect(() => subscribeLobbyPromos((next) => setConfig(next)), []);
+  useEffect(() => {
+    return subscribeLobbyPromos((next) => setConfig(next));
+  }, []);
 
   const slides = useMemo(() => activeLobbySlides(config), [config]);
   const ticker = useMemo(() => lobbyTicker(config), [config]);

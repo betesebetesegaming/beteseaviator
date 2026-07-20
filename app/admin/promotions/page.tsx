@@ -33,7 +33,9 @@ export default function AdminPromotionsPage() {
   const [busy, setBusy] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
-  useEffect(() => subscribeLobbyPromos(setConfig), []);
+  useEffect(() => {
+    return subscribeLobbyPromos(setConfig);
+  }, []);
 
   useEffect(() => {
     if (config) {

@@ -24,6 +24,8 @@ type GameDocEntry = { game: Game; at: number };
 export type QTechPlayDevice = "mobile" | "desktop";
 
 const inflightLaunches = new Map<string, Promise<string | null>>();
+const MAX_INFLIGHT_PREFETCH = 2;
+let inflightCount = 0;
 /** Survives React Strict Mode remounts (sessionStorage alone can be cleared too early). */
 const realMemoryHandoff = new Map<string, LaunchCacheEntry>();
 
@@ -182,11 +184,13 @@ export async function prefetchQTechLaunch(opts: {
     if (cached) return cached;
     const inflight = inflightLaunches.get(key);
     if (inflight) return inflight;
+    if (inflightCount >= MAX_INFLIGHT_PREFETCH) return null;
   } else {
     clearCachedQTechLaunchUrl(gameId, demo, device);
   }
 
   const promise = (async () => {
+    inflightCount += 1;
     try {
       let launchUrl: string;
       if (demo) {
@@ -202,12 +206,13 @@ export async function prefetchQTechLaunch(opts: {
       }
       if (!isUsableLaunchUrl(launchUrl)) {
         // If Admin temporarily points at INT, still return the URL — just don't cache it permanently.
-        return launchUrl.startsWith("https://") ? launchUrl : null;
+        return /^https:\/\//.test(launchUrl) ? launchUrl : null;
       }
       writeCachedQTechLaunchUrl(gameId, demo, launchUrl, device);
       return launchUrl;
     } finally {
       inflightLaunches.delete(key);
+      inflightCount = Math.max(0, inflightCount - 1);
     }
   })();
 
@@ -217,7 +222,11 @@ export async function prefetchQTechLaunch(opts: {
 
 /** Prefetch demo launch URLs for visible lobby tiles (runs in background). */
 export function warmDemoLaunches(gameIds: string[], device: QTechPlayDevice = qtechPlayDevice()): void {
-  for (const gameId of gameIds.slice(0, 6)) {
+  if (typeof navigator !== "undefined") {
+    const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+    if (conn?.saveData) return;
+  }
+  for (const gameId of gameIds.slice(0, 2)) {
     const id = resolveLobbyGameId(gameId);
     if (readCachedQTechLaunchUrl(id, true, device)) continue;
     void prefetchQTechLaunch({ gameId: id, demo: true, device });

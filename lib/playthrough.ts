@@ -32,6 +32,20 @@ export function depositPlaythroughRemaining(wallet: Wallet, settings: PlatformSe
   return round2(Math.max(0, required - Number(wallet.depositWagerProgress ?? 0)));
 }
 
+/** When set, the player must bet more before any withdrawal is allowed. */
+export function withdrawalPlaythroughBlockMessage(
+  wallet: Wallet,
+  settings: PlatformSettings
+): string | null {
+  if (depositPlaythroughMet(wallet, settings)) return null;
+  const remaining = depositPlaythroughRemaining(wallet, settings);
+  const ratePct = Math.round(playthroughRates(settings).depositRate * 100);
+  return (
+    `You must play ${remaining} GMD more on games (${ratePct}% of your deposits) before you can withdraw. ` +
+    `Deposited funds cannot be taken back without playing first.`
+  );
+}
+
 export function bonusWageringRemaining(wallet: Wallet): number {
   const required = Number(wallet.bonusWagerRequired ?? 0);
   if (required <= 0) return 0;

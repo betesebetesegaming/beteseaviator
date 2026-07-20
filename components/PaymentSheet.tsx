@@ -174,10 +174,11 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   }, [trackingRef, stage]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (!e.touches.length) return;
     dragStartY.current = e.touches[0].clientY;
   };
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (dragStartY.current == null) return;
+    if (dragStartY.current == null || !e.touches.length) return;
     const dy = e.touches[0].clientY - dragStartY.current;
     if (dy > 0) setDragY(dy);
   };

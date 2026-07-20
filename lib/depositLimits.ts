@@ -1,11 +1,11 @@
 /** Platform minimum wallet top-up (GMD). Deposits accept this amount and above. */
-export const MIN_DEPOSIT_GMD = 25;
+export const MIN_DEPOSIT_GMD = 20;
 
 /** Quick-pick amounts shown in the deposit sheet (GMD). */
-export const DEPOSIT_PRESET_AMOUNTS = [25, 50, 100, 200, 500] as const;
+export const DEPOSIT_PRESET_AMOUNTS = [20, 25, 50, 100, 200, 500] as const;
 
 /**
- * Deposit minimum is fixed at 25 GMD (legacy Firestore values like 50/100 are ignored).
+ * Deposit minimum is fixed at 20 GMD (legacy Firestore values like 50/100 are ignored).
  */
 export function normalizeMinDeposit(_value?: unknown): number {
   return MIN_DEPOSIT_GMD;

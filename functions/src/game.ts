@@ -328,6 +328,17 @@ export const placeBet = onCall(async (req) => {
     throw new HttpsError("failed-precondition", "Betting is closed — wait for the next round.");
   }
 
+  const liveRoundSnap = await rtdb.ref(`rounds/${gameId}/current`).get();
+  const liveRound = liveRoundSnap.val() as RoundNode | null;
+  if (
+    !liveRound ||
+    liveRound.roundId !== round.roundId ||
+    liveRound.status !== "betting" ||
+    Date.now() >= liveRound.bettingEndsAt
+  ) {
+    throw new HttpsError("failed-precondition", "Betting is closed — wait for the next round.");
+  }
+
   // one active bet per game per player
   const existing = await db
     .collection("gameSessions")

@@ -110,7 +110,7 @@ export function withdrawalRulesCopy(
   const depositRate = Math.round((settings.depositPlaythroughRate ?? 0.8) * 100);
   const feeRate = Math.round((settings.earlyWithdrawalFeeRate ?? 0.15) * 100);
   const label = settings.bonusGamesLabel?.trim() || "Aviator & Crash";
-  return `Only cash balance can be withdrawn. Bonus balance is for ${label} bets. Withdrawing before playing ${depositRate}% of deposits costs a ${feeRate}% fee and forfeits any bonus.`;
+  return `Only cash balance can be withdrawn — bonus balance is for ${label} bets only. You must play ${depositRate}% of each deposit on games before any withdrawal is allowed. Deposited money cannot be withdrawn back without playing first.`;
 }
 
 /** True when deposit bonus campaign is still running (empty end date = always on). */

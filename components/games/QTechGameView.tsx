@@ -34,6 +34,17 @@ export function QTechGameView({ game, immersive = false, demo = false }: Props) 
   const [launching, setLaunching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const startedRef = useRef(false);
+  const gameIdRef = useRef(game.id);
+
+  useEffect(() => {
+    if (gameIdRef.current !== game.id) {
+      gameIdRef.current = game.id;
+      startedRef.current = false;
+      setLaunchUrl(null);
+      setLaunching(true);
+      setError(null);
+    }
+  }, [game.id]);
 
   const needsProfile = !!fbUser && !profile && !loading;
   const isPlayer = !!profile && profile.role === "player" && profile.status === "active";

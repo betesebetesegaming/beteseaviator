@@ -16,8 +16,12 @@ import {
   type ModemPayPayoutNetwork,
 } from '../modempay';
 import { adminDb } from '../adminModem';
-import { db, bumpDailyStats, bumpPlatformStats, getSettings, MIN_DEPOSIT_GMD, round2, todayIso, walletRead, walletWrite } from '../helpers';
-import { applyEarlyWithdrawalPenalties, evaluateEarlyWithdrawal, parsePlaythroughWallet } from '../wagering';
+import { db, bumpDailyStats, bumpPlatformStats, getSettings, MIN_DEPOSIT_GMD, todayIso, walletRead, walletWrite } from '../helpers';
+import {
+  applyEarlyWithdrawalPenalties,
+  parsePlaythroughWallet,
+  withdrawalPlaythroughBlockMessage,
+} from '../wagering';
 import { syncAviatorWalletCredit } from '../walletSync';
 import { consumeOtpVerifiedForPhone, requireOtpVerifiedForPhone } from '../otpVerification';
 import {
@@ -392,17 +396,10 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const earlyPreview = evaluateEarlyWithdrawal(walletPreview, amount, settings);
-    if (!earlyPreview.playthroughMet && earlyPreview.payoutAmount < settings.minWithdrawal) {
-      const remaining = Math.max(
-        0,
-        round2(earlyPreview.requiredWager - earlyPreview.wagerProgress)
-      );
-      const msg =
-        `Play ${remaining} GMD more (${Math.round((settings.depositPlaythroughRate ?? 0.8) * 100)}% of deposits) for a free withdrawal, ` +
-        `or withdraw at least ${Math.ceil(settings.minWithdrawal / (1 - (settings.earlyWithdrawalFeeRate ?? 0.15)))} GMD to cover the early fee.`;
-      await failWithdrawalWithoutHold(requestId, customerId, msg);
-      res.status(400).json({ error: msg });
+    const playthroughBlock = withdrawalPlaythroughBlockMessage(walletPreview, settings);
+    if (playthroughBlock) {
+      await failWithdrawalWithoutHold(requestId, customerId, playthroughBlock);
+      res.status(400).json({ error: playthroughBlock });
       return;
     }
 
@@ -426,27 +423,26 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
         if (wallet.frozen) throw new Error('Wallet is frozen.');
         if (wallet.balance < amount) throw new Error('Insufficient balance.');
 
+        const playthroughBlockInTx = withdrawalPlaythroughBlockMessage(wallet, settings);
+        if (playthroughBlockInTx) {
+          throw new Error(playthroughBlockInTx);
+        }
+
         const early = applyEarlyWithdrawalPenalties(tx, customerId, wallet, amount, settings, requestId);
         payoutAmount = early.payoutAmount;
-
-        if (!early.playthroughMet && payoutAmount < settings.minWithdrawal) {
-          throw new Error('Payout after early withdrawal fee is below minimum.');
-        }
 
         walletWrite(tx, wallet, {
           uid: customerId,
           amount: -amount,
           type: 'withdrawal',
-          description: early.playthroughMet
-            ? `Withdrawal hold (${requestId})`
-            : `Withdrawal hold — early fee ${early.fee} GMD (${requestId})`,
+          description: `Withdrawal hold (${requestId})`,
           meta: {
             externalRef: requestId,
             source: 'modempay',
-            earlyWithdrawal: !early.playthroughMet,
-            fee: early.fee,
+            earlyWithdrawal: false,
+            fee: 0,
             payoutAmount,
-            bonusForfeited: early.bonusForfeited,
+            bonusForfeited: 0,
           },
         });
 
