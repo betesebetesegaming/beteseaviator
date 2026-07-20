@@ -163,18 +163,10 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       return;
     }
 
-    // Persist a pending checkout marker so the webhook can reconcile it later.
+    // Persist critical markers BEFORE responding. If we respond first, Cloud Run
+    // can freeze the instance and drop writes — Wave takes money but wallet never credits.
     const createdAt = new Date().toISOString();
     const methodLabel = mapModemPayMethodLabel(provider);
-
-    // Respond as soon as ModemPay returns a URL — persist markers in parallel after.
-    res.json({
-      ok: true,
-      checkoutUrl: result.checkoutUrl,
-      sessionId: result.sessionId,
-      provider,
-      externalRef: body.externalRef,
-    });
 
     const persistTasks: Promise<unknown>[] = [
       adminDb.collection('modempay_checkouts').doc(body.externalRef).set({
@@ -189,7 +181,7 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
         customer_name: body.customerName || null,
         status: 'pending',
         created_at: createdAt,
-      }, { merge: true }).catch(err => logger.warn('Checkout marker write failed', err)),
+      }, { merge: true }),
       syncCheckoutToRtdb({
         external_ref: body.externalRef,
         session_id: result.sessionId || null,
@@ -253,12 +245,19 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
           verification_status: 'PendingProviderConfirmation',
           verification_source: 'webhook',
           verification_message: 'Waiting for ModemPay to confirm payment before your wallet is credited.',
-        }, { merge: true }).catch(err => logger.warn('Firestore deposit_request write failed', err)),
+        }, { merge: true }),
       );
     }
 
     await Promise.all(persistTasks);
-    return;
+
+    res.json({
+      ok: true,
+      checkoutUrl: result.checkoutUrl,
+      sessionId: result.sessionId,
+      provider,
+      externalRef: body.externalRef,
+    });
   } catch (err) {
     logger.error('Checkout error', err);
     if (!res.headersSent) {
@@ -1519,6 +1518,14 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
       || null;
     if (checkoutStatus === 'pending' && intentId) {
       const intentResult = await retrievePaymentIntent(intentId);
+      if (!intentResult.ok) {
+        logger.warn('reconcile retrievePaymentIntent failed', {
+          externalRef,
+          intentId,
+          status: intentResult.status,
+          data: intentResult.data,
+        });
+      }
       const envelope = intentResult.data as { data?: Record<string, unknown> };
       const intent = envelope?.data || (intentResult.data as Record<string, unknown>);
       const intentStatus = String(
@@ -1526,14 +1533,19 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
       ).toLowerCase();
       providerPayload = intent;
 
-      if (['completed', 'succeeded', 'successful', 'paid', 'complete'].includes(intentStatus)) {
-        checkoutStatus = 'completed';
-        await adminDb.collection('modempay_checkouts').doc(externalRef).set({
-          status: 'completed',
-          provider_status: intentStatus,
-          raw_payload: intent,
-          updated_at: new Date().toISOString(),
-        }, { merge: true });
+      if (['completed', 'succeeded', 'successful', 'paid', 'complete', 'processing'].includes(intentStatus)) {
+        // "processing" means Wave accepted — wait for webhook, but also try credit if already paid fields exist
+        if (intentStatus === 'processing' && !intent.paid_date && !intent.transaction_reference) {
+          checkoutStatus = 'pending';
+        } else {
+          checkoutStatus = 'completed';
+          await adminDb.collection('modempay_checkouts').doc(externalRef).set({
+            status: 'completed',
+            provider_status: intentStatus,
+            raw_payload: intent,
+            updated_at: new Date().toISOString(),
+          }, { merge: true });
+        }
       } else if (['failed', 'cancelled', 'canceled', 'expired'].includes(intentStatus)) {
         checkoutStatus = 'failed';
         await adminDb.collection('modempay_checkouts').doc(externalRef).set({
@@ -1542,6 +1554,8 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
           raw_payload: intent,
           failed_at: new Date().toISOString(),
         }, { merge: true });
+      } else {
+        logger.info('reconcile intent still open', { externalRef, intentId, intentStatus });
       }
     }
 

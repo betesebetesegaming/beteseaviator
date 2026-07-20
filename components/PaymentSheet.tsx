@@ -283,25 +283,34 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         : 'afrimoney';
       const { checkoutUrl: url } = await handleModemPay(providerKey, numAmount, cleanPhone, externalRef);
       setCheckoutUrl(url);
-
-      // Remember ref before leaving so return from Wave/AfriMoney can resume status.
       rememberPendingDepositRef(externalRef);
-
-      if (isMobileCheckout()) {
-        // Full navigation keeps ModemPay / Wave in the same browser session
-        // (app deep-links often hang on "Opening Wave app...").
-        window.location.assign(url);
-        return;
-      }
-
-      window.open(url, '_blank', 'noopener,noreferrer');
       setTrackingRef(externalRef);
       setLiveStatus('Pending');
+      setStage('confirm');
+
+      // Always keep our sheet open + polling. Full-page redirects into the Wave
+      // app often hang on "Opening Wave app..." and the deposit never completes.
+      try {
+        const opened = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!opened && isMobileCheckout()) {
+          // Popup blocked — open checkout in this tab as last resort.
+          window.location.assign(url);
+          return;
+        }
+      } catch {
+        if (isMobileCheckout()) {
+          window.location.assign(url);
+          return;
+        }
+      }
+
       setMessage({
         ok: true,
-        text: `${method} checkout opened. Approve the prompt on your phone — status updates here instantly.`,
+        text:
+          method === 'Wave'
+            ? 'Wave checkout opened. Approve the payment in Wave (if Wave is stuck on “Opening app…”, close Wave, open it from your home screen, then approve). Status updates here automatically.'
+            : `${method} checkout opened. Approve the prompt on your phone — status updates here instantly.`,
       });
-      setStage('confirm');
     } catch (err: any) {
       setMessage({ ok: false, text: err?.message || 'Payment failed. Please try again.' });
       setStage('enter-amount');
@@ -531,19 +540,16 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                   </div>
                 </div>
                 {liveStatus === 'Pending' && (
-                  <p className="mt-3 text-xs font-bold text-amber-700 animate-pulse">
-                    Live via Firebase — no refresh needed. If payment stalls, we recheck with ModemPay every 10 seconds.
+                  <p className="mt-3 text-xs font-bold text-amber-700">
+                    Approve in Wave / your wallet app. If Wave stuck on “Opening app…”, close Wave, open it from your home screen, and approve the payment. We check ModemPay every few seconds.
                   </p>
                 )}
                 {liveStatus === 'Pending' && checkoutUrl && (
                   <button
                     type="button"
                     onClick={() => {
-                      if (isMobileCheckout()) {
-                        window.location.href = checkoutUrl;
-                      } else {
-                        window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
-                      }
+                      const opened = window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
+                      if (!opened) window.location.assign(checkoutUrl);
                     }}
                     className="mt-3 w-full py-3 rounded-xl border-2 border-amber-400 bg-white text-amber-900 font-black text-sm uppercase tracking-wide"
                   >
