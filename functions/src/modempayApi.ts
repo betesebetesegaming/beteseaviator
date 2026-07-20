@@ -50,9 +50,11 @@ app.post("/modempay-reconcile-deposit", (req, res) => void reconcileDepositHandl
 export const modempayApi = onRequest(
   {
     region: "us-central1",
-    memory: "256MiB",
+    // Keep one warm instance — cold starts from Gambia were timing out as "Load failed".
+    memory: "512MiB",
     timeoutSeconds: 60,
-    maxInstances: 5,
+    minInstances: 1,
+    maxInstances: 10,
     cpu: 1,
     invoker: "public",
     cors: PAYMENT_HTTP_ORIGINS,

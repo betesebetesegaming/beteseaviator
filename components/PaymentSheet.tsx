@@ -212,26 +212,68 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     cleanPhone: string,
     externalRef: string,
   ) => {
-    const res = await fetch(apiUrl('/modempay-checkout'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        method: provider,
-        amount: numAmount,
-        customerId: user.id,
-        customerName: user.name,
-        customerPhone: cleanPhone,
-        externalRef,
-        returnUrl:
-          typeof window !== 'undefined'
-            ? `${window.location.origin}/play/wallet?deposit=${encodeURIComponent(externalRef)}`
-            : undefined,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.checkoutUrl) {
-      throw new Error(data.error || 'Could not start checkout');
+    const payload = {
+      method: provider,
+      amount: numAmount,
+      customerId: user.id,
+      customerName: user.name,
+      customerPhone: cleanPhone,
+      externalRef,
+      returnUrl:
+        typeof window !== 'undefined'
+          ? `${window.location.origin}/play/wallet?deposit=${encodeURIComponent(externalRef)}`
+          : undefined,
+    };
+
+    const checkoutOnce = async () => {
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 35_000);
+      try {
+        const res = await fetch(apiUrl('/modempay-checkout'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.checkoutUrl) {
+          throw new Error(
+            typeof data.error === 'string' && data.error
+              ? data.error
+              : 'Could not start checkout',
+          );
+        }
+        return data.checkoutUrl as string;
+      } finally {
+        window.clearTimeout(timer);
+      }
+    };
+
+    let checkoutUrl: string;
+    try {
+      checkoutUrl = await checkoutOnce();
+    } catch (firstErr: unknown) {
+      // One automatic retry — cold starts / flaky mobile networks often succeed on retry.
+      try {
+        checkoutUrl = await checkoutOnce();
+      } catch (retryErr: unknown) {
+        const raw = retryErr instanceof Error ? retryErr.message : String(retryErr || firstErr || '');
+        const lower = raw.toLowerCase();
+        if (
+          lower.includes('load failed') ||
+          lower.includes('failed to fetch') ||
+          lower.includes('networkerror') ||
+          lower.includes('abort') ||
+          lower.includes('timeout')
+        ) {
+          throw new Error(
+            'Payment connection timed out. Check your internet and try again — you were not charged.',
+          );
+        }
+        throw retryErr instanceof Error ? retryErr : new Error(raw || 'Could not start checkout');
+      }
     }
+
     const labelByProvider: Record<typeof provider, Method> = {
       wave: 'Wave',
       aps: 'APS',
@@ -244,7 +286,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     void Promise.resolve(
       onDepositRequest(numAmount, labelByProvider[provider], cleanPhone, externalRef),
     ).catch(() => undefined);
-    return { transactionId: externalRef, checkoutUrl: data.checkoutUrl as string };
+    return { transactionId: externalRef, checkoutUrl };
   };
 
   const handlePay = async () => {

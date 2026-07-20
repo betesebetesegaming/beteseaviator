@@ -163,75 +163,32 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       return;
     }
 
-    // Persist critical markers BEFORE responding. If we respond first, Cloud Run
-    // can freeze the instance and drop writes — Wave takes money but wallet never credits.
+    // Critical markers MUST land before we respond — Cloud Run may freeze CPU
+    // after the HTTP response. Keep this path tight so mobile Safari does not
+    // time out with "Load failed" before checkoutUrl arrives.
     const createdAt = new Date().toISOString();
     const methodLabel = mapModemPayMethodLabel(provider);
 
-    const persistTasks: Promise<unknown>[] = [
-      adminDb.collection('modempay_checkouts').doc(body.externalRef).set({
-        external_ref: body.externalRef,
-        session_id: result.sessionId,
-        payment_link_id: result.paymentLinkId || null,
-        intent_secret: result.intentSecret || null,
-        method: provider,
-        amount,
-        customer_id: body.customerId || null,
-        customer_phone: body.customerPhone || null,
-        customer_name: body.customerName || null,
-        status: 'pending',
-        created_at: createdAt,
-      }, { merge: true }),
-      syncCheckoutToRtdb({
-        external_ref: body.externalRef,
-        session_id: result.sessionId || null,
-        payment_link_id: result.paymentLinkId || null,
-        intent_secret: result.intentSecret || null,
-        method: provider,
-        amount,
-        customer_id: body.customerId || null,
-        customer_phone: body.customerPhone || null,
-        customer_name: body.customerName || null,
-        status: 'pending',
-        created_at: createdAt,
-      }).catch(err => logger.warn('RTDB checkout sync failed', err)),
+    const checkoutDoc = {
+      external_ref: body.externalRef,
+      session_id: result.sessionId,
+      payment_link_id: result.paymentLinkId || null,
+      intent_secret: result.intentSecret || null,
+      method: provider,
+      amount,
+      customer_id: body.customerId || null,
+      customer_phone: body.customerPhone || null,
+      customer_name: body.customerName || null,
+      status: 'pending',
+      created_at: createdAt,
+    };
+
+    const criticalWrites: Promise<unknown>[] = [
+      adminDb.collection('modempay_checkouts').doc(body.externalRef).set(checkoutDoc, { merge: true }),
     ];
 
-    if (result.sessionId) {
-      persistTasks.push(
-        linkPaymentIntentIndex(result.sessionId, body.externalRef)
-          .catch(err => logger.warn('intentIndex link failed', { sessionId: result.sessionId, externalRef: body.externalRef, err })),
-      );
-    } else {
-      logger.warn('ModemPay /v1/payments did not return a session id — webhook will rely on hint matching', {
-        externalRef: body.externalRef,
-        raw: result.raw,
-      });
-    }
-    if (result.paymentLinkId) {
-      persistTasks.push(
-        linkPaymentLinkIndex(result.paymentLinkId, body.externalRef)
-          .catch(err => logger.warn('linkIndex link failed', { paymentLinkId: result.paymentLinkId, externalRef: body.externalRef, err })),
-      );
-    }
-
     if (body.customerId && body.externalRef) {
-      const pendingDeposit: RtdbDepositRecord = {
-        id: body.externalRef,
-        customer_id: body.customerId,
-        customer_name: body.customerName || null,
-        amount,
-        method: methodLabel,
-        transaction_id: body.customerPhone || null,
-        status: 'Pending',
-        timestamp: createdAt,
-        provider_reference: body.externalRef,
-        verification_status: 'PendingProviderConfirmation',
-        verification_source: 'webhook',
-        verification_message: 'Waiting for ModemPay to confirm payment before your wallet is credited.',
-      };
-      persistTasks.push(
-        syncDepositToRtdb(pendingDeposit).catch(err => logger.warn('RTDB deposit sync failed', err)),
+      criticalWrites.push(
         adminDb.collection('deposit_requests').doc(body.externalRef).set({
           id: body.externalRef,
           amount: Number(amount.toFixed(2)),
@@ -249,8 +206,71 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       );
     }
 
-    await Promise.all(persistTasks);
+    await Promise.all(criticalWrites);
 
+    // Intent / link indexes are small Firestore writes — keep them on the
+    // critical path so webhooks can resolve the deposit without RTDB.
+    const indexWrites: Promise<unknown>[] = [];
+    if (result.sessionId) {
+      indexWrites.push(
+        linkPaymentIntentIndex(result.sessionId, body.externalRef)
+          .catch(err => logger.warn('intentIndex link failed', { sessionId: result.sessionId, externalRef: body.externalRef, err })),
+      );
+    } else {
+      logger.warn('ModemPay /v1/payments did not return a session id — webhook will rely on hint matching', {
+        externalRef: body.externalRef,
+        raw: result.raw,
+      });
+    }
+    if (result.paymentLinkId) {
+      indexWrites.push(
+        linkPaymentLinkIndex(result.paymentLinkId, body.externalRef)
+          .catch(err => logger.warn('linkIndex link failed', { paymentLinkId: result.paymentLinkId, externalRef: body.externalRef, err })),
+      );
+    }
+    if (indexWrites.length) {
+      await Promise.all(indexWrites);
+    }
+
+    // RTDB mirrors — best-effort; do not block the customer on a checkout URL.
+    const secondary: Promise<unknown>[] = [
+      syncCheckoutToRtdb({
+        external_ref: body.externalRef,
+        session_id: result.sessionId || null,
+        payment_link_id: result.paymentLinkId || null,
+        intent_secret: result.intentSecret || null,
+        method: provider,
+        amount,
+        customer_id: body.customerId || null,
+        customer_phone: body.customerPhone || null,
+        customer_name: body.customerName || null,
+        status: 'pending',
+        created_at: createdAt,
+      }).catch(err => logger.warn('RTDB checkout sync failed', err)),
+    ];
+
+    if (body.customerId && body.externalRef) {
+      const pendingDeposit: RtdbDepositRecord = {
+        id: body.externalRef,
+        customer_id: body.customerId,
+        customer_name: body.customerName || null,
+        amount,
+        method: methodLabel,
+        transaction_id: body.customerPhone || null,
+        status: 'Pending',
+        timestamp: createdAt,
+        provider_reference: body.externalRef,
+        verification_status: 'PendingProviderConfirmation',
+        verification_source: 'webhook',
+        verification_message: 'Waiting for ModemPay to confirm payment before your wallet is credited.',
+      };
+      secondary.push(
+        syncDepositToRtdb(pendingDeposit).catch(err => logger.warn('RTDB deposit sync failed', err)),
+      );
+    }
+
+    // Respond immediately so the phone can open Wave; finish RTDB in the
+    // same request with a short budget so warm instances still sync reliably.
     res.json({
       ok: true,
       checkoutUrl: result.checkoutUrl,
@@ -258,6 +278,11 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       provider,
       externalRef: body.externalRef,
     });
+
+    await Promise.race([
+      Promise.allSettled(secondary),
+      new Promise<void>(resolve => setTimeout(resolve, 2500)),
+    ]);
   } catch (err) {
     logger.error('Checkout error', err);
     if (!res.headersSent) {

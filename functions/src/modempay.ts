@@ -49,15 +49,26 @@ export async function modemFetch<T = unknown>(opts: ModemFetchOptions): Promise<
       if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
     }
   }
-  const res = await fetch(url.toString(), {
-    method: opts.method,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${secretKey()}`,
-      'X-Public-Key': publicKey(),
-    },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), {
+      method: opts.method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${secretKey()}`,
+        'X-Public-Key': publicKey(),
+      },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      // Fail before mobile browsers abandon the parent checkout request.
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (err) {
+    const name = err instanceof Error ? err.name : '';
+    if (name === 'TimeoutError' || name === 'AbortError') {
+      throw new Error('ModemPay request timed out. Please try again.');
+    }
+    throw err;
+  }
   const text = await res.text();
   let data: unknown;
   try {
