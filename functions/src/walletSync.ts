@@ -20,12 +20,32 @@ export async function syncAviatorWalletCredit(
   let applied: { kind: string; amount: number }[] = [];
 
   await db.runTransaction(async (tx) => {
+    // Idempotency guard: a deposit is credited exactly once, keyed by its
+    // externalRef. Both callers (markDepositCompleted and healAviatorWalletIfNeeded)
+    // can fire for the SAME deposit — e.g. a webhook retry after the container
+    // froze between crediting and setting aviator_wallet_synced. The marker is
+    // written in the same transaction as the credit, so Firestore atomicity
+    // means it lands only if the full credit committed: never a lost credit,
+    // never a double one. READ must happen before any write (transaction rule).
+    const creditMarkerRef = db.doc(`deposit_credits/${externalRef}`);
+    const creditMarker = externalRef ? await tx.get(creditMarkerRef) : null;
+    if (creditMarker?.exists) return;
+
     const userRef = db.doc(`users/${uid}`);
     const userSnap = await tx.get(userRef);
     const wallet = await walletRead(tx, uid);
 
     // Referral reads must finish before any wallet writes (Firestore transaction rule).
     await onReferralDeposit(tx, uid, amount, settings);
+
+    if (externalRef) {
+      tx.set(creditMarkerRef, {
+        uid,
+        amount,
+        externalRef,
+        creditedAt: new Date().toISOString(),
+      });
+    }
 
     walletWrite(tx, wallet, {
       uid,
