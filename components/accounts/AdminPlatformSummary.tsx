@@ -138,8 +138,10 @@ export function AdminPlatformSummary() {
   return (
     <>
       <p className="mb-4 text-sm text-slate-400">
-        Platform GGR, {providerName} share, agent commissions, and ModemPay customer money in/out.
-        Rates:{" "}
+        Platform GGR, {providerName} share, agent commissions, and ModemPay customer money in/out for{" "}
+        <strong className="font-medium text-slate-300">this week and this month only</strong>. For every
+        past month (sales + amount made), open the{" "}
+        <strong className="font-medium text-emerald-300">Month by month</strong> tab. Rates:{" "}
         <Link href="/admin/settings" className="text-emerald-400 hover:underline">
           Settings
         </Link>{" "}

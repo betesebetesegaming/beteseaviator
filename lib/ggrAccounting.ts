@@ -44,6 +44,69 @@ export function monthRangeIso(now = new Date()): PeriodRange {
   return { from, to: end, label: monthName };
 }
 
+/** First day of the month `monthsBack` months ago through today (UTC). */
+export function monthsBackRangeIso(monthsBack: number, now = new Date()): PeriodRange {
+  const end = isoDate(now);
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsBack, 1));
+  const from = isoDate(start);
+  return { from, to: end, label: `${from} → ${end}` };
+}
+
+export function monthKeyFromIsoDate(date: string): string {
+  return date.slice(0, 7);
+}
+
+export function monthLabelFromKey(yyyyMm: string): string {
+  const [y, m] = yyyyMm.split("-").map(Number);
+  if (!y || !m) return yyyyMm;
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-GB", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+export type MonthlyPeriodRow = PeriodTotals & {
+  monthKey: string;
+  label: string;
+};
+
+/** Roll dailyStats into calendar months (newest first). */
+export function groupDailyStatsByMonth(days: DailyStats[]): MonthlyPeriodRow[] {
+  const byMonth = new Map<string, PeriodTotals>();
+  for (const d of days) {
+    const key = monthKeyFromIsoDate(d.date);
+    if (!key || key.length < 7) continue;
+    const cur = byMonth.get(key) ?? { bets: 0, wins: 0, ggr: 0, deposits: 0, withdrawals: 0 };
+    cur.bets += d.bets ?? 0;
+    cur.wins += d.wins ?? 0;
+    cur.deposits += d.deposits ?? 0;
+    cur.withdrawals += d.withdrawals ?? 0;
+    byMonth.set(key, cur);
+  }
+  return [...byMonth.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([monthKey, totals]) => ({
+      monthKey,
+      label: monthLabelFromKey(monthKey),
+      ...totals,
+      ggr: ggrFromTotals({ totalBets: totals.bets, totalWins: totals.wins }),
+    }));
+}
+
+export function groupCommissionsByMonth(rows: Commission[]): Map<string, number> {
+  const byMonth = new Map<string, number>();
+  for (const c of rows) {
+    const key = monthKeyFromIsoDate(c.periodDate);
+    if (!key) continue;
+    byMonth.set(key, (byMonth.get(key) ?? 0) + (c.commissionAmount ?? 0));
+  }
+  for (const [k, v] of byMonth) {
+    byMonth.set(k, Math.round(v * 100) / 100);
+  }
+  return byMonth;
+}
+
 export function sumDailyStats(days: DailyStats[]): PeriodTotals {
   const totals = { bets: 0, wins: 0, ggr: 0, deposits: 0, withdrawals: 0 };
   for (const d of days) {

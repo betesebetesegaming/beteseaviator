@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useAgentCustomerIds } from "@/lib/hooks/useAgentCustomerIds";
 import { AdminPlatformSummary } from "@/components/accounts/AdminPlatformSummary";
+import { AdminMonthlyAccounts } from "@/components/accounts/AdminMonthlyAccounts";
 import { AdminAccountBook } from "@/components/accounts/AdminAccountBook";
 import { AgentSalesSummary } from "@/components/accounts/AgentSalesSummary";
 import { ModemPayDepositsPanel } from "@/components/accounts/ModemPayDepositsPanel";
@@ -16,8 +17,9 @@ import { AgentServeAnyCustomer } from "@/components/agent/AgentCashDesk";
 import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 
 const ADMIN_TABS = [
-  { id: "book", label: "Full account book" },
-  { id: "summary", label: "Summary" },
+  { id: "monthly", label: "Month by month" },
+  { id: "book", label: "Customer deposits book" },
+  { id: "summary", label: "This week / month" },
   { id: "deposits", label: "ModemPay Deposits" },
   { id: "withdrawals", label: "ModemPay Withdrawals" },
   { id: "transactions", label: "All Transactions" },
@@ -40,11 +42,11 @@ export function AccountsHub() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const searchParams = useSearchParams();
-  const initial = searchParams.get("tab") || (isAdmin ? "book" : "sales");
+  const initial = searchParams.get("tab") || (isAdmin ? "monthly" : "sales");
   const [tab, setTab] = useState<string>(initial);
   const { customerIds, customerNames } = useAgentCustomerIds(isAdmin ? undefined : profile?.uid);
 
-  const adminTab = ADMIN_TABS.some((t) => t.id === tab) ? (tab as AdminTab) : "book";
+  const adminTab = ADMIN_TABS.some((t) => t.id === tab) ? (tab as AdminTab) : "monthly";
   const agentTab = AGENT_TABS.some((t) => t.id === tab) ? (tab as AgentTab) : "sales";
 
   const scopeLabel = useMemo(
@@ -59,11 +61,11 @@ export function AccountsHub() {
           {isAdmin ? "Admin accounts" : "Agent accounts"}
         </p>
         <h1 className="text-xl font-bold">
-          {isAdmin ? "GGR · QTech · ModemPay · Agents" : "Sales · Payments · Commissions"}
+          {isAdmin ? "Accounts — sales, vendors & profit" : "Sales · Payments · Commissions"}
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-400">
           {isAdmin
-            ? "Full account book (time, Player ID, deposit/withdraw, agent), GGR, ModemPay, and commissions."
+            ? "Clear month-by-month books: customer deposits, sales, QTech / vendors, agent pay, and your profit. Open any month for the full breakdown."
             : "See your sales (GGR), cash desk book, ModemPay payments, and commission."}
         </p>
       </div>
@@ -87,6 +89,11 @@ export function AccountsHub() {
 
       {isAdmin ? (
         <>
+          {adminTab === "monthly" && (
+            <ClientErrorBoundary label="Month by month accounts">
+              <AdminMonthlyAccounts />
+            </ClientErrorBoundary>
+          )}
           {adminTab === "book" && (
             <ClientErrorBoundary label="Full account book">
               <AdminAccountBook />
