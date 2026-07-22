@@ -65,3 +65,29 @@ export function filterModemPayWithdrawals(
 export function sumModemPayAmount(rows: { amount?: number }[]): number {
   return Math.round(rows.reduce((sum, r) => sum + Math.abs(Number(r.amount) || 0), 0) * 100) / 100;
 }
+
+/** Roll successful ModemPay deposits/withdrawals into calendar months (YYYY-MM → totals). */
+export function groupModemPayCashByMonth(
+  deposits: RtdbDepositRecord[],
+  withdrawals: RtdbWithdrawalRecord[],
+  from: string,
+  to: string
+): Map<string, { deposits: number; withdrawals: number }> {
+  const byMonth = new Map<string, { deposits: number; withdrawals: number }>();
+
+  const bump = (monthKey: string, field: "deposits" | "withdrawals", amount: number) => {
+    if (!monthKey || monthKey.length < 7) return;
+    const cur = byMonth.get(monthKey) ?? { deposits: 0, withdrawals: 0 };
+    cur[field] = Math.round((cur[field] + amount) * 100) / 100;
+    byMonth.set(monthKey, cur);
+  };
+
+  for (const row of filterModemPayDeposits(deposits, { from, to, successfulOnly: true })) {
+    bump(paymentIsoDate(row.timestamp).slice(0, 7), "deposits", Math.abs(Number(row.amount) || 0));
+  }
+  for (const row of filterModemPayWithdrawals(withdrawals, { from, to, status: "completed" })) {
+    bump(paymentIsoDate(row.requested_at).slice(0, 7), "withdrawals", Math.abs(Number(row.amount) || 0));
+  }
+
+  return byMonth;
+}
