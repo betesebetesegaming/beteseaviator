@@ -245,24 +245,20 @@ export function AdminMonthlyAccounts() {
         </p>
       </Card>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Customer deposits" value={formatXof(totals.deposits)} />
         <StatCard label="Customer withdrawals" value={formatXof(totals.withdrawals)} />
-        <StatCard label="ModemPay deposits" value={formatXof(totals.modemPayDeposits)} />
-        <StatCard label="ModemPay withdrawals" value={formatXof(totals.modemPayWithdrawals)} />
         <StatCard label="Sales (GGR)" value={formatXof(totals.sales)} />
         <StatCard label={`${providerName} (vendor)`} value={formatXof(totals.providerDue)} />
         <StatCard label="Agent commissions" value={formatXof(totals.agentCommission)} />
         <StatCard label="Your profit" value={formatXof(totals.profit)} />
       </div>
 
-      <div className="mb-6 grid gap-5 lg:grid-cols-[1.55fr_1fr]">
+      <div className="mb-6 grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <Card className="overflow-hidden p-0">
           <div className="border-b border-white/5 px-4 py-3">
             <h2 className="font-semibold text-white">Month by month</h2>
-            <p className="text-xs text-slate-500">
-              Date · all customer money · ModemPay only · sales · vendors · profit
-            </p>
+            <p className="text-xs text-slate-500">Date · customer money · sales · vendors · profit</p>
           </div>
           {rows.length === 0 ? (
             <div className="p-6">
@@ -275,8 +271,6 @@ export function AdminMonthlyAccounts() {
                   <Th>Month / date</Th>
                   <Th>Customer deposits</Th>
                   <Th>Withdrawals</Th>
-                  <Th>ModemPay deposits</Th>
-                  <Th>ModemPay withdrawals</Th>
                   <Th>Sales</Th>
                   <Th>{providerName}</Th>
                   <Th>Your profit</Th>
@@ -296,10 +290,6 @@ export function AdminMonthlyAccounts() {
                       <Td className="font-medium text-white">{r.label}</Td>
                       <Td className="tabular-nums">{formatXof(r.deposits)}</Td>
                       <Td className="tabular-nums">{formatXof(r.withdrawals)}</Td>
-                      <Td className="tabular-nums text-amber-200/90">{formatXof(r.modemPayDeposits)}</Td>
-                      <Td className="tabular-nums text-amber-200/90">
-                        {formatXof(r.modemPayWithdrawals)}
-                      </Td>
                       <Td className="tabular-nums font-semibold text-emerald-300">
                         {formatXof(r.ggr)}
                       </Td>
@@ -414,6 +404,77 @@ export function AdminMonthlyAccounts() {
           )}
         </Card>
       </div>
+
+      <Card className="mb-6 overflow-hidden border-amber-500/25 bg-amber-500/[0.04] p-0">
+        <div className="border-b border-amber-500/15 px-4 py-3">
+          <h2 className="font-semibold text-white">ModemPay balancing</h2>
+          <p className="text-xs text-slate-500">
+            Only money paid through ModemPay (Wave / Afrimoney) — use this to match your ModemPay
+            statement. Cash desk / system = total customer money minus ModemPay.
+          </p>
+        </div>
+        <div className="grid gap-4 border-b border-amber-500/10 px-4 py-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="ModemPay deposits" value={formatXof(totals.modemPayDeposits)} />
+          <StatCard label="ModemPay withdrawals" value={formatXof(totals.modemPayWithdrawals)} />
+          <StatCard
+            label="ModemPay net"
+            value={formatXof(
+              Math.round((totals.modemPayDeposits - totals.modemPayWithdrawals) * 100) / 100
+            )}
+          />
+          <StatCard
+            label="Cash desk / system deposits"
+            value={formatXof(
+              Math.round((totals.deposits - totals.modemPayDeposits) * 100) / 100
+            )}
+          />
+        </div>
+        {rows.length === 0 ? (
+          <div className="p-6">
+            <EmptyState message="No ModemPay activity in this period yet." />
+          </div>
+        ) : (
+          <TableShell>
+            <thead>
+              <tr>
+                <Th>Month / date</Th>
+                <Th>ModemPay deposits</Th>
+                <Th>ModemPay withdrawals</Th>
+                <Th>ModemPay net</Th>
+                <Th>Cash desk / system deposits</Th>
+                <Th>Cash desk / system withdrawals</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const active = r.monthKey === selectedKey;
+                return (
+                  <tr
+                    key={`mp-${r.monthKey}`}
+                    onClick={() => setSelectedKey(r.monthKey)}
+                    className={`cursor-pointer transition ${
+                      active ? "bg-amber-500/10" : "hover:bg-white/5"
+                    }`}
+                  >
+                    <Td className="font-medium text-white">{r.label}</Td>
+                    <Td className="tabular-nums text-amber-100">{formatXof(r.modemPayDeposits)}</Td>
+                    <Td className="tabular-nums text-amber-100">
+                      {formatXof(r.modemPayWithdrawals)}
+                    </Td>
+                    <Td className="tabular-nums font-semibold text-amber-200">
+                      {formatXof(r.modemPayNet)}
+                    </Td>
+                    <Td className="tabular-nums text-slate-400">{formatXof(r.systemDeposits)}</Td>
+                    <Td className="tabular-nums text-slate-400">
+                      {formatXof(r.systemWithdrawals)}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableShell>
+        )}
+      </Card>
     </>
   );
 }
