@@ -60,17 +60,22 @@ function rtdbRef() {
   return getDatabase(ensureAdminApp()).ref();
 }
 
-/** O(1) lookup: payment_intent_id → BETESE-* external ref */
+/** O(1) lookup: payment_intent_id → AVIATOR-* / legacy BETESE-* external ref */
 export async function linkPaymentIntentIndex(paymentIntentId: string, externalRef: string): Promise<void> {
   if (!paymentIntentId || !externalRef) return;
   await rtdbRef().child(`payments/intentIndex/${paymentIntentId}`).set(externalRef);
+}
+
+function isAviatorRtdbRef(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  return value.startsWith('AVIATOR-') || value.startsWith('BETESE-');
 }
 
 export async function resolveExternalRefByPaymentIntent(paymentIntentId: string): Promise<string | undefined> {
   if (!paymentIntentId) return undefined;
   const snap = await rtdbRef().child(`payments/intentIndex/${paymentIntentId}`).get();
   const value = snap.val();
-  return typeof value === 'string' && value.startsWith('BETESE-') ? value : undefined;
+  return isAviatorRtdbRef(value) ? value : undefined;
 }
 
 export async function linkPaymentLinkIndex(paymentLinkId: string, externalRef: string): Promise<void> {
@@ -82,7 +87,7 @@ export async function resolveExternalRefByPaymentLink(paymentLinkId: string): Pr
   if (!paymentLinkId) return undefined;
   const snap = await rtdbRef().child(`payments/linkIndex/${paymentLinkId}`).get();
   const value = snap.val();
-  return typeof value === 'string' && value.startsWith('BETESE-') ? value : undefined;
+  return isAviatorRtdbRef(value) ? value : undefined;
 }
 
 export async function syncDepositToRtdb(record: RtdbDepositRecord): Promise<void> {

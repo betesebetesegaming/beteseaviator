@@ -1,9 +1,11 @@
+import { isAviatorDepositRef } from "@/lib/payments/aviatorPaymentRefs";
+
 /** Storage keys set when mobile checkout redirects away from the app. */
 export const PENDING_DEPOSIT_SESSION_KEY = "betese_pending_deposit";
 const PENDING_DEPOSIT_LOCAL_KEY = "betese_pending_deposit_ls";
 
 export function isModemPayDepositRef(ref: string | null | undefined): boolean {
-  return Boolean(ref?.startsWith("BETESE-") && !ref.startsWith("BETESE-WD-"));
+  return isAviatorDepositRef(ref);
 }
 
 function readStoredRef(key: string, consume: boolean): string | null {

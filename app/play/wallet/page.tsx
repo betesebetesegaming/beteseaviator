@@ -17,6 +17,7 @@ import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { requiresMandatoryOtpPhone } from "@/lib/env/publicConfig";
 import { apiUrl } from "@/lib/apiUrl";
+import { generateAviatorWithdrawalRef } from "@/lib/payments/aviatorPaymentRefs";
 import { PHONE_HINT, normalizeGambiaPhone, normalizePhone } from "@/lib/gambiaPhone";
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
@@ -134,7 +135,7 @@ export default function WalletPage() {
 
   // Smart Bonus "Activate" deep-link: /play/wallet?deposit=<amount> pre-fills the
   // matching deposit and opens the payment sheet. Also honors ?tab=deposit|refer.
-  // Ignore ModemPay return refs (BETESE-…).
+  // Ignore ModemPay return refs (AVIATOR-… / legacy BETESE-…).
   useEffect(() => {
     if (typeof window === "undefined" || frozen) return;
     const params = new URLSearchParams(window.location.search);
@@ -270,7 +271,7 @@ export default function WalletPage() {
       return toast.error("Verify your mobile number before withdrawing.");
     }
 
-    const requestId = `BETESE-WD-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    const requestId = generateAviatorWithdrawalRef();
     const cleanPhone = normalizedPhone.replace(/^\+220/, "").replace(/\D/g, "");
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 

@@ -233,7 +233,7 @@ export async function createTransfer(input: CreateTransferInput) {
     network,
     account_number: accountNumber,
     beneficiary_name: input.recipient.name || 'Customer',
-    narration: input.reason || 'Betese PMU withdrawal',
+    narration: input.reason || 'Betese Aviator withdrawal',
     metadata: {
       source: 'betese-aviator',
       external_reference: input.externalRef,

@@ -81,7 +81,7 @@ async function healAviatorWalletIfNeeded(
   }
 }
 
-const MERCHANT_NAME = process.env.MODEMPAY_MERCHANT_NAME || 'Betese PMU';
+const MERCHANT_NAME = process.env.MODEMPAY_MERCHANT_NAME || 'Betese Aviator';
 
 interface CheckoutBody {
   provider?: string;
@@ -823,7 +823,7 @@ function normalizeModemPayPayload(raw: Record<string, unknown>): Record<string, 
   return raw;
 }
 
-/** When payment_intent.created fires, link intent id → our BETESE-* checkout id. */
+/** When payment_intent.created fires, link intent id → our AVIATOR-* / legacy BETESE-* checkout id. */
 async function handlePaymentIntentCreated(payload: Record<string, unknown>): Promise<void> {
   const intentId = String(payload.id || payload.payment_intent_id || '').trim();
   let externalRef = extractExternalRef(payload);
@@ -1211,8 +1211,11 @@ async function replayStoredEventsForDeposit(externalRef: string): Promise<void> 
   }
 }
 
-function isBeteseExternalRef(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().startsWith('BETESE-');
+function isAviatorExternalRef(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const v = value.trim();
+  // New Aviator refs + legacy BETESE-* (used before brand split; keep accepting).
+  return v.startsWith('AVIATOR-') || v.startsWith('BETESE-');
 }
 
 function extractExternalRef(payload: Record<string, unknown>): string | undefined {
@@ -1232,7 +1235,7 @@ function extractExternalRef(payload: Record<string, unknown>): string | undefine
     payload.reference,
   ];
   for (const value of candidates) {
-    if (isBeteseExternalRef(value)) return value.trim();
+    if (isAviatorExternalRef(value)) return value.trim();
   }
   return undefined;
 }
@@ -1242,11 +1245,11 @@ function extractTransferExternalRef(payload: Record<string, unknown>): string | 
   if (direct) return direct;
   const metadata = payload.metadata as Record<string, unknown> | undefined;
   const withdrawalId = metadata?.withdrawal_request_id;
-  if (isBeteseExternalRef(withdrawalId)) return withdrawalId.trim();
+  if (isAviatorExternalRef(withdrawalId)) return withdrawalId.trim();
   return undefined;
 }
 
-/** Map ModemPay webhook payloads back to our BETESE-* deposit / checkout id. */
+/** Map ModemPay webhook payloads back to our AVIATOR-* / legacy BETESE-* deposit / checkout id. */
 async function resolveDepositExternalRef(
   payload: Record<string, unknown>,
   forceLookup = false,

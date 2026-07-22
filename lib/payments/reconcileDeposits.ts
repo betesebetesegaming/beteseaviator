@@ -1,4 +1,5 @@
 import { apiUrl } from "@/lib/apiUrl";
+import { isAviatorDepositRef } from "@/lib/payments/aviatorPaymentRefs";
 import type { RtdbDepositRecord } from "./rtdbRecords";
 
 /** Wait this long after checkout before first reconcile attempt (background sweep). */
@@ -33,7 +34,7 @@ export type ReconcileDepositResult = {
 
 export function isModemPayDepositRef(id: string, providerReference?: string | null): boolean {
   const ref = String(providerReference || id || "");
-  return ref.startsWith("BETESE-") && !ref.startsWith("BETESE-WD-");
+  return isAviatorDepositRef(ref);
 }
 
 export function parseDepositTimestamp(record: Pick<RtdbDepositRecord, "timestamp">): number {

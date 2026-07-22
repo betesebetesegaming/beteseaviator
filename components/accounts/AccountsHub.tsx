@@ -65,7 +65,7 @@ export function AccountsHub() {
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-400">
           {isAdmin
-            ? "Clear month-by-month books: customer deposits, sales, QTech / vendors, agent pay, and your profit. Open any month for the full breakdown."
+            ? "Betese Aviator month-by-month books: customer money, ModemPay balancing, sales, vendors, and profit. Aviator ModemPay is separate from Betese PMU."
             : "See your sales (GGR), cash desk book, ModemPay payments, and commission."}
         </p>
       </div>

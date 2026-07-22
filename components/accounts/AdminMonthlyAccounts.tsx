@@ -407,10 +407,11 @@ export function AdminMonthlyAccounts() {
 
       <Card className="mb-6 overflow-hidden border-amber-500/25 bg-amber-500/[0.04] p-0">
         <div className="border-b border-amber-500/15 px-4 py-3">
-          <h2 className="font-semibold text-white">ModemPay balancing</h2>
+          <h2 className="font-semibold text-white">ModemPay balancing (Betese Aviator only)</h2>
           <p className="text-xs text-slate-500">
-            Only money paid through ModemPay (Wave / Afrimoney) — use this to match your ModemPay
-            statement. Cash desk / system = total customer money minus ModemPay.
+            Only Aviator money paid through ModemPay (Wave / Afrimoney). This is not Betese PMU —
+            the two apps use separate ModemPay merchants and separate Firebase accounts. Cash desk /
+            system = total customer money minus Aviator ModemPay.
           </p>
         </div>
         <div className="grid gap-4 border-b border-amber-500/10 px-4 py-4 sm:grid-cols-2 lg:grid-cols-4">

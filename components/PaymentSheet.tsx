@@ -9,6 +9,7 @@ import { depositPresetAmounts, MIN_DEPOSIT_GMD } from "@/lib/depositLimits";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { isTerminalDepositStatus, startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
 import { rememberPendingDepositRef } from "@/lib/payments/pendingDepositSession";
+import { generateAviatorDepositRef } from "@/lib/payments/aviatorPaymentRefs";
 import { NumericKeypad } from "@/components/ui/NumericKeypad";
 
 type Method = 'AfriMoney' | 'Wave' | 'APS' | 'QMoney' | 'Card';
@@ -34,7 +35,7 @@ interface PaymentSheetProps {
   onDepositRequest: (amount: number, method: Method, phone: string, externalRef: string) => void | Promise<void>;
 }
 
-const generateRef = () => `BETESE-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+const generateRef = () => generateAviatorDepositRef();
 
 function isMobileCheckout(): boolean {
   if (typeof navigator === 'undefined') return false;
