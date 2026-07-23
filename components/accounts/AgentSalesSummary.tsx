@@ -88,6 +88,30 @@ export function AgentSalesSummary() {
       ),
     [deposits, customerIds, week]
   );
+  const todayDeposits = useMemo(
+    () =>
+      sumModemPayAmount(
+        filterModemPayDeposits(deposits, {
+          customerIds,
+          from: today,
+          to: today,
+          successfulOnly: true,
+        })
+      ),
+    [deposits, customerIds, today]
+  );
+  const todayWithdrawals = useMemo(
+    () =>
+      sumModemPayAmount(
+        filterModemPayWithdrawals(withdrawals, {
+          customerIds,
+          from: today,
+          to: today,
+          status: "completed",
+        })
+      ),
+    [withdrawals, customerIds, today]
+  );
   const monthDeposits = useMemo(
     () =>
       sumModemPayAmount(
@@ -132,7 +156,11 @@ export function AgentSalesSummary() {
     <div className="space-y-6">
       <p className="text-sm text-slate-400">
         Your sales (GGR from customers), commissions, cash desk book for today, and ModemPay
-        payments. Use <strong>Cash desk book</strong> for every OTP credit/payout you handled.
+        payments. Open{" "}
+        <Link href="/admin/accounts?tab=modempay" className="text-emerald-400 hover:underline">
+          ModemPay ledger
+        </Link>{" "}
+        for day-by-day deposits and payouts.
       </p>
 
       <AgentPeriodStats />
@@ -149,6 +177,24 @@ export function AgentSalesSummary() {
           label="Cash payouts today"
           value={formatXof(Number(cashToday?.cashWithdrawals ?? 0))}
           hint={`${today} · cash desk`}
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="ModemPay deposits today"
+          value={formatXof(todayDeposits)}
+          hint={today}
+        />
+        <StatCard
+          label="ModemPay payouts today"
+          value={formatXof(todayWithdrawals)}
+          hint={today}
+        />
+        <StatCard
+          label="ModemPay net today"
+          value={formatXof(Math.round((todayDeposits - todayWithdrawals) * 100) / 100)}
+          hint="deposits − payouts"
         />
       </div>
 

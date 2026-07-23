@@ -66,6 +66,31 @@ export function sumModemPayAmount(rows: { amount?: number }[]): number {
   return Math.round(rows.reduce((sum, r) => sum + Math.abs(Number(r.amount) || 0), 0) * 100) / 100;
 }
 
+export type ModemPayCashBucket = {
+  deposits: number;
+  withdrawals: number;
+  depositCount: number;
+  withdrawalCount: number;
+};
+
+function emptyBucket(): ModemPayCashBucket {
+  return { deposits: 0, withdrawals: 0, depositCount: 0, withdrawalCount: 0 };
+}
+
+function bumpBucket(
+  map: Map<string, ModemPayCashBucket>,
+  key: string,
+  field: "deposits" | "withdrawals",
+  amount: number
+) {
+  if (!key) return;
+  const cur = map.get(key) ?? emptyBucket();
+  cur[field] = Math.round((cur[field] + amount) * 100) / 100;
+  if (field === "deposits") cur.depositCount += 1;
+  else cur.withdrawalCount += 1;
+  map.set(key, cur);
+}
+
 /** Roll successful ModemPay deposits/withdrawals into calendar months (YYYY-MM → totals). */
 export function groupModemPayCashByMonth(
   deposits: RtdbDepositRecord[],
@@ -90,4 +115,62 @@ export function groupModemPayCashByMonth(
   }
 
   return byMonth;
+}
+
+/** Roll successful ModemPay cash into calendar days (YYYY-MM-DD) for fee reconciliation. */
+export function groupModemPayCashByDay(
+  deposits: RtdbDepositRecord[],
+  withdrawals: RtdbWithdrawalRecord[],
+  from: string,
+  to: string,
+  customerIds?: Set<string> | null
+): Map<string, ModemPayCashBucket> {
+  const byDay = new Map<string, ModemPayCashBucket>();
+
+  for (const row of filterModemPayDeposits(deposits, { from, to, successfulOnly: true, customerIds })) {
+    bumpBucket(byDay, paymentIsoDate(row.timestamp), "deposits", Math.abs(Number(row.amount) || 0));
+  }
+  for (const row of filterModemPayWithdrawals(withdrawals, {
+    from,
+    to,
+    status: "completed",
+    customerIds,
+  })) {
+    bumpBucket(
+      byDay,
+      paymentIsoDate(row.requested_at),
+      "withdrawals",
+      Math.abs(Number(row.amount) || 0)
+    );
+  }
+
+  return byDay;
+}
+
+export function summarizeModemPayPeriod(
+  deposits: RtdbDepositRecord[],
+  withdrawals: RtdbWithdrawalRecord[],
+  from: string,
+  to: string,
+  customerIds?: Set<string> | null
+): ModemPayCashBucket & { net: number; pendingPayouts: number; pendingPayoutCount: number } {
+  const okDeposits = filterModemPayDeposits(deposits, { from, to, successfulOnly: true, customerIds });
+  const okWithdrawals = filterModemPayWithdrawals(withdrawals, {
+    from,
+    to,
+    status: "completed",
+    customerIds,
+  });
+  const pending = filterModemPayWithdrawals(withdrawals, { from, to, status: "pending", customerIds });
+  const depositTotal = sumModemPayAmount(okDeposits);
+  const withdrawalTotal = sumModemPayAmount(okWithdrawals);
+  return {
+    deposits: depositTotal,
+    withdrawals: withdrawalTotal,
+    depositCount: okDeposits.length,
+    withdrawalCount: okWithdrawals.length,
+    net: Math.round((depositTotal - withdrawalTotal) * 100) / 100,
+    pendingPayouts: sumModemPayAmount(pending),
+    pendingPayoutCount: pending.length,
+  };
 }

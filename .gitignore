@@ -64,3 +64,5 @@ docs/qtech/__pycache__/
 
 # Capacitor local
 .capacitor/
+.vercel
+.env*

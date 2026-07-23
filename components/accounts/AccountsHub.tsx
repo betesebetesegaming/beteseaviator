@@ -8,8 +8,7 @@ import { AdminPlatformSummary } from "@/components/accounts/AdminPlatformSummary
 import { AdminMonthlyAccounts } from "@/components/accounts/AdminMonthlyAccounts";
 import { AdminAccountBook } from "@/components/accounts/AdminAccountBook";
 import { AgentSalesSummary } from "@/components/accounts/AgentSalesSummary";
-import { ModemPayDepositsPanel } from "@/components/accounts/ModemPayDepositsPanel";
-import { ModemPayWithdrawalsPanel } from "@/components/accounts/ModemPayWithdrawalsPanel";
+import { ModemPayLedger } from "@/components/accounts/ModemPayLedger";
 import { LedgerTransactionsPanel } from "@/components/accounts/LedgerTransactionsPanel";
 import { AgentCommissionsPanel } from "@/components/accounts/AgentCommissionsPanel";
 import { AgentCashDeskBook } from "@/components/accounts/AgentCashDeskBook";
@@ -18,10 +17,9 @@ import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 
 const ADMIN_TABS = [
   { id: "monthly", label: "Month by month" },
+  { id: "modempay", label: "ModemPay ledger" },
   { id: "book", label: "Customer deposits book" },
   { id: "summary", label: "This week / month" },
-  { id: "deposits", label: "ModemPay Deposits" },
-  { id: "withdrawals", label: "ModemPay Withdrawals" },
   { id: "transactions", label: "All Transactions" },
   { id: "agents", label: "Agent Commissions" },
 ] as const;
@@ -29,8 +27,7 @@ const ADMIN_TABS = [
 const AGENT_TABS = [
   { id: "sales", label: "My Sales" },
   { id: "cashdesk", label: "Cash desk book" },
-  { id: "deposits", label: "ModemPay Deposits" },
-  { id: "withdrawals", label: "ModemPay Withdrawals" },
+  { id: "modempay", label: "ModemPay ledger" },
   { id: "transactions", label: "My Transactions" },
   { id: "commissions", label: "My Commissions" },
 ] as const;
@@ -38,11 +35,18 @@ const AGENT_TABS = [
 type AdminTab = (typeof ADMIN_TABS)[number]["id"];
 type AgentTab = (typeof AGENT_TABS)[number]["id"];
 
+function normalizeTab(raw: string | null, isAdmin: boolean): string {
+  if (!raw) return isAdmin ? "monthly" : "sales";
+  // Old deep-links still land on the unified ModemPay ledger.
+  if (raw === "deposits" || raw === "withdrawals") return "modempay";
+  return raw;
+}
+
 export function AccountsHub() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const searchParams = useSearchParams();
-  const initial = searchParams.get("tab") || (isAdmin ? "monthly" : "sales");
+  const initial = normalizeTab(searchParams.get("tab"), isAdmin);
   const [tab, setTab] = useState<string>(initial);
   const { customerIds, customerNames } = useAgentCustomerIds(isAdmin ? undefined : profile?.uid);
 
@@ -65,8 +69,8 @@ export function AccountsHub() {
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-400">
           {isAdmin
-            ? "Betese Aviator month-by-month books: customer money, ModemPay balancing, sales, vendors, and profit. Aviator ModemPay is separate from Betese PMU."
-            : "See your sales (GGR), cash desk book, ModemPay payments, and commission."}
+            ? "Betese Aviator books: month-by-month P&L, ModemPay day/week/month cash for fee reconciliation, and agent commissions. Aviator ModemPay is separate from Betese PMU."
+            : "See your sales (GGR), cash desk book, ModemPay day/week/month payments, and commission."}
         </p>
       </div>
 
@@ -94,20 +98,17 @@ export function AccountsHub() {
               <AdminMonthlyAccounts />
             </ClientErrorBoundary>
           )}
+          {adminTab === "modempay" && (
+            <ClientErrorBoundary label="ModemPay ledger">
+              <ModemPayLedger customerIds={null} scopeLabel={scopeLabel} />
+            </ClientErrorBoundary>
+          )}
           {adminTab === "book" && (
             <ClientErrorBoundary label="Full account book">
               <AdminAccountBook />
             </ClientErrorBoundary>
           )}
           {adminTab === "summary" && <AdminPlatformSummary />}
-          {adminTab === "deposits" && (
-            <ClientErrorBoundary label="ModemPay deposits">
-              <ModemPayDepositsPanel customerIds={null} scopeLabel={scopeLabel} />
-            </ClientErrorBoundary>
-          )}
-          {adminTab === "withdrawals" && (
-            <ModemPayWithdrawalsPanel customerIds={null} scopeLabel={scopeLabel} />
-          )}
           {adminTab === "transactions" && (
             <LedgerTransactionsPanel scopeLabel="Full platform ledger" />
           )}
@@ -115,28 +116,21 @@ export function AccountsHub() {
         </>
       ) : (
         <>
-          <AgentServeAnyCustomer />
+          <AgentServeAnyCustomer cashOpsEnabled={!!profile?.cashOpsEnabled} />
           {agentTab === "sales" && <AgentSalesSummary />}
           {agentTab === "cashdesk" && (
             <ClientErrorBoundary label="Cash desk book">
               <AgentCashDeskBook />
             </ClientErrorBoundary>
           )}
-          {agentTab === "deposits" && (
-            <ClientErrorBoundary label="ModemPay deposits">
-              <ModemPayDepositsPanel
+          {agentTab === "modempay" && (
+            <ClientErrorBoundary label="ModemPay ledger">
+              <ModemPayLedger
                 customerIds={customerIds}
                 customerNames={customerNames}
                 scopeLabel={scopeLabel}
               />
             </ClientErrorBoundary>
-          )}
-          {agentTab === "withdrawals" && (
-            <ModemPayWithdrawalsPanel
-              customerIds={customerIds}
-              customerNames={customerNames}
-              scopeLabel={scopeLabel}
-            />
           )}
           {agentTab === "transactions" && (
             <LedgerTransactionsPanel scopeLabel="Your wallet, your customers, and your cash desk moves" />

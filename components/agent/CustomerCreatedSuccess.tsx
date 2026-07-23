@@ -7,15 +7,13 @@ import {
   Copy,
   Eye,
   EyeOff,
-  ExternalLink,
   MessageCircle,
   Smartphone,
 } from "lucide-react";
-import { buildAgentLinks, SITE_ORIGIN } from "@/lib/agentLinks";
+import { buildAgentLinks } from "@/lib/agentLinks";
 import {
   agentSignupShareMessage,
   customerAccountReadyMessage,
-  customerPlayUrl,
   smsShareUrl,
   whatsAppShareUrl,
 } from "@/lib/agentShare";
@@ -100,8 +98,9 @@ export function CustomerCreatedSuccess({
 }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const links = agentSlug ? buildAgentLinks(agentSlug) : null;
-  const playUrl = customerPlayUrl();
   const phoneDisplay = formatPhoneDisplay(phone);
+  /** Permanent named agent URL — customers must use this so commission tracks. */
+  const agentLink = links?.signupUrl ?? null;
 
   const readyMessage = useMemo(
     () =>
@@ -109,11 +108,10 @@ export function CustomerCreatedSuccess({
         phone,
         password,
         playerId,
-        playUrl,
-        agentLink: links?.signupUrl ?? null,
+        agentLink,
         agentName: agentName ?? null,
       }),
-    [phone, password, playerId, playUrl, links?.signupUrl, agentName]
+    [phone, password, playerId, agentLink, agentName]
   );
 
   async function copyText(text: string, label: string) {
@@ -129,7 +127,7 @@ export function CustomerCreatedSuccess({
           <div>
             <p className="font-semibold text-white">{customerName}&apos;s account is ready</p>
             <p className="mt-1 text-xs text-slate-400">
-              Share the details below with the customer now. The password is shown only once.
+              Share these details with the customer. They must use your agent link to play so you earn commission. Password is shown once.
             </p>
           </div>
         </div>
@@ -161,16 +159,11 @@ export function CustomerCreatedSuccess({
             mono
             onCopy={() => void copyText(playerId, "Player ID")}
           />
-          <DetailRow
-            label="Play here"
-            value={playUrl.replace(/^https?:\/\//, "")}
-            onCopy={() => void copyText(playUrl, "Play link")}
-          />
-          {links ? (
+          {agentLink ? (
             <DetailRow
               label="Agent link"
-              value={links.signupUrl.replace(/^https?:\/\//, "")}
-              onCopy={() => void copyText(links.signupUrl, "Agent link")}
+              value={agentLink.replace(/^https?:\/\//, "")}
+              onCopy={() => void copyText(agentLink, "Agent link")}
             />
           ) : null}
         </div>
@@ -205,22 +198,14 @@ export function CustomerCreatedSuccess({
               <Copy size={14} /> Copy details
             </button>
           </div>
-          <a
-            href={playUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-500/30 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10"
-          >
-            <ExternalLink size={14} /> Open play page ({SITE_ORIGIN.replace(/^https?:\/\//, "")})
-          </a>
         </div>
 
         {links ? (
           <ShareLinkPanel
             compact
             accent="emerald"
-            title="Share your signup link too"
-            subtitle="More customers can still join you online — same as your shop QR."
+            title="Share your agent link"
+            subtitle="Your permanent link with your name — customers who use it register and play under you for commission."
             url={links.signupUrl}
             shareMessage={agentSignupShareMessage({
               agentName: agentName ?? agentSlug ?? "Agent",

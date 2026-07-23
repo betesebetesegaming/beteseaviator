@@ -484,7 +484,12 @@ export function errorMessage(e: unknown): string {
       return cleaned || "Check your details and try again.";
     }
     if (err.code?.includes("internal")) {
-      return "Server error — please try again in a moment.";
+      return cleaned && cleaned.toUpperCase() !== "INTERNAL"
+        ? cleaned
+        : "Server error — please try again in a moment.";
+    }
+    if (err.code?.includes("unauthenticated") || cleaned.toLowerCase().includes("sign in")) {
+      return "Please sign in again, then retry.";
     }
     if (err.code?.includes("failed-precondition")) {
       return cleaned || "That action is not available right now.";

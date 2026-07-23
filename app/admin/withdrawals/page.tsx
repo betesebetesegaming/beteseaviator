@@ -44,7 +44,11 @@ export default function AdminWithdrawalsPage() {
         <h1 className="text-xl font-bold">Withdrawal queue</h1>
         <p className="text-sm text-slate-400">
           ModemPay mobile-money payouts — Pending and Processing requests are in flight. Completed
-          and Failed show the final outcome.
+          and Failed show the final outcome. For day / week / month totals and fee reconciliation, open{" "}
+          <a href="/admin/accounts?tab=modempay" className="text-emerald-400 hover:underline">
+            Accounts → ModemPay ledger
+          </a>
+          .
         </p>
       </div>
 

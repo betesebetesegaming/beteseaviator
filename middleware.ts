@@ -38,9 +38,15 @@ export function middleware(request: NextRequest) {
 
   const agentPathSlug = parseAgentSlugFromAgentPath(url.pathname);
   if (agentPathSlug) {
+    const wantLogin = url.searchParams.get("login") === "1";
     url.pathname = "/play";
     if (!url.searchParams.has("ref")) url.searchParams.set("ref", agentPathSlug);
-    if (!url.searchParams.has("signup")) url.searchParams.set("signup", "1");
+    if (wantLogin) {
+      url.searchParams.delete("signup");
+      url.searchParams.set("login", "1");
+    } else if (!url.searchParams.has("signup")) {
+      url.searchParams.set("signup", "1");
+    }
     return NextResponse.redirect(url);
   }
 
@@ -48,9 +54,15 @@ export function middleware(request: NextRequest) {
   if (pathMatch) {
     const pathSlug = pathMatch[1].toLowerCase();
     if (!AGENT_RESERVED_PATHS.has(pathSlug)) {
+      const wantLogin = url.searchParams.get("login") === "1";
       url.pathname = "/play";
       if (!url.searchParams.has("ref")) url.searchParams.set("ref", pathSlug);
-      if (!url.searchParams.has("signup")) url.searchParams.set("signup", "1");
+      if (wantLogin) {
+        url.searchParams.delete("signup");
+        url.searchParams.set("login", "1");
+      } else if (!url.searchParams.has("signup")) {
+        url.searchParams.set("signup", "1");
+      }
       return NextResponse.redirect(url);
     }
   }

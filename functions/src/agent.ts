@@ -6,10 +6,12 @@ import {
   requireOtpVerifiedForPhone,
   consumeOtpVerifiedForPhone,
 } from "./otpVerification";
+import { applyDepositBonuses } from "./bonuses";
 import {
   auth,
   db,
   FieldValue,
+  getSettings,
   normalizePhone,
   phoneToEmail,
   requireRole,
@@ -24,6 +26,8 @@ import {
   recordCustomersOpened,
   type ProfileData,
 } from "./helpers";
+import { onReferralDeposit } from "./referrals";
+import { recordDepositPlaythrough } from "./wagering";
 
 function slugify(input: string): string {
   return input
@@ -192,9 +196,18 @@ export const agentDepositToCustomer = onCall(async (req) => {
   }
   await requireOtpVerifiedForPhone(customerPhone);
 
+  const settings = await getSettings();
+  const depositAt = new Date();
+  const depositRef = `agent-${uid}-${Date.now()}`;
+
   await db.runTransaction(async (tx) => {
+    const userRef = db.doc(`users/${customerId}`);
+    const userSnap = await tx.get(userRef);
     const agentWallet = await walletRead(tx, uid);
     const customerWallet = await walletRead(tx, customerId);
+
+    await onReferralDeposit(tx, customerId, amount, settings);
+
     walletWrite(tx, agentWallet, {
       uid,
       amount: -amount,
@@ -207,10 +220,24 @@ export const agentDepositToCustomer = onCall(async (req) => {
       amount,
       type: "deposit",
       description: `Deposit by agent ${profile.name}`,
-      meta: { from: uid, fromName: profile.name },
+      meta: { from: uid, fromName: profile.name, depositRef },
       ignoreFrozen: true,
     });
-    bumpDailyStats(tx, todayIso(), { deposits: amount });
+
+    recordDepositPlaythrough(tx, customerId, customerWallet, amount);
+
+    applyDepositBonuses(tx, {
+      uid: customerId,
+      wallet: customerWallet,
+      depositAmount: amount,
+      depositRef,
+      depositAt,
+      userData: userSnap.data(),
+      settings,
+      userRef,
+    });
+
+    bumpDailyStats(tx, todayIso(depositAt), { deposits: amount });
     bumpPlatformStats(tx, { totalDeposits: amount });
     for (const agentId of customer.ancestors ?? []) {
       tx.set(

@@ -5,9 +5,11 @@ import {
   requireOtpVerifiedForPhone,
   consumeOtpVerifiedForPhone,
 } from "./otpVerification";
+import { applyDepositBonuses } from "./bonuses";
 import {
   db,
   FieldValue,
+  getSettings,
   normalizePhone,
   requireRole,
   round2,
@@ -18,6 +20,8 @@ import {
   bumpPlatformStats,
   type ProfileData,
 } from "./helpers";
+import { onReferralDeposit } from "./referrals";
+import { recordDepositPlaythrough } from "./wagering";
 
 function withdrawalToken(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -125,20 +129,44 @@ async function doCashDeposit(opts: {
   }
   const phone = await requireCustomerOtp(customer);
   const playerId = customerPlayerId(customer, customerId);
+  const settings = await getSettings();
+  const depositAt = new Date();
+  const depositRef = `cash-${actorUid}-${Date.now()}`;
 
   await db.runTransaction(async (tx) => {
+    const userRef = db.doc(`users/${customerId}`);
+    const userSnap = await tx.get(userRef);
     const customerWallet = await walletRead(tx, customerId);
+
+    // Referral + playthrough must mirror ModemPay so first-deposit bonus stays fair.
+    await onReferralDeposit(tx, customerId, amount, settings);
+
     walletWrite(tx, customerWallet, {
       uid: customerId,
       amount,
       type: "deposit",
       description: `Cash deposit at ${actorName}`,
-      meta: { otcCash: true, agentId: actorUid, agentName: actorName, playerId },
+      meta: { otcCash: true, agentId: actorUid, agentName: actorName, playerId, depositRef },
       ignoreFrozen: true,
     });
-    bumpDailyStats(tx, todayIso(), { deposits: amount });
+
+    recordDepositPlaythrough(tx, customerId, customerWallet, amount);
+
+    // Honours Admin → Bonuses toggle (firstDeposit.enabled / campaign end).
+    applyDepositBonuses(tx, {
+      uid: customerId,
+      wallet: customerWallet,
+      depositAmount: amount,
+      depositRef,
+      depositAt,
+      userData: userSnap.data(),
+      settings,
+      userRef,
+    });
+
+    bumpDailyStats(tx, todayIso(depositAt), { deposits: amount });
     bumpPlatformStats(tx, { totalDeposits: amount });
-    const date = todayIso();
+    const date = todayIso(depositAt);
     // Attribute cash desk credit to the acting agent (walk-ins included) + tree ancestors.
     const attributed = new Set<string>([actorUid, ...(customer.ancestors ?? [])]);
     for (const agentId of attributed) {
@@ -229,27 +257,27 @@ async function doCashWithdraw(opts: {
   return { ok: true, withdrawalCode, playerId, amount, customerName: customer.name };
 }
 
-/** Admin enables OTC cash deposit/withdraw at an agent shop (special cases only). */
-export const adminSetAgentCashOps = onCall(async (req) => {
-  await requireRole(req, ["admin"]);
-  const uid = String(req.data?.uid ?? "");
-  const enabled = Boolean(req.data?.enabled);
-  if (!uid) throw new HttpsError("invalid-argument", "uid is required.");
-
-  const snap = await db.doc(`users/${uid}`).get();
-  if (!snap.exists) throw new HttpsError("not-found", "User not found.");
+/** Agent must have cash desk turned on by admin. */
+async function requireAgentCashOps(agentUid: string): Promise<ProfileData> {
+  const snap = await db.doc(`users/${agentUid}`).get();
+  if (!snap.exists) throw new HttpsError("not-found", "Agent profile not found.");
   const profile = snap.data() as ProfileData;
   if (!isAgentRole(profile.role)) {
-    throw new HttpsError("invalid-argument", "Cash desk can only be enabled for agents.");
+    throw new HttpsError("permission-denied", "Only agents can use cash desk operations.");
   }
-
-  await db.doc(`users/${uid}`).set({ cashOpsEnabled: enabled }, { merge: true });
-  return { ok: true, uid, cashOpsEnabled: enabled };
-});
+  if (!profile.cashOpsEnabled) {
+    throw new HttpsError(
+      "permission-denied",
+      "Cash desk is not enabled for your account. Ask BETESE admin to turn it on.",
+    );
+  }
+  return profile;
+}
 
 /** Agent receives physical cash and credits any customer wallet (OTP-authorised, no float debit). */
 export const agentOtcCashDeposit = onCall(async (req) => {
   const { uid, profile } = await requireRole(req, ["agent"]);
+  await requireAgentCashOps(uid);
   const customerId = String(req.data?.customerId ?? "");
   const amount = round2(Number(req.data?.amount));
   const customer = await getCustomerPlayer(customerId);
@@ -259,6 +287,7 @@ export const agentOtcCashDeposit = onCall(async (req) => {
 /** Agent pays physical cash to any customer — OTP-authorised debit + office withdrawal code. */
 export const agentOtcCashWithdraw = onCall(async (req) => {
   const { uid, profile } = await requireRole(req, ["agent"]);
+  await requireAgentCashOps(uid);
   const customerId = String(req.data?.customerId ?? "");
   const amount = round2(Number(req.data?.amount));
   const customer = await getCustomerPlayer(customerId);
@@ -266,11 +295,12 @@ export const agentOtcCashWithdraw = onCall(async (req) => {
 });
 
 /**
- * Any agent looks up ANY customer by Player ID or phone (walk-ins included).
- * The actual money move still needs the customer's OTP.
+ * Cash-desk agent looks up ANY customer by Player ID or phone (walk-ins included).
+ * Gated by admin Enable cash desk; money moves still need the customer's OTP.
  */
 export const agentLookupCustomer = onCall(async (req) => {
-  await requireRole(req, ["agent"]);
+  const { uid } = await requireRole(req, ["agent"]);
+  await requireAgentCashOps(uid);
   const q = String(req.data?.query ?? "").trim();
   if (!q) throw new HttpsError("invalid-argument", "Enter a Player ID or phone number.");
 

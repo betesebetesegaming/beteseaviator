@@ -179,6 +179,37 @@ export const adminSetUserStatus = onCall(async (req) => {
   return { ok: true };
 });
 
+/**
+ * Admin enables / disables OTC cash desk for an agent (shop cash credit & withdraw).
+ * Kept next to other admin user toggles so it does not share the heavy cash-ops module.
+ */
+export const adminSetAgentCashOps = onCall(async (req) => {
+  try {
+    await requireRole(req, ["admin"]);
+    const uid = String(req.data?.uid ?? "").trim();
+    const enabled = Boolean(req.data?.enabled);
+    if (!uid) throw new HttpsError("invalid-argument", "uid is required.");
+
+    const snap = await db.doc(`users/${uid}`).get();
+    if (!snap.exists) throw new HttpsError("not-found", "User not found.");
+    const profile = snap.data() as ProfileData;
+    if (!isAgentRole(profile.role)) {
+      throw new HttpsError("invalid-argument", "Cash desk can only be enabled for agents.");
+    }
+
+    await db.doc(`users/${uid}`).set({ cashOpsEnabled: enabled }, { merge: true });
+    logger.info("adminSetAgentCashOps", { uid, enabled, agentName: profile.name });
+    return { ok: true as const, uid, cashOpsEnabled: enabled };
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    logger.error("adminSetAgentCashOps failed", e);
+    throw new HttpsError(
+      "internal",
+      e instanceof Error ? e.message : "Could not update cash desk. Please try again.",
+    );
+  }
+});
+
 /** Credit or debit any wallet with a mandatory, audited reason. */
 export const adminAdjustWallet = onCall(async (req) => {
   const { uid: adminUid } = await requireRole(req, ["admin"]);
@@ -402,7 +433,8 @@ export const adminSaveSettings = onCall(async (req) => {
         throw new HttpsError("invalid-argument", `Invalid ${key} bonus min deposit.`);
       }
       const rule: Record<string, unknown> = {
-        enabled: src.enabled !== false,
+        // Explicit boolean so Admin ON/OFF checkbox always persists correctly.
+        enabled: src.enabled === true,
         percent,
         maxAmount,
         minDeposit,

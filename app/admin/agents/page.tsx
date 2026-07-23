@@ -38,7 +38,8 @@ function AdminAgentsContent() {
   useEffect(() => {
     const q = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(500));
     return onSnapshot(q, (snap) => {
-      setUsers(snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as UserProfile));
+      // uid must win over any uid field stored inside the document
+      setUsers(snap.docs.map((d) => ({ ...d.data(), uid: d.id }) as UserProfile));
     });
   }, []);
 
@@ -131,7 +132,7 @@ function AdminAgentsContent() {
             <code className="text-violet-200">/agent/fatou</code>) or <strong>full name</strong> (
             <code className="text-violet-200">/agent/fatoujarju</code>).
           </li>
-          <li>Turn on <strong>Cash desk</strong> below if they handle shop cash.</li>
+          <li>Turn on <strong>Enable cash desk</strong> below so they can Credit (cash) / Withdraw at the shop.</li>
         </ol>
         <p className="mt-3 text-xs text-violet-200/70">
           To open a customer (player) account, use{" "}

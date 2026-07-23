@@ -25,13 +25,12 @@ export {
   ensurePrimaryAdmin,
 } from "./auth";
 export { placeBet, cashout, pokeRound, gameTick } from "./game";
-export { adminResolvePayment, requestWithdrawal } from "./payments";
+export { adminResolvePayment, requestWithdrawal, requestDeposit } from "./payments";
 export {
   agentCreateCustomer,
   agentDepositToCustomer,
 } from "./agent";
 export {
-  adminSetAgentCashOps,
   agentOtcCashDeposit,
   agentOtcCashWithdraw,
   agentLookupCustomer,
@@ -41,6 +40,7 @@ export {
 export {
   adminCreateUser,
   adminSetUserStatus,
+  adminSetAgentCashOps,
   adminAdjustWallet,
   adminFreezeWallet,
   adminResetPlayerPassword,

@@ -87,7 +87,7 @@ function AdminUsersContent() {
   useEffect(() => {
     const q = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(500));
     return onSnapshot(q, (snap) => {
-      setUsers(snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as UserProfile));
+      setUsers(snap.docs.map((d) => ({ ...d.data(), uid: d.id }) as UserProfile));
     });
   }, []);
 

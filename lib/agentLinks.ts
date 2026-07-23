@@ -67,6 +67,8 @@ export type AgentLinks = {
   slug: string;
   /** Primary share link: beteseaviator.com/agent/fatoujarju */
   signupUrl: string;
+  /** For players whose account the agent already opened — opens Sign in, not Register. */
+  loginUrl: string;
   /** @deprecated Legacy short path — still works */
   legacyPathUrl: string;
   subdomain: string;
@@ -80,6 +82,7 @@ export function buildAgentLinks(slug: string): AgentLinks {
   return {
     slug: clean,
     signupUrl: `${SITE_ORIGIN}/agent/${clean}`,
+    loginUrl: `${SITE_ORIGIN}/agent/${clean}?login=1`,
     legacyPathUrl: `${SITE_ORIGIN}/${clean}`,
     subdomain,
     subdomainUrl: `https://${subdomain}`,
@@ -90,6 +93,11 @@ export function buildAgentLinks(slug: string): AgentLinks {
 /** Primary marketing URL agents share. */
 export function agentSignupUrl(slug: string): string {
   return buildAgentLinks(slug).signupUrl;
+}
+
+/** Agent link that opens Sign in (for customers the agent already registered). */
+export function agentLoginUrl(slug: string): string {
+  return buildAgentLinks(slug).loginUrl;
 }
 
 export function agentSignupPath(slug: string): string {

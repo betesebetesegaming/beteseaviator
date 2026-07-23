@@ -47,6 +47,7 @@ function PlayAuthFromQuery() {
     }
 
     const signup = searchParams.get("signup");
+    const login = searchParams.get("login");
     const pref = searchParams.get("pref")?.toUpperCase().trim() || null;
     let ref = searchParams.get("ref")?.toLowerCase().trim() || null;
 
@@ -54,9 +55,9 @@ function PlayAuthFromQuery() {
       ref = parseAgentSlugFromHost(window.location.hostname);
     }
 
-    if (signup === "1") {
+    if (signup === "1" || login === "1") {
       handledRef.current = true;
-      openAuth("register", ref, pref);
+      openAuth(signup === "1" ? "register" : "login", ref, pref);
       const params = new URLSearchParams();
       if (ref) params.set("ref", ref);
       if (pref) params.set("pref", pref);
@@ -138,7 +139,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
       <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/75 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/play">
-            <Logo height={34} />
+            <Logo height={34} priority />
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-3">

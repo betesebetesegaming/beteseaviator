@@ -4,10 +4,13 @@ export function Logo({
   className = "",
   height = 36,
   showWordmark = true,
+  priority = false,
 }: {
   className?: string;
   height?: number;
   showWordmark?: boolean;
+  /** Only set on above-the-fold logos (e.g. lobby header) to avoid unused preload warnings in game views. */
+  priority?: boolean;
 }) {
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
@@ -17,7 +20,7 @@ export function Logo({
         width={Math.round(height * 2.4)}
         height={height}
         className="h-auto w-auto object-contain"
-        priority
+        priority={priority}
       />
       {showWordmark && (
         <span className="hidden font-bold tracking-tight sm:inline">

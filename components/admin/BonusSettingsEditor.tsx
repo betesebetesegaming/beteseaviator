@@ -24,12 +24,18 @@ function BonusRuleEditor({
     <div className="rounded-lg border border-white/10 bg-slate-950/60 p-4">
       <label className="mb-3 flex cursor-pointer items-center justify-between gap-3">
         <span className="text-sm font-semibold">{title}</span>
-        <input
-          type="checkbox"
-          checked={rule.enabled}
-          onChange={(e) => onChange({ enabled: e.target.checked })}
-          className="h-4 w-4 accent-violet-500"
-        />
+        <span className="flex items-center gap-2">
+          <span className={`text-xs font-semibold ${rule.enabled ? "text-emerald-400" : "text-slate-500"}`}>
+            {rule.enabled ? "ON" : "OFF"}
+          </span>
+          <input
+            type="checkbox"
+            checked={rule.enabled}
+            onChange={(e) => onChange({ enabled: e.target.checked })}
+            className="h-4 w-4 accent-violet-500"
+            aria-label={`${title} ${rule.enabled ? "on" : "off"}`}
+          />
+        </span>
       </label>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block text-xs text-slate-400">

@@ -196,7 +196,7 @@ export default function AgentPlayersPage() {
         </div>
       ) : null}
 
-      <AgentServeAnyCustomer />
+      <AgentServeAnyCustomer cashOpsEnabled={!!profile?.cashOpsEnabled} />
 
       <div className="relative mb-4 max-w-sm">
         <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
@@ -241,6 +241,7 @@ export default function AgentPlayersPage() {
                 <Td>
                   <AgentCustomerCashActions
                     customer={p}
+                    cashOpsEnabled={!!profile?.cashOpsEnabled}
                     isAdmin={profile?.role === "admin"}
                     onFloatDeposit={() => openDeposit(p)}
                   />
