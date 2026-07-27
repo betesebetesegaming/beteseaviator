@@ -244,6 +244,7 @@ export async function createCheckoutSession(
       phone: string,
       amount: number,
       method: string,
+      findOpts?: { allowStale?: boolean },
     ) => Promise<StoredWalletPayLink | null>;
     persistPayLink?: (input: PersistPayLinkInput) => Promise<void>;
   },
@@ -316,9 +317,12 @@ export async function createCheckoutSession(
 
   // Prefer an existing Wave deep link before creating another direct charge.
   // ModemPay rejects a second phone+amount while one is still open.
+  // Only reuse fresh links here so expired Wave QR codes don't stick forever.
   if (input.method !== 'card' && opts?.findStoredPayLink) {
     try {
-      const stored = await opts.findStoredPayLink(accountNumber, amount, input.method);
+      const stored = await opts.findStoredPayLink(accountNumber, amount, input.method, {
+        allowStale: false,
+      });
       if (stored?.checkoutUrl && isWalletDeepPayUrl(stored.checkoutUrl)) {
         logger.info('Reusing stored wallet deep-pay link (before create)', {
           amount,
@@ -401,10 +405,12 @@ export async function createCheckoutSession(
   }
 
   // Duplicate open direct charge for this phone+amount → reuse OUR stored Wave link
-  // (ModemPay retrieve/list only return hosted URLs which break Wave).
+  // even if stale (ModemPay still blocking; hosted retrieve URLs break Wave).
   if (input.method !== 'card' && opts?.findStoredPayLink) {
     try {
-      const stored = await opts.findStoredPayLink(accountNumber, amount, input.method);
+      const stored = await opts.findStoredPayLink(accountNumber, amount, input.method, {
+        allowStale: true,
+      });
       if (stored?.checkoutUrl && isWalletDeepPayUrl(stored.checkoutUrl)) {
         logger.info('Reusing stored wallet deep-pay link (after create fail)', {
           amount,
@@ -429,7 +435,7 @@ export async function createCheckoutSession(
     }
   }
 
-  const upstream = modemPayErrorMessage(data);
+  const upstream = modemPayErrorMessage(data, 'Wave checkout failed');
   const blockedDuplicate =
     input.method !== 'card' &&
     (upstream.toLowerCase().includes('validation') || status === 500);
@@ -446,7 +452,9 @@ export async function createCheckoutSession(
     blockedDuplicate ? 409 : status || 502,
     blockedDuplicate
       ? `Wave already has an open GMD ${amount} payment for this number. Open the Wave app and approve it now (or wait ~15 minutes), then try again.`
-      : upstream,
+      : upstream === 'Validation error'
+        ? 'Could not start Wave payment. Please try again in a moment.'
+        : upstream,
   );
 }
 

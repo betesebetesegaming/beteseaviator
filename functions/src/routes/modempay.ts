@@ -88,6 +88,19 @@ async function healAviatorWalletIfNeeded(
 
 const MERCHANT_NAME = process.env.MODEMPAY_MERCHANT_NAME || 'Betese Aviator';
 
+/** Prefer a fresh create after this age; still reuse if ModemPay Validation blocks. */
+const WAVE_LINK_FRESH_MS = 12 * 60 * 1000;
+
+/** Same-instance fallback when Firestore write races a second checkout. */
+const waveLinkMemory = new Map<
+  string,
+  { link: StoredWalletPayLink; updatedAt: number; status: string }
+>();
+
+function waveReuseKey(method: string, phone: string, amount: number): string {
+  return `${method}:${normalizeModemPayAccountNumber(phone)}:${amount}`;
+}
+
 /**
  * When ModemPay blocks a second direct charge (same phone + amount), reuse the
  * Wave deep link we stored from the first create — never ModemPay hosted pages.
@@ -96,11 +109,24 @@ async function findStoredWalletPayLink(
   phone: string,
   amount: number,
   method: string,
+  opts?: { allowStale?: boolean },
 ): Promise<StoredWalletPayLink | null> {
   const account = normalizeModemPayAccountNumber(phone);
   if (!account || !Number.isFinite(amount)) return null;
 
-  const reuseKey = `${method}:${account}:${amount}`;
+  const reuseKey = waveReuseKey(method, account, amount);
+  const allowStale = Boolean(opts?.allowStale);
+  const now = Date.now();
+
+  const mem = waveLinkMemory.get(reuseKey);
+  if (
+    mem &&
+    mem.status === 'pending' &&
+    isWalletDeepPayUrl(mem.link.checkoutUrl) &&
+    (allowStale || now - mem.updatedAt < WAVE_LINK_FRESH_MS)
+  ) {
+    return mem.link;
+  }
 
   // Dedicated cache doc — written as soon as ModemPay returns pay.wave.com.
   const cacheSnap = await adminDb.collection('wave_pay_links').doc(reuseKey).get();
@@ -112,15 +138,27 @@ async function findStoredWalletPayLink(
       intent_secret?: string | null;
       external_ref?: string;
       status?: string;
+      updated_at?: string;
+      created_at?: string;
     };
     const url = d.wave_payment_link || d.checkout_url || null;
-    if (url && isWalletDeepPayUrl(url) && d.status !== 'completed' && d.status !== 'failed') {
-      return {
+    const updatedAt = Date.parse(String(d.updated_at || d.created_at || '')) || 0;
+    const freshEnough = allowStale || !updatedAt || now - updatedAt < WAVE_LINK_FRESH_MS;
+    if (
+      url &&
+      isWalletDeepPayUrl(url) &&
+      d.status !== 'completed' &&
+      d.status !== 'failed' &&
+      freshEnough
+    ) {
+      const link: StoredWalletPayLink = {
         checkoutUrl: url,
         sessionId: d.session_id || null,
         intentSecret: d.intent_secret || null,
         externalRef: d.external_ref || reuseKey,
       };
+      waveLinkMemory.set(reuseKey, { link, updatedAt: updatedAt || now, status: 'pending' });
+      return link;
     }
   }
 
@@ -148,18 +186,27 @@ async function findStoredWalletPayLink(
       if (row.status && !['pending', 'processing'].includes(String(row.status).toLowerCase())) {
         return false;
       }
-      return Boolean(row.url && isWalletDeepPayUrl(row.url));
+      if (!row.url || !isWalletDeepPayUrl(row.url)) return false;
+      if (allowStale) return true;
+      const created = Date.parse(String(row.created_at || '')) || 0;
+      return !created || now - created < WAVE_LINK_FRESH_MS;
     })
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
 
   const best = rows[0];
   if (!best?.url) return null;
-  return {
+  const link: StoredWalletPayLink = {
     checkoutUrl: best.url,
     sessionId: best.session_id || null,
     intentSecret: best.intent_secret || null,
     externalRef: best.external_ref || best.id,
   };
+  waveLinkMemory.set(reuseKey, {
+    link,
+    updatedAt: Date.parse(String(best.created_at || '')) || now,
+    status: 'pending',
+  });
+  return link;
 }
 
 async function persistWalletPayLink(input: {
@@ -173,9 +220,22 @@ async function persistWalletPayLink(input: {
 }): Promise<void> {
   if (!isWalletDeepPayUrl(input.checkoutUrl)) return;
   const account = normalizeModemPayAccountNumber(input.phone);
-  const reuseKey = `${input.method}:${account}:${input.amount}`;
+  const reuseKey = waveReuseKey(input.method, account, input.amount);
   const now = new Date().toISOString();
-  await adminDb.collection('wave_pay_links').doc(reuseKey).set(
+  const link: StoredWalletPayLink = {
+    checkoutUrl: input.checkoutUrl,
+    sessionId: input.sessionId,
+    intentSecret: input.intentSecret,
+    externalRef: input.externalRef,
+  };
+  waveLinkMemory.set(reuseKey, { link, updatedAt: Date.now(), status: 'pending' });
+  const ref = adminDb.collection('wave_pay_links').doc(reuseKey);
+  const existing = await ref.get();
+  const createdAt =
+    existing.exists && typeof existing.data()?.created_at === 'string'
+      ? String(existing.data()?.created_at)
+      : now;
+  await ref.set(
     {
       reuse_key: reuseKey,
       method: input.method,
@@ -188,7 +248,32 @@ async function persistWalletPayLink(input: {
       external_ref: input.externalRef,
       status: 'pending',
       updated_at: now,
-      created_at: now,
+      created_at: createdAt,
+    },
+    { merge: true },
+  );
+}
+
+async function releaseWavePayLinkLock(opts: {
+  reuseKey?: string | null;
+  method?: string;
+  phone?: string | null;
+  amount?: number | null;
+  status: 'completed' | 'failed';
+  at: string;
+}): Promise<void> {
+  const reuseKey =
+    opts.reuseKey ||
+    (opts.method && opts.phone && opts.amount != null
+      ? waveReuseKey(opts.method, opts.phone, Number(opts.amount))
+      : null);
+  if (!reuseKey) return;
+  waveLinkMemory.delete(reuseKey);
+  await adminDb.collection('wave_pay_links').doc(reuseKey).set(
+    {
+      status: opts.status,
+      ...(opts.status === 'completed' ? { completed_at: opts.at } : { failed_at: opts.at }),
+      updated_at: opts.at,
     },
     { merge: true },
   );
@@ -209,12 +294,13 @@ interface CheckoutBody {
 }
 
 /**
- * POST /api/modempay-checkout
+ * POST /modempay-checkout
  *
- * Creates a Modem Pay hosted-checkout session for any of the five supported
- * methods (wave, aps, afrimoney, qmoney, card). Front-end posts amount,
- * customer info, and a unique externalRef; we return the checkoutUrl which the
- * front-end opens in a new tab.
+ * Permanent Wave deposit path (same as successful GMD 25 / 50 / 100):
+ * 1) Direct-charge ModemPay → pay.wave.com deep link
+ * 2) Persist that link immediately (wave_pay_links)
+ * 3) If phone+amount is still open, reuse our stored Wave link (never hosted ModemPay)
+ * 4) On success/fail webhook, release the lock so the next deposit creates fresh
  */
 export async function checkoutHandler(req: Request, res: Response): Promise<void> {
   const body = (req.body || {}) as CheckoutBody;
@@ -275,7 +361,8 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
         findStoredPayLink:
           provider === 'card'
             ? undefined
-            : (phone, amt, method) => findStoredWalletPayLink(phone, amt, method),
+            : (phone, amt, method, findOpts) =>
+                findStoredWalletPayLink(phone, amt, method, findOpts),
         persistPayLink:
           provider === 'card'
             ? undefined
@@ -294,8 +381,8 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
           : null;
 
     if (!result.ok || !checkoutUrl) {
-      const upstreamMessage = modemPayErrorMessage(result.raw, 'ModemPay checkout creation failed');
-      logger.warn('ModemPay checkout creation failed', {
+      const upstreamMessage = modemPayErrorMessage(result.raw, 'Wave checkout failed');
+      logger.warn('Wave checkout creation failed', {
         status: result.status,
         method: provider,
         amount,
@@ -304,8 +391,12 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
         raw: result.raw,
       });
       const clientStatus = result.status >= 400 && result.status < 500 ? result.status : 502;
+      const publicError =
+        upstreamMessage === 'Validation error' || upstreamMessage.toLowerCase().includes('modempay')
+          ? 'Could not start Wave payment. Please try again in a moment.'
+          : upstreamMessage;
       res.status(clientStatus).json({
-        error: upstreamMessage,
+        error: publicError,
         upstreamStatus: result.status,
         details: result.raw,
       });
@@ -319,6 +410,18 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
         amount,
         phone: body.customerPhone || null,
       });
+      // Point the open Wave intent at THIS deposit so the webhook credits the right wallet.
+      if (provider !== 'card' && accountNumber) {
+        await persistWalletPayLink({
+          phone: accountNumber,
+          amount,
+          method: provider,
+          checkoutUrl,
+          sessionId: result.sessionId,
+          intentSecret: result.intentSecret,
+          externalRef: body.externalRef,
+        }).catch(err => logger.warn('reuse persistPayLink failed', { err }));
+      }
     }
 
     // Critical markers MUST land before we respond — Cloud Run may freeze CPU
@@ -368,7 +471,7 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
           provider_reference: body.externalRef,
           verification_status: 'PendingProviderConfirmation',
           verification_source: 'webhook',
-          verification_message: 'Waiting for ModemPay to confirm payment before your wallet is credited.',
+          verification_message: 'Waiting for Wave to confirm payment before your wallet is credited.',
         }, { merge: true }),
       );
     }
@@ -429,7 +532,7 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
         provider_reference: body.externalRef,
         verification_status: 'PendingProviderConfirmation',
         verification_source: 'webhook',
-        verification_message: 'Waiting for ModemPay to confirm payment before your wallet is credited.',
+        verification_message: 'Waiting for Wave to confirm payment before your wallet is credited.',
       };
       secondary.push(
         syncDepositToRtdb(pendingDeposit).catch(err => logger.warn('RTDB deposit sync failed', err)),
@@ -1315,17 +1418,14 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
       customer_phone?: string;
       reuse_key?: string;
     } | undefined;
-    const reuseKey =
-      done?.reuse_key ||
-      (done?.method && done?.customer_phone && done?.amount != null
-        ? `${done.method}:${normalizeModemPayAccountNumber(done.customer_phone)}:${done.amount}`
-        : null);
-    if (reuseKey) {
-      await adminDb.collection('wave_pay_links').doc(reuseKey).set(
-        { status: 'completed', completed_at: completedAt },
-        { merge: true },
-      );
-    }
+    await releaseWavePayLinkLock({
+      reuseKey: done?.reuse_key || null,
+      method: done?.method,
+      phone: done?.customer_phone,
+      amount: done?.amount,
+      status: 'completed',
+      at: completedAt,
+    });
   } catch (err) {
     logger.warn('wave_pay_links clear failed', { externalRef, err: serializeError(err) });
   }
@@ -1577,13 +1677,35 @@ async function markDepositFailed(externalRef: string, reason: string, payload: R
   await adminDb.collection('deposit_requests').doc(externalRef).set({
     status: 'Rejected',
     processed_by: 'MODEMPAY_WEBHOOK',
-    processed_by_name: 'ModemPay',
+    processed_by_name: 'Wave',
     processed_at: failedAt,
     verification_status: 'VerificationFailed',
     verification_source: 'webhook',
     verification_message: reason,
     verified_at: failedAt,
   }, { merge: true }).catch(err => logger.warn('Failed to mark deposit request failed', err));
+
+  // Release Wave phone+amount lock so the customer can start a fresh deposit.
+  try {
+    const failedCheckout = checkoutSnap.exists
+      ? (checkoutSnap.data() as {
+          method?: string;
+          amount?: number;
+          customer_phone?: string;
+          reuse_key?: string;
+        })
+      : undefined;
+    await releaseWavePayLinkLock({
+      reuseKey: failedCheckout?.reuse_key || null,
+      method: failedCheckout?.method,
+      phone: failedCheckout?.customer_phone,
+      amount: failedCheckout?.amount,
+      status: 'failed',
+      at: failedAt,
+    });
+  } catch (err) {
+    logger.warn('wave_pay_links fail release failed', { externalRef, err: serializeError(err) });
+  }
 
   await patchDepositOnRtdb(externalRef, customerId, {
     status: 'Rejected',
