@@ -803,9 +803,15 @@ async function processModemPayEvent(event: ModemPayEvent): Promise<void> {
     case 'payment_intent.expired':
     case 'payment_intent.failed':
     case 'payment.failed': {
-      const ref = depositRef || await resolveDepositExternalRef(payload, true);
+      // NEVER resolve failures by phone+amount hints — an old expired Wave
+      // intent for the same number would kill the customer's NEW pending deposit.
+      const ref = depositRef || await resolveDepositExternalRef(payload, false);
       if (ref) await markDepositFailed(ref, eventType, payload);
-      else logger.warn(`${eventType} could not resolve deposit externalRef`, payload);
+      else logger.warn(`${eventType} could not resolve deposit externalRef`, {
+        id: payload.id,
+        payment_intent_id: payload.payment_intent_id,
+        amount: payload.amount,
+      });
       return;
     }
 
@@ -1357,7 +1363,41 @@ function mapModemPayMethodLabel(method: unknown): string {
 
 async function markDepositFailed(externalRef: string, reason: string, payload: Record<string, unknown>) {
   const failedAt = new Date().toISOString();
+  const intentId = String(
+    payload.payment_intent_id || payload.payment_intentId || payload.id || '',
+  ).trim();
+
   const checkoutRef = adminDb.collection('modempay_checkouts').doc(externalRef);
+  const checkoutSnap = await checkoutRef.get();
+  if (checkoutSnap.exists) {
+    const checkout = checkoutSnap.data() as {
+      status?: string;
+      session_id?: string | null;
+      payment_intent_id?: string | null;
+    };
+    // Already settled — ignore late expired/failed webhooks.
+    if (checkout.status === 'completed' || checkout.status === 'failed') {
+      logger.info('markDepositFailed skipped — checkout already settled', {
+        externalRef,
+        status: checkout.status,
+        reason,
+      });
+      return;
+    }
+    // Only fail if this webhook is about the intent we actually opened for this deposit.
+    const linked =
+      String(checkout.session_id || '').trim() || String(checkout.payment_intent_id || '').trim();
+    if (intentId && linked && linked !== intentId) {
+      logger.warn('markDepositFailed skipped — intent id mismatch (stale expiry)', {
+        externalRef,
+        linked,
+        intentId,
+        reason,
+      });
+      return;
+    }
+  }
+
   await checkoutRef.set({
     status: 'failed',
     failure_reason: reason,
@@ -1369,6 +1409,12 @@ async function markDepositFailed(externalRef: string, reason: string, payload: R
   const customerId = depositSnap.exists
     ? String((depositSnap.data() as { customer_id?: string }).customer_id || '')
     : undefined;
+
+  // Don't overwrite an Approved deposit if a late failure webhook arrives.
+  if (depositSnap.exists && String(depositSnap.data()?.status || '') === 'Approved') {
+    logger.info('markDepositFailed skipped — deposit already Approved', { externalRef, reason });
+    return;
+  }
 
   await adminDb.collection('deposit_requests').doc(externalRef).set({
     status: 'Rejected',
@@ -1612,13 +1658,24 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
           }, { merge: true });
         }
       } else if (['failed', 'cancelled', 'canceled', 'expired'].includes(intentStatus)) {
-        checkoutStatus = 'failed';
-        await adminDb.collection('modempay_checkouts').doc(externalRef).set({
-          status: 'failed',
-          failure_reason: intentStatus,
-          raw_payload: intent,
-          failed_at: new Date().toISOString(),
-        }, { merge: true });
+        // Keep Pending for expired — customer can open the link again or start a
+        // new top-up. Auto-rejecting on expiry was marking live attempts as failed
+        // when ModemPay's short-lived checkout token timed out.
+        if (intentStatus === 'expired') {
+          checkoutStatus = 'pending';
+          logger.info('reconcile: intent expired — leaving deposit Pending for retry', {
+            externalRef,
+            intentId,
+          });
+        } else {
+          checkoutStatus = 'failed';
+          await adminDb.collection('modempay_checkouts').doc(externalRef).set({
+            status: 'failed',
+            failure_reason: intentStatus,
+            raw_payload: intent,
+            failed_at: new Date().toISOString(),
+          }, { merge: true });
+        }
       } else {
         logger.info('reconcile intent still open', { externalRef, intentId, intentStatus });
       }

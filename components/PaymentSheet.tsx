@@ -626,9 +626,18 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                       : liveStatus === 'Rejected' ? 'Payment failed'
                       : 'Waiting for payment…'}
                     </p>
-                    <p className="mt-1 text-xs text-slate-600">{message?.text}</p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      {liveStatus === 'Rejected'
+                        ? 'No money was taken. You can try the same amount again.'
+                        : message?.text}
+                    </p>
                   </div>
                 </div>
+                {liveStatus === 'Rejected' && (
+                  <p className="mt-3 text-xs font-bold text-red-700">
+                    This top-up did not complete. Close and try again — use Wave and approve the payment in the Wave app.
+                  </p>
+                )}
                 {liveStatus === 'Pending' && method && method !== 'Card' && (
                   <ol className="mt-3 text-xs font-bold text-amber-900 list-decimal pl-4 space-y-1">
                     <li>Open your {method} app from the home screen (not the browser).</li>
@@ -658,6 +667,21 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                 )}
                 {liveStatus === 'Approved' && (
                   <p className="mt-3 text-xs text-green-700 font-bold">Wallet credited. You can close this screen.</p>
+                )}
+                {liveStatus === 'Rejected' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStage('enter-amount');
+                      setLiveStatus(null);
+                      setTrackingRef(null);
+                      setCheckoutUrl(null);
+                      setMessage(null);
+                    }}
+                    className="mt-3 w-full py-3 rounded-xl border-2 border-red-300 bg-white text-red-800 font-black text-sm uppercase tracking-wide"
+                  >
+                    Try again
+                  </button>
                 )}
               </div>
               <button
