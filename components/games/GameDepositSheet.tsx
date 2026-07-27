@@ -42,7 +42,7 @@ export function GameDepositSheet({ open, onClose }: Props) {
         providerReference: externalRef,
         verificationStatus: "PendingProviderConfirmation",
         verificationSource: "webhook",
-        verificationMessage: "Waiting for ModemPay to confirm payment before your wallet is credited.",
+        verificationMessage: "Waiting for Wave to confirm payment before your wallet is credited.",
       });
     },
     [fbUser, profile]

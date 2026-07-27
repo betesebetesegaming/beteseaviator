@@ -32,7 +32,7 @@ const PromoBannerCarousel = dynamic(
             </p>
             <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">Welcome to BETESE</h2>
             <p className="mt-1 text-xs text-white/90 sm:text-sm">
-              Top up with Wave & AfriMoney — play QTech games
+              Top up with Wave — play QTech games
             </p>
           </div>
         </div>

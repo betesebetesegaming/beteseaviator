@@ -122,6 +122,16 @@ export type StoredWalletPayLink = {
   externalRef: string;
 };
 
+export type PersistPayLinkInput = {
+  phone: string;
+  amount: number;
+  method: string;
+  checkoutUrl: string;
+  sessionId: string | null;
+  intentSecret: string | null;
+  externalRef: string;
+};
+
 export function normalizeModemPayAccountNumber(phone: string | undefined | null): string {
   return String(phone || '')
     .replace(/\D/g, '')
@@ -235,6 +245,7 @@ export async function createCheckoutSession(
       amount: number,
       method: string,
     ) => Promise<StoredWalletPayLink | null>;
+    persistPayLink?: (input: PersistPayLinkInput) => Promise<void>;
   },
 ): Promise<CheckoutSessionResult> {
   const accountNumber = normalizeModemPayAccountNumber(input.customer?.phone);
@@ -303,6 +314,35 @@ export async function createCheckoutSession(
   if (customerName) dataPayload.customer_name = customerName;
   if (input.customer?.email) dataPayload.customer_email = input.customer.email;
 
+  // Prefer an existing Wave deep link before creating another direct charge.
+  // ModemPay rejects a second phone+amount while one is still open.
+  if (input.method !== 'card' && opts?.findStoredPayLink) {
+    try {
+      const stored = await opts.findStoredPayLink(accountNumber, amount, input.method);
+      if (stored?.checkoutUrl && isWalletDeepPayUrl(stored.checkoutUrl)) {
+        logger.info('Reusing stored wallet deep-pay link (before create)', {
+          amount,
+          accountNumber,
+          method: input.method,
+          externalRef: stored.externalRef,
+        });
+        return {
+          ok: true,
+          status: 200,
+          checkoutUrl: stored.checkoutUrl,
+          sessionId: stored.sessionId,
+          paymentLinkId: null,
+          intentSecret: stored.intentSecret,
+          intentStatus: 'processing',
+          raw: { reused_from: stored.externalRef },
+          reused: true,
+        };
+      }
+    } catch (err) {
+      logger.warn('stored pay-link lookup failed (before create)', { err });
+    }
+  }
+
   const { ok, status, data } = await modemFetch({
     method: 'POST',
     path: '/v1/payments',
@@ -335,6 +375,22 @@ export async function createCheckoutSession(
       : Boolean(fields.checkoutUrl && isWalletDeepPayUrl(fields.checkoutUrl)));
 
   if (apiOk) {
+    // Persist Wave URL immediately so a timed-out client retry can reuse it.
+    if (input.method !== 'card' && opts?.persistPayLink && fields.checkoutUrl) {
+      try {
+        await opts.persistPayLink({
+          phone: accountNumber,
+          amount,
+          method: input.method,
+          checkoutUrl: fields.checkoutUrl,
+          sessionId: fields.sessionId,
+          intentSecret: fields.intentSecret,
+          externalRef: input.externalRef,
+        });
+      } catch (err) {
+        logger.warn('persistPayLink failed', { err });
+      }
+    }
     return {
       ok: true,
       status,
@@ -350,7 +406,7 @@ export async function createCheckoutSession(
     try {
       const stored = await opts.findStoredPayLink(accountNumber, amount, input.method);
       if (stored?.checkoutUrl && isWalletDeepPayUrl(stored.checkoutUrl)) {
-        logger.info('Reusing stored wallet deep-pay link', {
+        logger.info('Reusing stored wallet deep-pay link (after create fail)', {
           amount,
           accountNumber,
           method: input.method,

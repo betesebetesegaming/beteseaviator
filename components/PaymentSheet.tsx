@@ -72,7 +72,7 @@ function isWalletDeepPayUrl(url: string | null | undefined): boolean {
   }
 }
 
-const methodMeta: Record<Method, { logo: string; label: string; sub: string; tint: string; border: string; bg: string; powered: boolean }> = {
+const methodMeta: Record<Method, { logo: string; label: string; sub: string; tint: string; border: string; bg: string }> = {
   AfriMoney: {
     logo: '/payment-logos/afrimoney.png',
     label: 'AfriMoney',
@@ -80,16 +80,14 @@ const methodMeta: Record<Method, { logo: string; label: string; sub: string; tin
     tint: 'text-purple-800',
     border: 'border-purple-400',
     bg: 'bg-purple-50',
-    powered: true,
   },
   Wave: {
     logo: '/payment-logos/wave.png',
     label: 'Wave',
-    sub: 'Mobile money via Wave',
+    sub: 'Pay with your Wave app',
     tint: 'text-blue-700',
     border: 'border-blue-400',
     bg: 'bg-blue-50',
-    powered: true,
   },
   APS: {
     logo: '/payment-logos/aps.svg',
@@ -98,7 +96,6 @@ const methodMeta: Record<Method, { logo: string; label: string; sub: string; tin
     tint: 'text-indigo-800',
     border: 'border-indigo-400',
     bg: 'bg-indigo-50',
-    powered: true,
   },
   QMoney: {
     logo: '/payment-logos/qmoney.svg',
@@ -107,7 +104,6 @@ const methodMeta: Record<Method, { logo: string; label: string; sub: string; tin
     tint: 'text-emerald-800',
     border: 'border-emerald-400',
     bg: 'bg-emerald-50',
-    powered: true,
   },
   Card: {
     logo: '/payment-logos/card.png',
@@ -116,9 +112,11 @@ const methodMeta: Record<Method, { logo: string; label: string; sub: string; tin
     tint: 'text-slate-800',
     border: 'border-slate-400',
     bg: 'bg-slate-50',
-    powered: true,
   },
 };
+
+/** Customer deposits are Wave-only (same path as successful GMD 25 / 50). */
+const DEPOSIT_METHODS: Method[] = ['Wave'];
 
 export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   isOpen,
@@ -150,10 +148,11 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    setStage('choose');
-    setMethod(null);
+    // Wave-only deposits — skip method picker.
+    setStage('enter-amount');
+    setMethod('Wave');
     const defaultAmount =
-      initialAmount && initialAmount > 0 ? Math.ceil(initialAmount) : depositMin;
+      initialAmount && initialAmount > 0 ? Math.ceil(initialAmount) : MIN_DEPOSIT_GMD;
     setAmount(defaultAmount);
     setAmountText(String(defaultAmount));
     setKeypadOpen(false);
@@ -307,6 +306,16 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     try {
       checkout = await checkoutOnce();
     } catch (firstErr: unknown) {
+      const firstMsg = firstErr instanceof Error ? firstErr.message : String(firstErr || '');
+      const firstLower = firstMsg.toLowerCase();
+      // Do not retry Validation / open-payment errors — a second create locks Wave.
+      const noRetry =
+        firstLower.includes('already has an open') ||
+        firstLower.includes('validation') ||
+        firstLower.includes('approve it now');
+      if (noRetry) {
+        throw firstErr instanceof Error ? firstErr : new Error(firstMsg || 'Could not start checkout');
+      }
       try {
         checkout = await checkoutOnce();
       } catch (retryErr: unknown) {
@@ -511,8 +520,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3">
           {stage === 'choose' && (
             <div className="space-y-3">
-              <p className="text-sm text-slate-600">Pick how you want to pay. For Wave, approve the charge in your Wave app after you tap Pay.</p>
-              {(Object.keys(methodMeta) as Method[]).map((m) => {
+              <p className="text-sm text-slate-600">Pay with Wave — approve the charge in your Wave app after you tap Pay.</p>
+              {DEPOSIT_METHODS.map((m) => {
                 const meta = methodMeta[m];
                 return (
                   <button
@@ -526,11 +535,6 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                     <div className="flex-1 text-left">
                       <p className={`text-base font-black ${meta.tint}`}>{meta.label}</p>
                       <p className="text-xs font-bold text-slate-600">{meta.sub}</p>
-                      {meta.powered && (
-                        <p className="mt-1 inline-block text-[9px] font-black uppercase tracking-widest text-slate-600 bg-white rounded px-1.5 py-0.5 border border-slate-200">
-                          Powered by ModemPay
-                        </p>
-                      )}
                     </div>
                     <svg viewBox="0 0 24 24" className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2.4}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />

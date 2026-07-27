@@ -19,7 +19,7 @@ export default function WalletError({
     <div className="mx-auto max-w-lg rounded-xl border border-red-500/30 bg-red-500/10 p-8 text-center">
       <h2 className="text-lg font-semibold text-red-100">Wallet could not load</h2>
       <p className="mt-2 text-sm text-slate-400">
-        {error.message || "Something went wrong opening your wallet or ModemPay deposit."}
+        {error.message || "Something went wrong opening your wallet or Wave deposit."}
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-3">
         <Button onClick={() => reset()}>Try again</Button>

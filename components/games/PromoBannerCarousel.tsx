@@ -41,7 +41,7 @@ function SlideLayer({ slide }: { slide: PromoSlide }) {
             {slide.title || "Welcome to BETESE"}
           </h2>
           <p className="mt-1 max-w-md text-xs text-white/90 drop-shadow sm:text-sm">
-            {slide.subtitle || "Top up with Wave & AfriMoney — play QTech games"}
+            {slide.subtitle || "Top up with Wave — play QTech games"}
           </p>
           {slide.href && slide.cta ? (
             <Link

@@ -188,7 +188,7 @@ export default function WalletPage() {
         verificationStatus: "PendingProviderConfirmation",
         verificationSource: "webhook",
         verificationMessage:
-          "Waiting for ModemPay to confirm payment before your wallet is credited.",
+          "Waiting for Wave to confirm payment before your wallet is credited.",
       });
     },
     [fbUser, profile, frozen]
@@ -401,12 +401,12 @@ export default function WalletPage() {
 
       {tab === "deposit" && !frozen && (
         <Card>
-          <h2 className="mb-2 font-semibold">Deposit via ModemPay</h2>
+          <h2 className="mb-2 font-semibold">Deposit with Wave</h2>
           <p className="mb-4 text-sm text-slate-400">
-            Deposits from GMD {MIN_DEPOSIT_GMD} and above. Wave, AfriMoney, APS, QMoney or card.
+            Deposits from GMD {MIN_DEPOSIT_GMD} and above via Wave.
           </p>
           <Button className="w-full" onClick={() => setDepositOpen(true)}>
-            Open payment methods
+            Pay with Wave
           </Button>
         </Card>
       )}
@@ -511,7 +511,7 @@ export default function WalletPage() {
               disabled={busy || withdrawBlocked || (requiresWithdrawalOtp && !withdrawalOtp.otpVerified)}
               onClick={submitMobileWithdrawal}
             >
-              {busy ? "Processing…" : "Withdraw via ModemPay"}
+              {busy ? "Processing…" : "Withdraw with Wave"}
             </Button>
             <p className="whitespace-pre-line text-xs text-slate-500">{withdrawalRulesCopy(settings)}</p>
           </div>
@@ -522,7 +522,7 @@ export default function WalletPage() {
 
       {tab === "refer" && <ReferralPanel />}
 
-      <ClientErrorBoundary label="ModemPay checkout">
+      <ClientErrorBoundary label="Wave checkout">
         {depositOpen && !frozen ? (
           <PaymentSheet
             isOpen

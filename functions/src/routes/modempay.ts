@@ -101,6 +101,29 @@ async function findStoredWalletPayLink(
   if (!account || !Number.isFinite(amount)) return null;
 
   const reuseKey = `${method}:${account}:${amount}`;
+
+  // Dedicated cache doc — written as soon as ModemPay returns pay.wave.com.
+  const cacheSnap = await adminDb.collection('wave_pay_links').doc(reuseKey).get();
+  if (cacheSnap.exists) {
+    const d = cacheSnap.data() as {
+      checkout_url?: string;
+      wave_payment_link?: string;
+      session_id?: string | null;
+      intent_secret?: string | null;
+      external_ref?: string;
+      status?: string;
+    };
+    const url = d.wave_payment_link || d.checkout_url || null;
+    if (url && isWalletDeepPayUrl(url) && d.status !== 'completed' && d.status !== 'failed') {
+      return {
+        checkoutUrl: url,
+        sessionId: d.session_id || null,
+        intentSecret: d.intent_secret || null,
+        externalRef: d.external_ref || reuseKey,
+      };
+    }
+  }
+
   const snap = await adminDb
     .collection('modempay_checkouts')
     .where('reuse_key', '==', reuseKey)
@@ -137,6 +160,38 @@ async function findStoredWalletPayLink(
     intentSecret: best.intent_secret || null,
     externalRef: best.external_ref || best.id,
   };
+}
+
+async function persistWalletPayLink(input: {
+  phone: string;
+  amount: number;
+  method: string;
+  checkoutUrl: string;
+  sessionId: string | null;
+  intentSecret: string | null;
+  externalRef: string;
+}): Promise<void> {
+  if (!isWalletDeepPayUrl(input.checkoutUrl)) return;
+  const account = normalizeModemPayAccountNumber(input.phone);
+  const reuseKey = `${input.method}:${account}:${input.amount}`;
+  const now = new Date().toISOString();
+  await adminDb.collection('wave_pay_links').doc(reuseKey).set(
+    {
+      reuse_key: reuseKey,
+      method: input.method,
+      amount: input.amount,
+      customer_phone: account,
+      checkout_url: input.checkoutUrl,
+      wave_payment_link: input.checkoutUrl,
+      session_id: input.sessionId,
+      intent_secret: input.intentSecret,
+      external_ref: input.externalRef,
+      status: 'pending',
+      updated_at: now,
+      created_at: now,
+    },
+    { merge: true },
+  );
 }
 
 interface CheckoutBody {
@@ -221,6 +276,10 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
           provider === 'card'
             ? undefined
             : (phone, amt, method) => findStoredWalletPayLink(phone, amt, method),
+        persistPayLink:
+          provider === 'card'
+            ? undefined
+            : (link) => persistWalletPayLink(link),
       },
     );
 
@@ -1245,6 +1304,30 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
     } catch (err) {
       logger.warn('Aviator wallet sync failed after deposit', { externalRef, err: serializeError(err) });
     }
+  }
+
+  // Free the phone+amount Wave lock so the next deposit can create a fresh link.
+  try {
+    const doneSnap = await adminDb.collection('modempay_checkouts').doc(externalRef).get();
+    const done = doneSnap.data() as {
+      method?: string;
+      amount?: number;
+      customer_phone?: string;
+      reuse_key?: string;
+    } | undefined;
+    const reuseKey =
+      done?.reuse_key ||
+      (done?.method && done?.customer_phone && done?.amount != null
+        ? `${done.method}:${normalizeModemPayAccountNumber(done.customer_phone)}:${done.amount}`
+        : null);
+    if (reuseKey) {
+      await adminDb.collection('wave_pay_links').doc(reuseKey).set(
+        { status: 'completed', completed_at: completedAt },
+        { merge: true },
+      );
+    }
+  } catch (err) {
+    logger.warn('wave_pay_links clear failed', { externalRef, err: serializeError(err) });
   }
 
   // Healing pass: re-read the (now-Approved) deposit_request from Firestore
