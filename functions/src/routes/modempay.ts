@@ -161,7 +161,11 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       metadata: body.metadata,
     });
 
-    if (!result.ok || !result.checkoutUrl) {
+    const checkoutUrl =
+      result.checkoutUrl ||
+      (result.sessionId ? `https://checkout.modempay.com/${result.sessionId}` : null);
+
+    if (!result.ok || !checkoutUrl) {
       const upstreamMessage = modemPayErrorMessage(result.raw, 'ModemPay checkout creation failed');
       logger.warn('ModemPay checkout creation failed', {
         status: result.status,
@@ -173,11 +177,23 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       });
       const clientStatus = result.status >= 400 && result.status < 500 ? result.status : 502;
       res.status(clientStatus).json({
-        error: upstreamMessage,
+        error:
+          upstreamMessage === 'Validation error'
+            ? 'Wave still has an open payment for this amount. Open Wave and approve it, or try a different amount.'
+            : upstreamMessage,
         upstreamStatus: result.status,
         details: result.raw,
       });
       return;
+    }
+
+    if (result.reused) {
+      logger.info('Checkout reused open ModemPay intent', {
+        externalRef: body.externalRef,
+        sessionId: result.sessionId,
+        amount,
+        phone: body.customerPhone || null,
+      });
     }
 
     // Critical markers MUST land before we respond — Cloud Run may freeze CPU
@@ -290,7 +306,7 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
     // same request with a short budget so warm instances still sync reliably.
     res.json({
       ok: true,
-      checkoutUrl: result.checkoutUrl,
+      checkoutUrl,
       sessionId: result.sessionId,
       provider,
       externalRef: body.externalRef,

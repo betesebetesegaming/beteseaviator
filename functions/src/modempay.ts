@@ -103,6 +103,18 @@ export interface CreateCheckoutInput {
 /** Card rails are USD-priced; ModemPay rejects card intents below ~$1 (~GMD 75). */
 export const MODEMPAY_CARD_MIN_GMD = 75;
 
+export type CheckoutSessionResult = {
+  ok: boolean;
+  status: number;
+  checkoutUrl: string | null;
+  sessionId: string | null;
+  paymentLinkId: string | null;
+  intentSecret: string | null;
+  intentStatus: string | null;
+  raw: unknown;
+  reused?: boolean;
+};
+
 export function normalizeModemPayAccountNumber(phone: string | undefined | null): string {
   return String(phone || '')
     .replace(/\D/g, '')
@@ -121,52 +133,167 @@ export function modemPayErrorMessage(raw: unknown, fallback = 'ModemPay checkout
   return fallback;
 }
 
-export async function createCheckoutSession(input: CreateCheckoutInput) {
+function phoneMatchesAccount(rowPhone: unknown, accountNumber: string): boolean {
+  const digits = String(rowPhone || '').replace(/\D/g, '').replace(/^220/, '');
+  return Boolean(digits) && digits === accountNumber;
+}
+
+function extractCheckoutFields(inner: Record<string, unknown>): {
+  checkoutUrl: string | null;
+  sessionId: string | null;
+  paymentLinkId: string | null;
+  intentSecret: string | null;
+  intentStatus: string | null;
+} {
+  const checkoutUrl =
+    (inner.payment_link as string | undefined) ||
+    (inner.link as string | undefined) ||
+    (inner.checkout_url as string | undefined) ||
+    (inner.url as string | undefined) ||
+    (inner.payment_url as string | undefined) ||
+    null;
+
+  const sessionId =
+    (inner.payment_intent_id as string | undefined) ||
+    (inner.id as string | undefined) ||
+    null;
+
+  const intentSecret = (inner.intent_secret as string | undefined) || null;
+  const intentStatus = typeof inner.status === 'string' ? inner.status : null;
+
+  const paymentLinkId =
+    (inner.payment_link_id as string | undefined) ||
+    (checkoutUrl?.match(/checkout\.modempay\.com\/([a-f0-9-]+)/i)?.[1] ??
+      checkoutUrl?.match(/pay\.wave\.com\/c\/([a-z0-9-]+)/i)?.[1] ??
+      null);
+
+  return { checkoutUrl, sessionId, paymentLinkId, intentSecret, intentStatus };
+}
+
+/**
+ * ModemPay/Wave rejects a second direct charge for the same phone + amount while
+ * an earlier intent is still open (status requires_payment_method / processing).
+ * That surfaces as a useless "Validation error" / HTTP 502 in our app.
+ */
+export async function findOpenDirectChargeIntent(opts: {
+  phone: string;
+  amount: number;
+  method?: ModemPayMethod;
+}): Promise<CheckoutSessionResult | null> {
+  const accountNumber = normalizeModemPayAccountNumber(opts.phone);
+  if (!/^\d{7}$/.test(accountNumber)) return null;
+  const amount = Math.round(Number(opts.amount) * 100) / 100;
+
+  // Scan recent intents (newest first). 90 covers busy shops without huge latency.
+  for (const offset of [0, 30, 60]) {
+    const { ok, data } = await modemFetch<{ data?: Record<string, unknown>[] }>({
+      method: 'GET',
+      path: '/v1/payments',
+      query: { offset, limit: 30 },
+    });
+    if (!ok || !Array.isArray(data?.data)) continue;
+
+    for (const row of data.data) {
+      const status = String(row.status || '').toLowerCase();
+      if (!['requires_payment_method', 'processing'].includes(status)) continue;
+      if (Math.abs(Number(row.amount || 0) - amount) > 0.009) continue;
+
+      const rowPhone = row.customer_phone || row.account_number || row.phone;
+      if (!phoneMatchesAccount(rowPhone, accountNumber)) continue;
+
+      if (opts.method && opts.method !== 'card') {
+        const network = String(row.network || row.payment_method || '').toLowerCase();
+        // Some list rows omit network; still match on phone+amount+open status.
+        if (network && network !== opts.method && network !== 'wallet') continue;
+      }
+
+      const fields = extractCheckoutFields(row);
+      // List links include short-lived tokens — always refresh before handing to customer.
+      if (fields.sessionId) {
+        try {
+          const retrieved = await retrievePaymentIntent(fields.sessionId);
+          if (retrieved.ok && retrieved.data && typeof retrieved.data === 'object') {
+            const refreshed = extractCheckoutFields(retrieved.data as Record<string, unknown>);
+            if (refreshed.checkoutUrl || refreshed.intentSecret) {
+              Object.assign(fields, {
+                ...refreshed,
+                sessionId: refreshed.sessionId || fields.sessionId,
+                checkoutUrl: refreshed.checkoutUrl || fields.checkoutUrl,
+              });
+            }
+          }
+        } catch {
+          /* keep list fields */
+        }
+      }
+      if (!fields.checkoutUrl && fields.sessionId) {
+        fields.checkoutUrl = `https://checkout.modempay.com/${fields.sessionId}`;
+      }
+      if (!fields.checkoutUrl && !fields.sessionId) continue;
+
+      logger.info('Reusing open ModemPay intent for same phone+amount', {
+        sessionId: fields.sessionId,
+        amount,
+        accountNumber,
+        status: fields.intentStatus,
+      });
+
+      return {
+        ok: true,
+        status: 200,
+        ...fields,
+        raw: row,
+        reused: true,
+      };
+    }
+  }
+  return null;
+}
+
+export async function createCheckoutSession(input: CreateCheckoutInput): Promise<CheckoutSessionResult> {
   const accountNumber = normalizeModemPayAccountNumber(input.customer?.phone);
   const amount = Math.round(Number(input.amount) * 100) / 100;
 
+  const fail = (status: number, message: string): CheckoutSessionResult => ({
+    ok: false,
+    status,
+    checkoutUrl: null,
+    sessionId: null,
+    paymentLinkId: null,
+    intentSecret: null,
+    intentStatus: null,
+    raw: { message },
+  });
+
   if (!Number.isFinite(amount) || amount <= 0) {
-    return {
-      ok: false,
-      status: 400,
-      checkoutUrl: null,
-      sessionId: null,
-      paymentLinkId: null,
-      intentSecret: null,
-      intentStatus: null,
-      raw: { message: 'Amount must be a positive number.' },
-    };
+    return fail(400, 'Amount must be a positive number.');
   }
 
   if (input.method === 'card' && amount < MODEMPAY_CARD_MIN_GMD) {
-    return {
-      ok: false,
-      status: 400,
-      checkoutUrl: null,
-      sessionId: null,
-      paymentLinkId: null,
-      intentSecret: null,
-      intentStatus: null,
-      raw: {
-        message: `Card deposits require at least GMD ${MODEMPAY_CARD_MIN_GMD}. Use Wave or AfriMoney for smaller amounts.`,
-      },
-    };
+    return fail(
+      400,
+      `Card deposits require at least GMD ${MODEMPAY_CARD_MIN_GMD}. Use Wave or AfriMoney for smaller amounts.`,
+    );
   }
 
   // Direct charge needs a real 7-digit Gambian wallet number (no country code).
   if (input.method !== 'card' && !/^\d{7}$/.test(accountNumber)) {
-    return {
-      ok: false,
-      status: 400,
-      checkoutUrl: null,
-      sessionId: null,
-      paymentLinkId: null,
-      intentSecret: null,
-      intentStatus: null,
-      raw: {
-        message: 'Enter a valid 7-digit Gambian mobile money number (e.g. 7701234).',
-      },
-    };
+    return fail(400, 'Enter a valid 7-digit Gambian mobile money number (e.g. 7701234).');
+  }
+
+  // If Wave already has an open charge for this phone+amount, reuse it instead of
+  // creating a duplicate (duplicate create → "Validation error").
+  if (input.method !== 'card') {
+    try {
+      const existing = await findOpenDirectChargeIntent({
+        phone: accountNumber,
+        amount,
+        method: input.method,
+      });
+      if (existing?.ok) return existing;
+    } catch (err) {
+      logger.warn('findOpenDirectChargeIntent failed; continuing with create', { err });
+    }
   }
 
   const webhookCallback =
@@ -195,9 +322,6 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
   };
 
   // Mobile money = ModemPay "direct charge": network + 7-digit account_number.
-  // Create returns status "processing" and a Wave (or wallet) pay link. Do NOT
-  // swap that for checkout.modempay.com — hosted checkout leaves direct intents
-  // Abandoned/Expired without ever charging Wave.
   if (input.method !== 'card') {
     dataPayload.network = input.method;
     dataPayload.account_number = accountNumber;
@@ -222,49 +346,48 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
     data?: Record<string, unknown>;
   };
   const inner = envelope.data || (data as Record<string, unknown>);
-  const checkoutUrl =
-    (inner.payment_link as string | undefined) ||
-    (inner.checkout_url as string | undefined) ||
-    (inner.url as string | undefined) ||
-    (inner.payment_url as string | undefined) ||
-    null;
-
-  const sessionId =
-    (inner.payment_intent_id as string | undefined) ||
-    (inner.id as string | undefined) ||
-    null;
-
-  const intentSecret = (inner.intent_secret as string | undefined) || null;
-  const intentStatus = typeof inner.status === 'string' ? inner.status : null;
-
-  const paymentLinkId =
-    (inner.payment_link_id as string | undefined) ||
-    (checkoutUrl?.match(/checkout\.modempay\.com\/([a-f0-9-]+)/i)?.[1] ??
-      checkoutUrl?.match(/pay\.wave\.com\/c\/([a-z0-9-]+)/i)?.[1] ??
-      null);
+  const fields = extractCheckoutFields(inner as Record<string, unknown>);
 
   // Direct Wave charges are valid even while still "processing" — customer must
   // approve in the Wave app. checkoutUrl is the Wave pay link for that.
-  const apiOk = ok && envelope.status !== false && (!!checkoutUrl || !!sessionId);
+  const apiOk = ok && envelope.status !== false && (!!fields.checkoutUrl || !!fields.sessionId);
 
-  if (!apiOk) {
-    logger.warn('ModemPay /v1/payments rejected checkout', {
-      method: input.method,
-      amount,
-      accountLen: accountNumber.length,
+  if (apiOk) {
+    return {
+      ok: true,
       status,
-      message: modemPayErrorMessage(data),
-    });
+      ...fields,
+      raw: data,
+      reused: false,
+    };
   }
 
-  return {
-    ok: apiOk,
+  // Duplicate open intent → ModemPay returns generic Validation error. Reuse it.
+  if (input.method !== 'card') {
+    try {
+      const existing = await findOpenDirectChargeIntent({
+        phone: accountNumber,
+        amount,
+        method: input.method,
+      });
+      if (existing?.ok) return existing;
+    } catch (err) {
+      logger.warn('reuse-after-validation failed', { err });
+    }
+  }
+
+  logger.warn('ModemPay /v1/payments rejected checkout', {
+    method: input.method,
+    amount,
+    accountLen: accountNumber.length,
     status,
-    checkoutUrl,
-    sessionId,
-    paymentLinkId,
-    intentSecret,
-    intentStatus,
+    message: modemPayErrorMessage(data),
+  });
+
+  return {
+    ok: false,
+    status,
+    ...fields,
     raw: data,
   };
 }
