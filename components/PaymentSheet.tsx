@@ -45,6 +45,33 @@ function isMobileCheckout(): boolean {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
 
+/** Hosted ModemPay confirm pages stick on “Transaction in Progress” — reject for Wave. */
+function isModemPayHostedCheckoutUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    return new URL(url).hostname.toLowerCase().includes('checkout.modempay.com');
+  } catch {
+    return false;
+  }
+}
+
+/** Same path as successful GMD 25: open pay.wave.com, not ModemPay hosted UI. */
+function isWalletDeepPayUrl(url: string | null | undefined): boolean {
+  if (!url || isModemPayHostedCheckoutUrl(url)) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return (
+      host.includes('pay.wave.com') ||
+      host.includes('wave.com') ||
+      host.includes('afrimoney') ||
+      host.includes('qmoney') ||
+      host.includes('aps')
+    );
+  } catch {
+    return false;
+  }
+}
+
 const methodMeta: Record<Method, { logo: string; label: string; sub: string; tint: string; border: string; bg: string; powered: boolean }> = {
   AfriMoney: {
     logo: '/payment-logos/afrimoney.png',
@@ -246,7 +273,14 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
           signal: controller.signal,
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok || (!data.checkoutUrl && !data.sessionId)) {
+        const rawUrl = (data.checkoutUrl as string | undefined) || null;
+        // Wave/AfriMoney must receive a wallet deep link (pay.wave.com). Session-only
+        // or checkout.modempay.com responses are the broken “Transaction in Progress” path.
+        const walletOk =
+          provider === 'card'
+            ? Boolean(rawUrl || data.sessionId)
+            : Boolean(rawUrl && isWalletDeepPayUrl(rawUrl));
+        if (!res.ok || !walletOk) {
           const detailsMsg =
             data?.details && typeof data.details === 'object'
               ? (data.details as { message?: string }).message
@@ -254,11 +288,13 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
           throw new Error(
             (typeof data.error === 'string' && data.error) ||
               (typeof detailsMsg === 'string' && detailsMsg) ||
-              'Could not start checkout',
+              (provider !== 'card' && rawUrl && isModemPayHostedCheckoutUrl(rawUrl)
+                ? 'Could not open Wave. Please try again in a moment.'
+                : 'Could not start checkout'),
           );
         }
         return {
-          checkoutUrl: (data.checkoutUrl as string | undefined) || null,
+          checkoutUrl: rawUrl,
           awaitWalletApproval: Boolean(data.awaitWalletApproval),
           sessionId: (data.sessionId as string | undefined) || null,
         };
@@ -365,7 +401,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         // the payment loaded; the returnUrl brings them back to the wallet where
         // the pending deposit reconciles. On desktop, open Wave in a new tab so
         // the pending screen stays visible for QR scanning.
-        if (url) {
+        if (url && isWalletDeepPayUrl(url)) {
           if (isMobileCheckout()) {
             window.location.assign(url);
             return;
@@ -375,6 +411,11 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
           } catch {
             /* ignore */
           }
+        } else if (url && isModemPayHostedCheckoutUrl(url)) {
+          setMessage({
+            ok: false,
+            text: 'Could not open Wave payment. Close any open Wave requests, wait a minute, then try again.',
+          });
         }
         return;
       }
@@ -653,7 +694,9 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                     Complete payment on the checkout page. Your wallet updates when it succeeds.
                   </p>
                 )}
-                {liveStatus === 'Pending' && checkoutUrl && (
+                {liveStatus === 'Pending' &&
+                  checkoutUrl &&
+                  (method === 'Card' || isWalletDeepPayUrl(checkoutUrl)) && (
                   <button
                     type="button"
                     onClick={() => {

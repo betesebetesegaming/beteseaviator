@@ -115,6 +115,13 @@ export type CheckoutSessionResult = {
   reused?: boolean;
 };
 
+export type StoredWalletPayLink = {
+  checkoutUrl: string;
+  sessionId: string | null;
+  intentSecret: string | null;
+  externalRef: string;
+};
+
 export function normalizeModemPayAccountNumber(phone: string | undefined | null): string {
   return String(phone || '')
     .replace(/\D/g, '')
@@ -133,9 +140,34 @@ export function modemPayErrorMessage(raw: unknown, fallback = 'ModemPay checkout
   return fallback;
 }
 
-function phoneMatchesAccount(rowPhone: unknown, accountNumber: string): boolean {
-  const digits = String(rowPhone || '').replace(/\D/g, '').replace(/^220/, '');
-  return Boolean(digits) && digits === accountNumber;
+export function isModemPayHostedCheckoutUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    return new URL(url).hostname.toLowerCase().includes('checkout.modempay.com');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Wave/AfriMoney deep links that actually charge — same path as successful GMD 25
+ * deposits (pay.wave.com). ModemPay hosted confirm pages are NOT accepted.
+ */
+export function isWalletDeepPayUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.includes('checkout.modempay.com')) return false;
+    return (
+      host.includes('pay.wave.com') ||
+      host.includes('wave.com') ||
+      host.includes('afrimoney') ||
+      host.includes('qmoney') ||
+      host.includes('aps')
+    );
+  } catch {
+    return false;
+  }
 }
 
 function extractCheckoutFields(inner: Record<string, unknown>): {
@@ -145,13 +177,31 @@ function extractCheckoutFields(inner: Record<string, unknown>): {
   intentSecret: string | null;
   intentStatus: string | null;
 } {
-  const checkoutUrl =
-    (inner.payment_link as string | undefined) ||
-    (inner.link as string | undefined) ||
-    (inner.checkout_url as string | undefined) ||
-    (inner.url as string | undefined) ||
-    (inner.payment_url as string | undefined) ||
-    null;
+  const candidates = [
+    inner.payment_link,
+    inner.link,
+    inner.checkout_url,
+    inner.url,
+    inner.payment_url,
+  ];
+
+  // Prefer wallet deep links (pay.wave.com). Never prefer ModemPay hosted pages —
+  // those stick on "Transaction in Progress" unlike the working GMD 25 flow.
+  let checkoutUrl: string | null = null;
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim() && isWalletDeepPayUrl(c)) {
+      checkoutUrl = c.trim();
+      break;
+    }
+  }
+  if (!checkoutUrl) {
+    for (const c of candidates) {
+      if (typeof c === 'string' && c.trim()) {
+        checkoutUrl = c.trim();
+        break;
+      }
+    }
+  }
 
   const sessionId =
     (inner.payment_intent_id as string | undefined) ||
@@ -171,148 +221,22 @@ function extractCheckoutFields(inner: Record<string, unknown>): {
 }
 
 /**
- * ModemPay/Wave rejects a second direct charge for the same phone + amount while
- * an earlier intent is still open. List status can still say requires_payment_method
- * after the checkout token expired — always retrieve and skip expired/failed ones.
+ * Create a ModemPay checkout.
+ *
+ * Mobile money uses DIRECT CHARGE only (network + account_number) so ModemPay
+ * returns pay.wave.com — identical to successful GMD 25 deposits.
+ * We never fall back to checkout.modempay.com hosted confirm pages.
  */
-export async function findOpenDirectChargeIntent(opts: {
-  phone: string;
-  amount: number;
-  method?: ModemPayMethod;
-}): Promise<CheckoutSessionResult | null> {
-  const accountNumber = normalizeModemPayAccountNumber(opts.phone);
-  if (!/^\d{7}$/.test(accountNumber)) return null;
-  const amount = Math.round(Number(opts.amount) * 100) / 100;
-  const liveStatuses = new Set(['requires_payment_method', 'processing']);
-
-  // Scan recent intents (newest first). 90 covers busy shops without huge latency.
-  for (const offset of [0, 30, 60]) {
-    const { ok, data } = await modemFetch<{ data?: Record<string, unknown>[] }>({
-      method: 'GET',
-      path: '/v1/payments',
-      query: { offset, limit: 30 },
-    });
-    if (!ok || !Array.isArray(data?.data)) continue;
-
-    for (const row of data.data) {
-      if (Math.abs(Number(row.amount || 0) - amount) > 0.009) continue;
-
-      const rowPhone = row.customer_phone || row.account_number || row.phone;
-      if (!phoneMatchesAccount(rowPhone, accountNumber)) continue;
-
-      if (opts.method && opts.method !== 'card') {
-        const network = String(row.network || row.payment_method || '').toLowerCase();
-        if (network && network !== opts.method && network !== 'wallet') continue;
-      }
-
-      const sessionId =
-        (typeof row.payment_intent_id === 'string' && row.payment_intent_id) ||
-        (typeof row.id === 'string' && row.id) ||
-        null;
-      if (!sessionId) continue;
-
-      // List can lie about status — retrieve is the source of truth.
-      let live: Record<string, unknown> = row;
-      try {
-        const retrieved = await retrievePaymentIntent(sessionId);
-        if (retrieved.ok && retrieved.data && typeof retrieved.data === 'object') {
-          live = retrieved.data as Record<string, unknown>;
-        }
-      } catch {
-        /* use list row */
-      }
-
-      const liveStatus = String(live.status || '').toLowerCase();
-      if (!liveStatuses.has(liveStatus)) {
-        logger.info('Skipping non-live ModemPay intent', { sessionId, liveStatus, amount, accountNumber });
-        continue;
-      }
-
-      const fields = extractCheckoutFields(live);
-      if (!fields.checkoutUrl && fields.sessionId) {
-        fields.checkoutUrl = `https://checkout.modempay.com/${fields.sessionId}`;
-      }
-      if (!fields.checkoutUrl && !fields.sessionId) continue;
-
-      logger.info('Reusing live ModemPay intent for same phone+amount', {
-        sessionId: fields.sessionId,
-        amount,
-        accountNumber,
-        status: fields.intentStatus,
-      });
-
-      return {
-        ok: true,
-        status: 200,
-        ...fields,
-        raw: live,
-        reused: true,
-      };
-    }
-  }
-  return null;
-}
-
-async function createHostedWalletCheckout(
+export async function createCheckoutSession(
   input: CreateCheckoutInput,
-  amount: number,
-  accountNumber: string,
+  opts?: {
+    findStoredPayLink?: (
+      phone: string,
+      amount: number,
+      method: string,
+    ) => Promise<StoredWalletPayLink | null>;
+  },
 ): Promise<CheckoutSessionResult> {
-  const webhookCallback =
-    process.env.MODEMPAY_CALLBACK_URL ||
-    'https://us-central1-beteseaviator-a05ae.cloudfunctions.net/modempayApi/modempay-webhook';
-  const customerName = String(input.customer?.name || '').trim();
-
-  // Hosted wallet checkout does NOT use network+account_number, so it is not
-  // blocked by Wave's "one open direct charge per phone+amount" rule.
-  const dataPayload: Record<string, unknown> = {
-    amount,
-    currency: input.currency || 'GMD',
-    from_sdk: false,
-    payment_methods: ['wallet'],
-    return_url: input.successUrl,
-    cancel_url: input.cancelUrl || input.successUrl,
-    callback_url: webhookCallback,
-    skip_url_validation: true,
-    title: input.description || 'Wallet top-up',
-    description: input.description || 'Wallet top-up',
-    customer_phone: accountNumber,
-    metadata: {
-      source: 'betese-aviator',
-      method: input.method,
-      external_reference: input.externalRef,
-      preferred_network: input.method,
-      ...(input.metadata || {}),
-    },
-  };
-  if (customerName) dataPayload.customer_name = customerName;
-  if (input.customer?.email) dataPayload.customer_email = input.customer.email;
-
-  const { ok, status, data } = await modemFetch({
-    method: 'POST',
-    path: '/v1/payments',
-    body: { data: dataPayload },
-  });
-
-  const envelope = data as { status?: boolean; data?: Record<string, unknown> };
-  const inner = envelope.data || (data as Record<string, unknown>);
-  const fields = extractCheckoutFields(inner as Record<string, unknown>);
-  const apiOk = ok && envelope.status !== false && (!!fields.checkoutUrl || !!fields.sessionId);
-
-  if (!apiOk) {
-    logger.warn('Hosted wallet checkout failed', { status, message: modemPayErrorMessage(data) });
-  }
-
-  return {
-    ok: apiOk,
-    status,
-    ...fields,
-    raw: data,
-    reused: false,
-  };
-}
-
-export async function createCheckoutSession(input: CreateCheckoutInput): Promise<CheckoutSessionResult> {
   const accountNumber = normalizeModemPayAccountNumber(input.customer?.phone);
   const amount = Math.round(Number(input.amount) * 100) / 100;
 
@@ -366,7 +290,7 @@ export async function createCheckoutSession(input: CreateCheckoutInput): Promise
     },
   };
 
-  // Prefer direct Wave/AfriMoney charge (push into wallet app).
+  // Same path as successful GMD 25: direct charge → pay.wave.com.
   if (input.method !== 'card') {
     dataPayload.network = input.method;
     dataPayload.account_number = accountNumber;
@@ -392,7 +316,23 @@ export async function createCheckoutSession(input: CreateCheckoutInput): Promise
   };
   const inner = envelope.data || (data as Record<string, unknown>);
   const fields = extractCheckoutFields(inner as Record<string, unknown>);
-  const apiOk = ok && envelope.status !== false && (!!fields.checkoutUrl || !!fields.sessionId);
+
+  // Never send mobile-money customers to checkout.modempay.com.
+  if (input.method !== 'card' && fields.checkoutUrl && isModemPayHostedCheckoutUrl(fields.checkoutUrl)) {
+    logger.warn('ModemPay returned hosted checkout for direct charge — rejecting', {
+      method: input.method,
+      amount,
+      sessionId: fields.sessionId,
+    });
+    fields.checkoutUrl = null;
+  }
+
+  const apiOk =
+    ok &&
+    envelope.status !== false &&
+    (input.method === 'card'
+      ? Boolean(fields.checkoutUrl || fields.sessionId)
+      : Boolean(fields.checkoutUrl && isWalletDeepPayUrl(fields.checkoutUrl)));
 
   if (apiOk) {
     return {
@@ -404,50 +344,54 @@ export async function createCheckoutSession(input: CreateCheckoutInput): Promise
     };
   }
 
-  if (input.method !== 'card') {
-    // 1) Reuse only a LIVE open intent (never expired — that caused "Payment intent has expired").
+  // Duplicate open direct charge for this phone+amount → reuse OUR stored Wave link
+  // (ModemPay retrieve/list only return hosted URLs which break Wave).
+  if (input.method !== 'card' && opts?.findStoredPayLink) {
     try {
-      const existing = await findOpenDirectChargeIntent({
-        phone: accountNumber,
-        amount,
-        method: input.method,
-      });
-      if (existing?.ok) return existing;
-    } catch (err) {
-      logger.warn('reuse-after-validation failed', { err });
-    }
-
-    // 2) Fresh hosted wallet checkout — not blocked by direct-charge duplicates.
-    try {
-      const hosted = await createHostedWalletCheckout(input, amount, accountNumber);
-      if (hosted.ok) {
-        logger.info('Fell back to hosted wallet checkout after direct-charge failure', {
+      const stored = await opts.findStoredPayLink(accountNumber, amount, input.method);
+      if (stored?.checkoutUrl && isWalletDeepPayUrl(stored.checkoutUrl)) {
+        logger.info('Reusing stored wallet deep-pay link', {
           amount,
           accountNumber,
           method: input.method,
-          directMessage: modemPayErrorMessage(data),
+          externalRef: stored.externalRef,
         });
-        return hosted;
+        return {
+          ok: true,
+          status: 200,
+          checkoutUrl: stored.checkoutUrl,
+          sessionId: stored.sessionId,
+          paymentLinkId: null,
+          intentSecret: stored.intentSecret,
+          intentStatus: 'processing',
+          raw: { reused_from: stored.externalRef },
+          reused: true,
+        };
       }
     } catch (err) {
-      logger.warn('hosted wallet fallback failed', { err });
+      logger.warn('stored pay-link lookup failed', { err });
     }
   }
+
+  const upstream = modemPayErrorMessage(data);
+  const blockedDuplicate =
+    input.method !== 'card' &&
+    (upstream.toLowerCase().includes('validation') || status === 500);
 
   logger.warn('ModemPay /v1/payments rejected checkout', {
     method: input.method,
     amount,
     accountLen: accountNumber.length,
     status,
-    message: modemPayErrorMessage(data),
+    message: upstream,
   });
 
-  return {
-    ok: false,
-    status,
-    ...fields,
-    raw: data,
-  };
+  return fail(
+    blockedDuplicate ? 409 : status || 502,
+    blockedDuplicate
+      ? `Wave already has an open GMD ${amount} payment for this number. Open the Wave app and approve it now (or wait ~15 minutes), then try again.`
+      : upstream,
+  );
 }
 
 // -----------------------------------------------------------------------------

@@ -12,10 +12,13 @@ import {
   verifyWebhookSignature,
   isModemPayMethod,
   isModemPayPayoutNetwork,
+  isWalletDeepPayUrl,
   modemPayErrorMessage,
+  normalizeModemPayAccountNumber,
   MODEMPAY_CARD_MIN_GMD,
   type ModemPayMethod,
   type ModemPayPayoutNetwork,
+  type StoredWalletPayLink,
 } from '../modempay';
 import { adminDb } from '../adminModem';
 import { db, bumpDailyStats, bumpPlatformStats, getSettings, MIN_DEPOSIT_GMD, todayIso, walletRead, walletWrite } from '../helpers';
@@ -85,6 +88,57 @@ async function healAviatorWalletIfNeeded(
 
 const MERCHANT_NAME = process.env.MODEMPAY_MERCHANT_NAME || 'Betese Aviator';
 
+/**
+ * When ModemPay blocks a second direct charge (same phone + amount), reuse the
+ * Wave deep link we stored from the first create — never ModemPay hosted pages.
+ */
+async function findStoredWalletPayLink(
+  phone: string,
+  amount: number,
+  method: string,
+): Promise<StoredWalletPayLink | null> {
+  const account = normalizeModemPayAccountNumber(phone);
+  if (!account || !Number.isFinite(amount)) return null;
+
+  const reuseKey = `${method}:${account}:${amount}`;
+  const snap = await adminDb
+    .collection('modempay_checkouts')
+    .where('reuse_key', '==', reuseKey)
+    .limit(15)
+    .get();
+
+  const rows = snap.docs
+    .map(doc => {
+      const d = doc.data() as {
+        status?: string;
+        checkout_url?: string | null;
+        wave_payment_link?: string | null;
+        session_id?: string | null;
+        intent_secret?: string | null;
+        created_at?: string;
+        external_ref?: string;
+      };
+      const url = d.wave_payment_link || d.checkout_url || null;
+      return { id: doc.id, ...d, url };
+    })
+    .filter(row => {
+      if (row.status && !['pending', 'processing'].includes(String(row.status).toLowerCase())) {
+        return false;
+      }
+      return Boolean(row.url && isWalletDeepPayUrl(row.url));
+    })
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+
+  const best = rows[0];
+  if (!best?.url) return null;
+  return {
+    checkoutUrl: best.url,
+    sessionId: best.session_id || null,
+    intentSecret: best.intent_secret || null,
+    externalRef: best.external_ref || best.id,
+  };
+}
+
 interface CheckoutBody {
   provider?: string;
   method?: string;
@@ -145,25 +199,40 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
   }
 
   try {
-    const result = await createCheckoutSession({
-      method: provider as ModemPayMethod,
-      amount,
-      externalRef: body.externalRef,
-      description: `${MERCHANT_NAME} wallet top-up`,
-      customer: {
-        id: body.customerId,
-        name: body.customerName,
-        email: body.customerEmail,
-        phone: body.customerPhone,
+    const accountNumber = normalizeModemPayAccountNumber(body.customerPhone);
+    const result = await createCheckoutSession(
+      {
+        method: provider as ModemPayMethod,
+        amount,
+        externalRef: body.externalRef,
+        description: `${MERCHANT_NAME} wallet top-up`,
+        customer: {
+          id: body.customerId,
+          name: body.customerName,
+          email: body.customerEmail,
+          phone: body.customerPhone,
+        },
+        successUrl: body.returnUrl,
+        cancelUrl: body.cancelUrl || body.returnUrl,
+        metadata: body.metadata,
       },
-      successUrl: body.returnUrl,
-      cancelUrl: body.cancelUrl || body.returnUrl,
-      metadata: body.metadata,
-    });
+      {
+        findStoredPayLink:
+          provider === 'card'
+            ? undefined
+            : (phone, amt, method) => findStoredWalletPayLink(phone, amt, method),
+      },
+    );
 
+    // Card may use ModemPay hosted checkout. Wallet methods must get pay.wave.com
+    // (same path as successful GMD 25) — never invent checkout.modempay.com.
     const checkoutUrl =
-      result.checkoutUrl ||
-      (result.sessionId ? `https://checkout.modempay.com/${result.sessionId}` : null);
+      provider === 'card'
+        ? result.checkoutUrl ||
+          (result.sessionId ? `https://checkout.modempay.com/${result.sessionId}` : null)
+        : result.checkoutUrl && isWalletDeepPayUrl(result.checkoutUrl)
+          ? result.checkoutUrl
+          : null;
 
     if (!result.ok || !checkoutUrl) {
       const upstreamMessage = modemPayErrorMessage(result.raw, 'ModemPay checkout creation failed');
@@ -177,10 +246,7 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       });
       const clientStatus = result.status >= 400 && result.status < 500 ? result.status : 502;
       res.status(clientStatus).json({
-        error:
-          upstreamMessage === 'Validation error'
-            ? 'Wave still has an open payment for this amount. Open Wave and approve it, or try a different amount.'
-            : upstreamMessage,
+        error: upstreamMessage,
         upstreamStatus: result.status,
         details: result.raw,
       });
@@ -188,7 +254,7 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
     }
 
     if (result.reused) {
-      logger.info('Checkout reused open ModemPay intent', {
+      logger.info('Checkout reused stored Wave deep-pay link', {
         externalRef: body.externalRef,
         sessionId: result.sessionId,
         amount,
@@ -201,6 +267,10 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
     // time out with "Load failed" before checkoutUrl arrives.
     const createdAt = new Date().toISOString();
     const methodLabel = mapModemPayMethodLabel(provider);
+    const reuseKey =
+      provider !== 'card' && accountNumber
+        ? `${provider}:${accountNumber}:${amount}`
+        : null;
 
     const checkoutDoc = {
       external_ref: body.externalRef,
@@ -214,6 +284,11 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       customer_name: body.customerName || null,
       status: 'pending',
       created_at: createdAt,
+      // Persist Wave deep link so retries reopen pay.wave.com (not ModemPay hosted).
+      checkout_url: checkoutUrl,
+      wave_payment_link: provider !== 'card' ? checkoutUrl : null,
+      reuse_key: reuseKey,
+      reused: Boolean(result.reused),
     };
 
     const criticalWrites: Promise<unknown>[] = [
