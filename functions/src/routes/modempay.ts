@@ -12,6 +12,8 @@ import {
   verifyWebhookSignature,
   isModemPayMethod,
   isModemPayPayoutNetwork,
+  modemPayErrorMessage,
+  MODEMPAY_CARD_MIN_GMD,
   type ModemPayMethod,
   type ModemPayPayoutNetwork,
 } from '../modempay';
@@ -113,13 +115,19 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
     res.status(400).json({ error: 'method must be one of wave, aps, afrimoney, qmoney, card' });
     return;
   }
-  const amount = Number(body.amount);
+  const amount = Math.round(Number(body.amount) * 100) / 100;
   if (!Number.isFinite(amount) || amount <= 0) {
     res.status(400).json({ error: 'amount must be a positive number' });
     return;
   }
   if (!body.externalRef) {
     res.status(400).json({ error: 'externalRef is required' });
+    return;
+  }
+  if (provider === 'card' && amount < MODEMPAY_CARD_MIN_GMD) {
+    res.status(400).json({
+      error: `Card deposits require at least GMD ${MODEMPAY_CARD_MIN_GMD}. Use Wave or AfriMoney for smaller amounts.`,
+    });
     return;
   }
 
@@ -154,9 +162,18 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
     });
 
     if (!result.ok || !result.checkoutUrl) {
-      logger.warn('ModemPay checkout creation failed', { status: result.status, raw: result.raw });
-      res.status(502).json({
-        error: 'ModemPay checkout creation failed',
+      const upstreamMessage = modemPayErrorMessage(result.raw, 'ModemPay checkout creation failed');
+      logger.warn('ModemPay checkout creation failed', {
+        status: result.status,
+        method: provider,
+        amount,
+        phone: body.customerPhone || null,
+        message: upstreamMessage,
+        raw: result.raw,
+      });
+      const clientStatus = result.status >= 400 && result.status < 500 ? result.status : 502;
+      res.status(clientStatus).json({
+        error: upstreamMessage,
         upstreamStatus: result.status,
         details: result.raw,
       });

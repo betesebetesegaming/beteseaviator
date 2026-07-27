@@ -12,6 +12,9 @@ import { rememberPendingDepositRef } from "@/lib/payments/pendingDepositSession"
 import { generateAviatorDepositRef } from "@/lib/payments/aviatorPaymentRefs";
 import { NumericKeypad } from "@/components/ui/NumericKeypad";
 
+/** Card is USD-priced via ModemPay — below ~GMD 75 the API rejects the intent. */
+const CARD_MIN_GMD = 75;
+
 type Method = 'AfriMoney' | 'Wave' | 'APS' | 'QMoney' | 'Card';
 
 interface PaymentUser {
@@ -82,7 +85,7 @@ const methodMeta: Record<Method, { logo: string; label: string; sub: string; tin
   Card: {
     logo: '/payment-logos/card.png',
     label: 'Debit / Credit Card',
-    sub: 'Visa, Mastercard and local cards',
+    sub: `Visa / Mastercard — from GMD ${CARD_MIN_GMD}`,
     tint: 'text-slate-800',
     border: 'border-slate-400',
     bg: 'bg-slate-50',
@@ -112,8 +115,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   const [trackingRef, setTrackingRef] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState<'Pending' | 'Approved' | 'Rejected' | null>(null);
-  const depositMin = MIN_DEPOSIT_GMD;
-  const presetAmounts = useMemo(() => depositPresetAmounts(depositMin), []);
+  const depositMin = method === "Card" ? Math.max(MIN_DEPOSIT_GMD, CARD_MIN_GMD) : MIN_DEPOSIT_GMD;
+  const presetAmounts = useMemo(() => depositPresetAmounts(depositMin), [depositMin]);
 
   const dragStartY = useRef<number | null>(null);
   const [dragY, setDragY] = useState(0);
@@ -198,6 +201,12 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     setMethod(m);
     setStage('enter-amount');
     setMessage(null);
+    const nextMin = m === 'Card' ? Math.max(MIN_DEPOSIT_GMD, CARD_MIN_GMD) : MIN_DEPOSIT_GMD;
+    const current = typeof amount === 'number' ? amount : Number(amountText);
+    if (!Number.isFinite(current) || current < nextMin) {
+      setAmount(nextMin);
+      setAmountText(String(nextMin));
+    }
     if (floatingKeypad) setKeypadOpen(true);
   };
 
@@ -238,10 +247,14 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || (!data.checkoutUrl && !data.sessionId)) {
+          const detailsMsg =
+            data?.details && typeof data.details === 'object'
+              ? (data.details as { message?: string }).message
+              : undefined;
           throw new Error(
-            typeof data.error === 'string' && data.error
-              ? data.error
-              : 'Could not start checkout',
+            (typeof data.error === 'string' && data.error) ||
+              (typeof detailsMsg === 'string' && detailsMsg) ||
+              'Could not start checkout',
           );
         }
         return {

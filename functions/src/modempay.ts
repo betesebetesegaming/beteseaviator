@@ -100,24 +100,92 @@ export interface CreateCheckoutInput {
   metadata?: Record<string, string>;
 }
 
-export async function createCheckoutSession(input: CreateCheckoutInput) {
-  const accountNumber = String(input.customer?.phone || '')
+/** Card rails are USD-priced; ModemPay rejects card intents below ~$1 (~GMD 75). */
+export const MODEMPAY_CARD_MIN_GMD = 75;
+
+export function normalizeModemPayAccountNumber(phone: string | undefined | null): string {
+  return String(phone || '')
     .replace(/\D/g, '')
     .replace(/^220/, '');
+}
+
+/** Pull a human-readable reason out of ModemPay's often-generic error bodies. */
+export function modemPayErrorMessage(raw: unknown, fallback = 'ModemPay checkout failed'): string {
+  if (!raw || typeof raw !== 'object') return fallback;
+  const row = raw as Record<string, unknown>;
+  const nested = row.data && typeof row.data === 'object' ? (row.data as Record<string, unknown>) : null;
+  const candidates = [row.message, row.error, nested?.message, nested?.error];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c.trim();
+  }
+  return fallback;
+}
+
+export async function createCheckoutSession(input: CreateCheckoutInput) {
+  const accountNumber = normalizeModemPayAccountNumber(input.customer?.phone);
+  const amount = Math.round(Number(input.amount) * 100) / 100;
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return {
+      ok: false,
+      status: 400,
+      checkoutUrl: null,
+      sessionId: null,
+      paymentLinkId: null,
+      intentSecret: null,
+      intentStatus: null,
+      raw: { message: 'Amount must be a positive number.' },
+    };
+  }
+
+  if (input.method === 'card' && amount < MODEMPAY_CARD_MIN_GMD) {
+    return {
+      ok: false,
+      status: 400,
+      checkoutUrl: null,
+      sessionId: null,
+      paymentLinkId: null,
+      intentSecret: null,
+      intentStatus: null,
+      raw: {
+        message: `Card deposits require at least GMD ${MODEMPAY_CARD_MIN_GMD}. Use Wave or AfriMoney for smaller amounts.`,
+      },
+    };
+  }
+
+  // Direct charge needs a real 7-digit Gambian wallet number (no country code).
+  if (input.method !== 'card' && !/^\d{7}$/.test(accountNumber)) {
+    return {
+      ok: false,
+      status: 400,
+      checkoutUrl: null,
+      sessionId: null,
+      paymentLinkId: null,
+      intentSecret: null,
+      intentStatus: null,
+      raw: {
+        message: 'Enter a valid 7-digit Gambian mobile money number (e.g. 7701234).',
+      },
+    };
+  }
 
   const webhookCallback =
     process.env.MODEMPAY_CALLBACK_URL ||
     'https://us-central1-beteseaviator-a05ae.cloudfunctions.net/modempayApi/modempay-webhook';
 
+  const customerName = String(input.customer?.name || '').trim();
+
   const dataPayload: Record<string, unknown> = {
-    amount: input.amount,
+    amount,
     currency: input.currency || 'GMD',
     from_sdk: false,
     return_url: input.successUrl,
     cancel_url: input.cancelUrl || input.successUrl,
     callback_url: webhookCallback,
+    // Preview / app return URLs sometimes fail ModemPay's host allow-list.
+    skip_url_validation: true,
     title: input.description || 'Wallet top-up',
-    description: input.description,
+    description: input.description || 'Wallet top-up',
     metadata: {
       source: 'betese-aviator',
       method: input.method,
@@ -132,14 +200,15 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
   // Abandoned/Expired without ever charging Wave.
   if (input.method !== 'card') {
     dataPayload.network = input.method;
-    if (accountNumber) dataPayload.account_number = accountNumber;
+    dataPayload.account_number = accountNumber;
+    dataPayload.customer_phone = accountNumber;
   } else {
     dataPayload.payment_methods = ['card'];
+    if (accountNumber) dataPayload.customer_phone = accountNumber;
   }
 
-  if (input.customer?.name) dataPayload.customer_name = input.customer.name;
+  if (customerName) dataPayload.customer_name = customerName;
   if (input.customer?.email) dataPayload.customer_email = input.customer.email;
-  if (input.customer?.phone) dataPayload.customer_phone = input.customer.phone;
 
   const { ok, status, data } = await modemFetch({
     method: 'POST',
@@ -177,6 +246,16 @@ export async function createCheckoutSession(input: CreateCheckoutInput) {
   // Direct Wave charges are valid even while still "processing" — customer must
   // approve in the Wave app. checkoutUrl is the Wave pay link for that.
   const apiOk = ok && envelope.status !== false && (!!checkoutUrl || !!sessionId);
+
+  if (!apiOk) {
+    logger.warn('ModemPay /v1/payments rejected checkout', {
+      method: input.method,
+      amount,
+      accountLen: accountNumber.length,
+      status,
+      message: modemPayErrorMessage(data),
+    });
+  }
 
   return {
     ok: apiOk,
