@@ -155,14 +155,10 @@ export function AgentSalesSummary() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-slate-400">
-        Your sales (GGR from customers), commissions, cash desk deposits, and Wave payments. Cash
-        you collect in person appears under{" "}
-        <Link href="/admin/accounts?tab=cashdesk" className="font-medium text-amber-300 hover:underline">
-          Cash deposits
-        </Link>
-        . Wave / mobile money is in{" "}
-        <Link href="/admin/accounts?tab=modempay" className="text-emerald-400 hover:underline">
-          Wave payments
+        Sales detail (GGR, Wave day stats). For the full professional statement — cash desk balance,
+        Wave, sales, and commission wallet — open{" "}
+        <Link href="/admin/accounts?tab=book" className="font-medium text-amber-300 hover:underline">
+          Account book
         </Link>
         .
       </p>

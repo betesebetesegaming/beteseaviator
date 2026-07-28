@@ -100,17 +100,32 @@ export function AdminAccountBook() {
     const withdrawals = rows
       .filter((t) => t.type === "withdrawal")
       .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
-    return { deposits, withdrawals, net: deposits - withdrawals, count: rows.length };
+    const cashIn = rows
+      .filter((t) => t.type === "deposit" && isOtcCashMeta(t.meta))
+      .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
+    const cashOut = rows
+      .filter((t) => t.type === "withdrawal" && isOtcCashMeta(t.meta))
+      .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
+    return {
+      deposits,
+      withdrawals,
+      net: deposits - withdrawals,
+      cashIn,
+      cashOut,
+      cashNet: Math.round((cashIn - cashOut) * 100) / 100,
+      count: rows.length,
+    };
   }, [rows]);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-white">Full account book</h2>
+          <h2 className="font-semibold text-white">Money book</h2>
           <p className="text-sm text-slate-400">
-            Every deposit and withdrawal with time, Player ID, amount, and agent. Filter by agent or
-            cash desk vs ModemPay.
+            Every deposit and withdrawal with time, Player ID, amount, agent, and channel. Filter{" "}
+            <span className="text-amber-200">Cash desk</span> vs{" "}
+            <span className="text-sky-300">Wave</span>.
           </p>
         </div>
         <Button variant="secondary" className="gap-2" onClick={reload} disabled={refreshing}>
@@ -119,11 +134,13 @@ export function AdminAccountBook() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Deposits in view" value={formatXof(totals.deposits)} />
         <StatCard label="Withdrawals in view" value={formatXof(totals.withdrawals)} />
         <StatCard label="Net (dep − wd)" value={formatXof(totals.net)} />
-        <StatCard label="Rows" value={totals.count} />
+        <StatCard label="Cash desk in" value={formatXof(totals.cashIn)} hint="OTC only" />
+        <StatCard label="Cash desk out" value={formatXof(totals.cashOut)} hint="OTC only" />
+        <StatCard label="Cash net held" value={formatXof(totals.cashNet)} hint="Shop cash" />
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -145,8 +162,8 @@ export function AdminAccountBook() {
           className="min-w-[10rem]"
         >
           <option value="all">All channels</option>
-          <option value="cashdesk">Cash desk</option>
-          <option value="modempay">ModemPay</option>
+          <option value="cashdesk">Cash desk only</option>
+          <option value="modempay">Wave only</option>
           <option value="other">Other</option>
         </Select>
         <Select
