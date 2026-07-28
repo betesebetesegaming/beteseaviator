@@ -1628,8 +1628,10 @@ async function markDepositFailed(externalRef: string, reason: string, payload: R
       session_id?: string | null;
       payment_intent_id?: string | null;
     };
-    // Already settled — ignore late expired/failed webhooks.
-    if (checkout.status === 'completed' || checkout.status === 'failed') {
+    // Ignore late failure webhooks after a confirmed success.
+    // If checkout is already failed but deposit_request is still Pending, keep
+    // going so we can repair the mirrored status rows.
+    if (checkout.status === 'completed') {
       logger.info('markDepositFailed skipped — checkout already settled', {
         externalRef,
         status: checkout.status,
