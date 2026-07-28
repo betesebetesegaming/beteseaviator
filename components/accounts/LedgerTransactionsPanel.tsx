@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { getOperationsHub, type OperationsHubResponse, errorMessage } from "@/lib/api";
 import { formatDate, formatSigned } from "@/lib/format";
+import { isOtcCashMeta, transactionChannel, transactionChannelLabel } from "@/lib/transactionChannel";
 import type { TransactionType } from "@/lib/types";
 import { Badge, Button, EmptyState, Select, TableShell, Td, Th } from "@/components/ui";
 
@@ -20,6 +21,7 @@ const TX_TYPES: TransactionType[] = [
 
 export function LedgerTransactionsPanel({ scopeLabel }: { scopeLabel: string }) {
   const [typeFilter, setTypeFilter] = useState("all");
+  const [channelFilter, setChannelFilter] = useState<"all" | "cashdesk" | "modempay">("all");
   const [search, setSearch] = useState("");
   const [data, setData] = useState<OperationsHubResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,16 +49,23 @@ export function LedgerTransactionsPanel({ scopeLabel }: { scopeLabel: string }) 
 
   const filtered = useMemo(() => {
     if (!data) return [];
+    let list = data.transactions;
+    if (channelFilter === "cashdesk") {
+      list = list.filter((t) => isOtcCashMeta(t.meta));
+    } else if (channelFilter === "modempay") {
+      list = list.filter((t) => transactionChannel(t) === "modempay");
+    }
     const q = search.trim().toLowerCase();
-    if (!q) return data.transactions;
-    return data.transactions.filter(
+    if (!q) return list;
+    return list.filter(
       (t) =>
         t.userId.toLowerCase().includes(q) ||
         (t.userName ?? "").toLowerCase().includes(q) ||
+        (t.agentName ?? "").toLowerCase().includes(q) ||
         t.reference.toLowerCase().includes(q) ||
         t.description.toLowerCase().includes(q)
     );
-  }, [data, search]);
+  }, [data, search, channelFilter]);
 
   return (
     <div className="space-y-4">
@@ -76,6 +85,16 @@ export function LedgerTransactionsPanel({ scopeLabel }: { scopeLabel: string }) 
             </option>
           ))}
         </Select>
+        <Select
+          label="Channel"
+          value={channelFilter}
+          onChange={(e) => setChannelFilter(e.target.value as typeof channelFilter)}
+          className="min-w-[10rem]"
+        >
+          <option value="all">All channels</option>
+          <option value="cashdesk">Cash desk only</option>
+          <option value="modempay">Wave only</option>
+        </Select>
         <InputSearch value={search} onChange={setSearch} />
       </div>
       {loading ? (
@@ -88,9 +107,11 @@ export function LedgerTransactionsPanel({ scopeLabel }: { scopeLabel: string }) 
             <tr>
               <Th>When</Th>
               <Th>User</Th>
+              <Th>Channel</Th>
               <Th>Type</Th>
               <Th>Amount</Th>
               <Th>Balance</Th>
+              <Th>Agent</Th>
               <Th>Reference</Th>
               <Th>Details</Th>
             </tr>
@@ -106,6 +127,15 @@ export function LedgerTransactionsPanel({ scopeLabel }: { scopeLabel: string }) 
                   <span className="font-mono text-[10px] text-slate-500">{t.userId.slice(0, 10)}…</span>
                 </Td>
                 <Td>
+                  <span
+                    className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                      isOtcCashMeta(t.meta) ? "bg-amber-500/20 text-amber-200" : "bg-slate-700 text-slate-300"
+                    }`}
+                  >
+                    {transactionChannelLabel(t)}
+                  </span>
+                </Td>
+                <Td>
                   <Badge value={t.type} />
                 </Td>
                 <Td className={`font-semibold ${t.amount >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
@@ -114,6 +144,7 @@ export function LedgerTransactionsPanel({ scopeLabel }: { scopeLabel: string }) 
                 <Td className="text-xs text-slate-400">
                   {t.balanceBefore.toLocaleString()} → {t.balanceAfter.toLocaleString()}
                 </Td>
+                <Td className="text-xs text-slate-400">{t.agentName ?? (isOtcCashMeta(t.meta) ? "Cash desk" : "—")}</Td>
                 <Td className="font-mono text-[10px] text-slate-500">{t.reference}</Td>
                 <Td className="max-w-xs truncate text-xs">{t.description}</Td>
               </tr>

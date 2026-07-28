@@ -39,6 +39,9 @@ type AgentSummary = {
   customerCount: number;
   customersOpenedToday: number;
   customerDeposits: number;
+  cashDepositsToday: number;
+  cashWithdrawalsToday: number;
+  cashDepositCountToday: number;
   totalBets: number;
   totalWins: number;
   ggr: number;
@@ -97,11 +100,13 @@ function memberFromDoc(
 function agentSummaryFromDoc(
   d: QueryDocumentSnapshot,
   opensByAgent: Map<string, number>,
+  cashByAgent: Map<string, { deposits: number; withdrawals: number; depositCount: number }>,
 ): AgentSummary {
   const p = d.data() as ProfileData;
   const stats = p.stats ?? {};
   const totalBets = Number(stats.totalBets ?? 0);
   const totalWins = Number(stats.totalWins ?? 0);
+  const cash = cashByAgent.get(d.id);
   return {
     uid: d.id,
     name: p.name,
@@ -112,6 +117,9 @@ function agentSummaryFromDoc(
     customerCount: Number(stats.customerCount ?? 0),
     customersOpenedToday: opensByAgent.get(d.id) ?? 0,
     customerDeposits: Number(stats.customerDeposits ?? 0),
+    cashDepositsToday: cash?.deposits ?? 0,
+    cashWithdrawalsToday: cash?.withdrawals ?? 0,
+    cashDepositCountToday: cash?.depositCount ?? 0,
     totalBets,
     totalWins,
     ggr: Math.max(0, totalBets - totalWins),
@@ -156,13 +164,20 @@ async function loadAdminPlatformData(today: string): Promise<{
   }
 
   const opensByAgent = new Map<string, number>();
+  const cashByAgent = new Map<string, { deposits: number; withdrawals: number; depositCount: number }>();
   for (const d of dailySnap.docs) {
     const row = d.data();
-    opensByAgent.set(String(row.agentId), Number(row.customersOpened ?? 0));
+    const agentId = String(row.agentId);
+    opensByAgent.set(agentId, Number(row.customersOpened ?? 0));
+    cashByAgent.set(agentId, {
+      deposits: Number(row.cashDeposits ?? 0),
+      withdrawals: Number(row.cashWithdrawals ?? 0),
+      depositCount: Number(row.cashDepositCount ?? 0),
+    });
   }
 
   const agents = agentSnap.docs
-    .map((d) => agentSummaryFromDoc(d, opensByAgent))
+    .map((d) => agentSummaryFromDoc(d, opensByAgent, cashByAgent))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const parentIdByUid = new Map<string, string>();

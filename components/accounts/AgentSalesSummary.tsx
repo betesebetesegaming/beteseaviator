@@ -155,13 +155,42 @@ export function AgentSalesSummary() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-slate-400">
-        Your sales (GGR from customers), commissions, cash desk book for today, and ModemPay
-        payments. Open{" "}
+        Your sales (GGR from customers), commissions, cash desk deposits, and Wave payments. Cash
+        you collect in person appears under{" "}
+        <Link href="/admin/accounts?tab=cashdesk" className="font-medium text-amber-300 hover:underline">
+          Cash deposits
+        </Link>
+        . Wave / mobile money is in{" "}
         <Link href="/admin/accounts?tab=modempay" className="text-emerald-400 hover:underline">
-          ModemPay ledger
-        </Link>{" "}
-        for day-by-day deposits and payouts.
+          Wave payments
+        </Link>
+        .
       </p>
+
+      {(Number(cashToday?.cashDeposits ?? 0) > 0 || Number(cashToday?.cashDepositCount ?? 0) > 0) ? (
+        <Card className="border-amber-500/40 bg-amber-500/10 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-amber-100">Cash deposits today</h2>
+              <p className="mt-1 text-sm text-amber-200/80">
+                {cashToday?.cashDepositCount ?? 0} cash deposit
+                {(cashToday?.cashDepositCount ?? 0) === 1 ? "" : "s"} recorded for {today}.
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold tabular-nums text-amber-100">
+                {formatXof(Number(cashToday?.cashDeposits ?? 0))}
+              </p>
+              <Link
+                href="/admin/accounts?tab=cashdesk"
+                className="text-sm font-medium text-amber-300 hover:underline"
+              >
+                View cash desk book →
+              </Link>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       <AgentPeriodStats />
 
@@ -169,9 +198,9 @@ export function AgentSalesSummary() {
         <StatCard label="Lifetime sales (GGR)" value={formatXof(lifetimeGgr)} hint="all time from your customers" />
         <StatCard label="Commission in wallet" value={formatXof(wallet?.balance ?? 0)} hint="available now" />
         <StatCard
-          label="Cash credits today"
+          label="Cash deposits today"
           value={formatXof(Number(cashToday?.cashDeposits ?? 0))}
-          hint={`${today} · cash desk`}
+          hint={`${today} · ${cashToday?.cashDepositCount ?? 0} deposit(s)`}
         />
         <StatCard
           label="Cash payouts today"
@@ -182,17 +211,17 @@ export function AgentSalesSummary() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
-          label="ModemPay deposits today"
+          label="Wave deposits today"
           value={formatXof(todayDeposits)}
           hint={today}
         />
         <StatCard
-          label="ModemPay payouts today"
+          label="Wave payouts today"
           value={formatXof(todayWithdrawals)}
           hint={today}
         />
         <StatCard
-          label="ModemPay net today"
+          label="Wave net today"
           value={formatXof(Math.round((todayDeposits - todayWithdrawals) * 100) / 100)}
           hint="deposits − payouts"
         />
@@ -214,11 +243,11 @@ export function AgentSalesSummary() {
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Customer deposits (ModemPay)</span>
+              <span className="text-slate-400">Customer deposits (Wave)</span>
               <span className="font-semibold">{formatXof(weekDeposits)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Customer withdrawals (ModemPay)</span>
+              <span className="text-slate-400">Customer withdrawals (Wave)</span>
               <span className="font-semibold">{formatXof(weekWithdrawals)}</span>
             </div>
           </div>
@@ -238,11 +267,11 @@ export function AgentSalesSummary() {
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Customer deposits (ModemPay)</span>
+              <span className="text-slate-400">Customer deposits (Wave)</span>
               <span className="font-semibold">{formatXof(monthDeposits)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Customer withdrawals (ModemPay)</span>
+              <span className="text-slate-400">Customer withdrawals (Wave)</span>
               <span className="font-semibold">{formatXof(monthWithdrawals)}</span>
             </div>
           </div>

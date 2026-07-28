@@ -5,19 +5,13 @@ import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { getOperationsHub, type OperationsHubResponse, errorMessage } from "@/lib/api";
 import { formatDate, formatXof } from "@/lib/format";
+import { isOtcCashMeta, transactionChannel, transactionChannelLabel } from "@/lib/transactionChannel";
 import { Badge, Button, EmptyState, Select, StatCard, TableShell, Td, Th } from "@/components/ui";
 
 type MoneyRow = OperationsHubResponse["transactions"][number];
 
 function channelLabel(t: MoneyRow): string {
-  const meta = (t.meta ?? {}) as Record<string, unknown>;
-  if (meta.otcCash === true) return "Cash desk";
-  const desc = String(t.description || "").toLowerCase();
-  if (desc.includes("modempay") || desc.includes("wave") || desc.includes("afrimoney")) {
-    return "ModemPay";
-  }
-  if (t.type === "deposit" || t.type === "withdrawal") return "Wallet";
-  return t.type;
+  return transactionChannelLabel(t);
 }
 
 /** Admin comprehensive money book: time, Player ID, deposit/withdraw, agent link. */
@@ -78,10 +72,10 @@ export function AdminAccountBook() {
     }
     if (channelFilter !== "all") {
       list = list.filter((t) => {
-        const ch = channelLabel(t).toLowerCase();
-        if (channelFilter === "cashdesk") return ch === "cash desk";
+        const ch = transactionChannel(t);
+        if (channelFilter === "cashdesk") return ch === "cashdesk";
         if (channelFilter === "modempay") return ch === "modempay";
-        return ch !== "cash desk" && ch !== "modempay";
+        return ch !== "cashdesk" && ch !== "modempay";
       });
     }
     const q = search.trim().toLowerCase();

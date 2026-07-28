@@ -8,6 +8,7 @@ import { formatDate, formatXof, todayIso } from "@/lib/format";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 import type { AgentDailyStats } from "@/lib/types";
+import { isOtcCashMeta } from "@/lib/transactionChannel";
 import { Button, EmptyState, StatCard, TableShell, Td, Th } from "@/components/ui";
 
 /** Agent account book for OTC cash credit / withdraw (not ModemPay). */
@@ -50,7 +51,7 @@ export function AgentCashDeskBook() {
     if (!data || !agentId) return [];
     return data.transactions.filter((t) => {
       const meta = (t.meta ?? {}) as Record<string, unknown>;
-      return meta.otcCash === true && meta.agentId === agentId;
+      return isOtcCashMeta(meta) && meta.agentId === agentId;
     });
   }, [data, agentId]);
 
@@ -86,8 +87,10 @@ export function AgentCashDeskBook() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <p className="text-sm text-slate-400">
-          Your cash desk book — credits and payouts you handled by Player ID / phone (OTP). This is
-          separate from ModemPay (Wave / Afrimoney).
+          <span className="font-medium text-amber-200">Cash deposits & payouts</span> — every
+          in-person credit or withdrawal you handle by Player ID / phone (OTP). Shown here and in
+          Operations as <span className="text-amber-200">Cash desk</span>. Separate from Wave /
+          mobile money.
         </p>
         <Button variant="secondary" className="gap-2" onClick={() => void load()} disabled={refreshing}>
           <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
@@ -96,7 +99,7 @@ export function AgentCashDeskBook() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Cash credits today" value={formatXof(depositTotal)} hint={today} />
+        <StatCard label="Cash deposits today" value={formatXof(depositTotal)} hint={today} />
         <StatCard label="Cash payouts today" value={formatXof(withdrawTotal)} hint={today} />
         <StatCard
           label="Credits today (count)"
@@ -129,13 +132,20 @@ export function AgentCashDeskBook() {
           </thead>
           <tbody>
             {cashRows.map((t) => (
-              <tr key={t.id}>
+              <tr
+                key={t.id}
+                className={t.type === "deposit" ? "bg-amber-500/5" : undefined}
+              >
                 <Td className="whitespace-nowrap text-xs text-slate-400">
                   {t.createdAt ? formatDate(new Date(t.createdAt)) : "—"}
                 </Td>
                 <Td className="font-medium">{t.userName ?? t.userId.slice(0, 8)}</Td>
                 <Td className="font-mono text-emerald-300">{t.playerId ?? "—"}</Td>
-                <Td className="capitalize">{t.type}</Td>
+                <Td className="capitalize">
+                  <span className={t.type === "deposit" ? "font-semibold text-amber-200" : ""}>
+                    {t.type}
+                  </span>
+                </Td>
                 <Td className="font-semibold tabular-nums">{formatXof(Math.abs(Number(t.amount) || 0))}</Td>
                 <Td className="max-w-[16rem] truncate text-xs text-slate-400">{t.description}</Td>
               </tr>

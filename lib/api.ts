@@ -437,6 +437,9 @@ export type OperationsHubResponse = {
     customerCount: number;
     customersOpenedToday: number;
     customerDeposits: number;
+    cashDepositsToday: number;
+    cashWithdrawalsToday: number;
+    cashDepositCountToday: number;
     totalBets: number;
     totalWins: number;
     ggr: number;

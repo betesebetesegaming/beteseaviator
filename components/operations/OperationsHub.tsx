@@ -15,6 +15,7 @@ import { useAuth } from "@/lib/auth-context";
 import { getOperationsHub, type OperationsHubResponse, errorMessage } from "@/lib/api";
 import { formatDate, formatXof } from "@/lib/format";
 import { formatPlayerId } from "@/lib/playerId";
+import { isOtcCashMeta, transactionChannel, transactionChannelLabel } from "@/lib/transactionChannel";
 import type { Role, TransactionType } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Select, TableShell, Td, Th } from "@/components/ui";
 
@@ -42,6 +43,7 @@ export function OperationsHub() {
   const initialAgent = searchParams.get("agent") ?? null;
   const [tab, setTab] = useState<Tab>(TABS.includes(initialTab) ? initialTab : "overview");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [channelFilter, setChannelFilter] = useState<"all" | "cashdesk" | "modempay">("all");
   const [search, setSearch] = useState(initialSearch);
   const [data, setData] = useState<OperationsHubResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,6 +82,11 @@ export function OperationsHub() {
     if (agentFilter) {
       list = list.filter((t) => t.agentId === agentFilter);
     }
+    if (channelFilter === "cashdesk") {
+      list = list.filter((t) => isOtcCashMeta(t.meta));
+    } else if (channelFilter === "modempay") {
+      list = list.filter((t) => transactionChannel(t) === "modempay");
+    }
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter(
@@ -92,7 +99,7 @@ export function OperationsHub() {
         t.reference.toLowerCase().includes(q) ||
         t.description.toLowerCase().includes(q)
     );
-  }, [data, search, agentFilter]);
+  }, [data, search, agentFilter, channelFilter]);
 
   const filteredLive = useMemo(() => {
     if (!data) return [];
@@ -141,7 +148,10 @@ export function OperationsHub() {
     const withdrawals = filteredTx
       .filter((t) => t.type === "withdrawal")
       .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
-    return { deposits, withdrawals };
+    const cashDeposits = filteredTx
+      .filter((t) => t.type === "deposit" && isOtcCashMeta(t.meta))
+      .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
+    return { deposits, withdrawals, cashDeposits };
   }, [filteredTx]);
 
   function viewAgentCustomers(agentId: string) {
@@ -323,7 +333,8 @@ export function OperationsHub() {
                   <Th className="text-right">Opened today</Th>
                   <Th className="text-right">Customers</Th>
                   <Th className="text-right">Sales (GGR)</Th>
-                  <Th className="text-right">Deposits</Th>
+                  <Th className="text-right">Cash in today</Th>
+                  <Th className="text-right">Deposits (all)</Th>
                   <Th className="text-right">Commission</Th>
                   <Th>Status</Th>
                   <Th>Action</Th>
@@ -341,6 +352,16 @@ export function OperationsHub() {
                     </Td>
                     <Td className="text-right tabular-nums">{a.customerCount}</Td>
                     <Td className="text-right tabular-nums">{formatXof(a.ggr)}</Td>
+                    <Td className="text-right tabular-nums">
+                      <span className={a.cashDepositsToday > 0 ? "font-semibold text-amber-200" : ""}>
+                        {formatXof(a.cashDepositsToday ?? 0)}
+                      </span>
+                      {(a.cashDepositCountToday ?? 0) > 0 ? (
+                        <span className="block text-[10px] text-slate-500">
+                          {a.cashDepositCountToday} cash deposit{a.cashDepositCountToday === 1 ? "" : "s"}
+                        </span>
+                      ) : null}
+                    </Td>
                     <Td className="text-right tabular-nums">{formatXof(a.customerDeposits)}</Td>
                     <Td className="text-right tabular-nums text-emerald-300">
                       {formatXof(a.commissionEarned)}
@@ -436,10 +457,14 @@ export function OperationsHub() {
             filter).
           </p>
           {isAdmin ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Card className="p-3 text-sm">
                 <p className="text-xs text-slate-500">Deposits in view</p>
                 <p className="text-lg font-semibold text-emerald-300">{formatXof(txMoneyTotals.deposits)}</p>
+              </Card>
+              <Card className="p-3 text-sm border-amber-500/30 bg-amber-500/5">
+                <p className="text-xs text-slate-500">Cash desk in view</p>
+                <p className="text-lg font-semibold text-amber-200">{formatXof(txMoneyTotals.cashDeposits)}</p>
               </Card>
               <Card className="p-3 text-sm">
                 <p className="text-xs text-slate-500">Withdrawals in view</p>
@@ -466,6 +491,16 @@ export function OperationsHub() {
                   {t}
                 </option>
               ))}
+            </Select>
+            <Select
+              label="Channel"
+              value={channelFilter}
+              onChange={(e) => setChannelFilter(e.target.value as typeof channelFilter)}
+              className="min-w-[10rem]"
+            >
+              <option value="all">All channels</option>
+              <option value="cashdesk">Cash desk only</option>
+              <option value="modempay">Wave only</option>
             </Select>
             {isAdmin && data?.agents && data.agents.length > 0 ? (
               <Select
@@ -507,6 +542,7 @@ export function OperationsHub() {
                   {isAdmin ? <Th>Agent</Th> : null}
                   <Th className="text-right">Deposit</Th>
                   <Th className="text-right">Withdraw</Th>
+                  <Th>Channel</Th>
                   <Th>Type</Th>
                   <Th>Details</Th>
                   <Th>Tx ID</Th>
@@ -546,6 +582,17 @@ export function OperationsHub() {
                       </Td>
                       <Td className="text-right tabular-nums font-semibold text-amber-200">
                         {withdraw > 0 ? formatXof(withdraw) : "—"}
+                      </Td>
+                      <Td>
+                        <span
+                          className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                            isOtcCashMeta(t.meta)
+                              ? "bg-amber-500/20 text-amber-200"
+                              : "bg-slate-700 text-slate-300"
+                          }`}
+                        >
+                          {transactionChannelLabel(t)}
+                        </span>
                       </Td>
                       <Td>
                         <Badge value={t.type} />

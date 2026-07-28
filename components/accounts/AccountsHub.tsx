@@ -26,8 +26,8 @@ const ADMIN_TABS = [
 
 const AGENT_TABS = [
   { id: "sales", label: "My Sales" },
-  { id: "cashdesk", label: "Cash desk book" },
-  { id: "modempay", label: "ModemPay ledger" },
+  { id: "cashdesk", label: "Cash deposits" },
+  { id: "modempay", label: "Wave payments" },
   { id: "transactions", label: "My Transactions" },
   { id: "commissions", label: "My Commissions" },
 ] as const;
