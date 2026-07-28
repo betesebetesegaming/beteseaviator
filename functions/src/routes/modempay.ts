@@ -1233,14 +1233,10 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
   let aviatorCredit = 0;
   let aviatorUid = '';
 
-  // Heal deposits where Firestore was marked completed but wallets/{uid} never credited
-  // (syncAviatorWalletCredit used to fail on Firestore read-after-write violations).
-  if (await healAviatorWalletIfNeeded(externalRef, payloadAmount)) {
-    return;
-  }
-
-  const preCheckoutSnap = await adminDb.collection('modempay_checkouts').doc(externalRef).get();
-  if (preCheckoutSnap.exists && preCheckoutSnap.data()?.status === 'completed') {
+  const preDepositSnap = await adminDb.collection('deposit_requests').doc(externalRef).get();
+  if (preDepositSnap.exists && preDepositSnap.data()?.status === 'Approved') {
+    // Firestore already shows success; only heal the mirrored Aviator wallet if needed.
+    await healAviatorWalletIfNeeded(externalRef, payloadAmount);
     return;
   }
 
@@ -1285,7 +1281,6 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
       return;
     }
 
-    if (checkout?.status === 'completed') return;
     if (depositReq?.status === 'Approved') return;
     if (depositReq?.status === 'Rejected') return;
 
