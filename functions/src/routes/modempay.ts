@@ -14,6 +14,7 @@ import {
   isModemPayPayoutNetwork,
   isWalletDeepPayUrl,
   modemPayErrorMessage,
+  modemPayMethodLabel,
   normalizeModemPayAccountNumber,
   MODEMPAY_CARD_MIN_GMD,
   type ModemPayMethod,
@@ -378,8 +379,8 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       },
     );
 
-    // Card may use ModemPay hosted checkout. Wallet methods must get pay.wave.com
-    // (same path as successful GMD 25) — never invent checkout.modempay.com.
+    // Card may use ModemPay hosted checkout. Wallet methods need a real wallet
+    // deep link (pay.wave.com / afrimoney / aps / qmoney) — never hosted ModemPay.
     const checkoutUrl =
       provider === 'card'
         ? result.checkoutUrl ||
@@ -389,8 +390,10 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
           : null;
 
     if (!result.ok || !checkoutUrl) {
-      const upstreamMessage = modemPayErrorMessage(result.raw, 'Wave checkout failed');
-      logger.warn('Wave checkout creation failed', {
+      const label = modemPayMethodLabel(provider);
+      // createCheckoutSession puts our clear message in raw.message on fail().
+      const upstreamMessage = modemPayErrorMessage(result.raw, `${label} checkout failed`);
+      logger.warn('Wallet checkout creation failed', {
         status: result.status,
         method: provider,
         amount,
@@ -399,10 +402,13 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
         raw: result.raw,
       });
       const clientStatus = result.status >= 400 && result.status < 500 ? result.status : 502;
-      const publicError =
-        upstreamMessage === 'Validation error' || upstreamMessage.toLowerCase().includes('modempay')
-          ? 'Could not start Wave payment. Please try again in a moment.'
-          : upstreamMessage;
+      const looksGeneric =
+        upstreamMessage === 'Validation error' ||
+        upstreamMessage.toLowerCase() === 'modempay' ||
+        upstreamMessage.toLowerCase().includes('checkout failed');
+      const publicError = looksGeneric
+        ? `Could not start ${label} payment. If this number already has an open GMD ${amount} on Wave/AfriMoney/APS, approve that request, wait ~15 minutes, or try a different amount.`
+        : upstreamMessage;
       res.status(clientStatus).json({
         error: publicError,
         upstreamStatus: result.status,
@@ -412,13 +418,14 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
     }
 
     if (result.reused) {
-      logger.info('Checkout reused stored Wave deep-pay link', {
+      logger.info('Checkout reused stored wallet deep-pay link', {
         externalRef: body.externalRef,
+        method: provider,
         sessionId: result.sessionId,
         amount,
         phone: body.customerPhone || null,
       });
-      // Point the open Wave intent at THIS deposit so the webhook credits the right wallet.
+      // Point the open intent at THIS deposit so the webhook credits the right wallet.
       if (provider !== 'card' && accountNumber) {
         await persistWalletPayLink({
           phone: accountNumber,

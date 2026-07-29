@@ -21,6 +21,23 @@ export function isModemPayMethod(v: unknown): v is ModemPayMethod {
   return typeof v === 'string' && (MODEMPAY_METHODS as ReadonlyArray<string>).includes(v.toLowerCase());
 }
 
+export function modemPayMethodLabel(method: string): string {
+  switch (String(method || '').toLowerCase()) {
+    case 'aps':
+      return 'APS';
+    case 'afrimoney':
+      return 'AfriMoney';
+    case 'qmoney':
+      return 'QMoney';
+    case 'wave':
+      return 'Wave';
+    case 'card':
+      return 'Card';
+    default:
+      return 'Wallet';
+  }
+}
+
 function baseUrl(): string {
   return process.env.MODEMPAY_BASE_URL || 'https://api.modempay.com';
 }
@@ -435,7 +452,7 @@ export async function createCheckoutSession(
     }
   }
 
-  const upstream = modemPayErrorMessage(data, 'Wave checkout failed');
+  const upstream = modemPayErrorMessage(data, `${modemPayMethodLabel(input.method)} checkout failed`);
   const blockedDuplicate =
     input.method !== 'card' &&
     (upstream.toLowerCase().includes('validation') || status === 500);
@@ -448,12 +465,15 @@ export async function createCheckoutSession(
     message: upstream,
   });
 
+  const label = modemPayMethodLabel(input.method);
+  // ModemPay locks phone+amount across wallet networks — an open Wave GMD 25
+  // also blocks APS / AfriMoney for the same amount until it clears.
   return fail(
     blockedDuplicate ? 409 : status || 502,
     blockedDuplicate
-      ? `Wave already has an open GMD ${amount} payment for this number. Open the Wave app and approve it now (or wait ~15 minutes), then try again.`
+      ? `${label} could not start: this number already has an open GMD ${amount} payment (Wave / AfriMoney / APS share the same lock). Approve the open request in that wallet app now, wait ~15 minutes, or try a different amount.`
       : upstream === 'Validation error'
-        ? 'Could not start Wave payment. Please try again in a moment.'
+        ? `Could not start ${label} payment. Please try again in a moment.`
         : upstream,
   );
 }

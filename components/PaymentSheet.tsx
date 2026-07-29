@@ -609,6 +609,11 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                   <p className="text-xs font-bold text-slate-600">{methodMeta[method].sub}</p>
                 </div>
               </div>
+              <p className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-relaxed text-slate-600">
+                Tip: Wave, AfriMoney and APS share one open payment per phone + amount. If you already
+                started GMD {String(amount || depositMin)} on another wallet, approve it there, wait
+                ~15 minutes, or pick a different amount here.
+              </p>
 
               <div>
                 <label className="block text-xs font-black uppercase tracking-widest text-slate-600 mb-1">
