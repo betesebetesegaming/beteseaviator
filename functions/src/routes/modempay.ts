@@ -13,6 +13,7 @@ import {
   isModemPayMethod,
   isModemPayPayoutNetwork,
   isWalletDeepPayUrl,
+  isModemPayHostedCheckoutUrl,
   modemPayErrorMessage,
   modemPayMethodLabel,
   normalizeModemPayAccountNumber,
@@ -219,7 +220,13 @@ async function persistWalletPayLink(input: {
   intentSecret: string | null;
   externalRef: string;
 }): Promise<void> {
-  if (!isWalletDeepPayUrl(input.checkoutUrl)) return;
+  // Cache Wave deep links and AfriMoney/APS hosted links for reuse / webhook recovery.
+  if (
+    !isWalletDeepPayUrl(input.checkoutUrl) &&
+    !(input.method !== 'wave' && isModemPayHostedCheckoutUrl(input.checkoutUrl))
+  ) {
+    return;
+  }
   const account = normalizeModemPayAccountNumber(input.phone);
   const reuseKey = waveReuseKey(input.method, account, input.amount);
   const now = new Date().toISOString();
@@ -379,15 +386,22 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       },
     );
 
-    // Card may use ModemPay hosted checkout. Wallet methods need a real wallet
-    // deep link (pay.wave.com / afrimoney / aps / qmoney) — never hosted ModemPay.
-    const checkoutUrl =
+    // Wave: only pay.wave.com. AfriMoney/APS/QMoney: deep link OR ModemPay hosted.
+    let checkoutUrl =
       provider === 'card'
         ? result.checkoutUrl ||
           (result.sessionId ? `https://checkout.modempay.com/${result.sessionId}` : null)
-        : result.checkoutUrl && isWalletDeepPayUrl(result.checkoutUrl)
-          ? result.checkoutUrl
-          : null;
+        : provider === 'wave'
+          ? result.checkoutUrl && isWalletDeepPayUrl(result.checkoutUrl)
+            ? result.checkoutUrl
+            : null
+          : result.checkoutUrl &&
+              (isWalletDeepPayUrl(result.checkoutUrl) ||
+                isModemPayHostedCheckoutUrl(result.checkoutUrl))
+            ? result.checkoutUrl
+            : result.sessionId
+              ? `https://checkout.modempay.com/${result.sessionId}`
+              : null;
 
     if (!result.ok || !checkoutUrl) {
       const label = modemPayMethodLabel(provider);
@@ -399,22 +413,68 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
         amount,
         phone: body.customerPhone || null,
         message: upstreamMessage,
+        sessionId: result.sessionId,
         raw: result.raw,
       });
-      const clientStatus = result.status >= 400 && result.status < 500 ? result.status : 502;
-      const looksGeneric =
-        upstreamMessage === 'Validation error' ||
-        upstreamMessage.toLowerCase() === 'modempay' ||
-        upstreamMessage.toLowerCase().includes('checkout failed');
-      const publicError = looksGeneric
-        ? `Could not start ${label} payment. If this number already has an open GMD ${amount} on Wave/AfriMoney/APS, approve that request, wait ~15 minutes, or try a different amount.`
-        : upstreamMessage;
-      res.status(clientStatus).json({
-        error: publicError,
-        upstreamStatus: result.status,
-        details: result.raw,
-      });
-      return;
+      // AfriMoney/APS: if ModemPay created a session, still save markers so a
+      // completed charge can be reconciled even when the URL was rejected.
+      if (provider !== 'wave' && provider !== 'card' && result.sessionId && body.externalRef) {
+        const createdAt = new Date().toISOString();
+        const fallbackUrl = `https://checkout.modempay.com/${result.sessionId}`;
+        await Promise.all([
+          adminDb.collection('modempay_checkouts').doc(body.externalRef).set(
+            {
+              external_ref: body.externalRef,
+              session_id: result.sessionId,
+              method: provider,
+              amount,
+              customer_id: body.customerId || null,
+              customer_phone: body.customerPhone || null,
+              customer_name: body.customerName || null,
+              status: 'pending',
+              created_at: createdAt,
+              checkout_url: fallbackUrl,
+              reuse_key:
+                accountNumber ? `${provider}:${accountNumber}:${amount}` : null,
+            },
+            { merge: true },
+          ),
+          body.customerId
+            ? adminDb.collection('deposit_requests').doc(body.externalRef).set(
+                {
+                  id: body.externalRef,
+                  amount: Number(amount.toFixed(2)),
+                  method: mapModemPayMethodLabel(provider),
+                  customer_id: body.customerId,
+                  status: 'Pending',
+                  timestamp: createdAt,
+                  provider_reference: body.externalRef,
+                  verification_status: 'PendingProviderConfirmation',
+                  verification_source: 'webhook',
+                  verification_message: `Waiting for ${modemPayMethodLabel(provider)} to confirm payment.`,
+                },
+                { merge: true },
+              )
+            : Promise.resolve(),
+          linkPaymentIntentIndex(result.sessionId, body.externalRef).catch(() => undefined),
+        ]);
+        checkoutUrl = fallbackUrl;
+      } else {
+        const clientStatus = result.status >= 400 && result.status < 500 ? result.status : 502;
+        const looksGeneric =
+          upstreamMessage === 'Validation error' ||
+          upstreamMessage.toLowerCase() === 'modempay' ||
+          upstreamMessage.toLowerCase().includes('checkout failed');
+        const publicError = looksGeneric
+          ? `Could not start ${label} payment. If this number already has an open GMD ${amount} on Wave/AfriMoney/APS, approve that request, wait ~15 minutes, or try a different amount.`
+          : upstreamMessage;
+        res.status(clientStatus).json({
+          error: publicError,
+          upstreamStatus: result.status,
+          details: result.raw,
+        });
+        return;
+      }
     }
 
     if (result.reused) {
@@ -461,9 +521,9 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       customer_name: body.customerName || null,
       status: 'pending',
       created_at: createdAt,
-      // Persist Wave deep link so retries reopen pay.wave.com (not ModemPay hosted).
+      // Persist payment URL (Wave deep link preferred; AfriMoney/APS may be hosted).
       checkout_url: checkoutUrl,
-      wave_payment_link: provider !== 'card' ? checkoutUrl : null,
+      wave_payment_link: provider === 'wave' ? checkoutUrl : null,
       reuse_key: reuseKey,
       reused: Boolean(result.reused),
     };
@@ -486,7 +546,7 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
           provider_reference: body.externalRef,
           verification_status: 'PendingProviderConfirmation',
           verification_source: 'webhook',
-          verification_message: 'Waiting for Wave to confirm payment before your wallet is credited.',
+          verification_message: `Waiting for ${modemPayMethodLabel(provider)} to confirm payment before your wallet is credited.`,
         }, { merge: true }),
       );
     }
@@ -547,14 +607,14 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
         provider_reference: body.externalRef,
         verification_status: 'PendingProviderConfirmation',
         verification_source: 'webhook',
-        verification_message: 'Waiting for Wave to confirm payment before your wallet is credited.',
+        verification_message: `Waiting for ${modemPayMethodLabel(provider)} to confirm payment before your wallet is credited.`,
       };
       secondary.push(
         syncDepositToRtdb(pendingDeposit).catch(err => logger.warn('RTDB deposit sync failed', err)),
       );
     }
 
-    // Respond immediately so the phone can open Wave; finish RTDB in the
+    // Respond immediately so the phone can open the wallet; finish RTDB in the
     // same request with a short budget so warm instances still sync reliably.
     res.json({
       ok: true,

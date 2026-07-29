@@ -55,7 +55,7 @@ function isModemPayHostedCheckoutUrl(url: string | null | undefined): boolean {
   }
 }
 
-/** Same path as successful GMD 25: open pay.wave.com, not ModemPay hosted UI. */
+/** Wallet deep links (pay.wave.com / afrimoney / aps / qmoney). */
 function isWalletDeepPayUrl(url: string | null | undefined): boolean {
   if (!url || isModemPayHostedCheckoutUrl(url)) return false;
   try {
@@ -70,6 +70,14 @@ function isWalletDeepPayUrl(url: string | null | undefined): boolean {
   } catch {
     return false;
   }
+}
+
+/** Wave must use pay.wave.com. AfriMoney/APS may use ModemPay hosted checkout. */
+function isAcceptablePayUrl(url: string | null | undefined, provider: string): boolean {
+  if (!url) return false;
+  if (provider === 'wave') return isWalletDeepPayUrl(url);
+  if (provider === 'card') return true;
+  return isWalletDeepPayUrl(url) || isModemPayHostedCheckoutUrl(url);
 }
 
 const methodMeta: Record<Method, { logo: string; label: string; sub: string; tint: string; border: string; bg: string }> = {
@@ -326,7 +334,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         const walletOk =
           provider === 'card'
             ? Boolean(rawUrl || data.sessionId)
-            : Boolean(rawUrl && isWalletDeepPayUrl(rawUrl));
+            : Boolean(rawUrl && isAcceptablePayUrl(rawUrl, provider));
         if (!res.ok || !walletOk) {
           const detailsMsg =
             data?.details && typeof data.details === 'object'
@@ -335,7 +343,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
           throw new Error(
             (typeof data.error === 'string' && data.error) ||
               (typeof detailsMsg === 'string' && detailsMsg) ||
-              (provider !== 'card' && rawUrl && isModemPayHostedCheckoutUrl(rawUrl)
+              (provider === 'wave' && rawUrl && isModemPayHostedCheckoutUrl(rawUrl)
                 ? `Could not open ${PROVIDER_LABEL[provider]}. Please try again in a moment.`
                 : 'Could not start checkout'),
           );
@@ -454,7 +462,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         });
         // The direct charge is already started (status "processing") and `url`
         // is the real wallet deep-link. Take the customer straight into the app.
-        if (url && isWalletDeepPayUrl(url)) {
+        if (url && isAcceptablePayUrl(url, providerKey)) {
           if (isMobileCheckout()) {
             window.location.assign(url);
             return;
@@ -464,7 +472,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
           } catch {
             /* ignore */
           }
-        } else if (url && isModemPayHostedCheckoutUrl(url)) {
+        } else if (providerKey === 'wave' && url && isModemPayHostedCheckoutUrl(url)) {
           setMessage({
             ok: false,
             text: `Could not open ${method} payment. Close any open ${method} requests, wait a minute, then try again.`,

@@ -378,9 +378,15 @@ export async function createCheckoutSession(
   const inner = envelope.data || (data as Record<string, unknown>);
   const fields = extractCheckoutFields(inner as Record<string, unknown>);
 
-  // Never send mobile-money customers to checkout.modempay.com.
-  if (input.method !== 'card' && fields.checkoutUrl && isModemPayHostedCheckoutUrl(fields.checkoutUrl)) {
-    logger.warn('ModemPay returned hosted checkout for direct charge — rejecting', {
+  // Wave must use pay.wave.com — hosted ModemPay sticks on "Transaction in Progress".
+  // AfriMoney / APS / QMoney often only return checkout.modempay.com; accept that so
+  // the charge + webhook can complete (we still persist session_id for credit).
+  if (
+    input.method === 'wave' &&
+    fields.checkoutUrl &&
+    isModemPayHostedCheckoutUrl(fields.checkoutUrl)
+  ) {
+    logger.warn('ModemPay returned hosted checkout for Wave direct charge — rejecting', {
       method: input.method,
       amount,
       sessionId: fields.sessionId,
@@ -388,15 +394,32 @@ export async function createCheckoutSession(
     fields.checkoutUrl = null;
   }
 
+  const walletUrlOk =
+    Boolean(fields.checkoutUrl) &&
+    (input.method === 'wave'
+      ? isWalletDeepPayUrl(fields.checkoutUrl)
+      : isWalletDeepPayUrl(fields.checkoutUrl) || isModemPayHostedCheckoutUrl(fields.checkoutUrl));
+
   const apiOk =
     ok &&
     envelope.status !== false &&
     (input.method === 'card'
       ? Boolean(fields.checkoutUrl || fields.sessionId)
-      : Boolean(fields.checkoutUrl && isWalletDeepPayUrl(fields.checkoutUrl)));
+      : walletUrlOk || Boolean(fields.sessionId && input.method !== 'wave'));
+
+  // Prefer a usable checkout URL; for AfriMoney/APS fall back to hosted session page.
+  if (
+    apiOk &&
+    input.method !== 'card' &&
+    input.method !== 'wave' &&
+    !fields.checkoutUrl &&
+    fields.sessionId
+  ) {
+    fields.checkoutUrl = `https://checkout.modempay.com/${fields.sessionId}`;
+  }
 
   if (apiOk) {
-    // Persist Wave URL immediately so a timed-out client retry can reuse it.
+    // Persist pay link / session immediately so retries and webhooks can credit.
     if (input.method !== 'card' && opts?.persistPayLink && fields.checkoutUrl) {
       try {
         await opts.persistPayLink({
