@@ -483,7 +483,10 @@ export async function createCheckoutSession(
   const upstream = modemPayErrorMessage(data, `${modemPayMethodLabel(input.method)} checkout failed`);
   const blockedDuplicate =
     input.method !== 'card' &&
-    (upstream.toLowerCase().includes('validation') || status === 500);
+    (upstream.toLowerCase().includes('validation') ||
+      upstream.toLowerCase().includes('already sent otp') ||
+      upstream.toLowerCase().includes('otp for verification') ||
+      status === 500);
 
   if (blockedDuplicate && input.method !== 'card') {
     try {

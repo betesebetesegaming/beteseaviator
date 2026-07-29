@@ -81,10 +81,18 @@ function isAcceptablePayUrl(url: string | null | undefined, provider: string): b
 }
 
 const methodMeta: Record<Method, { logo: string; label: string; sub: string; tint: string; border: string; bg: string }> = {
+  APS: {
+    logo: '/payment-logos/aps.svg',
+    label: 'APS Wallet',
+    sub: 'Pay with APS (OTP on next screen)',
+    tint: 'text-indigo-800',
+    border: 'border-indigo-400',
+    bg: 'bg-indigo-50',
+  },
   AfriMoney: {
     logo: '/payment-logos/afrimoney.png',
     label: 'AfriMoney',
-    sub: 'Pay from your Africell AfriMoney wallet',
+    sub: 'Pay with AfriMoney (OTP on next screen)',
     tint: 'text-purple-800',
     border: 'border-purple-400',
     bg: 'bg-purple-50',
@@ -92,18 +100,10 @@ const methodMeta: Record<Method, { logo: string; label: string; sub: string; tin
   Wave: {
     logo: '/payment-logos/wave.png',
     label: 'Wave',
-    sub: 'Pay with your Wave app',
+    sub: 'Opens Wave app to approve',
     tint: 'text-blue-700',
     border: 'border-blue-400',
     bg: 'bg-blue-50',
-  },
-  APS: {
-    logo: '/payment-logos/aps.svg',
-    label: 'APS Wallet',
-    sub: 'Endless Possibilities wallet',
-    tint: 'text-indigo-800',
-    border: 'border-indigo-400',
-    bg: 'bg-indigo-50',
   },
   QMoney: {
     logo: '/payment-logos/qmoney.svg',
@@ -456,12 +456,15 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       // Auto-redirecting to ModemPay hosted checkout abandons the Wave charge
       // (dashboard shows Abandoned / Processing / Expired, money never taken).
       if (awaitWalletApproval || method !== 'Card') {
+        const isHosted = Boolean(url && isModemPayHostedCheckoutUrl(url));
         setMessage({
           ok: true,
-          text: `Approve GMD ${numAmount.toFixed(0)} in your ${method} app for ${cleanPhone}. After you pay, come back here — your wallet credits the full GMD ${numAmount.toFixed(0)} (cash). Any first-deposit bonus is extra play credit, shown separately.`,
+          text: isHosted
+            ? `Complete GMD ${numAmount.toFixed(0)} with ${method} on the next screen (OTP if asked). When done, return here — your wallet credits the full GMD ${numAmount.toFixed(0)}.`
+            : `Approve GMD ${numAmount.toFixed(0)} in your ${method} app for ${cleanPhone}. After you pay, come back here — your wallet credits the full GMD ${numAmount.toFixed(0)} (cash).`,
         });
-        // The direct charge is already started (status "processing") and `url`
-        // is the real wallet deep-link. Take the customer straight into the app.
+        // Wave: open pay.wave.com app deep link.
+        // APS / AfriMoney: ModemPay returns hosted checkout (OTP) — open it the same way.
         if (url && isAcceptablePayUrl(url, providerKey)) {
           if (isMobileCheckout()) {
             window.location.assign(url);
@@ -573,8 +576,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
           {stage === 'choose' && (
             <div className="space-y-3">
               <p className="text-sm text-slate-600">
-                Choose how to pay. Your wallet always receives the <strong>full deposit as cash</strong>.
-                First-deposit bonus (if any) is extra play credit — shown separately.
+                <strong>Wave</strong> opens the Wave app. <strong>APS / AfriMoney</strong> open a
+                payment page (enter OTP). Your wallet always gets the full deposit as cash.
               </p>
               {depositMethods.length === 0 ? (
                 <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
