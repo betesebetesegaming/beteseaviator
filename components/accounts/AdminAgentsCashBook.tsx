@@ -42,23 +42,18 @@ export function AdminAgentsCashBook() {
 
   const todayStart = useMemo(() => new Date(`${today}T00:00:00`).getTime(), [today]);
 
+  // Per-agent performance board
   const agentRows = useMemo(() => {
     const agents = data?.agents ?? [];
-    return agents
-      .map((a) => {
-        const cashIn = Number(a.cashDepositsToday ?? 0);
-        const cashOut = Number(a.cashWithdrawalsToday ?? 0);
-        const count = Number(a.cashDepositCountToday ?? 0);
-        return {
-          ...a,
-          cashIn,
-          cashOut,
-          net: Math.round((cashIn - cashOut) * 100) / 100,
-          count,
-        };
-      })
-      .filter((a) => a.cashIn > 0 || a.cashOut > 0 || a.count > 0)
-      .sort((a, b) => b.net - a.net);
+    return [...agents]
+      .map((a) => ({
+        ...a,
+        cashIn: Number(a.cashDepositsToday ?? 0),
+        cashOut: Number(a.cashWithdrawalsToday ?? 0),
+        net: Math.round((Number(a.cashDepositsToday ?? 0) - Number(a.cashWithdrawalsToday ?? 0)) * 100) / 100,
+        count: Number(a.cashDepositCountToday ?? 0),
+      }))
+      .sort((a, b) => b.ggr - a.ggr);
   }, [data]);
 
   const platformCash = useMemo(() => {
@@ -68,7 +63,10 @@ export function AdminAgentsCashBook() {
       cashIn,
       cashOut,
       net: Math.round((cashIn - cashOut) * 100) / 100,
-      agents: agentRows.length,
+      agentsWithCash: agentRows.filter((a) => a.cashIn > 0 || a.cashOut > 0).length,
+      totalAccounts: agentRows.reduce((s, a) => s + a.customerCount, 0),
+      totalDeposits: agentRows.reduce((s, a) => s + a.customerDeposits, 0),
+      totalGgr: agentRows.reduce((s, a) => s + a.ggr, 0),
     };
   }, [agentRows]);
 
@@ -97,10 +95,10 @@ export function AdminAgentsCashBook() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-white">Agent cash desk — today</h2>
+          <h2 className="font-semibold text-white">Agent books &amp; cash desk</h2>
           <p className="text-sm text-slate-400">
-            Shop cash collected or paid by marketers today ({today}). Use this to see who holds cash
-            for remittance. Wave / ModemPay is a separate book.
+            Back-office agent statement: name, register number, customer deposits, play, balance,
+            profit (GGR), cash today, and total accounts. Cash journal for remittance is below.
           </p>
         </div>
         <Button variant="secondary" className="gap-2" onClick={() => void load()} disabled={refreshing}>
@@ -118,46 +116,64 @@ export function AdminAgentsCashBook() {
             {formatXof(platformCash.net)}
           </p>
         </Card>
-        <StatCard label="Agents with cash activity" value={platformCash.agents} />
+        <StatCard label="Agents with cash today" value={platformCash.agentsWithCash} />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Total accounts" value={platformCash.totalAccounts} hint="all agent customers" />
+        <StatCard label="Customer deposits (all)" value={formatXof(platformCash.totalDeposits)} />
+        <StatCard label="Total GGR / profit" value={formatXof(platformCash.totalGgr)} />
       </div>
 
       <div>
-        <h3 className="mb-2 text-sm font-semibold text-slate-200">Per agent — cash position today</h3>
+        <h3 className="mb-2 text-sm font-semibold text-slate-200">
+          Agent books — name · register · deposits · play · balance · profit
+        </h3>
         {loading ? (
-          <EmptyState message="Loading agent cash positions…" />
+          <EmptyState message="Loading agent books…" />
         ) : agentRows.length === 0 ? (
-          <EmptyState message="No agent cash desk activity today." />
+          <EmptyState message="No agents found." />
         ) : (
           <TableShell>
             <thead>
               <tr>
-                <Th>Agent</Th>
-                <Th className="text-right">Cash in</Th>
-                <Th className="text-right">Cash out</Th>
-                <Th className="text-right">Net held</Th>
-                <Th className="text-right">Deposits #</Th>
+                <Th>Agent name</Th>
+                <Th>Register #</Th>
+                <Th className="text-right">Deposited</Th>
+                <Th className="text-right">Play</Th>
+                <Th className="text-right">Balance</Th>
+                <Th className="text-right">Profit / GGR</Th>
+                <Th className="text-right">Cash today</Th>
+                <Th className="text-right">Accounts</Th>
                 <Th>Action</Th>
               </tr>
             </thead>
             <tbody>
               {agentRows.map((a) => (
                 <tr key={a.uid} className={a.net > 0 ? "bg-amber-500/5" : undefined}>
-                  <Td>
-                    <span className="font-medium text-white">{a.name}</span>
-                    {a.agentSlug ? (
-                      <span className="ml-2 font-mono text-[10px] text-slate-500">{a.agentSlug}</span>
-                    ) : null}
+                  <Td className="font-medium text-white">{a.name}</Td>
+                  <Td className="font-mono text-xs text-sky-300">{a.agentSlug ?? "—"}</Td>
+                  <Td className="text-right tabular-nums">{formatXof(a.customerDeposits)}</Td>
+                  <Td className="text-right tabular-nums text-slate-300">{formatXof(a.totalBets)}</Td>
+                  <Td className="text-right tabular-nums text-emerald-300">
+                    {formatXof(a.walletBalance ?? 0)}
                   </Td>
-                  <Td className="text-right tabular-nums text-emerald-300">{formatXof(a.cashIn)}</Td>
-                  <Td className="text-right tabular-nums text-rose-300">{formatXof(a.cashOut)}</Td>
-                  <Td className="text-right tabular-nums font-bold text-amber-100">{formatXof(a.net)}</Td>
-                  <Td className="text-right tabular-nums text-slate-400">{a.count}</Td>
+                  <Td className="text-right tabular-nums font-semibold text-violet-200">
+                    {formatXof(a.ggr)}
+                  </Td>
+                  <Td className="text-right tabular-nums text-amber-200">
+                    {formatXof(a.net)}
+                    <span className="block text-[10px] font-normal text-slate-500">
+                      in {formatXof(a.cashIn)} · out {formatXof(a.cashOut)}
+                    </span>
+                  </Td>
+                  <Td className="text-right tabular-nums">{a.customerCount}</Td>
                   <Td>
                     <Link
                       href={`/admin/operations?tab=transactions&agent=${encodeURIComponent(a.uid)}`}
                       className="text-xs text-violet-300 hover:underline"
                     >
-                      Ops txs
+                      Ledger
                     </Link>
                   </Td>
                 </tr>

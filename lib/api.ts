@@ -443,6 +443,7 @@ export type OperationsHubResponse = {
     totalBets: number;
     totalWins: number;
     ggr: number;
+    walletBalance: number;
     commissionEarned: number;
   }>;
   live: Array<{

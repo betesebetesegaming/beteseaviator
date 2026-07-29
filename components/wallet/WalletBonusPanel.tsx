@@ -37,17 +37,23 @@ export function WalletBalanceCards({
   const bonus = wallet?.bonusBalance ?? 0;
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <Card className="bg-gradient-to-br from-emerald-500/15 to-transparent text-center">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Cash</p>
-        <p className="mt-1 text-2xl font-black text-emerald-300 sm:text-3xl">{formatXof(cash)}</p>
-        <p className="mt-1 text-[10px] text-slate-500">Withdrawable</p>
-      </Card>
-      <Card className="bg-gradient-to-br from-violet-500/15 to-transparent text-center">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Bonus</p>
-        <p className="mt-1 text-2xl font-black text-violet-300 sm:text-3xl">{formatXof(bonus)}</p>
-        <p className="mt-1 text-[10px] text-slate-500">For {bonusGamesLabel} bets</p>
-      </Card>
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="bg-gradient-to-br from-emerald-500/15 to-transparent text-center">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Cash</p>
+          <p className="mt-1 text-2xl font-black text-emerald-300 sm:text-3xl">{formatXof(cash)}</p>
+          <p className="mt-1 text-[10px] text-slate-500">Your deposits · withdrawable</p>
+        </Card>
+        <Card className="bg-gradient-to-br from-violet-500/15 to-transparent text-center">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Bonus</p>
+          <p className="mt-1 text-2xl font-black text-violet-300 sm:text-3xl">{formatXof(bonus)}</p>
+          <p className="mt-1 text-[10px] text-slate-500">Extra · for {bonusGamesLabel}</p>
+        </Card>
+      </div>
+      <p className="text-center text-[11px] leading-relaxed text-slate-500">
+        Deposit GMD 50 → cash <span className="text-emerald-400">+50</span> always. First-deposit
+        bonus (if offered) adds extra play credit separately — it is not a half deposit.
+      </p>
     </div>
   );
 }

@@ -45,6 +45,8 @@ type AgentSummary = {
   totalBets: number;
   totalWins: number;
   ggr: number;
+  /** Agent commission wallet balance (available). */
+  walletBalance: number;
   commissionEarned: number;
 };
 
@@ -101,6 +103,7 @@ function agentSummaryFromDoc(
   d: QueryDocumentSnapshot,
   opensByAgent: Map<string, number>,
   cashByAgent: Map<string, { deposits: number; withdrawals: number; depositCount: number }>,
+  walletBalance = 0,
 ): AgentSummary {
   const p = d.data() as ProfileData;
   const stats = p.stats ?? {};
@@ -123,6 +126,7 @@ function agentSummaryFromDoc(
     totalBets,
     totalWins,
     ggr: Math.max(0, totalBets - totalWins),
+    walletBalance,
     commissionEarned: Number(stats.commissionEarned ?? 0),
   };
 }
@@ -176,8 +180,17 @@ async function loadAdminPlatformData(today: string): Promise<{
     });
   }
 
+  const agentWalletSnaps = await Promise.all(
+    agentSnap.docs.map((d) => db.doc(`wallets/${d.id}`).get()),
+  );
+  const walletByAgent = new Map<string, number>();
+  agentWalletSnaps.forEach((snap, i) => {
+    const uid = agentSnap.docs[i]!.id;
+    walletByAgent.set(uid, snap.exists ? Number(snap.data()?.balance ?? 0) : 0);
+  });
+
   const agents = agentSnap.docs
-    .map((d) => agentSummaryFromDoc(d, opensByAgent, cashByAgent))
+    .map((d) => agentSummaryFromDoc(d, opensByAgent, cashByAgent, walletByAgent.get(d.id) ?? 0))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const parentIdByUid = new Map<string, string>();

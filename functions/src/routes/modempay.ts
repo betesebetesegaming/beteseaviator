@@ -310,6 +310,14 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
     res.status(400).json({ error: 'method must be one of wave, aps, afrimoney, qmoney, card' });
     return;
   }
+  if (provider !== 'card') {
+    const settings = await getSettings();
+    const providers = (settings.providers ?? {}) as Record<string, boolean>;
+    if (providers[provider] === false) {
+      res.status(400).json({ error: `${provider} deposits are currently disabled` });
+      return;
+    }
+  }
   const amount = Math.round(Number(body.amount) * 100) / 100;
   if (!Number.isFinite(amount) || amount <= 0) {
     res.status(400).json({ error: 'amount must be a positive number' });

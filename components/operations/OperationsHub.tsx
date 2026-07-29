@@ -308,8 +308,8 @@ export function OperationsHub() {
       {tab === "agents" && isAdmin && (
         <div className="space-y-4">
           <p className="text-sm text-slate-400">
-            Every agent / marketer — sales (GGR), deposits, customers opened today. Customers linked to
-            an agent earn that agent commission on play. Click a row to see their customers.
+            Clear agent books for the back office: register number, customer deposits, play volume,
+            balance, profit (GGR), and total accounts. Click Customers / Ledger to drill in.
           </p>
           <label className="block max-w-md text-sm">
             <span className="mb-1 text-slate-400">Search agents</span>
@@ -328,13 +328,14 @@ export function OperationsHub() {
             <TableShell>
               <thead>
                 <tr>
-                  <Th>Agent / vendor</Th>
-                  <Th>Username</Th>
-                  <Th className="text-right">Opened today</Th>
-                  <Th className="text-right">Customers</Th>
-                  <Th className="text-right">Sales (GGR)</Th>
+                  <Th>Agent name</Th>
+                  <Th>Register #</Th>
+                  <Th className="text-right">Deposited</Th>
+                  <Th className="text-right">Play (bets)</Th>
+                  <Th className="text-right">Balance</Th>
+                  <Th className="text-right">Profit / GGR</Th>
                   <Th className="text-right">Cash in today</Th>
-                  <Th className="text-right">Deposits (all)</Th>
+                  <Th className="text-right">Accounts</Th>
                   <Th className="text-right">Commission</Th>
                   <Th>Status</Th>
                   <Th>Action</Th>
@@ -344,14 +345,18 @@ export function OperationsHub() {
                 {filteredAgents.map((a) => (
                   <tr key={a.uid}>
                     <Td className="font-medium text-white">{a.name}</Td>
-                    <Td className="text-xs text-slate-400">{a.agentSlug ?? a.phone ?? "—"}</Td>
-                    <Td className="text-right tabular-nums">
-                      <span className={a.customersOpenedToday > 0 ? "font-semibold text-emerald-300" : ""}>
-                        {a.customersOpenedToday}
+                    <Td className="font-mono text-xs text-sky-300">{a.agentSlug ?? "—"}</Td>
+                    <Td className="text-right tabular-nums">{formatXof(a.customerDeposits)}</Td>
+                    <Td className="text-right tabular-nums text-slate-300">{formatXof(a.totalBets)}</Td>
+                    <Td className="text-right tabular-nums text-emerald-300">
+                      {formatXof(a.walletBalance ?? 0)}
+                    </Td>
+                    <Td className="text-right tabular-nums font-semibold text-violet-200">
+                      {formatXof(a.ggr)}
+                      <span className="block text-[10px] font-normal text-slate-500">
+                        wins {formatXof(a.totalWins)}
                       </span>
                     </Td>
-                    <Td className="text-right tabular-nums">{a.customerCount}</Td>
-                    <Td className="text-right tabular-nums">{formatXof(a.ggr)}</Td>
                     <Td className="text-right tabular-nums">
                       <span className={a.cashDepositsToday > 0 ? "font-semibold text-amber-200" : ""}>
                         {formatXof(a.cashDepositsToday ?? 0)}
@@ -362,7 +367,14 @@ export function OperationsHub() {
                         </span>
                       ) : null}
                     </Td>
-                    <Td className="text-right tabular-nums">{formatXof(a.customerDeposits)}</Td>
+                    <Td className="text-right tabular-nums">
+                      {a.customerCount}
+                      {a.customersOpenedToday > 0 ? (
+                        <span className="block text-[10px] text-emerald-400">
+                          +{a.customersOpenedToday} today
+                        </span>
+                      ) : null}
+                    </Td>
                     <Td className="text-right tabular-nums text-emerald-300">
                       {formatXof(a.commissionEarned)}
                     </Td>

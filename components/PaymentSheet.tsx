@@ -115,8 +115,22 @@ const methodMeta: Record<Method, { logo: string; label: string; sub: string; tin
   },
 };
 
-/** Customer deposits are Wave-only (same path as successful GMD 25 / 50). */
-const DEPOSIT_METHODS: Method[] = ['Wave'];
+const METHOD_TO_PROVIDER: Record<Exclude<Method, 'Card'>, 'wave' | 'aps' | 'afrimoney' | 'qmoney'> = {
+  Wave: 'wave',
+  AfriMoney: 'afrimoney',
+  APS: 'aps',
+  QMoney: 'qmoney',
+};
+
+const PROVIDER_LABEL: Record<'wave' | 'aps' | 'afrimoney' | 'qmoney' | 'card', string> = {
+  wave: 'Wave',
+  aps: 'APS',
+  afrimoney: 'AfriMoney',
+  qmoney: 'QMoney',
+  card: 'Card',
+};
+
+const ALL_WALLET_METHODS: Method[] = ['Wave', 'AfriMoney', 'APS', 'QMoney'];
 
 export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   isOpen,
@@ -140,17 +154,42 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   const [trackingRef, setTrackingRef] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState<'Pending' | 'Approved' | 'Rejected' | null>(null);
+  const [enabledProviders, setEnabledProviders] = useState<Record<string, boolean>>({
+    wave: true,
+    afrimoney: true,
+    aps: true,
+    qmoney: true,
+  });
   const depositMin = method === "Card" ? Math.max(MIN_DEPOSIT_GMD, CARD_MIN_GMD) : MIN_DEPOSIT_GMD;
   const presetAmounts = useMemo(() => depositPresetAmounts(depositMin), [depositMin]);
+
+  const depositMethods = useMemo(() => {
+    return ALL_WALLET_METHODS.filter((m) => {
+      if (m === 'Card') return false;
+      const key = METHOD_TO_PROVIDER[m as Exclude<Method, 'Card'>];
+      return enabledProviders[key] !== false;
+    });
+  }, [enabledProviders]);
 
   const dragStartY = useRef<number | null>(null);
   const [dragY, setDragY] = useState(0);
 
   useEffect(() => {
+    return onSnapshot(doc(db, 'settings', 'platform'), (snap) => {
+      const providers = (snap.data()?.providers ?? {}) as Record<string, boolean>;
+      setEnabledProviders({
+        wave: providers.wave !== false,
+        afrimoney: providers.afrimoney !== false,
+        aps: providers.aps !== false,
+        qmoney: providers.qmoney !== false,
+      });
+    });
+  }, []);
+
+  useEffect(() => {
     if (!isOpen) return;
-    // Wave-only deposits — skip method picker.
-    setStage('enter-amount');
-    setMethod('Wave');
+    setStage('choose');
+    setMethod(null);
     const defaultAmount =
       initialAmount && initialAmount > 0 ? Math.ceil(initialAmount) : MIN_DEPOSIT_GMD;
     setAmount(defaultAmount);
@@ -168,6 +207,15 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       document.body.style.overflow = '';
     };
   }, [isOpen, initialAmount, user.phone]);
+
+  // If only one wallet method is enabled, skip the picker.
+  useEffect(() => {
+    if (!isOpen || stage !== 'choose' || method) return;
+    if (depositMethods.length === 1) {
+      setMethod(depositMethods[0]!);
+      setStage('enter-amount');
+    }
+  }, [isOpen, stage, method, depositMethods]);
 
   useEffect(() => {
     if (!trackingRef || stage !== 'confirm') return;
@@ -288,7 +336,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
             (typeof data.error === 'string' && data.error) ||
               (typeof detailsMsg === 'string' && detailsMsg) ||
               (provider !== 'card' && rawUrl && isModemPayHostedCheckoutUrl(rawUrl)
-                ? 'Could not open Wave. Please try again in a moment.'
+                ? `Could not open ${PROVIDER_LABEL[provider]}. Please try again in a moment.`
                 : 'Could not start checkout'),
           );
         }
@@ -402,14 +450,10 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       if (awaitWalletApproval || method !== 'Card') {
         setMessage({
           ok: true,
-          text: `Approve GMD ${numAmount.toFixed(0)} in your ${method} app for ${cleanPhone}. After you pay in Wave, come back here — your wallet updates automatically.`,
+          text: `Approve GMD ${numAmount.toFixed(0)} in your ${method} app for ${cleanPhone}. After you pay, come back here — your wallet credits the full GMD ${numAmount.toFixed(0)} (cash). Any first-deposit bonus is extra play credit, shown separately.`,
         });
         // The direct charge is already started (status "processing") and `url`
-        // is the real Wave deep-link (pay.wave.com/c/…). Take the customer
-        // straight into Wave to approve. On mobile that opens the Wave app with
-        // the payment loaded; the returnUrl brings them back to the wallet where
-        // the pending deposit reconciles. On desktop, open Wave in a new tab so
-        // the pending screen stays visible for QR scanning.
+        // is the real wallet deep-link. Take the customer straight into the app.
         if (url && isWalletDeepPayUrl(url)) {
           if (isMobileCheckout()) {
             window.location.assign(url);
@@ -423,7 +467,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         } else if (url && isModemPayHostedCheckoutUrl(url)) {
           setMessage({
             ok: false,
-            text: 'Could not open Wave payment. Close any open Wave requests, wait a minute, then try again.',
+            text: `Could not open ${method} payment. Close any open ${method} requests, wait a minute, then try again.`,
           });
         }
         return;
@@ -520,8 +564,16 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
         <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3">
           {stage === 'choose' && (
             <div className="space-y-3">
-              <p className="text-sm text-slate-600">Pay with Wave — approve the charge in your Wave app after you tap Pay.</p>
-              {DEPOSIT_METHODS.map((m) => {
+              <p className="text-sm text-slate-600">
+                Choose how to pay. Your wallet always receives the <strong>full deposit as cash</strong>.
+                First-deposit bonus (if any) is extra play credit — shown separately.
+              </p>
+              {depositMethods.length === 0 ? (
+                <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  No payment methods are enabled. Contact support.
+                </p>
+              ) : (
+                depositMethods.map((m) => {
                 const meta = methodMeta[m];
                 return (
                   <button
@@ -541,7 +593,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                     </svg>
                   </button>
                 );
-              })}
+              })
+              )}
             </div>
           )}
 

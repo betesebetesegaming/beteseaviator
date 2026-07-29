@@ -18,6 +18,7 @@ import {
   validatePassword,
 } from "@/lib/passwordPolicy";
 import { AdminResetPasswordModal } from "@/components/admin/AdminResetPasswordModal";
+import { AdminCustomerSupportModal } from "@/components/admin/AdminCustomerSupportModal";
 import { PasswordStrengthHint } from "@/components/PasswordStrengthHint";
 import type { Role, UserProfile } from "@/lib/types";
 import {
@@ -64,6 +65,7 @@ function AdminUsersContent() {
   const [syncingAgents, setSyncingAgents] = useState(false);
   const [backfillingIds, setBackfillingIds] = useState(false);
   const [resetPasswordUser, setResetPasswordUser] = useState<UserProfile | null>(null);
+  const [supportUser, setSupportUser] = useState<UserProfile | null>(null);
 
   function openCreate(role: Role = "player") {
     setForm({
@@ -279,7 +281,9 @@ function AdminUsersContent() {
       <div className="mb-5 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-50/90">
         <p>
           <strong>Password help:</strong> Admin cannot view existing passwords (they are encrypted).
-          Use <strong>Reset password</strong> on any customer or agent to set a new one and share it
+          Use <strong>Inspect / fix</strong> to see wallet + ledger, then{" "}
+          <strong>Reset password</strong> to set a temporary password and log in as the customer to
+          verify deposits.
           with them when they have sign-in problems.
         </p>
       </div>
@@ -365,6 +369,15 @@ function AdminUsersContent() {
                 </Td>
                 <Td>
                   <div className="flex flex-wrap gap-1.5">
+                    {u.role === "player" ? (
+                      <Button
+                        variant="secondary"
+                        className="!px-2.5 !py-1 text-xs text-sky-200"
+                        onClick={() => setSupportUser(u)}
+                      >
+                        Inspect / fix
+                      </Button>
+                    ) : null}
                     {u.role !== "admin" ? (
                       <Button
                         variant="secondary"
@@ -494,6 +507,16 @@ function AdminUsersContent() {
         </div>
       </Modal>
 
+      <AdminCustomerSupportModal
+        user={supportUser}
+        onClose={() => setSupportUser(null)}
+        onResetPassword={() => {
+          if (supportUser) {
+            setResetPasswordUser(supportUser);
+            setSupportUser(null);
+          }
+        }}
+      />
       <AdminResetPasswordModal
         user={resetPasswordUser}
         onClose={() => setResetPasswordUser(null)}

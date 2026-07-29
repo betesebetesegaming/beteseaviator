@@ -140,11 +140,13 @@ export function Modal({
   onClose,
   title,
   children,
+  wide = false,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  wide?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -169,7 +171,7 @@ export function Modal({
         aria-label="Close dialog"
         onClick={onClose}
       />
-      <div className="relative z-10 flex w-full max-w-md max-h-[min(92dvh,720px)] flex-col overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl sm:max-h-[min(88dvh,680px)]">
+      <div className={`relative z-10 flex w-full ${wide ? "max-w-3xl" : "max-w-md"} max-h-[min(92dvh,720px)] flex-col overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl sm:max-h-[min(88dvh,680px)]`}>
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4">
           <h3 id="modal-title" className="pr-8 text-base font-semibold leading-snug text-white sm:text-lg">
             {title}

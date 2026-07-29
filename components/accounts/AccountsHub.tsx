@@ -19,7 +19,7 @@ import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 
 const ADMIN_TABS = [
   { id: "monthly", label: "Month by month" },
-  { id: "agentcash", label: "Agent cash desk" },
+  { id: "agentcash", label: "Agent books" },
   { id: "book", label: "Money book" },
   { id: "modempay", label: "Wave ledger" },
   { id: "summary", label: "This week / month" },
