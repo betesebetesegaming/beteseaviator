@@ -421,12 +421,7 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
         pmuError: proxied.data.error,
         elapsedMs: Date.now() - started,
       });
-      const timedOut = /timeout|abort|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|fetch failed/i.test(msg);
-      res.status(502).json({
-        error: timedOut ? "Africell SMS gateway timed out." : msg,
-        detail: timedOut ? msg : undefined,
-        pmuError: proxied.data.error,
-      });
+      res.status(502).json(otpSendFailurePayload(msg, proxied.data.error));
       return;
     }
   }
@@ -455,13 +450,25 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
     }
 
     logger.error("Africell SMS dispatch failed", { msisdn, msg, pmuError: proxied.data.error });
-    const timedOut = /timeout|abort|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|fetch failed/i.test(msg);
-    res.status(502).json({
-      error: timedOut ? "Africell SMS gateway timed out." : msg,
-      detail: timedOut ? msg : undefined,
-      pmuError: proxied.data.error,
-    });
+    res.status(502).json(otpSendFailurePayload(msg, proxied.data.error));
   }
+}
+
+/** Prefer actionable Africell/PMU reasons (e.g. no tokens) over generic timeout text. */
+function otpSendFailurePayload(localError: string, pmuError: unknown): Record<string, unknown> {
+  const pmu = String(pmuError || "").trim();
+  const timedOut = /timeout|abort|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|fetch failed/i.test(localError);
+  const noTokens = /no tokens/i.test(pmu) || /no tokens/i.test(localError);
+  const error = noTokens
+    ? "SMS service is out of credit. Contact BETESE support — Africell sender account needs tokens topped up."
+    : timedOut
+      ? "Africell SMS gateway timed out. Please try again in a minute."
+      : pmu || localError;
+  return {
+    error,
+    detail: timedOut ? localError : undefined,
+    pmuError: pmu || undefined,
+  };
 }
 
 /** Verify SMS OTP and mark phone verified in Firestore. Used by HTTP + callables. */
