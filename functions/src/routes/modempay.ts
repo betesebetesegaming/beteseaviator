@@ -124,7 +124,7 @@ async function findStoredWalletPayLink(
   if (
     mem &&
     mem.status === 'pending' &&
-    isWalletDeepPayUrl(mem.link.checkoutUrl) &&
+    (isWalletDeepPayUrl(mem.link.checkoutUrl) || isModemPayHostedCheckoutUrl(mem.link.checkoutUrl)) &&
     (allowStale || now - mem.updatedAt < WAVE_LINK_FRESH_MS)
   ) {
     return mem.link;
@@ -148,7 +148,7 @@ async function findStoredWalletPayLink(
     const freshEnough = allowStale || !updatedAt || now - updatedAt < WAVE_LINK_FRESH_MS;
     if (
       url &&
-      isWalletDeepPayUrl(url) &&
+      (isWalletDeepPayUrl(url) || isModemPayHostedCheckoutUrl(url)) &&
       d.status !== 'completed' &&
       d.status !== 'failed' &&
       freshEnough
@@ -188,7 +188,7 @@ async function findStoredWalletPayLink(
       if (row.status && !['pending', 'processing'].includes(String(row.status).toLowerCase())) {
         return false;
       }
-      if (!row.url || !isWalletDeepPayUrl(row.url)) return false;
+      if (!row.url || !(isWalletDeepPayUrl(row.url) || isModemPayHostedCheckoutUrl(row.url))) return false;
       if (allowStale) return true;
       const created = Date.parse(String(row.created_at || '')) || 0;
       return !created || now - created < WAVE_LINK_FRESH_MS;

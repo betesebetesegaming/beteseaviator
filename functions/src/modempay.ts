@@ -212,8 +212,7 @@ function extractCheckoutFields(inner: Record<string, unknown>): {
     inner.payment_url,
   ];
 
-  // Prefer wallet deep links (pay.wave.com). Never prefer ModemPay hosted pages —
-  // those stick on "Transaction in Progress" unlike the working GMD 25 flow.
+  // Prefer Wave deep links. For AfriMoney/APS, ModemPay hosted is acceptable.
   let checkoutUrl: string | null = null;
   for (const c of candidates) {
     if (typeof c === 'string' && c.trim() && isWalletDeepPayUrl(c)) {
@@ -444,15 +443,19 @@ export async function createCheckoutSession(
     };
   }
 
-  // Duplicate open direct charge for this phone+amount → reuse OUR stored Wave link
-  // even if stale (ModemPay still blocking; hosted retrieve URLs break Wave).
+  // Duplicate open direct charge for this phone+amount → reuse OUR stored link
+  // (Wave deep link or AfriMoney/APS hosted) even if stale.
   if (input.method !== 'card' && opts?.findStoredPayLink) {
     try {
       const stored = await opts.findStoredPayLink(accountNumber, amount, input.method, {
         allowStale: true,
       });
-      if (stored?.checkoutUrl && isWalletDeepPayUrl(stored.checkoutUrl)) {
-        logger.info('Reusing stored wallet deep-pay link (after create fail)', {
+      const storedOk =
+        stored?.checkoutUrl &&
+        (isWalletDeepPayUrl(stored.checkoutUrl) ||
+          (input.method !== 'wave' && isModemPayHostedCheckoutUrl(stored.checkoutUrl)));
+      if (storedOk && stored) {
+        logger.info('Reusing stored wallet pay link (after create fail)', {
           amount,
           accountNumber,
           method: input.method,
@@ -475,10 +478,54 @@ export async function createCheckoutSession(
     }
   }
 
+  // ModemPay Validation often means an open intent already exists for phone+amount.
+  // Recover that intent from ModemPay transactions and reopen its checkout page.
   const upstream = modemPayErrorMessage(data, `${modemPayMethodLabel(input.method)} checkout failed`);
   const blockedDuplicate =
     input.method !== 'card' &&
     (upstream.toLowerCase().includes('validation') || status === 500);
+
+  if (blockedDuplicate && input.method !== 'card') {
+    try {
+      const open = await findOpenModemPayIntent(accountNumber, amount);
+      if (open?.paymentIntentId) {
+        const reopenUrl = `https://checkout.modempay.com/${open.paymentIntentId}`;
+        logger.info('Reopening ModemPay open intent after Validation lock', {
+          amount,
+          accountNumber,
+          method: input.method,
+          paymentIntentId: open.paymentIntentId,
+          openMethod: open.method,
+        });
+        if (opts?.persistPayLink) {
+          await opts
+            .persistPayLink({
+              phone: accountNumber,
+              amount,
+              method: input.method,
+              checkoutUrl: reopenUrl,
+              sessionId: open.paymentIntentId,
+              intentSecret: null,
+              externalRef: input.externalRef,
+            })
+            .catch((err) => logger.warn('persist reopen link failed', { err }));
+        }
+        return {
+          ok: true,
+          status: 200,
+          checkoutUrl: reopenUrl,
+          sessionId: open.paymentIntentId,
+          paymentLinkId: null,
+          intentSecret: null,
+          intentStatus: 'processing',
+          raw: { reused_open_intent: open.paymentIntentId, open_method: open.method },
+          reused: true,
+        };
+      }
+    } catch (err) {
+      logger.warn('open-intent recovery failed', { err });
+    }
+  }
 
   logger.warn('ModemPay /v1/payments rejected checkout', {
     method: input.method,
@@ -489,16 +536,48 @@ export async function createCheckoutSession(
   });
 
   const label = modemPayMethodLabel(input.method);
-  // ModemPay locks phone+amount across wallet networks — an open Wave GMD 25
-  // also blocks APS / AfriMoney for the same amount until it clears.
+  // ModemPay locks phone+amount across wallet networks — an open Wave/APS GMD 25
+  // also blocks other methods for the SAME amount until it clears.
   return fail(
     blockedDuplicate ? 409 : status || 502,
     blockedDuplicate
-      ? `${label} could not start: this number already has an open GMD ${amount} payment (Wave / AfriMoney / APS share the same lock). Approve the open request in that wallet app now, wait ~15 minutes, or try a different amount.`
+      ? `${label} could not start: this number already has an open GMD ${amount} payment (Wave / AfriMoney / APS share the same lock for that amount). Approve it in that wallet app, wait ~15 minutes, or try a different amount (e.g. 50 / 100 / 500).`
       : upstream === 'Validation error'
         ? `Could not start ${label} payment. Please try again in a moment.`
         : upstream,
   );
+}
+
+/** Find an open/processing ModemPay intent for phone + amount (any wallet network). */
+async function findOpenModemPayIntent(
+  phone: string,
+  amount: number,
+): Promise<{ paymentIntentId: string; method: string | null } | null> {
+  const account = normalizeModemPayAccountNumber(phone);
+  if (!account) return null;
+  const { ok, data } = await modemFetch<{ data?: Array<Record<string, unknown>> }>({
+    method: 'GET',
+    path: '/v1/transactions',
+    query: { per_page: 30 },
+  });
+  if (!ok || !data || !Array.isArray(data.data)) return null;
+  const target = Math.round(Number(amount) * 100) / 100;
+  const open = data.data.find((t) => {
+    const st = String(t.status || '').toLowerCase();
+    if (!['processing', 'pending', 'requires_payment_method', 'requires_action'].includes(st)) {
+      return false;
+    }
+    const p = normalizeModemPayAccountNumber(String(t.customer_phone || t.account_number || ''));
+    if (p !== account) return false;
+    return Math.round(Number(t.amount) * 100) / 100 === target;
+  });
+  if (!open) return null;
+  const paymentIntentId = String(open.payment_intent_id || open.id || '').trim();
+  if (!paymentIntentId) return null;
+  return {
+    paymentIntentId,
+    method: open.payment_method ? String(open.payment_method) : null,
+  };
 }
 
 // -----------------------------------------------------------------------------

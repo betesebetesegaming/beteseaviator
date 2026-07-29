@@ -618,9 +618,8 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                 </div>
               </div>
               <p className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-relaxed text-slate-600">
-                Tip: Wave, AfriMoney and APS share one open payment per phone + amount. If you already
-                started GMD {String(amount || depositMin)} on another wallet, approve it there, wait
-                ~15 minutes, or pick a different amount here.
+                Tip: an open GMD 25 on this number blocks another GMD 25 only. Use a different
+                amount (50 / 100 / 500) for APS, or approve the open GMD 25 in APS / Wave first.
               </p>
 
               <div>
@@ -658,7 +657,11 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                         setAmount(preset);
                         setAmountText(String(preset));
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-black text-slate-800 border border-slate-200"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black border ${
+                        Number(amount) === preset
+                          ? 'bg-emerald-600 text-white border-emerald-700'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
+                      }`}
                     >
                       {preset} GMD
                     </button>
