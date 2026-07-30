@@ -29,8 +29,8 @@ export function middleware(request: NextRequest) {
   }
 
   if (h === `admin.${AGENT_DOMAIN}`) {
-    if (!url.pathname.startsWith("/admin")) {
-      url.pathname = "/admin/login";
+    if (!url.pathname.startsWith("/admin") && url.pathname !== "/s") {
+      url.pathname = STAFF_LOGIN_PATH;
       return NextResponse.redirect(url);
     }
     return NextResponse.next();

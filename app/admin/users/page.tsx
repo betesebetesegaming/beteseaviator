@@ -193,7 +193,7 @@ function AdminUsersContent() {
       });
       toast.success(
         role === "admin"
-          ? `Admin created. Sign in at /admin/login with ${email.trim() || username.trim() || name.trim()}.`
+          ? `Admin created. Sign in at /s with ${email.trim() || username.trim() || name.trim()}.`
           : `User created${res.slug ? ` — username "${res.slug}"` : ""}.`,
       );
       setCreateOpen(false);
@@ -265,8 +265,8 @@ function AdminUsersContent() {
           <p className="font-semibold text-emerald-200">Need another admin login?</p>
           <p className="mt-1 text-emerald-100/80">
             Name + password (min 8). Optional email / login ID. They sign in at{" "}
-            <Link href="/admin/login" className="underline">
-              /admin/login
+            <Link href="/s" className="underline">
+              /s
             </Link>
             .
           </p>
@@ -456,7 +456,7 @@ function AdminUsersContent() {
             <Input
               label={
                 form.role === "admin"
-                  ? "Staff login ID (sign in at /admin/login — e.g. admin)"
+                  ? "Staff login ID (sign in at /s — e.g. admin)"
                   : "Username (creates paul.beteseaviator.com automatically — blank = from name)"
               }
               value={form.username}

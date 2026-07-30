@@ -196,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     explicitSignOutRef.current = true;
-    const redirect = loginPathFor(profile?.role) || "/admin/login";
+    const redirect = loginPathFor(profile?.role) || "/s";
     try {
       await signOut(auth);
     } catch {

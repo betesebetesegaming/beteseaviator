@@ -7,7 +7,7 @@ import { Spinner } from "@/components/ui";
 
 const LEGACY_AGENT_PATHS: Record<string, string> = {
   "/agent": "/admin",
-  "/agent/login": "/admin/login",
+  "/agent/login": "/s",
   "/agent/operations": "/admin/operations",
   "/agent/players": "/admin/customers",
   "/agent/sub-agents": "/admin",

@@ -10,6 +10,11 @@ export const SITE_ORIGIN = (
   process.env.NEXT_PUBLIC_SITE_URL || `https://www.${AGENT_DOMAIN}`
 ).replace(/\/$/, "");
 
+/** Apex host without www — shorter share/SMS/QR links (lower bytes). */
+export function compactSiteOrigin(): string {
+  return SITE_ORIGIN.replace("://www.", "://");
+}
+
 /** Subdomains that must never map to an agent (www, admin, …). */
 export const AGENT_RESERVED_SUBDOMAINS = [
   "www",
@@ -26,6 +31,8 @@ export const AGENT_RESERVED_PATHS = new Set([
   "play",
   "admin",
   "agent",
+  "s",
+  "staff",
   "suspended",
   "api",
   "r",
@@ -112,9 +119,9 @@ export function agentReferralUrl(slug: string): string {
   return buildAgentLinks(slug).referralUrl;
 }
 
-/** Staff sign-in for agents (not customer signup). */
+/** Staff sign-in for agents (not customer signup) — short apex URL for SMS/QR. */
 export function staffLoginUrl(): string {
-  return `${SITE_ORIGIN}${STAFF_LOGIN_PATH}`;
+  return `${compactSiteOrigin()}${STAFF_LOGIN_PATH}`;
 }
 
 /** e.g. /agent/fatoujarju → "fatoujarju" */

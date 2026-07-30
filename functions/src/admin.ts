@@ -321,7 +321,7 @@ export const adminSetUserPassword = onCall(async (req) => {
       uid,
       role: profile.role,
       signInWith: String(loginId),
-      signInLabel: "Username (sign in at /admin/login)",
+      signInLabel: "Username (sign in at /s)",
     };
   }
 

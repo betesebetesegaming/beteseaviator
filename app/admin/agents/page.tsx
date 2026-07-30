@@ -101,8 +101,8 @@ function AdminAgentsContent() {
           <h1 className="text-xl font-bold">Agents</h1>
           <p className="text-sm text-slate-400">
             Admin creates every agent&apos;s first staff account here. Agents sign in at{" "}
-            <Link href="/admin/login" className="text-emerald-400 hover:underline">
-              /admin/login
+            <Link href="/s" className="text-emerald-400 hover:underline">
+              /s
             </Link>{" "}
             — no self-registration.
           </p>
@@ -118,7 +118,7 @@ function AdminAgentsContent() {
       <div className="mb-5 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-50/90">
         <p>
           <strong>Password help:</strong> You cannot read an agent&apos;s current password. Use{" "}
-          <strong>Reset password</strong> to set a new one and give it to them for /admin/login.
+          <strong>Reset password</strong> to set a new one and give it to them for /s.
         </p>
       </div>
 

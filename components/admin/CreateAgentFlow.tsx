@@ -145,7 +145,7 @@ export function CreateAgentFlow({ buttonLabel = "Create Agent Account", autoOpen
             </p>
           ) : null}
           <Input
-            label="Email (optional — sign in at /admin/login)"
+            label="Email (optional — sign in at /s)"
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}

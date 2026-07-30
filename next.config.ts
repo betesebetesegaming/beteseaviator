@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      { source: "/admin/login", destination: "/s", permanent: false },
+      { source: "/staff", destination: "/s", permanent: false },
       { source: "/play/game/aviator", destination: "/play/game/qt-spb-aviator", permanent: true },
       { source: "/play/game/aviator-turbo", destination: "/play/game/qt-spb-aviator", permanent: true },
       { source: "/play/game/qtech-aviator", destination: "/play/game/qt-spb-aviator", permanent: true },

@@ -121,7 +121,7 @@ export function AdminResetPasswordModal({ user, onClose }: Props) {
             <>phone <strong>{user.phone ?? "—"}</strong> on /play</>
           ) : (
             <>
-              username <strong>{staffSignInId(user) ?? "—"}</strong> at /admin/login
+              username <strong>{staffSignInId(user) ?? "—"}</strong> at /s
             </>
           )}
           .
