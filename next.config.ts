@@ -27,11 +27,11 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/downloads/:path*.apk",
+        // Service worker must never be cached, so PWA updates roll out instantly.
+        source: "/sw.js",
         headers: [
-          { key: "Content-Type", value: "application/vnd.android.package-archive" },
-          { key: "Content-Disposition", value: "attachment; filename=\"BeteseAviator.apk\"" },
-          { key: "Cache-Control", value: "public, max-age=3600" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
         ],
       },
     ];

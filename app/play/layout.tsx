@@ -18,7 +18,7 @@ import { CustomerCareBar } from "@/components/CustomerCareBar";
 import { SmartBonusBanner } from "@/components/wallet/SmartBonusBanner";
 import { PlayDepositReturnHandler } from "@/components/PlayDepositReturnHandler";
 import { parseAgentSlugFromHost } from "@/lib/agentLinks";
-import { DownloadAppFloating } from "@/components/download-app/DownloadAppFloating";
+import { InstallAppPrompt } from "@/components/pwa/InstallAppPrompt";
 
 const PendingDepositReconciler = dynamic(
   () =>
@@ -251,7 +251,7 @@ export default function PlayLayout({ children }: { children: React.ReactNode }) 
           </p>
         </div>
       </footer>
-      <DownloadAppFloating />
+      <InstallAppPrompt />
     </LobbyBackgroundShell>
   );
 }
