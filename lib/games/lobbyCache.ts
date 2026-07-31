@@ -2,7 +2,8 @@
 
 /** Bump when lobby game shape/filter changes — invalidates stale localStorage. */
 const CACHE_KEY = "betese-lobby-games-v11";
-const TTL_MS = 5 * 60 * 1000;
+/** Keep cache longer so old phones paint the lobby instantly on reopen. */
+const TTL_MS = 30 * 60 * 1000;
 
 type CacheEntry<T> = { games: T[]; at: number };
 

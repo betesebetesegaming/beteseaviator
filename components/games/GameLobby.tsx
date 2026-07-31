@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { subscribeActiveGames } from "@/lib/games/subscriptions";
-import { writeCachedLobbyGames } from "@/lib/games/lobbyCache";
+import { readCachedLobbyGames, writeCachedLobbyGames } from "@/lib/games/lobbyCache";
 import {
   lobbyLayoutOrDefault,
   sortLobbyGames,
@@ -100,15 +100,14 @@ function GameGrid({ games }: { games: Game[] }) {
 }
 
 export function GameLobby() {
-  const [games, setGames] = useState<Game[] | null>(null);
-  const [liveReady, setLiveReady] = useState(false);
+  // Paint cached games immediately — don't wait on Firestore (big delay on slow phones).
+  const [games, setGames] = useState<Game[] | null>(() => readCachedLobbyGames<Game>());
   const [layout, setLayout] = useState<LobbyLayoutSettings | null>(null);
   const [category, setCategory] = useState<LobbyNavCategory>("all");
 
   useEffect(() => {
     return subscribeActiveGames((next) => {
       setGames(next);
-      setLiveReady(true);
       writeCachedLobbyGames(next);
     });
   }, []);
@@ -121,12 +120,14 @@ export function GameLobby() {
     preconnectQTechGameHosts();
   }, []);
 
+  // Defer launch warm-up so first paint isn't competing for network/CPU.
   useEffect(() => {
     if (!games?.length) return;
     const ordered = sortLobbyGames(games, layout);
     const picks = topPickGames(games, layout).map((g) => g.id);
     const warmIds = picks.length ? picks.slice(0, 2) : ordered.slice(0, 2).map((g) => g.id);
-    warmDemoLaunches(warmIds);
+    const t = window.setTimeout(() => warmDemoLaunches(warmIds), 2500);
+    return () => window.clearTimeout(t);
   }, [games, layout]);
 
   const orderedGames = useMemo(
@@ -163,7 +164,7 @@ export function GameLobby() {
     );
   }, [orderedGames, category, layout]);
 
-  const showSkeleton = !liveReady;
+  const showSkeleton = games === null;
 
   return (
     <div className="lobby-page -mx-4 space-y-4 px-4 pb-8 sm:-mx-0 sm:space-y-5 sm:px-0">

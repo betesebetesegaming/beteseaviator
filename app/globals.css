@@ -165,6 +165,18 @@ html {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .lobby-bg-glow {
+    animation: none !important;
+  }
+}
+
+/* Native app / lean UI: skip expensive paint layers */
+.lobby-bg-shell[data-lean-ui="1"] .lobby-bg-glow,
+.lobby-bg-shell[data-lean-ui="1"] .lobby-bg-noise {
+  display: none !important;
+}
+
 .game-play-root {
   height: 100vh;
   height: 100dvh;

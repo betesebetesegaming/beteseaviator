@@ -56,16 +56,28 @@ export function LobbyBackgroundShell({
 
   const theme = getLobbyTheme(ready ? themeId : "betese");
 
+  // Heavy animated layers stutter on old Android WebViews / the native app.
+  const leanUi =
+    typeof navigator !== "undefined" &&
+    (/BeteseAviatorApp/i.test(navigator.userAgent || "") ||
+      (typeof window !== "undefined" &&
+        window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true));
+
   return (
     <LobbyThemeContext.Provider value={{ themeId, setThemeId }}>
       <div
         data-lobby-theme={theme.id}
+        data-lean-ui={leanUi ? "1" : undefined}
         style={themeCssVars(theme)}
         className="lobby-bg-shell relative flex min-h-full flex-1 flex-col"
       >
         <div className="lobby-bg-layer pointer-events-none fixed inset-0 -z-10" aria-hidden />
-        <div className="lobby-bg-glow pointer-events-none fixed inset-0 -z-10" aria-hidden />
-        <div className="lobby-bg-noise pointer-events-none fixed inset-0 -z-10 opacity-[0.03]" aria-hidden />
+        {!leanUi ? (
+          <>
+            <div className="lobby-bg-glow pointer-events-none fixed inset-0 -z-10" aria-hidden />
+            <div className="lobby-bg-noise pointer-events-none fixed inset-0 -z-10 opacity-[0.03]" aria-hidden />
+          </>
+        ) : null}
 
         {showPicker && ready && (
           <>
