@@ -44,6 +44,7 @@ import { Button, Input, Modal, Select } from "@/components/ui";
 import { Logo } from "@/components/logo";
 import { CustomerCareBar } from "@/components/CustomerCareBar";
 import { SignupComplianceNotice } from "@/components/SignupComplianceNotice";
+import { DownloadAppButton } from "@/components/download-app/DownloadAppButton";
 
 export type AuthModalMode = "login" | "register" | "complete" | "forgot";
 type FormStep = "details" | "otp" | "reset";
@@ -676,6 +677,7 @@ export function AuthModal({
 
           {mode === "login" ? (
             <div className="mt-4">
+              <DownloadAppButton />
               <CustomerCareBar compact />
             </div>
           ) : null}

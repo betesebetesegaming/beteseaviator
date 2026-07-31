@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/ui";
 import { GameLobbyCard } from "./GameLobbyCard";
 import { LobbyCategoryNav } from "./LobbyCategoryNav";
 import { LOBBY_NAV, type LobbyNavCategory } from "@/lib/games/promotions";
+import { DownloadAppBanner } from "@/components/download-app/DownloadAppBanner";
 
 const PromoBannerCarousel = dynamic(
   () => import("./PromoBannerCarousel").then((m) => ({ default: m.PromoBannerCarousel })),
@@ -166,6 +167,7 @@ export function GameLobby() {
 
   return (
     <div className="lobby-page -mx-4 space-y-4 px-4 pb-8 sm:-mx-0 sm:space-y-5 sm:px-0">
+      <DownloadAppBanner />
       <PromoBannerCarousel />
 
       <LobbyCategoryNav active={category} onChange={setCategory} counts={counts} />

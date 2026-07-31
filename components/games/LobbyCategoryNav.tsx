@@ -8,6 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { LOBBY_NAV, type LobbyNavCategory } from "@/lib/games/promotions";
+import { DownloadAppNavButton } from "@/components/download-app/DownloadAppNavButton";
 
 const ICONS: Record<string, LucideIcon> = {
   grid: Grid3X3,
@@ -56,6 +57,9 @@ export function LobbyCategoryNav({ active, onChange, counts }: Props) {
           </button>
         );
       })}
+
+      {/* High-visibility "Get App" download pill (Android/iOS only) */}
+      <DownloadAppNavButton />
     </nav>
   );
 }
