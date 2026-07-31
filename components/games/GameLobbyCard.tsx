@@ -59,10 +59,10 @@ export function GameLobbyCard({ game, priority = false }: { game: Game; priority
           cacheGameDoc(game);
           setSheetOpen(true);
         }}
-        className="group block w-full overflow-hidden rounded-2xl bg-[#141414] text-left shadow-md shadow-black/30 ring-1 ring-white/6 transition-transform duration-200 hover:-translate-y-0.5 hover:ring-white/12 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lobby-accent)]"
+        className="group lobby-card block w-full overflow-hidden rounded-2xl bg-[#141414] text-left shadow-md shadow-black/30 ring-1 ring-white/6 transition-transform duration-200 hover:-translate-y-0.5 hover:ring-white/12 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lobby-accent)]"
       >
         <div
-          className={`relative aspect-[3/4] overflow-hidden ${showImage ? "bg-[#1a1a1a]" : `bg-gradient-to-br ${visual.gradient}`}`}
+          className={`lobby-card-media relative aspect-[3/4] overflow-hidden ${showImage ? "bg-[#1a1a1a]" : `bg-gradient-to-br ${visual.gradient}`}`}
         >
           {showImage ? (
             // eslint-disable-next-line @next/next/no-img-element

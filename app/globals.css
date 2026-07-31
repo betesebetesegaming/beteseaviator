@@ -20,6 +20,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   /* Safari + iOS WebView: fill the screen including notch / home indicator */
+  min-height: 100vh;
   min-height: 100dvh;
   min-height: -webkit-fill-available;
   overscroll-behavior-y: none;
@@ -91,27 +92,23 @@ html {
 }
 
 .lobby-bg-shell .lobby-bg-layer {
+  /* Solid hex/rgba only — color-mix() is ignored on old Android WebViews. */
   background:
     radial-gradient(
       ellipse 90% 55% at 50% -8%,
-      color-mix(in srgb, var(--lobby-accent) 28%, transparent),
+      rgba(34, 197, 94, 0.28),
       transparent 58%
     ),
     radial-gradient(
       circle at 88% 72%,
-      color-mix(in srgb, var(--lobby-accent) 8%, transparent),
+      rgba(34, 197, 94, 0.08),
       transparent 42%
-    ),
-    radial-gradient(
-      circle at 8% 88%,
-      color-mix(in srgb, var(--lobby-bg) 80%, var(--lobby-bg-deep)),
-      transparent 50%
     ),
     linear-gradient(
       175deg,
       var(--lobby-bg-deep) 0%,
       var(--lobby-bg) 42%,
-      color-mix(in srgb, var(--lobby-bg) 85%, black) 100%
+      #0a1224 100%
     );
 }
 
@@ -119,15 +116,38 @@ html {
   background:
     radial-gradient(
       ellipse 55% 40% at 72% 18%,
-      color-mix(in srgb, var(--lobby-accent) 14%, transparent),
+      rgba(34, 197, 94, 0.14),
       transparent 52%
     ),
     radial-gradient(
       circle at 18% 78%,
-      color-mix(in srgb, var(--lobby-accent) 10%, transparent),
+      rgba(34, 197, 94, 0.1),
       transparent 38%
     );
   animation: lobby-glow-drift 16s ease-in-out infinite alternate;
+}
+
+/* Game cards: aspect-ratio polyfill for WebViews before Chrome 88 */
+.lobby-card-media {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+@supports not (aspect-ratio: 3 / 4) {
+  .lobby-card-media {
+    height: 0;
+    padding-bottom: 133.333%;
+  }
+  .lobby-card-media > img,
+  .lobby-card-media > div {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
 }
 
 .lobby-bg-shell .lobby-bg-noise {
@@ -146,6 +166,7 @@ html {
 }
 
 .game-play-root {
+  height: 100vh;
   height: 100dvh;
   height: 100svh;
   overflow: hidden;
@@ -153,6 +174,7 @@ html {
 }
 
 .game-iframe-full {
+  height: 100vh;
   height: 100dvh;
   height: 100svh;
   width: 100%;
