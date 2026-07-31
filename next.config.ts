@@ -16,6 +16,14 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: "/downloads/:path*.apk",
+        headers: [
+          { key: "Content-Type", value: "application/vnd.android.package-archive" },
+          { key: "Content-Disposition", value: "attachment; filename=\"BeteseAviator.apk\"" },
+          { key: "Cache-Control", value: "public, max-age=3600" },
+        ],
+      },
     ];
   },
   async redirects() {

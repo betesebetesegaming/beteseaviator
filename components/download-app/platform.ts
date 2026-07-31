@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 /** Where the release APK lives on the web server (drop the file at public/downloads/). */
 export const APP_DOWNLOAD = {
   apkUrl: "/downloads/BeteseAviator.apk",
-  apkVersion: "1.0",
+  apkVersion: "1.0.0",
   fileName: "BeteseAviator.apk",
   /** Set this once the iOS app is published; until then iOS users get "Add to Home Screen". */
   iosAppStoreUrl: null as string | null,
