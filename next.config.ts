@@ -4,6 +4,16 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts"],
   },
+  // Down-level these modern libraries to the old-browser target in `browserslist`
+  // (package.json) so the app runs on older Android WebViews (Android 7+).
+  // Next transpiles app code by browserslist, but NOT node_modules by default —
+  // these ship modern JS syntax, so we opt them in.
+  transpilePackages: [
+    "framer-motion",
+    "recharts",
+    "lucide-react",
+    "lottie-react",
+  ],
   async headers() {
     return [
       {
