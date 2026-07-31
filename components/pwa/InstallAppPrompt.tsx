@@ -4,15 +4,17 @@
  * PWA install experience (replaces the old native APK download prompts).
  *
  * - Registers the service worker so the site is installable.
- * - Android / Chrome: captures `beforeinstallprompt` and shows an "Install app"
- *   button that opens the browser's native install dialog.
- * - iPhone / iPad (Safari): can't auto-prompt, so we show short "Add to Home
- *   Screen" instructions instead.
- * - Hides itself once the app is installed (running standalone), on desktop, or
- *   after the user dismisses it for the session.
+ * - Android / Chrome: captures `beforeinstallprompt` and shows a one-tap
+ *   "Install" button that opens the browser's native install dialog.
+ * - iPhone / iPad: Apple has no auto-prompt, so we show clear step-by-step
+ *   "Add to Home Screen" instructions with the Share icon. If the page is open
+ *   inside an in-app browser (WhatsApp / Facebook / Instagram) — where iOS hides
+ *   "Add to Home Screen" — we tell the user to open it in Safari first.
+ * - Hides itself once installed (running standalone), on desktop, or after the
+ *   user dismisses it for the session.
  */
 import { useEffect, useState } from "react";
-import { Download, Share, X } from "lucide-react";
+import { Download, Share, X, PlusSquare, Compass } from "lucide-react";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -30,11 +32,20 @@ function isStandalone(): boolean {
   );
 }
 
+/** iOS in-app browsers (WhatsApp, Facebook, Instagram, Messenger, TikTok, Line…)
+ *  can't "Add to Home Screen" — the user must reopen the page in Safari. */
+function isInAppBrowser(ua: string): boolean {
+  return /FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|Twitter|TikTok|Snapchat|Messenger/i.test(
+    ua,
+  );
+}
+
 export function InstallAppPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [platform, setPlatform] = useState<"android" | "ios" | "other">("other");
   const [visible, setVisible] = useState(false);
   const [showIosHelp, setShowIosHelp] = useState(false);
+  const [inApp, setInApp] = useState(false);
 
   // Register the service worker (site-wide once this mounts).
   useEffect(() => {
@@ -61,7 +72,8 @@ export function InstallAppPrompt() {
 
     if (isIOS) {
       setPlatform("ios");
-      setVisible(true); // iOS never fires beforeinstallprompt — show help pill
+      setInApp(isInAppBrowser(ua));
+      setVisible(true); // iOS never fires beforeinstallprompt — show help card
     } else if (isAndroid) {
       setPlatform("android");
     }
@@ -89,7 +101,7 @@ export function InstallAppPrompt() {
     setVisible(false);
   };
 
-  const install = async () => {
+  const onButton = async () => {
     if (platform === "ios") {
       setShowIosHelp((v) => !v);
       return;
@@ -113,11 +125,11 @@ export function InstallAppPrompt() {
             </p>
           </div>
           <button
-            onClick={install}
+            onClick={onButton}
             className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400"
           >
             {platform === "ios" ? <Share size={14} /> : <Download size={14} />}
-            Install
+            {platform === "ios" ? "How?" : "Install"}
           </button>
           <button
             onClick={dismiss}
@@ -129,11 +141,53 @@ export function InstallAppPrompt() {
         </div>
 
         {platform === "ios" && showIosHelp && (
-          <p className="mt-2 border-t border-white/10 pt-2 text-xs text-slate-300">
-            In Safari: tap the <span className="font-semibold">Share</span> icon{" "}
-            <Share size={12} className="inline align-text-bottom" />, then{" "}
-            <span className="font-semibold">“Add to Home Screen.”</span>
-          </p>
+          <div className="mt-3 border-t border-white/10 pt-3">
+            {inApp ? (
+              // Opened from WhatsApp/Facebook etc. — Add to Home Screen is hidden here.
+              <div className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-200">
+                <p className="font-semibold">First, open this page in Safari 🧭</p>
+                <p className="mt-1 text-amber-200/90">
+                  You opened the link inside another app. Tap the{" "}
+                  <span className="font-semibold">•••</span> or{" "}
+                  <Compass size={13} className="inline align-text-bottom" /> menu and choose{" "}
+                  <span className="font-semibold">“Open in Safari”</span>, then come back and tap
+                  “How?” again.
+                </p>
+              </div>
+            ) : (
+              <ol className="space-y-3 text-sm text-slate-200">
+                <li className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-slate-950">
+                    1
+                  </span>
+                  <span className="flex flex-wrap items-center gap-1">
+                    Tap the <span className="font-semibold">Share</span> button
+                    <Share size={16} className="text-emerald-400" />
+                    at the bottom of Safari.
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-slate-950">
+                    2
+                  </span>
+                  <span className="flex flex-wrap items-center gap-1">
+                    Scroll down and tap{" "}
+                    <span className="font-semibold">Add to Home Screen</span>
+                    <PlusSquare size={16} className="text-emerald-400" />.
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-slate-950">
+                    3
+                  </span>
+                  <span>
+                    Tap <span className="font-semibold">Add</span> — BETESE Aviator appears on your
+                    home screen. ✈️
+                  </span>
+                </li>
+              </ol>
+            )}
+          </div>
         )}
       </div>
     </div>
