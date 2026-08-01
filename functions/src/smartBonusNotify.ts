@@ -35,15 +35,15 @@ export function buildGiftBonusSms(opts: {
   currency?: string;
 }): string {
   const first = (opts.name || "Friend").split(/\s+/)[0] || "Friend";
-  const cur = opts.currency || "GMD";
+  const cur = opts.currency || "D";
   const bonus = Math.round(Number(opts.bonusAmount) || 0);
   const match = Math.round(Number(opts.matchDeposit) || 0);
   const play = bonus + match;
+  // GSM-7 only (no emoji / arrows / em-dash) so it stays one 160-char segment.
   return (
-    `BETESE GIFT for ${first}! ` +
-    `You get ${cur} ${bonus} FREE bonus. ` +
-    `Deposit ${cur} ${match} → play with ${cur} ${play}. ` +
-    `Tap to see your gift & claim:`
+    `BETESE gift for ${first}! ` +
+    `Top up ${cur}${match} and we add a ${cur}${bonus} bonus, ` +
+    `so you play with ${cur}${play}. Claim it now:`
   );
 }
 

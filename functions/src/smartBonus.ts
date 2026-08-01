@@ -301,6 +301,8 @@ interface OfferSeed {
   wagerMultiplier: number;
   reason: string;
   source: "ai" | "agent_request" | "manual";
+  /** Set when the offer came from a Happy Hour broadcast — links it to the campaign. */
+  happyHourId?: string | null;
   requestedByAgent?: string | null;
   expiryDays: number;
   actorId: string;
@@ -338,6 +340,7 @@ async function createOfferIfEligible(seed: OfferSeed): Promise<string | null> {
       wagerMultiplier: seed.wagerMultiplier,
       wagerRequired,
       reason: seed.reason,
+      happyHourId: seed.happyHourId ?? null,
       outreachMessage: seed.outreachMessage ?? "",
       aiGenerated: seed.aiGenerated === true,
       confidence: seed.confidence ?? null,
@@ -933,6 +936,225 @@ export const agentRequestSmartBonus = onCall(async (req) => {
     throw new HttpsError("failed-precondition", "This customer already has an active Smart Bonus offer.");
   }
   return { ok: true as const, offerId };
+});
+
+// ---------------------------------------------------------------------------
+// Happy Hour — broadcast one fixed bonus to every recently-active player.
+// Trigger queues a campaign; a 1-minute worker rolls it out in safe batches so
+// it never times out or double-sends. Notifies in-app (banner) + optional SMS.
+// ---------------------------------------------------------------------------
+
+const HAPPY_HOUR_BATCH = 25; // players per worker run (bounded so a run stays well under the 540s timeout even if SMS is slow)
+const HAPPY_HOUR_MAX = 10_000; // safety cap on total players per campaign
+
+/** Admin fires a Happy Hour. Returns immediately; the worker does the rollout. */
+export const adminStartHappyHour = onCall(async (req) => {
+  const { uid: adminUid } = await requireRole(req, ["admin"]);
+  const settings = await getSettings();
+  const cfg = smartBonusConfig(settings);
+
+  const bonusIn = round2(Number(req.data?.bonusAmount));
+  if (!Number.isFinite(bonusIn) || bonusIn <= 0) {
+    throw new HttpsError("invalid-argument", "Enter a positive bonus amount.");
+  }
+  const bonusAmount = round2(Math.min(cfg.maxBonus, Math.max(cfg.minBonus, bonusIn)));
+  const matchDeposit =
+    req.data?.matchDeposit !== undefined && req.data?.matchDeposit !== null && String(req.data.matchDeposit) !== ""
+      ? round2(Number(req.data.matchDeposit))
+      : round2(cfg.matchPercent > 0 ? bonusAmount / cfg.matchPercent : bonusAmount);
+  if (!Number.isFinite(matchDeposit) || matchDeposit <= 0) {
+    throw new HttpsError("invalid-argument", "Match deposit must be positive.");
+  }
+  const activeDays = clampNum(req.data?.activeDays, 14, 1, 365);
+  const notify = req.data?.notify === "sms" ? "sms" : "inapp";
+
+  const running = await db.collection("happyHourCampaigns").where("status", "==", "running").limit(1).get();
+  if (!running.empty) {
+    throw new HttpsError("failed-precondition", "A Happy Hour is already running — wait for it to finish.");
+  }
+
+  const ref = db.collection("happyHourCampaigns").doc();
+  await ref.set({
+    status: "running",
+    bonusAmount,
+    matchDeposit,
+    wagerMultiplier: cfg.wagerMultiplier,
+    expiryDays: cfg.expiryDays,
+    activeDays,
+    notify,
+    cursor: "",
+    lockUntil: 0,
+    processed: 0,
+    offersCreated: 0,
+    smsSent: 0,
+    smsFailed: 0,
+    skipped: 0,
+    createdBy: adminUid,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return { ok: true as const, campaignId: ref.id, bonusAmount, matchDeposit };
+});
+
+/** Every minute: roll a running Happy Hour forward by one batch. */
+export const processHappyHour = onSchedule(
+  { schedule: "* * * * *", timeZone: "Africa/Dakar", timeoutSeconds: 540, memory: "512MiB" },
+  async () => {
+    await processHappyHourCore();
+  }
+);
+
+async function processHappyHourCore(): Promise<void> {
+  const snap = await db.collection("happyHourCampaigns").where("status", "==", "running").limit(1).get();
+  if (snap.empty) return;
+  const campRef = snap.docs[0].ref;
+
+  // Claim the campaign so overlapping worker runs can't double-process a batch.
+  const claimed = await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(campRef);
+    const d = fresh.data();
+    if (!d || d.status !== "running") return false;
+    if (Number(d.lockUntil ?? 0) > Date.now()) return false;
+    tx.update(campRef, { lockUntil: Date.now() + 9 * 60 * 1000 });
+    return true;
+  });
+  if (!claimed) return;
+
+  const c = (await campRef.get()).data()!;
+  const bonusAmount = round2(Number(c.bonusAmount ?? 0));
+  const matchDeposit = round2(Number(c.matchDeposit ?? 0));
+  const wagerMultiplier = Number(c.wagerMultiplier ?? 3);
+  const expiryDays = Number(c.expiryDays ?? 3);
+  const activeDays = Number(c.activeDays ?? 14);
+  const notify = String(c.notify ?? "inapp");
+  const actorId = String(c.createdBy ?? "system");
+  let cursor = String(c.cursor ?? "");
+  let processed = Number(c.processed ?? 0);
+  let offersCreated = Number(c.offersCreated ?? 0);
+  let smsSent = Number(c.smsSent ?? 0);
+  let smsFailed = Number(c.smsFailed ?? 0);
+  let skipped = Number(c.skipped ?? 0);
+
+  let q = db
+    .collection("users")
+    .where("role", "==", "player")
+    .where("status", "==", "active")
+    .orderBy("__name__")
+    .limit(HAPPY_HOUR_BATCH);
+  if (cursor) q = q.startAfter(cursor);
+  const page = await q.get();
+
+  for (const userDoc of page.docs) {
+    cursor = userDoc.id;
+    processed += 1;
+    try {
+      const u = userDoc.data();
+      const health = (await db.doc(`playerHealth/${userDoc.id}`).get()).data() ?? {};
+      const days = Number(health.daysSinceLastBet ?? Infinity);
+      if (!(days <= activeDays)) {
+        skipped += 1;
+        continue; // not a recently-active player
+      }
+
+      const offerId = await createOfferIfEligible({
+        uid: userDoc.id,
+        userName: String(u.name ?? "Player"),
+        phone: (u.phone as string | null) ?? null,
+        agentId: (u.parentId as string | null) ?? null,
+        ancestors: (u.ancestors as string[] | undefined) ?? [],
+        playerNumber: (u.playerNumber as number | null) ?? null,
+        healthScore: Number(health.healthScore ?? 0),
+        tier: (health.tier as HealthTier) ?? "active",
+        daysInactive: Number.isFinite(days) ? days : 0,
+        bonusAmount,
+        matchDeposit,
+        wagerMultiplier,
+        reason: `Happy Hour — ${bonusAmount} GMD gift bonus on a ${matchDeposit} GMD deposit.`,
+        source: "manual",
+        happyHourId: campRef.id,
+        expiryDays,
+        actorId,
+        actorRole: "admin",
+      });
+      if (!offerId) {
+        skipped += 1;
+        continue; // already has an active offer
+      }
+
+      await db.runTransaction(async (tx) => {
+        const ref = db.doc(`smartBonusOffers/${offerId}`);
+        tx.update(ref, {
+          status: "sent",
+          approvedBy: actorId,
+          approvedAt: FieldValue.serverTimestamp(),
+          sentAt: FieldValue.serverTimestamp(),
+          sentChannel: notify === "sms" ? "sms" : "inapp",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(db.doc(`smartBonusActive/${userDoc.id}`), { status: "sent", offerId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        logSmartBonusEvent(tx, { offerId, userId: userDoc.id, actorId, actorRole: "admin", action: "sent", detail: "happy hour" });
+      });
+      offersCreated += 1;
+
+      if (notify === "sms") {
+        const body = resolveGiftBonusSms({ name: String(u.name ?? "Friend"), bonusAmount, matchDeposit });
+        const res = await sendBonusSms((u.phone as string | null) ?? null, body);
+        if (res.ok) smsSent += 1;
+        else smsFailed += 1;
+      }
+    } catch (e) {
+      logger.warn("happy hour player failed", { uid: userDoc.id, error: String(e) });
+      skipped += 1;
+    }
+    if (processed >= HAPPY_HOUR_MAX) break;
+  }
+
+  const done = page.size < HAPPY_HOUR_BATCH || processed >= HAPPY_HOUR_MAX;
+  // Re-read status inside a transaction so a cancel that landed mid-batch is
+  // never clobbered back to "running"/"completed".
+  await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(campRef);
+    const stillRunning = fresh.exists && fresh.data()?.status === "running";
+    tx.set(
+      campRef,
+      {
+        cursor,
+        processed,
+        offersCreated,
+        smsSent,
+        smsFailed,
+        skipped,
+        lockUntil: 0, // release the claim for the next run
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(stillRunning && done ? { status: "completed", completedAt: FieldValue.serverTimestamp() } : {}),
+      },
+      { merge: true }
+    );
+  });
+  logger.info("happy hour batch", { campaign: campRef.id, processed, offersCreated, smsSent, smsFailed, skipped, done });
+}
+
+/** Stop a Happy Hour mid-rollout. The worker only processes "running" campaigns,
+ * so flipping status to "canceled" halts further batches. Offers already created
+ * stand (those players keep their bonus). */
+export const adminCancelHappyHour = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const campaignId = String(req.data?.campaignId ?? "").trim();
+  let ref: FirebaseFirestore.DocumentReference;
+  if (campaignId) {
+    ref = db.doc(`happyHourCampaigns/${campaignId}`);
+  } else {
+    const running = await db.collection("happyHourCampaigns").where("status", "==", "running").limit(1).get();
+    if (running.empty) throw new HttpsError("failed-precondition", "No Happy Hour is running.");
+    ref = running.docs[0].ref;
+  }
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Campaign not found.");
+    if (snap.data()?.status !== "running") throw new HttpsError("failed-precondition", "That Happy Hour is not running.");
+    tx.update(ref, { status: "canceled", lockUntil: 0, canceledAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+  });
+  return { ok: true as const };
 });
 
 // ---------------------------------------------------------------------------

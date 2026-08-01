@@ -257,6 +257,22 @@ export type SmartBonusOfferStatus =
   | "expired"
   | "completed";
 
+export interface HappyHourCampaign {
+  id: string;
+  status: "running" | "completed" | "canceled";
+  bonusAmount: number;
+  matchDeposit: number;
+  notify: "sms" | "inapp";
+  activeDays: number;
+  processed: number;
+  offersCreated: number;
+  smsSent: number;
+  smsFailed: number;
+  skipped: number;
+  createdAt?: Timestamp | null;
+  completedAt?: Timestamp | null;
+}
+
 export interface SmartBonusOffer {
   id: string;
   userId: string;
@@ -279,6 +295,7 @@ export interface SmartBonusOffer {
   confidence?: number | null;
   status: SmartBonusOfferStatus;
   source: "ai" | "agent_request" | "manual";
+  happyHourId?: string | null;
   requestedByAgent?: string | null;
   createdAt: Timestamp | null;
   expiresAt: string;

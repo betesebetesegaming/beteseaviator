@@ -271,6 +271,13 @@ export const adminCreateSmartBonusOffer = call<
   }
 >("adminCreateSmartBonusOffer");
 
+export const adminStartHappyHour = call<
+  { bonusAmount: number; matchDeposit?: number; activeDays?: number; notify?: "sms" | "inapp" },
+  { ok: true; campaignId: string; bonusAmount: number; matchDeposit: number }
+>("adminStartHappyHour");
+
+export const adminCancelHappyHour = call<{ campaignId?: string }, { ok: true }>("adminCancelHappyHour");
+
 export const agentRequestSmartBonus = call<
   { playerId: string },
   { ok: true; offerId: string }

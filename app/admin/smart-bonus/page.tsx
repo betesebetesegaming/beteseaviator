@@ -11,7 +11,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { Brain, Play, Sparkles, MessageSquare, Phone, History, Check, X, Pencil, Send } from "lucide-react";
+import { Brain, Play, Sparkles, MessageSquare, Phone, History, Check, X, Pencil, Send, Zap } from "lucide-react";
 import { db } from "@/lib/firestore";
 import {
   adminRunSmartBonusAnalysis,
@@ -22,9 +22,11 @@ import {
   smartBonusReject,
   smartBonusSend,
   adminCreateSmartBonusOffer,
+  adminStartHappyHour,
+  adminCancelHappyHour,
 } from "@/lib/api";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
-import { DEFAULT_SETTINGS, type PlatformSettings, type SmartBonusOffer } from "@/lib/types";
+import { DEFAULT_SETTINGS, type PlatformSettings, type SmartBonusOffer, type HappyHourCampaign } from "@/lib/types";
 import { formatXof } from "@/lib/format";
 import { formatPlayerId } from "@/lib/playerId";
 import { offerMessage, offerStatusMeta, tierMeta } from "@/lib/smartBonus";
@@ -66,7 +68,14 @@ export default function AdminSmartBonusPage() {
   const [tgtBonus, setTgtBonus] = useState("100");
   const [tgtMatch, setTgtMatch] = useState("");
   const [tgtBusy, setTgtBusy] = useState(false);
-  const [view, setView] = useState<"recommendations" | "briefing" | "reports">("recommendations");
+
+  const [hhBonus, setHhBonus] = useState("100");
+  const [hhMatch, setHhMatch] = useState("");
+  const [hhBusy, setHhBusy] = useState(false);
+  const [hhList, setHhList] = useState<HappyHourCampaign[] | null>(null);
+  const [selectedHHId, setSelectedHHId] = useState<string | null>(null);
+  const [recipients, setRecipients] = useState<SmartBonusOffer[] | null>(null);
+  const [view, setView] = useState<"recommendations" | "happyhour" | "briefing" | "reports">("recommendations");
 
   const [editTarget, setEditTarget] = useState<SmartBonusOffer | null>(null);
   const [editAmount, setEditAmount] = useState("");
@@ -92,6 +101,33 @@ export default function AdminSmartBonusPage() {
   }, []);
 
   useEffect(() => {
+    const q = query(collection(db, "happyHourCampaigns"), orderBy("createdAt", "desc"), limit(50));
+    return onSnapshot(
+      q,
+      (snap) => setHhList(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as HappyHourCampaign)),
+      () => setHhList([])
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!selectedHHId) {
+      setRecipients(null);
+      return;
+    }
+    setRecipients(null);
+    const q = query(collection(db, "smartBonusOffers"), where("happyHourId", "==", selectedHHId), limit(1000));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as SmartBonusOffer);
+        rows.sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
+        setRecipients(rows);
+      },
+      () => setRecipients([])
+    );
+  }, [selectedHHId]);
+
+  useEffect(() => {
     if (!historyTarget) return;
     const q = query(collection(db, "smartBonusEvents"), where("offerId", "==", historyTarget.id));
     return onSnapshot(q, (snap) => {
@@ -102,6 +138,7 @@ export default function AdminSmartBonusPage() {
   }, [historyTarget]);
 
   const sb = settings.smartBonus ?? DEFAULT_SETTINGS.smartBonus!;
+  const hh = hhList?.[0] ?? null;
 
   const filtered = useMemo(() => {
     if (!offers) return null;
@@ -178,6 +215,52 @@ export default function AdminSmartBonusPage() {
       toast.error(errorMessage(e));
     } finally {
       setTgtBusy(false);
+    }
+  }
+
+  const hhRunning = hh?.status === "running";
+
+  async function startHappyHour() {
+    const bonusAmount = Number(hhBonus);
+    if (!Number.isFinite(bonusAmount) || bonusAmount <= 0) return toast.error("Enter a valid bonus amount.");
+    if (hhRunning) return toast.error("A Happy Hour is already running.");
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Start a ${formatXof(bonusAmount)} Happy Hour for ALL recently-active players? ` +
+          `It creates a bonus offer for each and texts them.`
+      )
+    ) {
+      return;
+    }
+    setHhBusy(true);
+    try {
+      const res = await adminStartHappyHour({
+        bonusAmount,
+        matchDeposit: hhMatch.trim() ? Number(hhMatch) : undefined,
+        activeDays: 14,
+        notify: "sms",
+      });
+      toast.success(`Happy Hour started — ${formatXof(res.bonusAmount)} to every recently-active player. Rolling out now…`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setHhBusy(false);
+    }
+  }
+
+  async function cancelHappyHour() {
+    if (typeof window !== "undefined" && !window.confirm("Stop this Happy Hour now? No more offers or texts will go out. Bonuses already sent stay.")) {
+      return;
+    }
+    setHhBusy(true);
+    try {
+      await adminCancelHappyHour({ campaignId: hh?.id });
+      toast.success("Happy Hour stopped.");
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setHhBusy(false);
     }
   }
 
@@ -263,6 +346,7 @@ export default function AdminSmartBonusPage() {
         {(
           [
             ["recommendations", "Recommendations"],
+            ["happyhour", "Happy Hour"],
             ["briefing", "Daily briefing"],
             ["reports", "Reports"],
           ] as const
@@ -281,6 +365,140 @@ export default function AdminSmartBonusPage() {
 
       {view === "briefing" && <SmartBonusBriefing offers={offers} />}
       {view === "reports" && <SmartBonusReports offers={offers} />}
+
+      {view === "happyhour" && (
+        <>
+          <Card className="mb-6 border-amber-500/30">
+            <h2 className="mb-1 flex items-center gap-2 font-semibold">
+              <Zap size={16} className="text-amber-300" /> Start a Happy Hour
+            </h2>
+            <p className="mb-3 text-xs text-slate-400">
+              Sends one fixed bonus to every recently-active player (last 14 days) at once — in-app banner plus SMS.
+              They claim it by matching the deposit. Expiry follows your main setting. Leave match blank to auto-set.
+            </p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Input label="Bonus (GMD)" type="number" value={hhBonus} onChange={(e) => setHhBonus(e.target.value)} />
+              <Input label="Match deposit (GMD)" type="number" value={hhMatch} onChange={(e) => setHhMatch(e.target.value)} placeholder="auto" />
+              <div className="flex items-end">
+                <Button className="w-full" onClick={startHappyHour} disabled={hhBusy || hhRunning}>
+                  <span className="flex items-center justify-center gap-1.5">
+                    <Zap size={15} /> {hhRunning ? "Running…" : hhBusy ? "Starting…" : "Start Happy Hour"}
+                  </span>
+                </Button>
+              </div>
+            </div>
+          </Card>
+
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-300">
+            <History size={15} /> Happy Hour history
+          </h2>
+          {!hhList ? (
+            <Spinner />
+          ) : hhList.length === 0 ? (
+            <EmptyState message="No Happy Hour sent yet. Start one above." />
+          ) : (
+            <div className="mb-6 space-y-2">
+              {hhList.map((c) => {
+                const active = selectedHHId === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedHHId(active ? null : c.id)}
+                    className={`w-full rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
+                      active ? "border-amber-500/40 bg-amber-500/10" : "border-white/10 bg-slate-950/40 hover:bg-slate-900"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">
+                        {formatXof(c.bonusAmount)} bonus
+                        <span className="ml-2 text-xs text-slate-500">
+                          {c.createdAt?.toDate?.() ? c.createdAt.toDate!().toLocaleString() : ""}
+                        </span>
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          c.status === "running"
+                            ? "bg-amber-500/20 text-amber-200"
+                            : c.status === "canceled"
+                            ? "bg-rose-500/20 text-rose-200"
+                            : "bg-emerald-500/20 text-emerald-200"
+                        }`}
+                      >
+                        {c.status === "running" ? "Rolling out" : c.status === "canceled" ? "Stopped" : "Done"}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      <strong className="text-emerald-300">{c.offersCreated}</strong> players got it · {c.smsSent} texts sent
+                      {c.smsFailed > 0 ? `, ${c.smsFailed} failed` : ""} · tap to see who
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {selectedHHId && (
+            <>
+              <h2 className="mb-2 text-sm font-semibold text-slate-300">
+                Who got this Happy Hour
+                {recipients ? (
+                  <span className="ml-2 text-xs font-normal text-slate-500">
+                    {recipients.length} players ·{" "}
+                    {recipients.filter((o) => o.status === "activated" || o.status === "completed").length} claimed
+                  </span>
+                ) : null}
+              </h2>
+              {!recipients ? (
+                <Spinner />
+              ) : recipients.length === 0 ? (
+                <EmptyState message="No recipients recorded for this Happy Hour." />
+              ) : (
+                <TableShell>
+                  <thead>
+                    <tr>
+                      <Th>Customer</Th>
+                      <Th>Phone</Th>
+                      <Th>Bonus / Deposit</Th>
+                      <Th>Claimed?</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recipients.map((o) => {
+                      const claimed = o.status === "activated" || o.status === "completed";
+                      return (
+                        <tr key={o.id}>
+                          <Td>
+                            <div className="font-medium">{o.userName}</div>
+                            <div className="font-mono text-xs text-slate-500">
+                              {o.playerNumber ? formatPlayerId(o.playerNumber) : "—"}
+                            </div>
+                          </Td>
+                          <Td className="tabular-nums">{o.phone ?? "—"}</Td>
+                          <Td className="tabular-nums">
+                            <span className="font-semibold text-violet-200">{formatXof(o.bonusAmount)}</span>
+                            <span className="text-slate-500"> on {formatXof(o.matchDeposit)}</span>
+                          </Td>
+                          <Td>
+                            {claimed ? (
+                              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-200">
+                                Claimed
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-slate-600/20 px-2 py-0.5 text-xs font-semibold text-slate-400">
+                                Not yet
+                              </span>
+                            )}
+                          </Td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </TableShell>
+              )}
+            </>
+          )}
+        </>
+      )}
 
       {view === "recommendations" && (
         <>

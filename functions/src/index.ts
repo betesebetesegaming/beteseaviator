@@ -72,6 +72,9 @@ export {
   smartBonusReject,
   smartBonusSend,
   adminCreateSmartBonusOffer,
+  adminStartHappyHour,
+  processHappyHour,
+  adminCancelHappyHour,
   agentRequestSmartBonus,
 } from "./smartBonus";
 

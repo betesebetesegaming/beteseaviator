@@ -24,6 +24,14 @@ deposit/withdraw/ModemPay code touched.
    creates the offer, marks it sent, and texts the player immediately — bypassing
    the nightly lapsed-player rules. The bonus activates the normal way when the
    player deposits the matching amount.
+4. **Happy Hour broadcast** — new callable `adminStartHappyHour` (queues a
+   campaign) + new **scheduled worker** `processHappyHour` (runs every minute,
+   rolls the campaign out in batches of 25, claim-locked so runs can't overlap or
+   double-send) + a "Happy Hour" form with live progress in Admin → Smart Bonus.
+   Fires one fixed bonus to every recently-active player (last 14 days) via in-app
+   banner + SMS. Writes to a new `happyHourCampaigns` collection (admin-read; the
+   worker writes via the Admin SDK). The `processHappyHour` cron is created
+   automatically on the functions deploy.
 
 WhatsApp stays one-tap-from-the-admin's-app (true auto-WhatsApp needs a WhatsApp
 Business API account). There is no direct/no-deposit gift — every bonus is
@@ -65,11 +73,15 @@ is the match + auto-SMS + wording described here.
 
 Typechecked clean: `cd functions && npm run build`, and `npx tsc --noEmit` at root.
 
-1. **Functions**:
+1. **Functions** (includes the new `processHappyHour` scheduled worker):
    ```bash
    firebase deploy --only functions --project beteseaviator-a05ae
    ```
-2. **Frontend**: commit the working-tree changes and push to GitHub
+2. **Firestore rules** (adds admin read for `happyHourCampaigns`):
+   ```bash
+   firebase deploy --only firestore:rules --project beteseaviator-a05ae
+   ```
+3. **Frontend**: commit the working-tree changes and push to GitHub
    `betesebetesegaming/beteseaviator` branch `main` — the host auto-rebuilds.
 
 ## Verify
@@ -89,5 +101,8 @@ Typechecked clean: `cd functions && npm run build`, and `npx tsc --noEmit` at ro
 
 ## Rollback
 
-Revert the files above (and, if needed, commit `f561876`) and redeploy functions.
-No Firestore rules/index/schema changes were made.
+Revert the changed files and redeploy functions + rules. The only rules change is
+an added admin-read block for `happyHourCampaigns`; no indexes or schema changes.
+A Happy Hour can be stopped mid-rollout from the UI (the **Stop** button on the
+progress line, backed by `adminCancelHappyHour`) — the worker only processes
+`running` campaigns, and its final write can't clobber a cancel.
