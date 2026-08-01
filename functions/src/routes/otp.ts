@@ -255,7 +255,7 @@ async function probeAfricellLive(): Promise<Record<string, unknown>> {
   };
 }
 
-async function sendViaAfricell(msisdn: string, message: string): Promise<{ messageId: string | null }> {
+export async function sendViaAfricell(msisdn: string, message: string): Promise<{ messageId: string | null }> {
   const baseUrl = (process.env.AFRICELL_SMS_URL || "").replace(/\/+$/, "");
   const username = process.env.AFRICELL_SMS_USERNAME || "";
   const password = process.env.AFRICELL_SMS_PASSWORD || "";

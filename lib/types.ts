@@ -279,6 +279,9 @@ export interface SmartBonusOffer {
   confidence?: number | null;
   status: SmartBonusOfferStatus;
   source: "ai" | "agent_request";
+  /** "match" = deposit-to-unlock (default); "gift" = credited directly, no deposit. */
+  kind?: "match" | "gift";
+  giftedBy?: string;
   requestedByAgent?: string | null;
   createdAt: Timestamp | null;
   expiresAt: string;

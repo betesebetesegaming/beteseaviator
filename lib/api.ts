@@ -253,9 +253,15 @@ export const smartBonusReject = call<{ offerId: string; reason?: string }, { ok:
   "smartBonusReject"
 );
 
-export const smartBonusSend = call<{ offerId: string; channel?: string }, { ok: true }>(
-  "smartBonusSend"
-);
+export const smartBonusSend = call<
+  { offerId: string; channel?: string },
+  { ok: true; sms?: { ok: boolean; messageId?: string | null; error?: string } }
+>("smartBonusSend");
+
+export const smartBonusGift = call<
+  { offerId: string },
+  { ok: true; credited: number; sms?: { ok: boolean; error?: string } }
+>("smartBonusGift");
 
 export const agentRequestSmartBonus = call<
   { playerId: string },

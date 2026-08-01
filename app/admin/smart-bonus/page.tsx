@@ -11,7 +11,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { Brain, Play, Sparkles, MessageSquare, Phone, History, Check, X, Pencil } from "lucide-react";
+import { Brain, Play, Sparkles, MessageSquare, Phone, History, Check, X, Pencil, Gift } from "lucide-react";
 import { db } from "@/lib/firestore";
 import {
   adminRunSmartBonusAnalysis,
@@ -21,6 +21,7 @@ import {
   smartBonusEdit,
   smartBonusReject,
   smartBonusSend,
+  smartBonusGift,
 } from "@/lib/api";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
 import { DEFAULT_SETTINGS, type PlatformSettings, type SmartBonusOffer } from "@/lib/types";
@@ -176,18 +177,46 @@ export default function AdminSmartBonusPage() {
     setEditTarget(null);
   }
 
-  function sendVia(o: SmartBonusOffer, channel: "sms" | "whatsapp") {
+  const REWARDS_URL = "https://www.beteseaviator.com/play/rewards";
+
+  function outreachText(o: SmartBonusOffer): string {
+    const base = (o.outreachMessage ?? "").trim() || offerMessage(o.userName, o.bonusAmount, o.matchDeposit);
+    return base.includes(REWARDS_URL) ? base : `${base} ${REWARDS_URL}`;
+  }
+
+  /** SMS is delivered server-side straight to the customer (with the link). */
+  function sendSms(o: SmartBonusOffer) {
+    void act(async () => {
+      const res = await smartBonusSend({ offerId: o.id, channel: "sms" });
+      if (res.sms && !res.sms.ok) throw new Error(res.sms.error || "SMS gateway error");
+    }, "SMS sent to the customer.");
+  }
+
+  /** WhatsApp opens the admin's app pre-filled (message + link) to send in one tap. */
+  function sendWhatsApp(o: SmartBonusOffer) {
     const phone = (o.phone ?? "").replace(/\D/g, "");
-    const msg = (o.outreachMessage ?? "").trim() || offerMessage(o.userName, o.bonusAmount, o.matchDeposit);
     if (typeof window !== "undefined" && phone) {
       const intl = phone.startsWith("220") ? phone : `220${phone}`;
-      const href =
-        channel === "whatsapp"
-          ? `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`
-          : `sms:${phone}?body=${encodeURIComponent(msg)}`;
-      window.open(href, "_blank");
+      window.open(`https://wa.me/${intl}?text=${encodeURIComponent(outreachText(o))}`, "_blank");
     }
-    void act(() => smartBonusSend({ offerId: o.id, channel }), `Marked sent via ${channel}.`);
+    void act(() => smartBonusSend({ offerId: o.id, channel: "whatsapp" }), "Marked sent via WhatsApp.");
+  }
+
+  /** Gift the bonus directly to the account (no deposit) + auto-SMS. Admin-only. */
+  function giftNow(o: SmartBonusOffer) {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Gift ${formatXof(o.bonusAmount)} directly to ${o.userName} now? ` +
+          `It credits their account immediately (no deposit needed) and texts them the link.`
+      )
+    ) {
+      return;
+    }
+    void act(async () => {
+      const res = await smartBonusGift({ offerId: o.id });
+      if (res.sms && !res.sms.ok) toast(`Bonus credited — but SMS failed: ${res.sms.error ?? "gateway error"}`);
+    }, "Bonus gifted to the account.");
   }
 
   return (
@@ -355,6 +384,11 @@ export default function AdminSmartBonusPage() {
                           AI
                         </span>
                       ) : null}
+                      {o.kind === "gift" ? (
+                        <span className="rounded bg-emerald-500/20 px-1 py-0.5 text-[9px] font-bold uppercase text-emerald-200">
+                          Gift
+                        </span>
+                      ) : null}
                     </div>
                     <div className="font-mono text-xs text-slate-500">
                       {o.playerNumber ? formatPlayerId(o.playerNumber) : "—"}
@@ -386,6 +420,9 @@ export default function AdminSmartBonusPage() {
                           <IconBtn title="Edit amount" onClick={() => openEdit(o)}>
                             <Pencil size={14} />
                           </IconBtn>
+                          <IconBtn title="Gift now — credit directly, no deposit" onClick={() => giftNow(o)}>
+                            <Gift size={14} />
+                          </IconBtn>
                           <IconBtn title="Reject" danger onClick={() => act(() => smartBonusReject({ offerId: o.id }), "Rejected.")}>
                             <X size={14} />
                           </IconBtn>
@@ -393,11 +430,14 @@ export default function AdminSmartBonusPage() {
                       )}
                       {(o.status === "approved" || o.status === "sent") && (
                         <>
-                          <IconBtn title="Send WhatsApp" onClick={() => sendVia(o, "whatsapp")}>
+                          <IconBtn title="Send WhatsApp (opens your app)" onClick={() => sendWhatsApp(o)}>
                             <MessageSquare size={14} />
                           </IconBtn>
-                          <IconBtn title="Send SMS" onClick={() => sendVia(o, "sms")}>
+                          <IconBtn title="Send SMS (auto — texts the customer)" onClick={() => sendSms(o)}>
                             <Phone size={14} />
+                          </IconBtn>
+                          <IconBtn title="Gift now — credit directly, no deposit" onClick={() => giftNow(o)}>
+                            <Gift size={14} />
                           </IconBtn>
                           <IconBtn title="Reject" danger onClick={() => act(() => smartBonusReject({ offerId: o.id }), "Rejected.")}>
                             <X size={14} />

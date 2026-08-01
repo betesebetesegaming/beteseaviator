@@ -21,6 +21,7 @@ import {
 } from "./helpers";
 import { playthroughRates, recordBonusWageringRequirement } from "./wagering";
 import { generateAiRecommendation, smartBonusAiEnabled } from "./smartBonusAi";
+import { sendBonusSms } from "./smartBonusNotify";
 
 const DAY_MS = 86_400_000;
 
@@ -300,6 +301,8 @@ interface OfferSeed {
   wagerMultiplier: number;
   reason: string;
   source: "ai" | "agent_request";
+  /** "match" = deposit-to-unlock (default); "gift" = credited directly, no deposit. */
+  kind?: "match" | "gift";
   requestedByAgent?: string | null;
   expiryDays: number;
   actorId: string;
@@ -337,6 +340,7 @@ async function createOfferIfEligible(seed: OfferSeed): Promise<string | null> {
       wagerMultiplier: seed.wagerMultiplier,
       wagerRequired,
       reason: seed.reason,
+      kind: seed.kind ?? "match",
       outreachMessage: seed.outreachMessage ?? "",
       aiGenerated: seed.aiGenerated === true,
       confidence: seed.confidence ?? null,
@@ -716,6 +720,12 @@ export const smartBonusSend = onCall(async (req) => {
   const { uid } = await requireRole(req, ["admin"]);
   const offerId = String(req.data?.offerId ?? "");
   const channel = String(req.data?.channel ?? "manual").slice(0, 20);
+  let phone: string | null = null;
+  let outreach = "";
+  let userName = "";
+  let userId = "";
+  let bonusAmount = 0;
+  let matchDeposit = 0;
   await db.runTransaction(async (tx) => {
     const ref = db.doc(`smartBonusOffers/${offerId}`);
     const snap = await tx.get(ref);
@@ -724,11 +734,117 @@ export const smartBonusSend = onCall(async (req) => {
     if (o.status !== "approved" && o.status !== "sent") {
       throw new HttpsError("failed-precondition", "Approve the offer before sending.");
     }
+    userId = String(o.userId ?? "");
+    phone = (o.phone as string | null) ?? null;
+    outreach = String(o.outreachMessage ?? "");
+    userName = String(o.userName ?? "");
+    bonusAmount = round2(Number(o.bonusAmount ?? 0));
+    matchDeposit = round2(Number(o.matchDeposit ?? 0));
     tx.update(ref, { status: "sent", sentAt: FieldValue.serverTimestamp(), sentChannel: channel, updatedAt: FieldValue.serverTimestamp() });
     tx.set(db.doc(`smartBonusActive/${o.userId}`), { status: "sent", offerId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     logSmartBonusEvent(tx, { offerId, userId: String(o.userId), actorId: uid, actorRole: "admin", action: "sent", detail: channel });
   });
-  return { ok: true as const };
+
+  // For SMS, dispatch the outreach text (with tap-through link) to the customer
+  // server-side. WhatsApp is opened client-side by the admin (no gateway here).
+  let sms: { ok: boolean; messageId?: string | null; error?: string } | undefined;
+  if (channel === "sms") {
+    const first = (userName || "there").split(" ")[0];
+    const body =
+      outreach.trim() ||
+      `🎉 Hi ${first}! BETESE picked you for a ${bonusAmount} GMD Smart Bonus. ` +
+        `Deposit ${matchDeposit} GMD to claim it before it expires.`;
+    sms = await sendBonusSms(phone, body);
+    if (sms.ok) {
+      await logSmartBonusEventDirect({
+        offerId, userId, actorId: uid, actorRole: "admin",
+        action: "sms_sent", detail: `SMS delivered to ${phone ?? "—"}`,
+      }).catch(() => undefined);
+    }
+  }
+  return { ok: true as const, sms };
+});
+
+/**
+ * Gift a bonus DIRECTLY to the player — no matching deposit required. Admin-only.
+ * Credits the bonus now through the same wallet + wagering engine the deposit
+ * path uses (so it's fully consistent with every other bonus), keeps the wager
+ * requirement so it can't be instantly withdrawn, then texts the customer with a
+ * tap-through link. Transaction-guarded: a double-click can never credit twice.
+ */
+export const smartBonusGift = onCall(async (req) => {
+  const { uid: adminUid } = await requireRole(req, ["admin"]);
+  const offerId = String(req.data?.offerId ?? "");
+  if (!offerId) throw new HttpsError("invalid-argument", "offerId required.");
+  const settings = await getSettings();
+
+  let credited = 0;
+  let mult = 0;
+  let phone: string | null = null;
+  let userName = "";
+  await db.runTransaction(async (tx) => {
+    const offerRef = db.doc(`smartBonusOffers/${offerId}`);
+    const snap = await tx.get(offerRef);
+    if (!snap.exists) throw new HttpsError("not-found", "Offer not found.");
+    const o = snap.data()!;
+    if (o.status === "activated" || o.status === "completed") {
+      throw new HttpsError("failed-precondition", "This bonus was already credited.");
+    }
+    if (o.status === "rejected" || o.status === "expired") {
+      throw new HttpsError("failed-precondition", `Cannot gift a ${o.status} offer.`);
+    }
+    const userId = String(o.userId ?? "");
+    if (!userId) throw new HttpsError("failed-precondition", "Offer has no player.");
+    const bonusAmount = round2(Number(o.bonusAmount ?? 0));
+    if (bonusAmount <= 0) throw new HttpsError("failed-precondition", "Bonus amount is zero.");
+
+    phone = (o.phone as string | null) ?? null;
+    userName = String(o.userName ?? "Player");
+    mult = Number(o.wagerMultiplier ?? playthroughRates(settings).bonusMultiplier);
+
+    const wallet = await walletRead(tx, userId);
+    walletWrite(tx, wallet, {
+      uid: userId,
+      amount: bonusAmount,
+      type: "bonus",
+      creditAsBonus: true,
+      description: "BETESE Smart Bonus gift",
+      meta: { source: "smart_bonus_gift", offerId },
+    });
+    recordBonusWageringRequirement(tx, userId, wallet, bonusAmount, mult);
+
+    tx.update(offerRef, {
+      status: "activated",
+      kind: "gift",
+      activatedAt: FieldValue.serverTimestamp(),
+      matchedDeposit: 0,
+      bonusCredited: bonusAmount,
+      giftedBy: adminUid,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(
+      db.doc(`smartBonusActive/${userId}`),
+      { status: "activated", offerId, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+    logSmartBonusEvent(tx, {
+      offerId,
+      userId,
+      actorId: adminUid,
+      actorRole: "admin",
+      action: "gifted",
+      detail: `Gifted ${bonusAmount} GMD directly (no deposit) — wager ${round2(bonusAmount * mult)} GMD to withdraw`,
+    });
+    credited = bonusAmount;
+  });
+
+  // Best-effort SMS after commit — a failed text never undoes the credit.
+  const first = (userName || "there").split(" ")[0];
+  const giftMsg =
+    `🎁 Hi ${first}! BETESE has GIFTED you a ${credited} GMD bonus — it's already in your account. ` +
+    `Play it ${mult}x to turn it into withdrawable cash.`;
+  const sms = await sendBonusSms(phone, giftMsg);
+  return { ok: true as const, credited, sms };
 });
 
 /** Marketers can only REQUEST a welcome-back bonus for their own customers. */
