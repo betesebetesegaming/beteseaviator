@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Clock, Rocket, CheckCircle2 } from "lucide-react";
+import { Gift, Clock, Rocket, CheckCircle2 } from "lucide-react";
 import { formatXof } from "@/lib/format";
 import { formatCountdown, msUntil } from "@/lib/smartBonus";
 import type { SmartBonusOffer, Wallet } from "@/lib/types";
@@ -61,16 +61,16 @@ export function SmartBonusCard({ offer, wallet }: { offer: SmartBonusOffer; wall
   return (
     <Card className="border-violet-500/30 bg-gradient-to-br from-violet-500/15 to-fuchsia-500/10">
       <div className="mb-1 flex items-center gap-2">
-        <Sparkles size={18} className="text-violet-200" />
-        <h2 className="font-bold">BETESE Smart Bonus</h2>
+        <Gift size={18} className="text-violet-200" />
+        <h2 className="font-bold">BETESE gift bonus</h2>
       </div>
       <p className="mb-4 text-sm text-slate-300">
-        You&apos;ve been hand-picked for an exclusive bonus based on your loyalty. Match the deposit below to claim it.
+        Match your {formatXof(offer.bonusAmount)} gift bonus with a deposit and start using it.
       </p>
 
       <div className="mb-4 grid grid-cols-3 gap-2 text-center">
         <Metric label="Deposit" value={formatXof(offer.matchDeposit)} />
-        <Metric label="Bonus" value={formatXof(offer.bonusAmount)} accent />
+        <Metric label="Gift bonus" value={formatXof(offer.bonusAmount)} accent />
         <Metric label="You play with" value={formatXof(totalPlay)} strong />
       </div>
 
@@ -93,7 +93,7 @@ export function SmartBonusCard({ offer, wallet }: { offer: SmartBonusOffer; wall
         onClick={() => router.push(`/play/wallet?deposit=${offer.matchDeposit}`)}
       >
         <span className="flex items-center justify-center gap-1.5">
-          <Rocket size={16} /> Activate — deposit {formatXof(offer.matchDeposit)}
+          <Rocket size={16} /> Claim — deposit {formatXof(offer.matchDeposit)}
         </span>
       </Button>
       <p className="mt-2 text-center text-[11px] text-slate-500">Status: Waiting for your deposit</p>

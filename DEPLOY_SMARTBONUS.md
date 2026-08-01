@@ -1,55 +1,87 @@
-# Deploy — Smart Bonus: direct gift + auto-SMS
+# Deploy — Smart Bonus: automatic SMS + "gift bonus" wording
 
-Ship two additions to the existing Smart Bonus engine (backend + frontend). Fully additive; no changes to deposit/withdraw/ModemPay code.
+Ships two improvements to the existing Smart Bonus engine. The deposit-match
+mechanic itself is unchanged and already live — this only adds automatic SMS
+delivery and updates the customer-facing wording. Fully additive; no
+deposit/withdraw/ModemPay code touched.
 
-## What changed
+## What this ships
 
-- **Direct free-gift bonus** — new admin-only callable `smartBonusGift` credits a bonus straight to the player's account (no deposit), reusing the existing `walletWrite`(creditAsBonus) + `recordBonusWageringRequirement` path. Keeps the wager multiplier so it isn't instantly withdrawable. Transaction-guarded against double-credit.
-- **Automatic SMS with a tap-through link** — `smartBonusSend({channel:"sms"})` now texts the customer server-side via the Africell gateway, and every message ends with the rewards link so the player taps through to their bonus. New helper `smartBonusNotify.ts` reuses `sendViaAfricell` (now exported from `routes/otp.ts`).
-- **Admin UI** — "🎁 Gift now" button on each offer; "Send SMS" now delivers server-side; offers carry a `kind: "match" | "gift"` field (existing offers default to `"match"`).
+1. **Automatic SMS with a tap-through link** — clicking "Send SMS" on an offer now
+   texts the customer server-side via the Africell gateway (previously it only
+   opened the admin's own SMS app). Every message ends with
+   `https://www.beteseaviator.com/play/rewards` so the player taps straight to
+   their bonus. New helper `smartBonusNotify.ts` reuses `sendViaAfricell`
+   (exported from `routes/otp.ts`).
+2. **"Gift bonus — match it — start using it" wording** — the SMS text, the
+   customer claim card, the top banner, and the Claude outreach prompt now frame
+   the offer as a gift bonus the player claims by matching it with a deposit of
+   the same amount (e.g. "GMD 100 gift bonus — match with a GMD 100 deposit,
+   play with GMD 200").
+
+WhatsApp stays one-tap-from-the-admin's-app (true auto-WhatsApp needs a WhatsApp
+Business API account). There is no direct/no-deposit gift — every bonus is
+deposit-match.
+
+## Note on git history
+
+An automated commit `f561876` already captured `functions/src/routes/otp.ts`,
+`functions/src/smartBonusNotify.ts`, and this file. The remaining changes below
+are working-tree modifications. Commit them and push together — the net result
+is the match + auto-SMS + wording described here.
 
 ## Files
 
 ```
- M app/admin/smart-bonus/page.tsx      # Gift button, server-side SMS, GIFT badge
- M functions/src/index.ts              # export smartBonusGift
- M functions/src/routes/otp.ts         # export sendViaAfricell (added `export`, no behavior change)
- M functions/src/smartBonus.ts         # smartBonusGift + auto-SMS in smartBonusSend + kind field
- M lib/api.ts                          # smartBonusGift client wrapper + typed smartBonusSend
- M lib/types.ts                        # SmartBonusOffer.kind / giftedBy
-?? functions/src/smartBonusNotify.ts   # NEW: server-side outreach SMS + rewards link
+ M app/admin/smart-bonus/page.tsx        # "Send SMS" = server-side auto-send
+ M components/wallet/SmartBonusBanner.tsx # "gift bonus" wording + amount
+ M components/wallet/SmartBonusCard.tsx   # gift-bonus claim card wording
+ M functions/src/index.ts                 # exports (no smartBonusGift)
+ M functions/src/smartBonus.ts            # auto-SMS in smartBonusSend + wording
+ M functions/src/smartBonusAi.ts          # AI outreach prompt = gift-bonus framing
+ M lib/api.ts                             # typed smartBonusSend
+ M lib/smartBonus.ts                      # offerMessage wording
+ M lib/types.ts
+    functions/src/routes/otp.ts           # (in commit f561876) export sendViaAfricell
+    functions/src/smartBonusNotify.ts     # (in commit f561876) SMS + rewards link
 ```
 
 ## Prerequisites (already in place — just confirm)
 
-- `functions/.env` has `ANTHROPIC_API_KEY`, `AFRICELL_SMS_URL`, `AFRICELL_SMS_USERNAME`, `AFRICELL_SMS_PASSWORD`, `AFRICELL_SMS_SENDER`.
-- Optional: `PUBLIC_SITE_URL` in `functions/.env` (defaults to `https://www.beteseaviator.com`). Only set it if the domain changes.
-- Africell SMS sender account must have message tokens (a 407 from the gateway = out of tokens; the bonus still credits, only the text is skipped).
+- `functions/.env` has `AFRICELL_SMS_URL`, `AFRICELL_SMS_USERNAME`,
+  `AFRICELL_SMS_PASSWORD`, `AFRICELL_SMS_SENDER`, and `ANTHROPIC_API_KEY`.
+- Optional `PUBLIC_SITE_URL` in `functions/.env` (defaults to
+  `https://www.beteseaviator.com`). Set only if the domain changes.
+- Africell sender account must have SMS tokens (a 407 = out of tokens; the offer
+  still saves, only the text is skipped).
 
 ## Deploy
 
-Both are typechecked clean (`cd functions && npm run build`, and `npx tsc --noEmit` at root).
+Typechecked clean: `cd functions && npm run build`, and `npx tsc --noEmit` at root.
 
-1. **Functions** (ships the new `smartBonusGift` + auto-SMS + picks up `.env`):
+1. **Functions**:
    ```bash
    firebase deploy --only functions --project beteseaviator-a05ae
    ```
-
-2. **Frontend** (admin page): push to GitHub `betesebetesegaming/beteseaviator` branch `main` — the host auto-rebuilds.
+2. **Frontend**: commit the working-tree changes and push to GitHub
+   `betesebetesegaming/beteseaviator` branch `main` — the host auto-rebuilds.
 
 ## Verify
 
-1. `firebase functions:log --only smartBonusGift,smartBonusSend --project beteseaviator-a05ae`
-2. In **Admin → Smart Bonus → Run analysis now**, pick a test player:
-   - **Send SMS** → customer receives the text (ending in `…/play/rewards`); log shows `smartBonus SMS sent`.
-   - **🎁 Gift now** → account is credited immediately (player sees "Smart Bonus active"), customer gets the gift SMS; log shows `action: gifted`.
-3. If SMS shows `smartBonus SMS failed`, check Africell tokens/credentials — the bonus credit is unaffected.
+1. `firebase functions:log --only smartBonusSend --project beteseaviator-a05ae`
+2. Admin → Smart Bonus → **Run analysis now** → pick a test player → **Approve** →
+   **Send SMS**. The customer receives the text ending in `…/play/rewards`; log
+   shows `smartBonus SMS sent`. In the app they see the banner and the
+   "BETESE gift bonus" claim card (deposit to match, then play).
+3. If the log shows `smartBonus SMS failed`, check Africell tokens/credentials —
+   the offer is unaffected.
 
-## Not included / do not touch
+## Do not touch
 
-- WhatsApp auto-send is NOT included (needs a WhatsApp Business API account + approved template). The WhatsApp button stays one-tap-send from the admin's own app.
-- Do not modify deposit/withdraw/ModemPay code — this feature does not touch it.
+- Deposit/withdraw/ModemPay code — this feature does not modify it.
+- WhatsApp auto-send is out of scope (needs a WhatsApp Business API account).
 
 ## Rollback
 
-Revert the 7 files above and redeploy functions. No schema/rules/index changes were made, so there is nothing else to undo.
+Revert the files above (and, if needed, commit `f561876`) and redeploy functions.
+No Firestore rules/index/schema changes were made.

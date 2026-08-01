@@ -8,6 +8,7 @@ import { Sparkles, ChevronRight, X } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { isLiveOffer } from "@/lib/smartBonus";
+import { formatXof } from "@/lib/format";
 import type { SmartBonusOffer } from "@/lib/types";
 
 /** Slim congrats banner nudging players with a live Smart Bonus to My Rewards. */
@@ -41,7 +42,9 @@ export function SmartBonusBanner() {
         <Link href="/play/rewards" className="flex min-w-0 flex-1 items-center gap-1 text-sm">
           <span className="truncate">
             <strong className="text-violet-100">Congratulations!</strong>{" "}
-            <span className="text-slate-200">A personalized Smart Bonus is waiting for you.</span>
+            <span className="text-slate-200">
+              A {formatXof(offer.bonusAmount)} gift bonus is waiting for you.
+            </span>
           </span>
           <span className="ml-auto flex shrink-0 items-center gap-0.5 font-semibold text-violet-200">
             View <ChevronRight size={14} />

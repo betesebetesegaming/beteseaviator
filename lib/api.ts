@@ -258,11 +258,6 @@ export const smartBonusSend = call<
   { ok: true; sms?: { ok: boolean; messageId?: string | null; error?: string } }
 >("smartBonusSend");
 
-export const smartBonusGift = call<
-  { offerId: string },
-  { ok: true; credited: number; sms?: { ok: boolean; error?: string } }
->("smartBonusGift");
-
 export const agentRequestSmartBonus = call<
   { playerId: string },
   { ok: true; offerId: string }

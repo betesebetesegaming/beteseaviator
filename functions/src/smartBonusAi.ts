@@ -70,7 +70,7 @@ const RESPONSE_SCHEMA = {
     outreach_message: {
       type: "string",
       description:
-        "A short, friendly SMS/WhatsApp message (max ~240 chars) to the player about their bonus. First name only, no markdown.",
+        "A short, friendly SMS/WhatsApp message (max ~240 chars). Frame it as a GIFT BONUS the player claims by matching it with a deposit of the same amount, and can then start using. First name only, no markdown, and do NOT include a link (one is appended automatically).",
     },
   },
   required: ["recommended_bonus", "confidence", "reason", "outreach_message"],
@@ -101,7 +101,7 @@ function buildPrompt(
     `- Base the amount mainly on the player's average deposit and how valuable/winnable-back they are. A deterministic baseline is ${ruleAmount} ${player.currency}; adjust up for high lifetime value or a history of converting bonuses, down for thin history.`,
     `- The player must deposit a matching amount to unlock the bonus, and wager it ${cfg.wagerMultiplier}x before withdrawing.`,
     ``,
-    `Return the recommendation as JSON. Keep the reason concrete (cite the numbers) and the outreach message warm and short.`,
+    `Return the recommendation as JSON. Keep the reason concrete (cite the numbers). In the outreach message, present the bonus as a GIFT the player claims by matching it with a deposit of the same amount and can then start using — warm and short.`,
   ].join("\n");
 }
 

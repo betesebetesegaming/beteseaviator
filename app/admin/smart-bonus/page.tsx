@@ -11,7 +11,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { Brain, Play, Sparkles, MessageSquare, Phone, History, Check, X, Pencil, Gift } from "lucide-react";
+import { Brain, Play, Sparkles, MessageSquare, Phone, History, Check, X, Pencil } from "lucide-react";
 import { db } from "@/lib/firestore";
 import {
   adminRunSmartBonusAnalysis,
@@ -21,7 +21,6 @@ import {
   smartBonusEdit,
   smartBonusReject,
   smartBonusSend,
-  smartBonusGift,
 } from "@/lib/api";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
 import { DEFAULT_SETTINGS, type PlatformSettings, type SmartBonusOffer } from "@/lib/types";
@@ -202,23 +201,6 @@ export default function AdminSmartBonusPage() {
     void act(() => smartBonusSend({ offerId: o.id, channel: "whatsapp" }), "Marked sent via WhatsApp.");
   }
 
-  /** Gift the bonus directly to the account (no deposit) + auto-SMS. Admin-only. */
-  function giftNow(o: SmartBonusOffer) {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        `Gift ${formatXof(o.bonusAmount)} directly to ${o.userName} now? ` +
-          `It credits their account immediately (no deposit needed) and texts them the link.`
-      )
-    ) {
-      return;
-    }
-    void act(async () => {
-      const res = await smartBonusGift({ offerId: o.id });
-      if (res.sms && !res.sms.ok) toast(`Bonus credited — but SMS failed: ${res.sms.error ?? "gateway error"}`);
-    }, "Bonus gifted to the account.");
-  }
-
   return (
     <div className="mx-auto max-w-6xl">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -384,11 +366,6 @@ export default function AdminSmartBonusPage() {
                           AI
                         </span>
                       ) : null}
-                      {o.kind === "gift" ? (
-                        <span className="rounded bg-emerald-500/20 px-1 py-0.5 text-[9px] font-bold uppercase text-emerald-200">
-                          Gift
-                        </span>
-                      ) : null}
                     </div>
                     <div className="font-mono text-xs text-slate-500">
                       {o.playerNumber ? formatPlayerId(o.playerNumber) : "—"}
@@ -420,9 +397,6 @@ export default function AdminSmartBonusPage() {
                           <IconBtn title="Edit amount" onClick={() => openEdit(o)}>
                             <Pencil size={14} />
                           </IconBtn>
-                          <IconBtn title="Gift now — credit directly, no deposit" onClick={() => giftNow(o)}>
-                            <Gift size={14} />
-                          </IconBtn>
                           <IconBtn title="Reject" danger onClick={() => act(() => smartBonusReject({ offerId: o.id }), "Rejected.")}>
                             <X size={14} />
                           </IconBtn>
@@ -435,9 +409,6 @@ export default function AdminSmartBonusPage() {
                           </IconBtn>
                           <IconBtn title="Send SMS (auto — texts the customer)" onClick={() => sendSms(o)}>
                             <Phone size={14} />
-                          </IconBtn>
-                          <IconBtn title="Gift now — credit directly, no deposit" onClick={() => giftNow(o)}>
-                            <Gift size={14} />
                           </IconBtn>
                           <IconBtn title="Reject" danger onClick={() => act(() => smartBonusReject({ offerId: o.id }), "Rejected.")}>
                             <X size={14} />

@@ -90,9 +90,9 @@ export function formatCountdown(ms: number): string {
 /** Suggested SMS/WhatsApp copy an admin can send about a live offer. */
 export function offerMessage(name: string, bonusAmount: number, matchDeposit: number, currency = "GMD"): string {
   const first = (name || "there").split(" ")[0];
+  const play = Math.round(bonusAmount + matchDeposit);
   return (
-    `🎉 Hi ${first}! BETESE picked you for an exclusive Smart Bonus. ` +
-    `Deposit ${currency} ${matchDeposit} and get ${currency} ${bonusAmount} bonus to play with. ` +
-    `Open the app → My Rewards to claim it before it expires.`
+    `Hi ${first}! You've got a ${currency} ${bonusAmount} gift bonus at BETESE. ` +
+    `Match it with a ${currency} ${matchDeposit} deposit and start playing with ${currency} ${play}.`
   );
 }
