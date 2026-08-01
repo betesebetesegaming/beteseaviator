@@ -156,7 +156,7 @@ export default function AdminSmartBonusPage() {
 
   async function sendTargeted() {
     const bonusAmount = Number(tgtBonus);
-    if (!tgtNumber.trim()) return toast.error("Enter a player number.");
+    if (!tgtNumber.trim()) return toast.error("Enter a phone or player number.");
     if (!Number.isFinite(bonusAmount) || bonusAmount <= 0) return toast.error("Enter a valid bonus amount.");
     setTgtBusy(true);
     try {
@@ -364,7 +364,12 @@ export default function AdminSmartBonusPage() {
           claim it by depositing the match amount. Leave match blank to auto-set it.
         </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Input label="Player number" value={tgtNumber} onChange={(e) => setTgtNumber(e.target.value)} placeholder="7793854" />
+          <Input
+            label="Phone or player #"
+            value={tgtNumber}
+            onChange={(e) => setTgtNumber(e.target.value)}
+            placeholder="7793854 or 9"
+          />
           <Input label="Bonus (GMD)" type="number" value={tgtBonus} onChange={(e) => setTgtBonus(e.target.value)} />
           <Input label="Match deposit (GMD)" type="number" value={tgtMatch} onChange={(e) => setTgtMatch(e.target.value)} placeholder="auto" />
           <div className="flex items-end">

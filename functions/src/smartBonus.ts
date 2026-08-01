@@ -787,21 +787,38 @@ export const adminCreateSmartBonusOffer = onCall(async (req) => {
     throw new HttpsError("invalid-argument", "Match deposit must be positive.");
   }
 
-  // Resolve the player by uid or by player number.
+  // Resolve by uid, phone (e.g. 7793854), or playerNumber (e.g. 9).
   const playerId = String(req.data?.playerId ?? "").trim();
   let playerSnap: FirebaseFirestore.DocumentSnapshot | undefined;
   if (playerId) {
     playerSnap = await db.doc(`users/${playerId}`).get();
   } else {
-    const num = Number(String(req.data?.playerNumber ?? "").replace(/\D/g, ""));
-    if (!Number.isFinite(num) || num <= 0) {
-      throw new HttpsError("invalid-argument", "Enter a valid player number.");
+    const raw = String(req.data?.playerNumber ?? req.data?.phone ?? "").trim();
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) {
+      throw new HttpsError("invalid-argument", "Enter a phone number or player number.");
     }
-    const q = await db.collection("users").where("playerNumber", "==", num).limit(1).get();
-    playerSnap = q.docs[0];
+    const phoneCandidates = new Set<string>([digits]);
+    if (digits.startsWith("220") && digits.length >= 10) phoneCandidates.add(digits.slice(3));
+    else if (digits.length === 7) phoneCandidates.add(`220${digits}`);
+
+    for (const phone of phoneCandidates) {
+      const byPhone = await db.collection("users").where("phone", "==", phone).limit(1).get();
+      if (!byPhone.empty) {
+        playerSnap = byPhone.docs[0];
+        break;
+      }
+    }
+    if (!playerSnap) {
+      const num = Number(digits);
+      if (Number.isFinite(num) && num > 0) {
+        const byNum = await db.collection("users").where("playerNumber", "==", num).limit(1).get();
+        playerSnap = byNum.docs[0];
+      }
+    }
   }
   if (!playerSnap || !playerSnap.exists) {
-    throw new HttpsError("not-found", "No player found for that number.");
+    throw new HttpsError("not-found", "No player found for that phone or player number.");
   }
   const uid = playerSnap.id;
   const p = playerSnap.data()!;
