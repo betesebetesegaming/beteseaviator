@@ -21,7 +21,7 @@ import {
 } from "./helpers";
 import { playthroughRates, recordBonusWageringRequirement } from "./wagering";
 import { generateAiRecommendation, smartBonusAiEnabled } from "./smartBonusAi";
-import { sendBonusSms } from "./smartBonusNotify";
+import { sendBonusSms, resolveGiftBonusSms } from "./smartBonusNotify";
 
 const DAY_MS = 86_400_000;
 
@@ -742,16 +742,16 @@ export const smartBonusSend = onCall(async (req) => {
     logSmartBonusEvent(tx, { offerId, userId: String(o.userId), actorId: uid, actorRole: "admin", action: "sent", detail: channel });
   });
 
-  // For SMS, dispatch the outreach text (with tap-through link) to the customer
+  // For SMS, dispatch the gift text (amounts + tap-through link) to the customer
   // server-side. WhatsApp is opened client-side by the admin (no gateway here).
   let sms: { ok: boolean; messageId?: string | null; error?: string } | undefined;
   if (channel === "sms") {
-    const first = (userName || "there").split(" ")[0];
-    const play = round2(bonusAmount + matchDeposit);
-    const body =
-      outreach.trim() ||
-      `Hi ${first}! You've got a ${bonusAmount} GMD gift bonus at BETESE. ` +
-        `Match it with a ${matchDeposit} GMD deposit and start playing with ${play} GMD.`;
+    const body = resolveGiftBonusSms({
+      name: userName,
+      bonusAmount,
+      matchDeposit,
+      outreachMessage: outreach,
+    });
     sms = await sendBonusSms(phone, body);
     if (sms.ok) {
       await logSmartBonusEventDirect({
@@ -867,12 +867,12 @@ export const adminCreateSmartBonusOffer = onCall(async (req) => {
   });
 
   // Text the player (best-effort; the offer stands even if the SMS fails).
-  const first = String(p.name ?? "there").split(" ")[0];
-  const play = round2(bonusAmount + matchDeposit);
-  const body =
-    `Hi ${first}! You've got a ${bonusAmount} GMD gift bonus at BETESE. ` +
-    `Match it with a ${matchDeposit} GMD deposit and start playing with ${play} GMD.`;
   const phone = (p.phone as string | null) ?? null;
+  const body = resolveGiftBonusSms({
+    name: String(p.name ?? "Friend"),
+    bonusAmount,
+    matchDeposit,
+  });
   const sms = await sendBonusSms(phone, body);
   return { ok: true as const, offerId, uid, bonusAmount, matchDeposit, phone, sms };
 });

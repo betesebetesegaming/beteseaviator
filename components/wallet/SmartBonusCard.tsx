@@ -62,10 +62,11 @@ export function SmartBonusCard({ offer, wallet }: { offer: SmartBonusOffer; wall
     <Card className="border-violet-500/30 bg-gradient-to-br from-violet-500/15 to-fuchsia-500/10">
       <div className="mb-1 flex items-center gap-2">
         <Gift size={18} className="text-violet-200" />
-        <h2 className="font-bold">BETESE gift bonus</h2>
+        <h2 className="font-bold">You have a {formatXof(offer.bonusAmount)} gift bonus!</h2>
       </div>
       <p className="mb-4 text-sm text-slate-300">
-        Match your {formatXof(offer.bonusAmount)} gift bonus with a deposit and start using it.
+        Deposit <strong className="text-white">{formatXof(offer.matchDeposit)}</strong> and play with{" "}
+        <strong className="text-violet-200">{formatXof(totalPlay)}</strong> — gift included.
       </p>
 
       <div className="mb-4 grid grid-cols-3 gap-2 text-center">

@@ -24,6 +24,46 @@ export function toMsisdn(phone: string | null | undefined): string | null {
   return `220${d}`;
 }
 
+/**
+ * Promotional gift-bonus SMS: amounts first, clear claim CTA, then the link
+ * is appended by withLink / sendBonusSms. Keep under ~240 chars (excl. URL).
+ */
+export function buildGiftBonusSms(opts: {
+  name: string;
+  bonusAmount: number;
+  matchDeposit: number;
+  currency?: string;
+}): string {
+  const first = (opts.name || "Friend").split(/\s+/)[0] || "Friend";
+  const cur = opts.currency || "GMD";
+  const bonus = Math.round(Number(opts.bonusAmount) || 0);
+  const match = Math.round(Number(opts.matchDeposit) || 0);
+  const play = bonus + match;
+  return (
+    `BETESE GIFT for ${first}! ` +
+    `You get ${cur} ${bonus} FREE bonus. ` +
+    `Deposit ${cur} ${match} → play with ${cur} ${play}. ` +
+    `Tap to see your gift & claim:`
+  );
+}
+
+/** Prefer stored AI/admin copy if it already shows the bonus amount; else use promotional default. */
+export function resolveGiftBonusSms(opts: {
+  name: string;
+  bonusAmount: number;
+  matchDeposit: number;
+  outreachMessage?: string | null;
+  currency?: string;
+}): string {
+  const custom = (opts.outreachMessage || "").trim();
+  const bonus = Math.round(Number(opts.bonusAmount) || 0);
+  if (custom && (custom.includes(String(bonus)) || /GMD|D\s*\d/i.test(custom))) {
+    // Strip any old rewards URL — withLink re-appends the canonical one.
+    return custom.replace(new RegExp(`${SITE_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/play/rewards`, "gi"), "").trim();
+  }
+  return buildGiftBonusSms(opts);
+}
+
 /** Ensure the message ends with the rewards link (idempotent). */
 export function withLink(message: string): string {
   const m = (message || "").trim();

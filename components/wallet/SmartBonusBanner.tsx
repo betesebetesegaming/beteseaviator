@@ -43,7 +43,7 @@ export function SmartBonusBanner() {
           <span className="truncate">
             <strong className="text-violet-100">Congratulations!</strong>{" "}
             <span className="text-slate-200">
-              A {formatXof(offer.bonusAmount)} gift bonus is waiting for you.
+              You have a {formatXof(offer.bonusAmount)} gift bonus — tap to claim.
             </span>
           </span>
           <span className="ml-auto flex shrink-0 items-center gap-0.5 font-semibold text-violet-200">

@@ -87,12 +87,14 @@ export function formatCountdown(ms: number): string {
   return `${mins}m`;
 }
 
-/** Suggested SMS/WhatsApp copy an admin can send about a live offer. */
+/** Suggested SMS/WhatsApp copy — amounts first so customers want to tap the link. */
 export function offerMessage(name: string, bonusAmount: number, matchDeposit: number, currency = "GMD"): string {
-  const first = (name || "there").split(" ")[0];
+  const first = (name || "Friend").split(" ")[0] || "Friend";
   const play = Math.round(bonusAmount + matchDeposit);
   return (
-    `Hi ${first}! You've got a ${currency} ${bonusAmount} gift bonus at BETESE. ` +
-    `Match it with a ${currency} ${matchDeposit} deposit and start playing with ${currency} ${play}.`
+    `BETESE GIFT for ${first}! ` +
+    `You get ${currency} ${Math.round(bonusAmount)} FREE bonus. ` +
+    `Deposit ${currency} ${Math.round(matchDeposit)} → play with ${currency} ${play}. ` +
+    `Tap to see your gift & claim:`
   );
 }

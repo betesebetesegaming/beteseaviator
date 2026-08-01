@@ -70,7 +70,7 @@ const RESPONSE_SCHEMA = {
     outreach_message: {
       type: "string",
       description:
-        "A short, friendly SMS/WhatsApp message (max ~240 chars). Frame it as a GIFT BONUS the player claims by matching it with a deposit of the same amount, and can then start using. First name only, no markdown, and do NOT include a link (one is appended automatically).",
+        "A short SMS (max ~200 chars). MUST lead with the gift amount clearly (e.g. 'BETESE GIFT: 100 GMD FREE bonus'). Say deposit X to play with X+bonus. Warm, exciting, first name only, no markdown, NO link (appended automatically).",
     },
   },
   required: ["recommended_bonus", "confidence", "reason", "outreach_message"],
@@ -101,7 +101,7 @@ function buildPrompt(
     `- Base the amount mainly on the player's average deposit and how valuable/winnable-back they are. A deterministic baseline is ${ruleAmount} ${player.currency}; adjust up for high lifetime value or a history of converting bonuses, down for thin history.`,
     `- The player must deposit a matching amount to unlock the bonus, and wager it ${cfg.wagerMultiplier}x before withdrawing.`,
     ``,
-    `Return the recommendation as JSON. Keep the reason concrete (cite the numbers). In the outreach message, present the bonus as a GIFT the player claims by matching it with a deposit of the same amount and can then start using — warm and short.`,
+    `Return the recommendation as JSON. Keep the reason concrete (cite the numbers). In outreach_message, lead with the exact gift amount so the player is excited to tap the link — e.g. "BETESE GIFT for Ama! You get 100 GMD FREE bonus. Deposit 100 GMD → play with 200 GMD. Tap to claim:". No link in the string.`,
   ].join("\n");
 }
 
