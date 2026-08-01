@@ -71,6 +71,7 @@ export {
   smartBonusEdit,
   smartBonusReject,
   smartBonusSend,
+  adminCreateSmartBonusOffer,
   agentRequestSmartBonus,
 } from "./smartBonus";
 

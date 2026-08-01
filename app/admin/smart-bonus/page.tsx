@@ -11,7 +11,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { Brain, Play, Sparkles, MessageSquare, Phone, History, Check, X, Pencil } from "lucide-react";
+import { Brain, Play, Sparkles, MessageSquare, Phone, History, Check, X, Pencil, Send } from "lucide-react";
 import { db } from "@/lib/firestore";
 import {
   adminRunSmartBonusAnalysis,
@@ -21,6 +21,7 @@ import {
   smartBonusEdit,
   smartBonusReject,
   smartBonusSend,
+  adminCreateSmartBonusOffer,
 } from "@/lib/api";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
 import { DEFAULT_SETTINGS, type PlatformSettings, type SmartBonusOffer } from "@/lib/types";
@@ -60,6 +61,11 @@ export default function AdminSmartBonusPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState(false);
+
+  const [tgtNumber, setTgtNumber] = useState("");
+  const [tgtBonus, setTgtBonus] = useState("100");
+  const [tgtMatch, setTgtMatch] = useState("");
+  const [tgtBusy, setTgtBusy] = useState(false);
   const [view, setView] = useState<"recommendations" | "briefing" | "reports">("recommendations");
 
   const [editTarget, setEditTarget] = useState<SmartBonusOffer | null>(null);
@@ -145,6 +151,33 @@ export default function AdminSmartBonusPage() {
       toast.error(errorMessage(e));
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function sendTargeted() {
+    const bonusAmount = Number(tgtBonus);
+    if (!tgtNumber.trim()) return toast.error("Enter a player number.");
+    if (!Number.isFinite(bonusAmount) || bonusAmount <= 0) return toast.error("Enter a valid bonus amount.");
+    setTgtBusy(true);
+    try {
+      const res = await adminCreateSmartBonusOffer({
+        playerNumber: tgtNumber.trim(),
+        bonusAmount,
+        matchDeposit: tgtMatch.trim() ? Number(tgtMatch) : undefined,
+      });
+      const who = res.phone ?? "the player";
+      if (res.sms && !res.sms.ok) {
+        toast(`Offer created for ${who}, but the SMS failed: ${res.sms.error ?? "gateway error"}`);
+      } else {
+        toast.success(
+          `Sent ${formatXof(res.bonusAmount)} gift bonus to ${who} — they deposit ${formatXof(res.matchDeposit)} to claim.`
+        );
+      }
+      setTgtNumber("");
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setTgtBusy(false);
     }
   }
 
@@ -319,6 +352,27 @@ export default function AdminSmartBonusPage() {
             </Button>
           </>
         )}
+      </Card>
+
+      {/* Targeted send */}
+      <Card className="mb-6">
+        <h2 className="mb-1 flex items-center gap-2 font-semibold">
+          <Send size={16} className="text-violet-300" /> Send a bonus to a number
+        </h2>
+        <p className="mb-3 text-xs text-slate-400">
+          Push a gift bonus to one player right now — skips the nightly rules. They get an SMS with the link and
+          claim it by depositing the match amount. Leave match blank to auto-set it.
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Input label="Player number" value={tgtNumber} onChange={(e) => setTgtNumber(e.target.value)} placeholder="7793854" />
+          <Input label="Bonus (GMD)" type="number" value={tgtBonus} onChange={(e) => setTgtBonus(e.target.value)} />
+          <Input label="Match deposit (GMD)" type="number" value={tgtMatch} onChange={(e) => setTgtMatch(e.target.value)} placeholder="auto" />
+          <div className="flex items-end">
+            <Button className="w-full" onClick={sendTargeted} disabled={tgtBusy}>
+              {tgtBusy ? "Sending…" : "Send bonus"}
+            </Button>
+          </div>
+        </div>
       </Card>
 
       {/* Filter */}

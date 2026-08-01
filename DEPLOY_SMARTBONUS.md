@@ -18,6 +18,12 @@ deposit/withdraw/ModemPay code touched.
    the offer as a gift bonus the player claims by matching it with a deposit of
    the same amount (e.g. "GMD 100 gift bonus — match with a GMD 100 deposit,
    play with GMD 200").
+3. **Send a bonus to a specific number** — new admin callable
+   `adminCreateSmartBonusOffer` + a "Send a bonus to a number" form in
+   Admin → Smart Bonus. Type a player number, set bonus + match, hit send: it
+   creates the offer, marks it sent, and texts the player immediately — bypassing
+   the nightly lapsed-player rules. The bonus activates the normal way when the
+   player deposits the matching amount.
 
 WhatsApp stays one-tap-from-the-admin's-app (true auto-WhatsApp needs a WhatsApp
 Business API account). There is no direct/no-deposit gift — every bonus is

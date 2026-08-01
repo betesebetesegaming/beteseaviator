@@ -278,7 +278,7 @@ export interface SmartBonusOffer {
   aiGenerated?: boolean;
   confidence?: number | null;
   status: SmartBonusOfferStatus;
-  source: "ai" | "agent_request";
+  source: "ai" | "agent_request" | "manual";
   requestedByAgent?: string | null;
   createdAt: Timestamp | null;
   expiresAt: string;

@@ -300,7 +300,7 @@ interface OfferSeed {
   matchDeposit: number;
   wagerMultiplier: number;
   reason: string;
-  source: "ai" | "agent_request";
+  source: "ai" | "agent_request" | "manual";
   requestedByAgent?: string | null;
   expiryDays: number;
   actorId: string;
@@ -360,7 +360,7 @@ async function createOfferIfEligible(seed: OfferSeed): Promise<string | null> {
       actorId: seed.actorId,
       actorRole: seed.actorRole,
       action: "created",
-      detail: `${seed.source === "ai" ? "AI" : "Agent"} offer: ${seed.bonusAmount} GMD bonus on ${seed.matchDeposit} GMD deposit`,
+      detail: `${seed.source === "ai" ? "AI" : seed.source === "manual" ? "Manual" : "Agent"} offer: ${seed.bonusAmount} GMD bonus on ${seed.matchDeposit} GMD deposit`,
     });
     return offerRef.id;
   });
@@ -761,6 +761,103 @@ export const smartBonusSend = onCall(async (req) => {
     }
   }
   return { ok: true as const, sms };
+});
+
+/**
+ * Admin sends a bonus to ONE specific player on demand — by player number or uid,
+ * regardless of the nightly lapsed-player rules. Creates the offer, marks it
+ * sent, and texts the player immediately (with the rewards link). The bonus
+ * still activates the normal way when the player deposits the matching amount.
+ */
+export const adminCreateSmartBonusOffer = onCall(async (req) => {
+  const { uid: adminUid } = await requireRole(req, ["admin"]);
+  const settings = await getSettings();
+  const cfg = smartBonusConfig(settings);
+
+  const bonusIn = round2(Number(req.data?.bonusAmount));
+  if (!Number.isFinite(bonusIn) || bonusIn <= 0) {
+    throw new HttpsError("invalid-argument", "Enter a positive bonus amount.");
+  }
+  const bonusAmount = round2(Math.min(cfg.maxBonus, Math.max(cfg.minBonus, bonusIn)));
+  const matchDeposit =
+    req.data?.matchDeposit !== undefined && req.data?.matchDeposit !== null && String(req.data.matchDeposit) !== ""
+      ? round2(Number(req.data.matchDeposit))
+      : round2(cfg.matchPercent > 0 ? bonusAmount / cfg.matchPercent : bonusAmount);
+  if (!Number.isFinite(matchDeposit) || matchDeposit <= 0) {
+    throw new HttpsError("invalid-argument", "Match deposit must be positive.");
+  }
+
+  // Resolve the player by uid or by player number.
+  const playerId = String(req.data?.playerId ?? "").trim();
+  let playerSnap: FirebaseFirestore.DocumentSnapshot | undefined;
+  if (playerId) {
+    playerSnap = await db.doc(`users/${playerId}`).get();
+  } else {
+    const num = Number(String(req.data?.playerNumber ?? "").replace(/\D/g, ""));
+    if (!Number.isFinite(num) || num <= 0) {
+      throw new HttpsError("invalid-argument", "Enter a valid player number.");
+    }
+    const q = await db.collection("users").where("playerNumber", "==", num).limit(1).get();
+    playerSnap = q.docs[0];
+  }
+  if (!playerSnap || !playerSnap.exists) {
+    throw new HttpsError("not-found", "No player found for that number.");
+  }
+  const uid = playerSnap.id;
+  const p = playerSnap.data()!;
+  if (p.role && p.role !== "player") {
+    throw new HttpsError("failed-precondition", "That account is not a player.");
+  }
+
+  const health = (await db.doc(`playerHealth/${uid}`).get()).data() ?? {};
+
+  const offerId = await createOfferIfEligible({
+    uid,
+    userName: String(p.name ?? "Player"),
+    phone: (p.phone as string | null) ?? null,
+    agentId: (p.parentId as string | null) ?? null,
+    ancestors: (p.ancestors as string[] | undefined) ?? [],
+    playerNumber: (p.playerNumber as number | null) ?? null,
+    healthScore: Number(health.healthScore ?? 0),
+    tier: (health.tier as HealthTier) ?? "at_risk",
+    daysInactive: Number(health.daysSinceLastBet ?? 0),
+    bonusAmount,
+    matchDeposit,
+    wagerMultiplier: cfg.wagerMultiplier,
+    reason: `Sent manually by admin — ${bonusAmount} GMD gift bonus on a ${matchDeposit} GMD deposit.`,
+    source: "manual",
+    expiryDays: cfg.expiryDays,
+    actorId: adminUid,
+    actorRole: "admin",
+  });
+  if (!offerId) {
+    throw new HttpsError("failed-precondition", "This player already has an active Smart Bonus offer.");
+  }
+
+  // Approve + mark sent in one step so a deposit will activate it.
+  await db.runTransaction(async (tx) => {
+    const ref = db.doc(`smartBonusOffers/${offerId}`);
+    tx.update(ref, {
+      status: "sent",
+      approvedBy: adminUid,
+      approvedAt: FieldValue.serverTimestamp(),
+      sentAt: FieldValue.serverTimestamp(),
+      sentChannel: "sms",
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`smartBonusActive/${uid}`), { status: "sent", offerId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    logSmartBonusEvent(tx, { offerId, userId: uid, actorId: adminUid, actorRole: "admin", action: "sent", detail: "manual send (sms)" });
+  });
+
+  // Text the player (best-effort; the offer stands even if the SMS fails).
+  const first = String(p.name ?? "there").split(" ")[0];
+  const play = round2(bonusAmount + matchDeposit);
+  const body =
+    `Hi ${first}! You've got a ${bonusAmount} GMD gift bonus at BETESE. ` +
+    `Match it with a ${matchDeposit} GMD deposit and start playing with ${play} GMD.`;
+  const phone = (p.phone as string | null) ?? null;
+  const sms = await sendBonusSms(phone, body);
+  return { ok: true as const, offerId, uid, bonusAmount, matchDeposit, phone, sms };
 });
 
 /** Marketers can only REQUEST a welcome-back bonus for their own customers. */
