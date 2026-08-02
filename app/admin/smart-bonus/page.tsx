@@ -389,6 +389,32 @@ export default function AdminSmartBonusPage() {
             </div>
           </Card>
 
+          {hh && (
+            <div className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2 text-xs text-slate-300">
+              <span>
+                {hh.status === "running" ? "Rolling out" : hh.status === "canceled" ? "Stopped" : "Last Happy Hour"} ·{" "}
+                {formatXof(hh.bonusAmount)} bonus — <span className="text-emerald-300">{hh.offersCreated} offers</span>,{" "}
+                <span className="text-violet-200">{hh.smsSent} texts sent</span>
+                {hh.smsFailed > 0 ? (
+                  <>
+                    , <span className="text-rose-300">{hh.smsFailed} texts failed</span>
+                  </>
+                ) : null}
+                {hh.skipped > 0 ? <>, {hh.skipped} skipped</> : null}
+                {hh.status === "running" ? " · still sending…" : hh.status === "canceled" ? " · stopped" : " · done"}
+              </span>
+              {hh.status === "running" && (
+                <button
+                  onClick={cancelHappyHour}
+                  disabled={hhBusy}
+                  className="shrink-0 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-1 font-medium text-rose-200 hover:bg-rose-500/20"
+                >
+                  Stop
+                </button>
+              )}
+            </div>
+          )}
+
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-300">
             <History size={15} /> Happy Hour history
           </h2>

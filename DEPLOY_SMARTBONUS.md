@@ -31,7 +31,14 @@ deposit/withdraw/ModemPay code touched.
    Fires one fixed bonus to every recently-active player (last 14 days) via in-app
    banner + SMS. Writes to a new `happyHourCampaigns` collection (admin-read; the
    worker writes via the Admin SDK). The `processHappyHour` cron is created
-   automatically on the functions deploy.
+   automatically on the functions deploy. A **Stop** button (`adminCancelHappyHour`)
+   halts a rollout mid-way.
+5. **Happy Hour "who got it" report** — each broadcast offer is tagged with its
+   campaign id (`smartBonusOffers.happyHourId`). A new **Happy Hour** tab in
+   Admin → Smart Bonus lists every campaign with its recipient count and lets you
+   drill into exactly which players got it and who has claimed. No new index or
+   rule (offers are already admin-readable; `happyHourId` is a single-field
+   equality query).
 
 WhatsApp stays one-tap-from-the-admin's-app (true auto-WhatsApp needs a WhatsApp
 Business API account). There is no direct/no-deposit gift — every bonus is
