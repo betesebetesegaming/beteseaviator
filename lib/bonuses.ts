@@ -109,11 +109,17 @@ export function withdrawalRulesCopy(
   >,
 ): string {
   const custom = settings.withdrawalRulesText?.trim();
-  if (custom) return custom;
-  const depositRate = Math.round((settings.depositPlaythroughRate ?? 0.8) * 100);
-  const feeRate = Math.round((settings.earlyWithdrawalFeeRate ?? 0.15) * 100);
+  if (custom && custom.toLowerCase() !== "null") return custom;
+  const depositRate = Math.round((settings.depositPlaythroughRate ?? 1) * 100);
+  const feeRate = Math.round((settings.earlyWithdrawalFeeRate ?? 0.2) * 100);
+  const keepPct = 100 - feeRate;
   const label = settings.bonusGamesLabel?.trim() || "Aviator & Crash";
-  return `Only cash balance can be withdrawn — bonus balance is for ${label} bets only. You must play ${depositRate}% of each deposit on games before any withdrawal is allowed. Deposited money cannot be withdrawn back without playing first.`;
+  return (
+    `Cash only — bonus is for ${label} play.\n` +
+    `Full turnover: play ${depositRate}% of every deposit. Played money + winnings withdraw at 100%.\n` +
+    `Example: deposit 1,000, play 500 and win → free withdraw of played + winnings; finish the remaining 500 to unlock the rest.\n` +
+    `Early cash-out of unplayed deposit: you keep ${keepPct}% (${feeRate}% fee). Example: deposit 1,000 and withdraw with no play → receive 800.`
+  );
 }
 
 /** True when deposit bonus campaign is still running (empty end date = always on). */

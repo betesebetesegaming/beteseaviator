@@ -30,10 +30,10 @@ import { subscribePlatformSettings } from "@/lib/games/subscriptions";
 import { mergeBonusSettings, withdrawalRulesCopy } from "@/lib/bonuses";
 import {
   bonusWageringRemaining,
-  depositPlaythroughRequired,
   depositPlaythroughRemaining,
+  freeWithdrawableAmount,
   playthroughRates,
-  withdrawalPlaythroughBlockMessage,
+  previewWithdrawal,
 } from "@/lib/playthrough";
 import type { PlatformSettings, WalletTransaction } from "@/lib/types";
 import { DEFAULT_SETTINGS } from "@/lib/types";
@@ -261,9 +261,25 @@ export default function WalletPage() {
     if (amt > (wallet?.balance ?? 0)) return toast.error("Insufficient balance.");
 
     const w = wallet ?? { balance: 0, bonusBalance: 0, currency: "GMD" as const, frozen: false, updatedAt: null };
-    const playthroughBlock = withdrawalPlaythroughBlockMessage(w, settings);
-    if (playthroughBlock) {
-      return toast.error(playthroughBlock);
+    const preview = previewWithdrawal(w, amt, settings);
+    if (preview.fee > 0) {
+      const feePct = Math.round(playthroughRates(settings).earlyFeeRate * 100);
+      const keepPct = 100 - feePct;
+      const ok = window.confirm(
+        [
+          "Early withdrawal of unplayed deposit",
+          "",
+          `Free amount (no fee): ${formatXof(preview.freeWithdrawable)}`,
+          `Unplayed deposit in this request: ${formatXof(preview.earlyPart)}`,
+          `Fee ${feePct}%: ${formatXof(preview.fee)}`,
+          `You will receive: ${formatXof(preview.payoutAmount)} (${keepPct}% of the early part + free part)`,
+          "",
+          "To avoid this fee, complete full deposit turnover first.",
+          "",
+          "Continue with this withdrawal?",
+        ].join("\n")
+      );
+      if (!ok) return;
     }
 
     if (requiresWithdrawalOtp && !withdrawalOtp.otpVerified) {
@@ -319,12 +335,15 @@ export default function WalletPage() {
   if (!fbUser || !profile) return null;
 
   const w = wallet ?? { balance: 0, bonusBalance: 0, currency: "GMD" as const, frozen: false, updatedAt: null };
-  const { depositRate, bonusMultiplier } = playthroughRates(settings);
-  const playthroughBlock = withdrawalPlaythroughBlockMessage(w, settings);
-  const withdrawBlocked = Boolean(playthroughBlock);
-  const wagerRequired = depositPlaythroughRequired(w, depositRate);
+  const { depositRate, bonusMultiplier, earlyFeeRate } = playthroughRates(settings);
   const wagerRemaining = depositPlaythroughRemaining(w, settings);
+  const freeCash = freeWithdrawableAmount(w, settings);
   const bonusWagerLeft = bonusWageringRemaining(w);
+  const withdrawAmtNum = Number(withdrawAmount);
+  const withdrawPreview =
+    Number.isFinite(withdrawAmtNum) && withdrawAmtNum > 0
+      ? previewWithdrawal(w, withdrawAmtNum, settings)
+      : null;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -436,29 +455,43 @@ export default function WalletPage() {
             <>
           <h2 className="mb-4 font-semibold">Withdraw to mobile money</h2>
 
-          {(wagerRequired > 0 || bonusWagerLeft > 0) && (
-            <div className="mb-4 space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
-              {wagerRequired > 0 && (
-                <p>
-                  {withdrawBlocked ? (
-                    <>
-                      <strong>Withdrawal locked.</strong> Play <strong>{formatXof(wagerRemaining)}</strong> more (
-                      {Math.round(depositRate * 100)}% of {formatXof(w.pendingDepositTotal ?? 0)} deposited) before
-                      you can withdraw. Deposited money cannot be taken back without playing.
-                    </>
-                  ) : (
-                    <>Deposit play-through complete — withdrawals unlocked.</>
-                  )}
+          <div className="mb-4 space-y-3">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-emerald-300/80">Free to withdraw</p>
+                <p className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-200">{formatXof(freeCash)}</p>
+              </div>
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-amber-300/80">Still to play</p>
+                <p className="mt-0.5 text-lg font-semibold tabular-nums text-amber-100">
+                  {formatXof(wagerRemaining)}
                 </p>
-              )}
-              {bonusWagerLeft > 0 && (
-                <p>
-                  Bonus: wager <strong>{formatXof(bonusWagerLeft)}</strong> more ({bonusMultiplier}× rule) to
-                  convert bonus to withdrawable cash.
-                </p>
-              )}
+              </div>
             </div>
-          )}
+
+            {wagerRemaining > 0 ? (
+              <p className="rounded-lg border border-slate-600/60 bg-slate-900/50 px-3 py-2 text-xs leading-relaxed text-slate-300">
+                Complete <strong className="text-slate-100">{Math.round(depositRate * 100)}% deposit turnover</strong>{" "}
+                ({formatXof(w.pendingDepositTotal ?? 0)} deposited) for fee-free cash-out of the rest.
+                Unplayed deposit withdrawn early keeps only{" "}
+                <strong className="text-slate-100">{Math.round((1 - earlyFeeRate) * 100)}%</strong> (
+                {Math.round(earlyFeeRate * 100)}% fee). Minimum withdrawal{" "}
+                <strong className="text-slate-100">{formatXof(settings.minWithdrawal)}</strong>.
+              </p>
+            ) : (
+              <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                Deposit turnover complete — your cash balance withdraws at 100%. Minimum{" "}
+                {formatXof(settings.minWithdrawal)}.
+              </p>
+            )}
+
+            {bonusWagerLeft > 0 && (
+              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                Bonus: wager <strong>{formatXof(bonusWagerLeft)}</strong> more ({bonusMultiplier}×) to convert
+                bonus to withdrawable cash.
+              </p>
+            )}
+          </div>
 
           <div className="space-y-4">
             <Select
@@ -477,16 +510,39 @@ export default function WalletPage() {
               onChange={(e) => setWithdrawPhone(e.target.value)}
             />
             <Input
-              label={`Amount (min ${formatXof(settings.minWithdrawal)})`}
+              label={`Amount (minimum ${formatXof(settings.minWithdrawal)})`}
               type="number"
               min={settings.minWithdrawal}
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
             />
-            {withdrawBlocked && (
-              <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                {playthroughBlock}
-              </p>
+            {withdrawPreview && withdrawAmtNum > 0 && (
+              <div
+                className={
+                  withdrawPreview.fee > 0
+                    ? "rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-100"
+                    : "rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-200"
+                }
+              >
+                {withdrawPreview.fee > 0 ? (
+                  <ul className="space-y-1 text-xs leading-relaxed">
+                    <li>
+                      Free part: <strong>{formatXof(Math.min(withdrawAmtNum, withdrawPreview.freeWithdrawable))}</strong>
+                    </li>
+                    <li>
+                      Early (unplayed) part: <strong>{formatXof(withdrawPreview.earlyPart)}</strong> −{" "}
+                      {Math.round(earlyFeeRate * 100)}% fee ({formatXof(withdrawPreview.fee)})
+                    </li>
+                    <li className="pt-1 text-sm text-amber-50">
+                      You will receive: <strong>{formatXof(withdrawPreview.payoutAmount)}</strong>
+                    </li>
+                  </ul>
+                ) : (
+                  <p className="text-xs">
+                    No early fee — you will receive <strong>{formatXof(withdrawPreview.payoutAmount)}</strong>.
+                  </p>
+                )}
+              </div>
             )}
             {requiresWithdrawalOtp && withdrawalOtp.otpVerified && (
               <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
@@ -508,10 +564,10 @@ export default function WalletPage() {
             )}
             <Button
               className="w-full"
-              disabled={busy || withdrawBlocked || (requiresWithdrawalOtp && !withdrawalOtp.otpVerified)}
+              disabled={busy || (requiresWithdrawalOtp && !withdrawalOtp.otpVerified)}
               onClick={submitMobileWithdrawal}
             >
-              {busy ? "Processing…" : "Withdraw with Wave"}
+              {busy ? "Processing…" : `Withdraw with ${withdrawMethod}`}
             </Button>
             <p className="whitespace-pre-line text-xs text-slate-500">{withdrawalRulesCopy(settings)}</p>
           </div>

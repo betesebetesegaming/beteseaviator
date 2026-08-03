@@ -27,7 +27,6 @@ import { db, bumpDailyStats, bumpPlatformStats, getSettings, MIN_DEPOSIT_GMD, to
 import {
   applyEarlyWithdrawalPenalties,
   parsePlaythroughWallet,
-  withdrawalPlaythroughBlockMessage,
 } from '../wagering';
 import { syncAviatorWalletCredit } from '../walletSync';
 import { consumeOtpVerifiedForPhone, requireOtpVerifiedForPhone } from '../otpVerification';
@@ -782,13 +781,6 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const playthroughBlock = withdrawalPlaythroughBlockMessage(walletPreview, settings);
-    if (playthroughBlock) {
-      await failWithdrawalWithoutHold(requestId, customerId, playthroughBlock);
-      res.status(400).json({ error: playthroughBlock });
-      return;
-    }
-
     const cleanPhone = recipientPhone.replace(/\D/g, '').replace(/^220/, '');
     const processedById = body.processedById || 'MODEMPAY_PAYOUT';
     const processedByName = body.processedByName || 'ModemPay Payout';
@@ -809,11 +801,6 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
         if (wallet.frozen) throw new Error('Wallet is frozen.');
         if (wallet.balance < amount) throw new Error('Insufficient balance.');
 
-        const playthroughBlockInTx = withdrawalPlaythroughBlockMessage(wallet, settings);
-        if (playthroughBlockInTx) {
-          throw new Error(playthroughBlockInTx);
-        }
-
         const early = applyEarlyWithdrawalPenalties(tx, customerId, wallet, amount, settings, requestId);
         payoutAmount = early.payoutAmount;
 
@@ -825,10 +812,12 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
           meta: {
             externalRef: requestId,
             source: 'modempay',
-            earlyWithdrawal: false,
-            fee: 0,
+            earlyWithdrawal: early.earlyPart > 0,
+            fee: early.fee,
             payoutAmount,
-            bonusForfeited: 0,
+            bonusForfeited: early.bonusForfeited,
+            freeWithdrawable: early.freeWithdrawable,
+            earlyPart: early.earlyPart,
           },
         });
 

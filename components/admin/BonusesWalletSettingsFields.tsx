@@ -100,18 +100,19 @@ export function BonusesWalletSettingsFields({ settings, onChange }: Props) {
       <div className="mt-5">
         <h3 className="mb-2 text-sm font-semibold text-slate-200">Withdrawal &amp; bonus wagering</h3>
         <p className="mb-3 text-xs text-slate-400">
-          Shown on the player wallet withdraw tab. Early withdrawal before play-through charges a fee and
+          Shown on the player wallet withdraw tab. Full deposit turnover unlocks free withdrawal of
+          played funds + winnings. Withdrawing unplayed deposit early charges a fee on that part and
           forfeits bonus.
         </p>
         <div className="grid gap-4 sm:grid-cols-3">
           <Input
-            label="Deposit play-through (0.8 = 80%)"
+            label="Deposit turnover (1 = 100%)"
             type="number"
             step="0.01"
             {...num("depositPlaythroughRate")}
           />
           <Input
-            label="Early withdrawal fee (0.15 = 15%)"
+            label="Early fee on unplayed deposit (0.2 = 20%)"
             type="number"
             step="0.01"
             {...num("earlyWithdrawalFeeRate")}
@@ -127,7 +128,7 @@ export function BonusesWalletSettingsFields({ settings, onChange }: Props) {
           <AdminTextArea
             label="Withdrawal rules text (shown to players)"
             hint="Write your own message. Leave blank to auto-build from the percentages above."
-            placeholder="If you deposit you must make total play turnover before withdrawing. If you collect your money early, 15% will be deducted."
+            placeholder="Play 100% of each deposit. Free withdraw = played amount + winnings. Early withdraw of unplayed deposit keeps 80% (20% fee)."
             value={settings.withdrawalRulesText ?? ""}
             onChange={(withdrawalRulesText) => onChange({ ...settings, withdrawalRulesText })}
             rows={4}

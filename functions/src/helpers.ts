@@ -93,10 +93,10 @@ export const DEFAULT_SETTINGS = {
   minWithdrawal: 100,
   minAutoCashout: 1.01,
   maxAutoCashout: 100,
-  /** Must bet this fraction of recent deposits before free withdrawal (0.8 = 80%). */
-  depositPlaythroughRate: 0.8,
-  /** Fee on withdrawal before play-through is met (0.15 = 15%). */
-  earlyWithdrawalFeeRate: 0.15,
+  /** Must bet this fraction of recent deposits for full free unlock (1 = 100%). */
+  depositPlaythroughRate: 1,
+  /** Fee on the unplayed-deposit portion of an early withdrawal (0.2 = 20%). */
+  earlyWithdrawalFeeRate: 0.2,
   /** Bonus must be wagered this many times before it becomes cash. */
   bonusWagerMultiplier: 3,
   bonusGamesLabel: "Aviator & Crash",

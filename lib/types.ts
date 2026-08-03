@@ -352,9 +352,9 @@ export interface PlatformSettings {
   minWithdrawal: number;
   minAutoCashout: number;
   maxAutoCashout: number;
-  /** Fraction of deposits that must be wagered before free withdrawal (0.8 = 80%). */
+  /** Fraction of deposits that must be wagered for full free unlock (1 = 100%). */
   depositPlaythroughRate?: number;
-  /** Fee on early withdrawal before play-through (0.15 = 15%). */
+  /** Fee on the unplayed-deposit portion of an early withdrawal (0.2 = 20%). */
   earlyWithdrawalFeeRate?: number;
   /** Bonus must be wagered this many times before becoming cash. */
   bonusWagerMultiplier?: number;
@@ -413,8 +413,8 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   minWithdrawal: 100,
   minAutoCashout: 1.01,
   maxAutoCashout: 100,
-  depositPlaythroughRate: 0.8,
-  earlyWithdrawalFeeRate: 0.15,
+  depositPlaythroughRate: 1,
+  earlyWithdrawalFeeRate: 0.2,
   bonusWagerMultiplier: 3,
   bonusGamesLabel: "Aviator & Crash",
   bonusCampaignEndsAt: "",

@@ -41,8 +41,8 @@ export function parsePlaythroughWallet(
 
 export function playthroughRates(settings: Settings) {
   return {
-    depositRate: Number(settings.depositPlaythroughRate ?? 0.8),
-    earlyFeeRate: Number(settings.earlyWithdrawalFeeRate ?? 0.15),
+    depositRate: Number(settings.depositPlaythroughRate ?? 1),
+    earlyFeeRate: Number(settings.earlyWithdrawalFeeRate ?? 0.2),
     bonusMultiplier: Number(settings.bonusWagerMultiplier ?? 3),
   };
 }
@@ -73,19 +73,34 @@ export function depositPlaythroughRemaining(
   return round2(Math.max(0, required - wallet.depositWagerProgress));
 }
 
-/** Returns an error message when withdrawal must wait for deposit play-through. */
-export function withdrawalPlaythroughBlockMessage(
+/**
+ * Deposit still locked until wagered (full turnover when rate = 1).
+ * freeWithdrawable = balance − this amount.
+ */
+export function remainingUnplayedDeposit(
   wallet: Pick<PlaythroughWallet, "pendingDepositTotal" | "depositWagerProgress">,
-  settings: Settings
+  depositRate: number
+): number {
+  return depositPlaythroughRemaining(wallet, depositRate);
+}
+
+export function freeWithdrawableAmount(
+  wallet: Pick<PlaythroughWallet, "balance" | "pendingDepositTotal" | "depositWagerProgress">,
+  depositRate: number
+): number {
+  const locked = remainingUnplayedDeposit(wallet, depositRate);
+  return round2(Math.max(0, wallet.balance - locked));
+}
+
+/**
+ * @deprecated Hard block removed — early withdrawal with fee is allowed.
+ * Kept returning null so any leftover callers do not block payouts.
+ */
+export function withdrawalPlaythroughBlockMessage(
+  _wallet: Pick<PlaythroughWallet, "pendingDepositTotal" | "depositWagerProgress">,
+  _settings: Settings
 ): string | null {
-  const { depositRate } = playthroughRates(settings);
-  if (depositPlaythroughMet(wallet, depositRate)) return null;
-  const remaining = depositPlaythroughRemaining(wallet, depositRate);
-  const ratePct = Math.round(depositRate * 100);
-  return (
-    `You must play ${remaining} GMD more on games (${ratePct}% of your deposits) before you can withdraw. ` +
-    `Deposited funds cannot be withdrawn without playing first.`
-  );
+  return null;
 }
 
 /** New deposit adds to the amount that must be played before free withdrawal. */
@@ -226,6 +241,8 @@ export interface EarlyWithdrawalResult {
   requiredWager: number;
   wagerProgress: number;
   pendingDeposit: number;
+  freeWithdrawable: number;
+  earlyPart: number;
 }
 
 export function evaluateEarlyWithdrawal(
@@ -236,22 +253,28 @@ export function evaluateEarlyWithdrawal(
   const { depositRate, earlyFeeRate } = playthroughRates(settings);
   const playthroughMet = depositPlaythroughMet(wallet, depositRate);
   const requiredWager = playthroughRequiredWager(wallet, depositRate);
-  const fee = playthroughMet ? 0 : round2(withdrawAmount * earlyFeeRate);
+  const freeWithdrawable = freeWithdrawableAmount(wallet, depositRate);
+  const earlyPart = playthroughMet
+    ? 0
+    : round2(Math.max(0, withdrawAmount - freeWithdrawable));
+  const fee = earlyPart > 0 ? round2(earlyPart * earlyFeeRate) : 0;
   const payoutAmount = round2(Math.max(0, withdrawAmount - fee));
   return {
     playthroughMet,
     fee,
     payoutAmount,
-    bonusForfeited: playthroughMet ? 0 : round2(wallet.bonusBalance),
+    bonusForfeited: earlyPart > 0 ? round2(wallet.bonusBalance) : 0,
     requiredWager,
     wagerProgress: wallet.depositWagerProgress,
     pendingDeposit: wallet.pendingDepositTotal,
+    freeWithdrawable,
+    earlyPart,
   };
 }
 
 /**
- * Early withdrawal: forfeit bonus + optional 15% fee (fee stays on platform).
- * Returns the amount to send via ModemPay (after fee).
+ * Early withdrawal of locked deposit: forfeit bonus + fee on early part only.
+ * Free unlock (played + winnings) pays 100%. Returns ModemPay send amount.
  */
 export function applyEarlyWithdrawalPenalties(
   tx: FirebaseFirestore.Transaction,
@@ -262,7 +285,7 @@ export function applyEarlyWithdrawalPenalties(
   requestId: string
 ): EarlyWithdrawalResult {
   const result = evaluateEarlyWithdrawal(wallet, withdrawAmount, settings);
-  if (result.playthroughMet) return result;
+  if (result.earlyPart <= 0) return result;
 
   if (result.bonusForfeited > 0 && wallet.bonusBalance > 0) {
     const forfeited = round2(wallet.bonusBalance);
@@ -288,7 +311,7 @@ export function applyEarlyWithdrawalPenalties(
       balanceAfter: wallet.balance,
       reference: txnReference(),
       status: "completed",
-      description: "Bonus forfeited — early withdrawal before play-through",
+      description: "Bonus forfeited — early withdrawal before full deposit turnover",
       meta: { requestId, source: "early_withdrawal" },
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -303,13 +326,20 @@ export function applyEarlyWithdrawalPenalties(
       balanceAfter: wallet.balance,
       reference: txnReference(),
       status: "completed",
-      description: `Early withdrawal fee (${Math.round(playthroughRates(settings).earlyFeeRate * 100)}%)`,
-      meta: { requestId, source: "early_withdrawal_fee", fee: result.fee },
+      description: `Early withdrawal fee (${Math.round(playthroughRates(settings).earlyFeeRate * 100)}% on unplayed deposit)`,
+      meta: {
+        requestId,
+        source: "early_withdrawal_fee",
+        fee: result.fee,
+        earlyPart: result.earlyPart,
+        freeWithdrawable: result.freeWithdrawable,
+      },
       createdAt: FieldValue.serverTimestamp(),
     });
     bumpPlatformFee(tx, result.fee);
   }
 
+  // Taking locked deposit early clears remaining turnover obligation.
   wallet.pendingDepositTotal = 0;
   wallet.depositWagerProgress = 0;
   tx.set(

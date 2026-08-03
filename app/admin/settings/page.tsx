@@ -43,10 +43,10 @@ export default function AdminSettingsPage() {
       return toast.error("Agent rate must be between 0 and 1 (e.g. 0.05 = 5%).");
     if (settings.apiProviderRate < 0 || settings.apiProviderRate > 1)
       return toast.error("API provider rate must be between 0 and 1 (e.g. 0.15 = 15%).");
-    if ((settings.depositPlaythroughRate ?? 0.8) < 0 || (settings.depositPlaythroughRate ?? 0.8) > 1)
-      return toast.error("Deposit play-through must be between 0 and 1 (e.g. 0.8 = 80%).");
-    if ((settings.earlyWithdrawalFeeRate ?? 0.15) < 0 || (settings.earlyWithdrawalFeeRate ?? 0.15) > 1)
-      return toast.error("Early withdrawal fee must be between 0 and 1 (e.g. 0.15 = 15%).");
+    if ((settings.depositPlaythroughRate ?? 1) < 0 || (settings.depositPlaythroughRate ?? 1) > 1)
+      return toast.error("Deposit turnover must be between 0 and 1 (e.g. 1 = 100%).");
+    if ((settings.earlyWithdrawalFeeRate ?? 0.2) < 0 || (settings.earlyWithdrawalFeeRate ?? 0.2) > 1)
+      return toast.error("Early withdrawal fee must be between 0 and 1 (e.g. 0.2 = 20%).");
     if ((settings.bonusWagerMultiplier ?? 3) < 1)
       return toast.error("Bonus wager multiplier must be at least 1.");
     setBusy(true);
