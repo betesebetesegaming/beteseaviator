@@ -68,6 +68,9 @@ export default function AgentWalletPage() {
     if (!phone.trim()) return toast.error("Enter your payout phone number.");
     if (!Number.isFinite(amt) || amt < settings.minWithdrawal)
       return toast.error(`Minimum withdrawal is ${formatXof(settings.minWithdrawal)}.`);
+    const maxWithdrawal = Number(settings.maxWithdrawal ?? 10_000);
+    if (Number.isFinite(maxWithdrawal) && maxWithdrawal > 0 && amt > maxWithdrawal)
+      return toast.error(`Maximum withdrawal is ${formatXof(maxWithdrawal)}.`);
     if (amt > (wallet?.balance ?? 0)) return toast.error("Insufficient balance.");
     setBusy(true);
     try {

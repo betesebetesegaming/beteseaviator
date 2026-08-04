@@ -91,6 +91,7 @@ export const DEFAULT_SETTINGS = {
   maxBet: 100_000,
   minDeposit: MIN_DEPOSIT_GMD,
   minWithdrawal: 100,
+  maxWithdrawal: 10_000,
   minAutoCashout: 1.01,
   maxAutoCashout: 100,
   /** Must bet this fraction of recent deposits for full free unlock (1 = 100%). */

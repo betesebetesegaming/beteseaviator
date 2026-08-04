@@ -767,6 +767,12 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
       res.status(400).json({ error: `Minimum withdrawal is ${settings.minWithdrawal} GMD.` });
       return;
     }
+    const maxWithdrawal = Number(settings.maxWithdrawal ?? 10_000);
+    if (Number.isFinite(maxWithdrawal) && maxWithdrawal > 0 && amount > maxWithdrawal) {
+      await failWithdrawalWithoutHold(requestId, customerId, `Maximum withdrawal is ${maxWithdrawal} GMD.`);
+      res.status(400).json({ error: `Maximum withdrawal is ${maxWithdrawal} GMD.` });
+      return;
+    }
 
     const walletSnap = await db.doc(`wallets/${customerId}`).get();
     if (walletSnap.exists && Boolean(walletSnap.data()?.frozen)) {

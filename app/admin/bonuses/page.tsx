@@ -41,6 +41,9 @@ export default function AdminBonusesPage() {
     if (settings.minWithdrawal < 0 || settings.minDeposit < 0) {
       return toast.error("Minimum amounts cannot be negative.");
     }
+    if ((settings.maxWithdrawal ?? 10_000) < settings.minWithdrawal) {
+      return toast.error("Maximum withdrawal must be at least the minimum.");
+    }
     if (settings.minDeposit < 20) {
       return toast.error("Minimum deposit is GMD 20.");
     }
@@ -49,6 +52,7 @@ export default function AdminBonusesPage() {
       await adminSaveSettings({
         minDeposit: settings.minDeposit,
         minWithdrawal: settings.minWithdrawal,
+        maxWithdrawal: settings.maxWithdrawal,
         depositPlaythroughRate: settings.depositPlaythroughRate,
         earlyWithdrawalFeeRate: settings.earlyWithdrawalFeeRate,
         bonusWagerMultiplier: settings.bonusWagerMultiplier,
@@ -78,6 +82,10 @@ export default function AdminBonusesPage() {
         <p className="text-sm text-slate-300">
           Current minimum withdrawal:{" "}
           <span className="font-bold text-violet-200">{settings.minWithdrawal} GMD</span>
+        </p>
+        <p className="mt-1 text-sm text-slate-300">
+          Current maximum withdrawal:{" "}
+          <span className="font-bold text-violet-200">{settings.maxWithdrawal ?? 10_000} GMD</span>
         </p>
         <p className="mt-1 text-sm text-slate-300">
           Current minimum deposit:{" "}

@@ -342,6 +342,7 @@ export const adminSaveSettings = onCall(async (req) => {
     "maxBet",
     "minDeposit",
     "minWithdrawal",
+    "maxWithdrawal",
     "minAutoCashout",
     "maxAutoCashout",
     "depositPlaythroughRate",

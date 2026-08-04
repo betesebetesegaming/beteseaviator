@@ -350,6 +350,8 @@ export interface PlatformSettings {
   maxBet: number;
   minDeposit: number;
   minWithdrawal: number;
+  /** Maximum amount per withdrawal request (GMD). */
+  maxWithdrawal: number;
   minAutoCashout: number;
   maxAutoCashout: number;
   /** Fraction of deposits that must be wagered for full free unlock (1 = 100%). */
@@ -411,6 +413,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   maxBet: 100_000,
   minDeposit: MIN_DEPOSIT_GMD,
   minWithdrawal: 100,
+  maxWithdrawal: 10_000,
   minAutoCashout: 1.01,
   maxAutoCashout: 100,
   depositPlaythroughRate: 1,

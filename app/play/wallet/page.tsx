@@ -258,6 +258,10 @@ export default function WalletPage() {
     if (amt < settings.minWithdrawal) {
       return toast.error(`Minimum withdrawal is ${formatXof(settings.minWithdrawal)}.`);
     }
+    const maxWithdrawal = Number(settings.maxWithdrawal ?? 10_000);
+    if (Number.isFinite(maxWithdrawal) && maxWithdrawal > 0 && amt > maxWithdrawal) {
+      return toast.error(`Maximum withdrawal is ${formatXof(maxWithdrawal)}.`);
+    }
     if (amt > (wallet?.balance ?? 0)) return toast.error("Insufficient balance.");
 
     const w = wallet ?? { balance: 0, bonusBalance: 0, currency: "GMD" as const, frozen: false, updatedAt: null };
@@ -475,13 +479,14 @@ export default function WalletPage() {
                 ({formatXof(w.pendingDepositTotal ?? 0)} deposited) for fee-free cash-out of the rest.
                 Unplayed deposit withdrawn early keeps only{" "}
                 <strong className="text-slate-100">{Math.round((1 - earlyFeeRate) * 100)}%</strong> (
-                {Math.round(earlyFeeRate * 100)}% fee). Minimum withdrawal{" "}
-                <strong className="text-slate-100">{formatXof(settings.minWithdrawal)}</strong>.
+                {Math.round(earlyFeeRate * 100)}% fee). Withdrawals from{" "}
+                <strong className="text-slate-100">{formatXof(settings.minWithdrawal)}</strong> to{" "}
+                <strong className="text-slate-100">{formatXof(settings.maxWithdrawal ?? 10_000)}</strong>.
               </p>
             ) : (
               <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-                Deposit turnover complete — your cash balance withdraws at 100%. Minimum{" "}
-                {formatXof(settings.minWithdrawal)}.
+                Deposit turnover complete — your cash balance withdraws at 100%. Limit{" "}
+                {formatXof(settings.minWithdrawal)}–{formatXof(settings.maxWithdrawal ?? 10_000)}.
               </p>
             )}
 
@@ -510,9 +515,10 @@ export default function WalletPage() {
               onChange={(e) => setWithdrawPhone(e.target.value)}
             />
             <Input
-              label={`Amount (minimum ${formatXof(settings.minWithdrawal)})`}
+              label={`Amount (${formatXof(settings.minWithdrawal)}–${formatXof(settings.maxWithdrawal ?? 10_000)})`}
               type="number"
               min={settings.minWithdrawal}
+              max={settings.maxWithdrawal ?? 10_000}
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
             />

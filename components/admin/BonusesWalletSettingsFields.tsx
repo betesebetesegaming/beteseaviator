@@ -64,8 +64,9 @@ export function BonusesWalletSettingsFields({ settings, onChange }: Props) {
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Input label="Minimum withdrawal (GMD)" type="number" min={0} {...num("minWithdrawal")} />
+        <Input label="Maximum withdrawal (GMD)" type="number" min={0} {...num("maxWithdrawal")} />
         <Input label="Minimum deposit (GMD)" type="number" min={20} {...num("minDeposit")} />
       </div>
 

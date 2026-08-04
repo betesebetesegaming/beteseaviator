@@ -107,6 +107,10 @@ export const requestWithdrawal = onCall(async (req) => {
   if (!Number.isFinite(amount) || amount < settings.minWithdrawal) {
     throw new HttpsError("invalid-argument", `Minimum withdrawal is ${settings.minWithdrawal} GMD.`);
   }
+  const maxWithdrawal = Number(settings.maxWithdrawal ?? 10_000);
+  if (Number.isFinite(maxWithdrawal) && maxWithdrawal > 0 && amount > maxWithdrawal) {
+    throw new HttpsError("invalid-argument", `Maximum withdrawal is ${maxWithdrawal} GMD.`);
+  }
 
   const ref = db.collection("paymentRequests").doc();
   await db.runTransaction(async (tx) => {
