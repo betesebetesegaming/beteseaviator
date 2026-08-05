@@ -113,6 +113,14 @@ export default function WalletPage() {
   }, [withdrawPhoneComplete, withdrawStep]);
 
   useEffect(() => {
+    if (withdrawStep !== "otp") return;
+    const cash = Number(wallet?.balance ?? 0);
+    if (cash < settings.minWithdrawal) {
+      setWithdrawStep("form");
+    }
+  }, [withdrawStep, wallet?.balance, settings.minWithdrawal]);
+
+  useEffect(() => {
     if (frozen) setTab("history");
   }, [frozen]);
 
@@ -248,21 +256,51 @@ export default function WalletPage() {
     };
   }, [router]);
 
+  /** Never open OTP / SMS when cash is below min withdrawal or amount is invalid. */
+  function withdrawalFundsError(amount?: number): string | null {
+    const cash = Number(wallet?.balance ?? 0);
+    const minW = settings.minWithdrawal;
+    const maxW = Number(settings.maxWithdrawal ?? 10_000);
+    if (cash < minW) {
+      return `Insufficient balance. You need at least ${formatXof(minW)} cash to withdraw (you have ${formatXof(cash)}).`;
+    }
+    if (amount === undefined) return null;
+    if (!Number.isFinite(amount) || amount <= 0) return "Enter a valid withdrawal amount.";
+    if (amount < minW) return `Minimum withdrawal is ${formatXof(minW)}.`;
+    if (Number.isFinite(maxW) && maxW > 0 && amount > maxW) {
+      return `Maximum withdrawal is ${formatXof(maxW)}.`;
+    }
+    if (amount > cash) {
+      return `Insufficient balance. You only have ${formatXof(cash)} cash.`;
+    }
+    return null;
+  }
+
+  function startWithdrawalOtp() {
+    const amt = Number(withdrawAmount);
+    const hasAmount = Number.isFinite(amt) && amt > 0;
+    const err = withdrawalFundsError(hasAmount ? amt : undefined);
+    if (err) {
+      toast.error(err);
+      setWithdrawStep("form");
+      return;
+    }
+    if (!withdrawPhoneComplete) {
+      toast.error(PHONE_HINT);
+      return;
+    }
+    setWithdrawOtpDismissed(false);
+    setWithdrawStep("otp");
+  }
+
   async function submitMobileWithdrawal() {
     if (!fbUser || !profile) return;
     if (frozen) return toast.error("Contact customer service — your wallet is restricted.");
     const normalizedPhone = normalizeGambiaPhone(withdrawPhone || profile.phone || "");
     if (!normalizedPhone) return toast.error(PHONE_HINT);
     const amt = Number(withdrawAmount);
-    if (!Number.isFinite(amt) || amt <= 0) return toast.error("Enter a valid amount.");
-    if (amt < settings.minWithdrawal) {
-      return toast.error(`Minimum withdrawal is ${formatXof(settings.minWithdrawal)}.`);
-    }
-    const maxWithdrawal = Number(settings.maxWithdrawal ?? 10_000);
-    if (Number.isFinite(maxWithdrawal) && maxWithdrawal > 0 && amt > maxWithdrawal) {
-      return toast.error(`Maximum withdrawal is ${formatXof(maxWithdrawal)}.`);
-    }
-    if (amt > (wallet?.balance ?? 0)) return toast.error("Insufficient balance.");
+    const fundsErr = withdrawalFundsError(amt);
+    if (fundsErr) return toast.error(fundsErr);
 
     const w = wallet ?? { balance: 0, bonusBalance: 0, currency: "GMD" as const, frozen: false, updatedAt: null };
     const preview = previewWithdrawal(w, amt, settings);
@@ -287,6 +325,8 @@ export default function WalletPage() {
     }
 
     if (requiresWithdrawalOtp && !withdrawalOtp.otpVerified) {
+      // Only open OTP after funds/amount already passed checks above.
+      setWithdrawOtpDismissed(false);
       setWithdrawStep("otp");
       return toast.error("Verify your mobile number before withdrawing.");
     }
@@ -344,8 +384,12 @@ export default function WalletPage() {
   const freeCash = freeWithdrawableAmount(w, settings);
   const bonusWagerLeft = bonusWageringRemaining(w);
   const withdrawAmtNum = Number(withdrawAmount);
+  const hasWithdrawAmount = Number.isFinite(withdrawAmtNum) && withdrawAmtNum > 0;
+  const withdrawFundsErr = withdrawalFundsError(hasWithdrawAmount ? withdrawAmtNum : undefined);
+  const canAffordMinWithdraw = Number(w.balance) >= settings.minWithdrawal;
+  const canOpenWithdrawalOtp = canAffordMinWithdraw && !withdrawFundsErr;
   const withdrawPreview =
-    Number.isFinite(withdrawAmtNum) && withdrawAmtNum > 0
+    hasWithdrawAmount && !withdrawFundsErr
       ? previewWithdrawal(w, withdrawAmtNum, settings)
       : null;
 
@@ -436,7 +480,7 @@ export default function WalletPage() {
 
       {tab === "withdraw" && !frozen && (
         <Card>
-          {withdrawStep === "otp" ? (
+          {withdrawStep === "otp" && canOpenWithdrawalOtp ? (
             <>
               <h2 className="mb-2 font-semibold">Verify withdrawal</h2>
               <p className="mb-4 text-sm text-slate-400">
@@ -490,6 +534,15 @@ export default function WalletPage() {
               </p>
             )}
 
+            {!canAffordMinWithdraw && (
+              <p className="rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                Not enough cash to withdraw. Minimum is{" "}
+                <strong>{formatXof(settings.minWithdrawal)}</strong>. Your cash balance is{" "}
+                <strong>{formatXof(w.balance)}</strong>. SMS verification is blocked until you have enough
+                funds.
+              </p>
+            )}
+
             {bonusWagerLeft > 0 && (
               <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
                 Bonus: wager <strong>{formatXof(bonusWagerLeft)}</strong> more ({bonusMultiplier}×) to convert
@@ -513,19 +566,26 @@ export default function WalletPage() {
               placeholder="e.g. 7701234"
               value={withdrawPhone}
               onChange={(e) => setWithdrawPhone(e.target.value)}
+              disabled={!canAffordMinWithdraw}
             />
             <Input
               label={`Amount (${formatXof(settings.minWithdrawal)}–${formatXof(settings.maxWithdrawal ?? 10_000)})`}
               type="number"
               min={settings.minWithdrawal}
-              max={settings.maxWithdrawal ?? 10_000}
+              max={Math.min(Number(settings.maxWithdrawal ?? 10_000), Math.max(Number(w.balance) || 0, settings.minWithdrawal))}
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
+              disabled={!canAffordMinWithdraw}
             />
-            {withdrawPreview && withdrawAmtNum > 0 && (
+            {hasWithdrawAmount && withdrawFundsErr && (
+              <p className="rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                {withdrawFundsErr}
+              </p>
+            )}
+            {withdrawPreview && (
               <div
                 className={
-                  withdrawPreview.fee > 0
+                  withdrawPreview.fee > 0 || withdrawPreview.bonusForfeited > 0
                     ? "rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-100"
                     : "rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-200"
                 }
@@ -548,9 +608,15 @@ export default function WalletPage() {
                     No early fee — you will receive <strong>{formatXof(withdrawPreview.payoutAmount)}</strong>.
                   </p>
                 )}
+                {withdrawPreview.bonusForfeited > 0 && (
+                  <p className="mt-2 text-xs text-amber-200/90">
+                    Bonus of <strong>{formatXof(withdrawPreview.bonusForfeited)}</strong> will be forfeited
+                    (bonus is for play only until wagering is complete).
+                  </p>
+                )}
               </div>
             )}
-            {requiresWithdrawalOtp && withdrawalOtp.otpVerified && (
+            {requiresWithdrawalOtp && withdrawalOtp.otpVerified && canAffordMinWithdraw && (
               <p className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
                 Payout phone verified — you can withdraw now
               </p>
@@ -560,17 +626,20 @@ export default function WalletPage() {
                 type="button"
                 variant="secondary"
                 className="w-full"
-                onClick={() => {
-                  setWithdrawOtpDismissed(false);
-                  setWithdrawStep("otp");
-                }}
+                disabled={!canOpenWithdrawalOtp || busy}
+                onClick={startWithdrawalOtp}
               >
                 Verify phone to withdraw
               </Button>
             )}
             <Button
               className="w-full"
-              disabled={busy || (requiresWithdrawalOtp && !withdrawalOtp.otpVerified)}
+              disabled={
+                busy ||
+                !canAffordMinWithdraw ||
+                Boolean(withdrawFundsErr) ||
+                (requiresWithdrawalOtp && !withdrawalOtp.otpVerified)
+              }
               onClick={submitMobileWithdrawal}
             >
               {busy ? "Processing…" : `Withdraw with ${withdrawMethod}`}
