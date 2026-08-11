@@ -18,7 +18,10 @@ import { formatDate, formatXof, todayIso } from "@/lib/format";
 import { isOtcCashMeta } from "@/lib/transactionChannel";
 import { collection, doc, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { db } from "@/lib/firestore";
-import type { AgentDailyStats, Commission } from "@/lib/types";
+import type { AgentDailyStats, Commission, UserProfile, Wallet } from "@/lib/types";
+import { accountTotalsFromStats } from "@/lib/playerAccount";
+import { playerDisplayId } from "@/lib/playerId";
+import { AdminCustomerSupportModal } from "@/components/admin/AdminCustomerSupportModal";
 import { Button, Card, EmptyState, Select, StatCard, TableShell, Td, Th } from "@/components/ui";
 
 type PeriodKey = "today" | "week" | "month";
@@ -96,6 +99,9 @@ export function AgentAccountBook() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customers, setCustomers] = useState<UserProfile[] | null>(null);
+  const [customerWallets, setCustomerWallets] = useState<Record<string, Wallet>>({});
+  const [accountUser, setAccountUser] = useState<UserProfile | null>(null);
 
   const commissions = useAgentCommissionsRange(agentId, bounds.from, bounds.to);
 
@@ -105,6 +111,39 @@ export function AgentAccountBook() {
       setDaily(snap.exists() ? (snap.data() as AgentDailyStats) : null);
     });
   }, [agentId, today]);
+
+  useEffect(() => {
+    if (!agentId) {
+      setCustomers(null);
+      return;
+    }
+    const q = query(
+      collection(db, "users"),
+      where("role", "==", "player"),
+      where("ancestors", "array-contains", agentId),
+    );
+    return onSnapshot(q, (snap) => {
+      const rows = snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as UserProfile);
+      rows.sort((a, b) => a.name.localeCompare(b.name));
+      setCustomers(rows);
+    });
+  }, [agentId]);
+
+  useEffect(() => {
+    if (!customers || customers.length === 0) {
+      setCustomerWallets({});
+      return;
+    }
+    // Subscribe to wallets collection once; filter to our customers client-side.
+    return onSnapshot(collection(db, "wallets"), (snap) => {
+      const ids = new Set(customers.map((c) => c.uid));
+      const map: Record<string, Wallet> = {};
+      for (const d of snap.docs) {
+        if (ids.has(d.id)) map[d.id] = d.data() as Wallet;
+      }
+      setCustomerWallets(map);
+    });
+  }, [customers]);
 
   useEffect(() => {
     const unsubD = subscribeDeposits(undefined, setDeposits);
@@ -463,6 +502,86 @@ export function AgentAccountBook() {
           </TableShell>
         )}
       </div>
+
+      <div>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h3 className="font-semibold text-white">Customers account book</h3>
+            <p className="text-xs text-slate-500">
+              Lifetime deposits, played, win/loss, and current balance for each of your customers
+            </p>
+          </div>
+          <Link
+            href="/admin/customers"
+            className="text-xs font-medium text-emerald-300 hover:underline"
+          >
+            Manage customers →
+          </Link>
+        </div>
+
+        {!customers ? (
+          <EmptyState message="Loading customers…" />
+        ) : customers.length === 0 ? (
+          <EmptyState message="No customers yet." />
+        ) : (
+          <TableShell>
+            <thead>
+              <tr>
+                <Th>Player ID</Th>
+                <Th>Name</Th>
+                <Th className="text-right">Deposits</Th>
+                <Th className="text-right">Played</Th>
+                <Th className="text-right">Win/Loss</Th>
+                <Th className="text-right">Balance</Th>
+                <Th>Account</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((c) => {
+                const stats = accountTotalsFromStats(c.stats);
+                const bal = customerWallets[c.uid]?.balance;
+                return (
+                  <tr key={c.uid}>
+                    <Td className="font-mono text-sm text-emerald-300">{playerDisplayId(c)}</Td>
+                    <Td className="font-medium text-white">{c.name}</Td>
+                    <Td className="text-right tabular-nums text-slate-300">
+                      {formatXof(stats.totalDeposits)}
+                    </Td>
+                    <Td className="text-right tabular-nums text-slate-300">
+                      {formatXof(stats.totalBets)}
+                    </Td>
+                    <Td
+                      className={`text-right tabular-nums font-semibold ${
+                        stats.winLoss > 0
+                          ? "text-emerald-300"
+                          : stats.winLoss < 0
+                            ? "text-rose-300"
+                            : "text-slate-400"
+                      }`}
+                    >
+                      {formatXof(stats.winLoss)}
+                    </Td>
+                    <Td className="text-right tabular-nums font-semibold">
+                      {bal === undefined ? "—" : formatXof(bal)}
+                    </Td>
+                    <Td>
+                      <Button
+                        variant="secondary"
+                        className="!px-2.5 !py-1 text-xs"
+                        onClick={() => setAccountUser(c)}
+                      >
+                        Open
+                      </Button>
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableShell>
+        )}
+      </div>
+
+      <AdminCustomerSupportModal user={accountUser} onClose={() => setAccountUser(null)} />
     </div>
   );
 }

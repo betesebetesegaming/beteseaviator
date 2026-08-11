@@ -29,6 +29,10 @@ export interface AgentStats {
   customerCount?: number;
   subAgentCount?: number;
   customerDeposits?: number;
+  /** Lifetime deposits credited to this user (players + own agent wallet). */
+  totalDeposits?: number;
+  /** Lifetime withdrawals debited from this user. */
+  totalWithdrawals?: number;
   totalBets?: number;
   totalWins?: number;
   commissionEarned?: number;

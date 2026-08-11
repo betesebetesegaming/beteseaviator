@@ -321,6 +321,46 @@ export const adminRebuildPlatformStats = call<
   }
 >("adminRebuildPlatformStats");
 
+export type PlayerAccountSummary = {
+  ok: true;
+  uid: string;
+  name: string;
+  role: string;
+  phone: string | null;
+  playerNumber: number | null;
+  status: string;
+  wallet: { balance: number; bonusBalance: number; frozen: boolean };
+  totals: {
+    totalDeposits: number;
+    totalWithdrawals: number;
+    totalBets: number;
+    totalWins: number;
+    winLoss: number;
+  };
+  backfilled: boolean;
+  transactions: Array<{
+    id: string;
+    type: string;
+    amount: number;
+    balanceBefore: number;
+    balanceAfter: number;
+    reference: string;
+    description: string;
+    status: string;
+    createdAt: string | null;
+  }>;
+};
+
+export const adminGetPlayerAccountSummary = call<
+  { uid: string; ledgerLimit?: number },
+  PlayerAccountSummary
+>("adminGetPlayerAccountSummary");
+
+export const adminBackfillPlayerAccountStats = call<
+  Record<string, never>,
+  { ok: true; usersUpdated: number; transactionsScanned: number }
+>("adminBackfillPlayerAccountStats");
+
 export const adminSetGameStatus = call<
   {
     gameId: string;

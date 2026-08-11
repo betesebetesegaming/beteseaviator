@@ -11,7 +11,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { Plus, Search, Banknote, Copy, Receipt } from "lucide-react";
+import { Plus, Search, Banknote, Copy, Receipt, BookOpen } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -21,6 +21,7 @@ import {
 } from "@/lib/api";
 import { formatDate, formatXof, normalizePhone } from "@/lib/format";
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
+import { accountTotalsFromStats } from "@/lib/playerAccount";
 import {
   PASSWORD_FIELD_LABEL,
   PASSWORD_MAX,
@@ -33,6 +34,7 @@ import { MarketerRetentionPanel } from "@/components/agent/MarketerRetentionPane
 import { AgentCustomerCashActions, AgentServeAnyCustomer } from "@/components/agent/AgentCashDesk";
 import { CustomerOtpGate } from "@/components/shared/CustomerOtpGate";
 import { CustomerCreatedSuccess } from "@/components/agent/CustomerCreatedSuccess";
+import { AdminCustomerSupportModal } from "@/components/admin/AdminCustomerSupportModal";
 import type { UserProfile } from "@/lib/types";
 import {
   Badge,
@@ -75,6 +77,7 @@ export default function AgentPlayersPage() {
     phone: string;
     password: string;
   } | null>(null);
+  const [accountUser, setAccountUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     if (!fbUser) return;
@@ -180,10 +183,10 @@ export default function AgentPlayersPage() {
         <div>
           <h1 className="text-xl font-bold">My Customers</h1>
           <p className="text-sm text-slate-400">
-            Every player gets a Player ID (e.g. BTE-00042) for the office. Monitor bets and deposits
-            in{" "}
-            <Link href="/admin/operations?tab=transactions" className="text-emerald-400 hover:underline">
-              Operations → Transactions
+            Account book per customer: deposits, played, win/loss, and balance. Open{" "}
+            <strong>Account</strong> for the full ledger, or{" "}
+            <Link href="/admin/accounts?tab=book" className="text-emerald-400 hover:underline">
+              Accounts → Account book
             </Link>
             .
           </p>
@@ -226,7 +229,10 @@ export default function AgentPlayersPage() {
               <Th>Player ID</Th>
               <Th>Name</Th>
               <Th>Phone</Th>
-              <Th>Balance</Th>
+              <Th className="text-right">Deposits</Th>
+              <Th className="text-right">Played</Th>
+              <Th className="text-right">Win/Loss</Th>
+              <Th className="text-right">Balance</Th>
               <Th>Joined</Th>
               <Th>Status</Th>
               <Th>Actions</Th>
@@ -236,6 +242,7 @@ export default function AgentPlayersPage() {
             {filtered.map((p) => {
               const playerId = playerDisplayId(p);
               const officeId = p.playerNumber ? formatPlayerId(p.playerNumber) : null;
+              const stats = accountTotalsFromStats(p.stats);
               return (
                 <tr key={p.uid}>
                   <Td>
@@ -255,7 +262,24 @@ export default function AgentPlayersPage() {
                   </Td>
                   <Td className="font-medium">{p.name}</Td>
                   <Td className="tabular-nums">{p.phone ?? "—"}</Td>
-                  <Td className="tabular-nums">
+                  <Td className="text-right tabular-nums text-slate-300">
+                    {formatXof(stats.totalDeposits)}
+                  </Td>
+                  <Td className="text-right tabular-nums text-slate-300">
+                    {formatXof(stats.totalBets)}
+                  </Td>
+                  <Td
+                    className={`text-right tabular-nums font-semibold ${
+                      stats.winLoss > 0
+                        ? "text-emerald-300"
+                        : stats.winLoss < 0
+                          ? "text-rose-300"
+                          : "text-slate-400"
+                    }`}
+                  >
+                    {formatXof(stats.winLoss)}
+                  </Td>
+                  <Td className="text-right tabular-nums font-semibold">
                     {p.balance === undefined ? "—" : formatXof(p.balance)}
                   </Td>
                   <Td className="text-xs text-slate-400">
@@ -266,6 +290,15 @@ export default function AgentPlayersPage() {
                   </Td>
                   <Td>
                     <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        variant="secondary"
+                        className="!px-2.5 !py-1 text-xs text-sky-200"
+                        onClick={() => setAccountUser(p)}
+                      >
+                        <span className="flex items-center gap-1">
+                          <BookOpen size={13} /> Account
+                        </span>
+                      </Button>
                       <Link href={`/admin/operations?tab=transactions&search=${encodeURIComponent(officeId ?? p.name)}`}>
                         <Button variant="secondary" className="!px-2.5 !py-1 text-xs">
                           <span className="flex items-center gap-1">
@@ -287,6 +320,9 @@ export default function AgentPlayersPage() {
           </tbody>
         </TableShell>
       )}
+
+      <AdminCustomerSupportModal user={accountUser} onClose={() => setAccountUser(null)} />
+
 
       <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Add Customer">
         <div className="space-y-4">

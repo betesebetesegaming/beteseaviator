@@ -904,9 +904,18 @@ export const adminAddQTechGame = onCall(QTECH_OUTBOUND, async (req) => {
     throw new HttpsError("invalid-argument", "Category must be aviator, crash, or instantwin.");
   }
 
-  const { isAllowedLobbyGame, disallowedLobbyGameKind } = await import("./lobbyGamePolicy");
-  if (!isAllowedLobbyGame({ qtechGameId, name })) {
-    const kind = disallowedLobbyGameKind({ qtechGameId, name }) ?? "unknown";
+  const {
+    isValidQTechGameIdFormat,
+    disallowedLobbyGameKind,
+  } = await import("./lobbyGamePolicy");
+  if (!isValidQTechGameIdFormat(qtechGameId)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "QTech game ID must look like PROVIDER-gameid (e.g. SPB-aviator).",
+    );
+  }
+  const kind = disallowedLobbyGameKind({ qtechGameId, name });
+  if (kind) {
     throw new HttpsError(
       "failed-precondition",
       `This game type is not allowed in the lobby (${kind}). Only crash and instant win games are supported.`,
@@ -914,7 +923,18 @@ export const adminAddQTechGame = onCall(QTECH_OUTBOUND, async (req) => {
   }
 
   const { probeQTechGameIds } = await import("./qtech/gameList");
-  const [probe] = await probeQTechGameIds([qtechGameId]);
+  let probe: Awaited<ReturnType<typeof probeQTechGameIds>>[number] | undefined;
+  try {
+    [probe] = await probeQTechGameIds([qtechGameId]);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new HttpsError(
+      "failed-precondition",
+      msg.includes("credentials")
+        ? "QTech API credentials are not configured. Save them in section 4 first."
+        : `Could not reach QTech to verify ${qtechGameId}: ${msg}`,
+    );
+  }
   const launchOk = probe?.launchStatus === 200 && Boolean(probe?.launchUrl);
   if (!launchOk) {
     throw new HttpsError(
@@ -1048,11 +1068,11 @@ export const adminRunQTechCwTest = onCall(
   async (req) => {
     await requireRole(req, ["admin"]);
     const data = req.data ?? {};
-    const playerUid = typeof data.playerUid === "string" ? data.playerUid.trim() : undefined;
+    // Ignore any customer UID — CW tests must never touch real wallets.
     const amount = data.amount !== undefined ? Number(data.amount) : undefined;
     const gameId = typeof data.gameId === "string" ? data.gameId.trim() : undefined;
     const { runQTechCwTestSuite } = await import("./qtech/cwTester");
-    return runQTechCwTestSuite({ playerUid, amount, gameId });
+    return runQTechCwTestSuite({ amount, gameId });
   }
 );
 
@@ -1104,3 +1124,260 @@ export const adminBackfillPlayerIds = onCall(async (req) => {
   const result = await backfillMissingPlayerIds(limit);
   return { ok: true, ...result, count: result.updated.length };
 });
+
+type AccountTotals = {
+  totalDeposits: number;
+  totalWithdrawals: number;
+  totalBets: number;
+  totalWins: number;
+};
+
+function emptyAccountTotals(): AccountTotals {
+  return { totalDeposits: 0, totalWithdrawals: 0, totalBets: 0, totalWins: 0 };
+}
+
+function accumulateAccountTx(totals: AccountTotals, type: string, amount: number): void {
+  const abs = Math.abs(Number(amount) || 0);
+  if (abs <= 0) return;
+  switch (type) {
+    case "deposit":
+      totals.totalDeposits = round2(totals.totalDeposits + abs);
+      break;
+    case "withdrawal":
+      totals.totalWithdrawals = round2(totals.totalWithdrawals + abs);
+      break;
+    case "bet":
+      totals.totalBets = round2(totals.totalBets + abs);
+      break;
+    case "win":
+      totals.totalWins = round2(totals.totalWins + abs);
+      break;
+    default:
+      break;
+  }
+}
+
+function totalsFromProfileStats(stats: ProfileData["stats"] | undefined): AccountTotals {
+  return {
+    totalDeposits: round2(Number(stats?.totalDeposits ?? 0)),
+    totalWithdrawals: round2(Number(stats?.totalWithdrawals ?? 0)),
+    totalBets: round2(Number(stats?.totalBets ?? 0)),
+    totalWins: round2(Number(stats?.totalWins ?? 0)),
+  };
+}
+
+function totalsLookEmpty(t: AccountTotals): boolean {
+  return t.totalDeposits === 0 && t.totalWithdrawals === 0 && t.totalBets === 0 && t.totalWins === 0;
+}
+
+async function sumUserAccountTotals(uid: string): Promise<AccountTotals> {
+  const totals = emptyAccountTotals();
+  const snap = await db.collection("transactions").where("userId", "==", uid).get();
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    accumulateAccountTx(totals, String(data.type || ""), Number(data.amount) || 0);
+  }
+  return totals;
+}
+
+/**
+ * Full customer account book: wallet + lifetime deposits/played/win-loss + recent ledger.
+ * Admin: any user. Agent: only players they own (ancestors contains agent uid).
+ */
+export const adminGetPlayerAccountSummary = onCall(async (req) => {
+  const { uid: callerUid, profile: caller } = await requireRole(req, ["admin", "agent"]);
+  const uid = String(req.data?.uid ?? "").trim();
+  if (!uid) throw new HttpsError("invalid-argument", "uid is required.");
+
+  const userSnap = await db.doc(`users/${uid}`).get();
+  if (!userSnap.exists) throw new HttpsError("not-found", "User not found.");
+  const user = userSnap.data() as ProfileData;
+
+  if (caller.role !== "admin") {
+    if (user.role !== "player") {
+      throw new HttpsError("permission-denied", "Agents can only open customer accounts.");
+    }
+    const ancestors = Array.isArray(user.ancestors) ? user.ancestors : [];
+    if (!ancestors.includes(callerUid) && user.parentId !== callerUid) {
+      throw new HttpsError("permission-denied", "This customer is not in your network.");
+    }
+  }
+
+  const walletSnap = await db.doc(`wallets/${uid}`).get();
+  const wallet = walletSnap.exists
+    ? {
+        balance: round2(Number(walletSnap.data()?.balance ?? 0)),
+        bonusBalance: round2(Number(walletSnap.data()?.bonusBalance ?? 0)),
+        frozen: Boolean(walletSnap.data()?.frozen),
+      }
+    : { balance: 0, bonusBalance: 0, frozen: false };
+
+  let totals = totalsFromProfileStats(user.stats);
+  let backfilled = false;
+
+  // Agents' stats.totalBets/totalWins are customer aggregates (commission GGR) —
+  // never overwrite those from the agent's own wallet ledger.
+  if (user.role === "player" && totalsLookEmpty(totals)) {
+    const scanned = await sumUserAccountTotals(uid);
+    if (!totalsLookEmpty(scanned)) {
+      totals = scanned;
+      await db.doc(`users/${uid}`).set(
+        {
+          stats: {
+            totalDeposits: totals.totalDeposits,
+            totalWithdrawals: totals.totalWithdrawals,
+            totalBets: totals.totalBets,
+            totalWins: totals.totalWins,
+          },
+        },
+        { merge: true }
+      );
+      backfilled = true;
+    }
+  } else if (user.role !== "player") {
+    // Agent list columns: prefer customer deposit/play aggregates already on profile.
+    totals = {
+      totalDeposits: round2(
+        Number(user.stats?.customerDeposits ?? user.stats?.totalDeposits ?? 0)
+      ),
+      totalWithdrawals: round2(Number(user.stats?.totalWithdrawals ?? 0)),
+      totalBets: round2(Number(user.stats?.totalBets ?? 0)),
+      totalWins: round2(Number(user.stats?.totalWins ?? 0)),
+    };
+  }
+
+  const ledgerLimit = Math.min(Math.max(Number(req.data?.ledgerLimit) || 100, 1), 200);
+  const txSnap = await db
+    .collection("transactions")
+    .where("userId", "==", uid)
+    .orderBy("createdAt", "desc")
+    .limit(ledgerLimit)
+    .get();
+
+  const transactions = txSnap.docs.map((d) => {
+    const data = d.data();
+    const createdAt = data.createdAt?.toDate?.()
+      ? (data.createdAt.toDate() as Date).toISOString()
+      : null;
+    return {
+      id: d.id,
+      type: String(data.type || ""),
+      amount: Number(data.amount) || 0,
+      balanceBefore: Number(data.balanceBefore) || 0,
+      balanceAfter: Number(data.balanceAfter) || 0,
+      reference: String(data.reference || ""),
+      description: String(data.description || ""),
+      status: String(data.status || "completed"),
+      createdAt,
+    };
+  });
+
+  const winLoss = round2(totals.totalWins - totals.totalBets);
+
+  return {
+    ok: true as const,
+    uid,
+    name: user.name,
+    role: user.role,
+    phone: user.phone ?? null,
+    playerNumber: user.playerNumber ?? null,
+    status: user.status,
+    wallet,
+    totals: { ...totals, winLoss },
+    backfilled,
+    transactions,
+  };
+});
+
+/**
+ * Rebuild every user's account-book stats from the transactions ledger (admin repair).
+ * Overwrites stats.totalDeposits / totalWithdrawals / totalBets / totalWins.
+ * Preserves other agent stats fields (customerCount, commissionEarned, etc.).
+ */
+export const adminBackfillPlayerAccountStats = onCall(
+  {
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async (req) => {
+    await requireRole(req, ["admin"]);
+
+    const byUser = new Map<string, AccountTotals>();
+    const snap = await db.collection("transactions").get();
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const uid = String(data.userId || "");
+      if (!uid) continue;
+      let totals = byUser.get(uid);
+      if (!totals) {
+        totals = emptyAccountTotals();
+        byUser.set(uid, totals);
+      }
+      accumulateAccountTx(totals, String(data.type || ""), Number(data.amount) || 0);
+    }
+
+    // Only players: agent totalBets/totalWins are customer GGR aggregates.
+    const playersSnap = await db.collection("users").where("role", "==", "player").get();
+    const playerIds = new Set(playersSnap.docs.map((d) => d.id));
+
+    let updated = 0;
+    const entries = [...byUser.entries()].filter(([uid]) => playerIds.has(uid));
+    const chunkSize = 400;
+    for (let i = 0; i < entries.length; i += chunkSize) {
+      const batch = db.batch();
+      const slice = entries.slice(i, i + chunkSize);
+      for (const [uid, totals] of slice) {
+        batch.set(
+          db.doc(`users/${uid}`),
+          {
+            stats: {
+              totalDeposits: totals.totalDeposits,
+              totalWithdrawals: totals.totalWithdrawals,
+              totalBets: totals.totalBets,
+              totalWins: totals.totalWins,
+            },
+          },
+          { merge: true }
+        );
+        updated += 1;
+      }
+      await batch.commit();
+    }
+
+    // Players with no ledger rows still get zeros so the UI is consistent.
+    let zeroed = 0;
+    const missing = playersSnap.docs.filter((d) => !byUser.has(d.id));
+    for (let i = 0; i < missing.length; i += chunkSize) {
+      const batch = db.batch();
+      const slice = missing.slice(i, i + chunkSize);
+      for (const doc of slice) {
+        batch.set(
+          db.doc(`users/${doc.id}`),
+          {
+            stats: {
+              totalDeposits: 0,
+              totalWithdrawals: 0,
+              totalBets: 0,
+              totalWins: 0,
+            },
+          },
+          { merge: true }
+        );
+        zeroed += 1;
+      }
+      await batch.commit();
+    }
+
+    logger.info("adminBackfillPlayerAccountStats", {
+      users: updated,
+      zeroed,
+      transactions: snap.size,
+    });
+
+    return {
+      ok: true as const,
+      usersUpdated: updated + zeroed,
+      transactionsScanned: snap.size,
+    };
+  }
+);

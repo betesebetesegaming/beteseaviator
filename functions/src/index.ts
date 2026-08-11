@@ -51,6 +51,8 @@ export {
   adminSyncAgentLogins,
   adminRefreshDailyDemos,
   adminRebuildPlatformStats,
+  adminGetPlayerAccountSummary,
+  adminBackfillPlayerAccountStats,
   adminSetGameStatus,
   adminAddQTechGame,
   adminDeleteGame,

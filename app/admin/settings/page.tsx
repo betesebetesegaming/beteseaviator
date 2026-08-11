@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { doc, onSnapshot } from "firebase/firestore";
 import Link from "next/link";
 import { db } from "@/lib/firestore";
-import { adminRebuildPlatformStats, adminReleaseReferralBonuses, adminSaveSettings, errorMessage } from "@/lib/api";
+import { adminRebuildPlatformStats, adminBackfillPlayerAccountStats, adminReleaseReferralBonuses, adminSaveSettings, errorMessage } from "@/lib/api";
 import {
   DEFAULT_SETTINGS,
   PROVIDER_LABELS,
@@ -20,6 +20,7 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [busy, setBusy] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
+  const [rebuildingCustomers, setRebuildingCustomers] = useState(false);
   const [releasingReferrals, setReleasingReferrals] = useState(false);
 
   useEffect(() => {
@@ -85,6 +86,20 @@ export default function AdminSettingsPage() {
       toast.error(errorMessage(e));
     } finally {
       setRebuilding(false);
+    }
+  }
+
+  async function rebuildCustomerAccountStats() {
+    setRebuildingCustomers(true);
+    try {
+      const res = await adminBackfillPlayerAccountStats({});
+      toast.success(
+        `Customer account books rebuilt — ${res.usersUpdated} players from ${res.transactionsScanned} ledger rows.`
+      );
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setRebuildingCustomers(false);
     }
   }
 
@@ -362,6 +377,16 @@ export default function AdminSettingsPage() {
         disabled={rebuilding}
       >
         {rebuilding ? "Rebuilding…" : "Rebuild dashboard totals from ledger"}
+      </Button>
+      <Button
+        variant="secondary"
+        className="mt-3 w-full"
+        onClick={rebuildCustomerAccountStats}
+        disabled={rebuildingCustomers}
+      >
+        {rebuildingCustomers
+          ? "Rebuilding customer books…"
+          : "Rebuild customer account books (deposits / played / win-loss)"}
       </Button>
     </div>
   );

@@ -34,6 +34,8 @@ export interface ProfileData {
   stats?: {
     customerCount?: number;
     customerDeposits?: number;
+    totalDeposits?: number;
+    totalWithdrawals?: number;
     totalBets?: number;
     totalWins?: number;
     commissionEarned?: number;
@@ -287,6 +289,11 @@ interface MoveMoneyArgs {
   ignoreFrozen?: boolean;
   /** bonus credits land in bonusBalance (for betting only, not withdrawal) */
   creditAsBonus?: boolean;
+  /**
+   * Debit cash `balance` only (never bonusBalance).
+   * Withdrawals always use cash-only — bonus is play-only until wagering converts it.
+   */
+  debitCashOnly?: boolean;
 }
 
 /**
@@ -368,15 +375,29 @@ export function walletWrite(
       throw new HttpsError("failed-precondition", "Wallet is frozen.");
     }
     const need = Math.abs(amount);
-    const total = round2(wallet.balance + wallet.bonusBalance);
-    if (total < need) {
-      throw new HttpsError("failed-precondition", "Insufficient balance.");
+    // Withdrawals / explicit cash-only: never pay out bonusBalance.
+    const cashOnly =
+      args.debitCashOnly === true ||
+      args.type === "withdrawal" ||
+      args.type === "referral_withdrawal";
+    if (cashOnly) {
+      if (wallet.balance < need) {
+        throw new HttpsError("failed-precondition", "Insufficient balance.");
+      }
+      wallet.balance = round2(wallet.balance - need);
+      meta = { ...meta, fromBonus: 0, fromCash: need };
+    } else {
+      const total = round2(wallet.balance + wallet.bonusBalance);
+      if (total < need) {
+        throw new HttpsError("failed-precondition", "Insufficient balance.");
+      }
+      // Bets: spend bonus first, then cash (playable pot).
+      const fromBonus = Math.min(wallet.bonusBalance, need);
+      const fromCash = round2(need - fromBonus);
+      wallet.bonusBalance = round2(wallet.bonusBalance - fromBonus);
+      wallet.balance = round2(wallet.balance - fromCash);
+      meta = { ...meta, fromBonus, fromCash };
     }
-    const fromBonus = Math.min(wallet.bonusBalance, need);
-    const fromCash = round2(need - fromBonus);
-    wallet.bonusBalance = round2(wallet.bonusBalance - fromBonus);
-    wallet.balance = round2(wallet.balance - fromCash);
-    meta = { ...meta, fromBonus, fromCash };
   } else if (args.creditAsBonus) {
     wallet.bonusBalance = round2(wallet.bonusBalance + amount);
   } else {
@@ -408,8 +429,46 @@ export function walletWrite(
     createdAt: FieldValue.serverTimestamp(),
   });
 
+  bumpPlayerAccountStats(tx, args.uid, args.type, amount);
+
   wallet.exists = true;
   return wallet.balance;
+}
+
+/**
+ * Lifetime account-book counters on users/{uid}.stats (deposits, withdrawals,
+ * bets, wins). Kept in sync with every walletWrite so list UIs stay cheap.
+ */
+export function bumpPlayerAccountStats(
+  tx: FirebaseFirestore.Transaction,
+  uid: string,
+  type: string,
+  amount: number
+): void {
+  const abs = round2(Math.abs(amount));
+  if (!uid || abs <= 0) return;
+  let field: "totalDeposits" | "totalWithdrawals" | "totalBets" | "totalWins" | null = null;
+  switch (type) {
+    case "deposit":
+      field = "totalDeposits";
+      break;
+    case "withdrawal":
+      field = "totalWithdrawals";
+      break;
+    case "bet":
+      field = "totalBets";
+      break;
+    case "win":
+      field = "totalWins";
+      break;
+    default:
+      return;
+  }
+  tx.set(
+    db.doc(`users/${uid}`),
+    { [`stats.${field}`]: FieldValue.increment(abs) },
+    { merge: true }
+  );
 }
 
 /** Increment platform-wide counters (inside a transaction). */
