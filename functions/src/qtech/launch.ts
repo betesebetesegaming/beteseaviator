@@ -27,8 +27,9 @@ export const QTECH_OUTBOUND = {
   vpcConnectorEgressSettings: "ALL_TRAFFIC" as const,
 };
 
-/** Keep QTech auth token warm on the always-on launch instance. */
+/** Keep QTech auth token warm on the always-on launch instance (not during deploy analysis). */
 onInit(() => {
+  if (!process.env.K_SERVICE) return;
   warmDemoLaunchDependencies();
 });
 
