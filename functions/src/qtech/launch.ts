@@ -1,5 +1,4 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { onInit } from "firebase-functions/v2/core";
 import { logger } from "firebase-functions/v2";
 import { resolveLobbyGameId } from "../gameCatalog";
 import { db, requireRole } from "../helpers";
@@ -11,7 +10,6 @@ import {
   fetchDemoLaunchUrl,
   parsePlayDevice,
   resolveDemoLaunchUrl,
-  warmDemoLaunchDependencies,
 } from "./demoLaunch";
 import { qtechEnvironmentLabel } from "./runtimeCache";
 import { createWalletSession } from "./session";
@@ -26,12 +24,6 @@ export const QTECH_OUTBOUND = {
   vpcConnector: "projects/beteseaviator-a05ae/locations/us-central1/connectors/betese-qtech",
   vpcConnectorEgressSettings: "ALL_TRAFFIC" as const,
 };
-
-/** Keep QTech auth token warm on the always-on launch instance (not during deploy analysis). */
-onInit(() => {
-  if (!process.env.K_SERVICE) return;
-  warmDemoLaunchDependencies();
-});
 
 const gameMetaCache = new Map<string, { qtechGameId: string; expiresAt: number }>();
 const GAME_META_CACHE_MS = 10 * 60 * 1000;

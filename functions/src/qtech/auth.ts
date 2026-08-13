@@ -18,12 +18,9 @@ export function clearQTechAccessTokenCache(): void {
 export function qtechNetworkError(e: unknown): HttpsError {
   const cause = e instanceof Error ? String(e.cause ?? e.message) : String(e);
   logger.error("QTech network error", { cause });
-  const ipBlocked = /UND_ERR_SOCKET|other side closed|ECONNRESET/i.test(cause);
   return new HttpsError(
     "failed-precondition",
-    ipBlocked
-      ? "QTech blocked our server IP. Ask QTech to whitelist outbound IP 35.226.2.98 for your API account."
-      : "Could not reach QTech API — check the API base URL in Admin → QTech & Games.",
+    "Could not reach QTech right now. Please try again in a moment.",
   );
 }
 
@@ -63,8 +60,9 @@ export async function getQTechAccessToken(
 
   let res: Response;
   try {
+    // POST is allowed by QTech and avoids some WAF drops on GET+password-in-query.
     res = await qtechFetch(url, {
-      method: "GET",
+      method: "POST",
       headers: { Accept: "application/json" },
     });
   } catch (e) {
