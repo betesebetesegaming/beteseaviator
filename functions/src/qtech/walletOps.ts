@@ -46,6 +46,16 @@ export function playableBalance(wallet: { balance: number; bonusBalance: number 
   return round2(wallet.balance + wallet.bonusBalance);
 }
 
+async function qtechLedgerSource(playerId: string): Promise<"qtech" | "qtech_cw_certification"> {
+  try {
+    const { isCwTestPlayerUid } = await import("./cwTestPlayer");
+    if (await isCwTestPlayerUid(playerId)) return "qtech_cw_certification";
+  } catch {
+    /* fall through — treat as normal play */
+  }
+  return "qtech";
+}
+
 /** QTech Common Wallet API — txnType on every bet/win request (section 3.3 / 3.4). */
 export function parseQTechTxnType(body: Record<string, unknown>): "DEBIT" | "CREDIT" {
   const raw = String(body.txnType ?? "")
@@ -189,6 +199,7 @@ export async function processWithdrawal(
   const referenceId = newReferenceId();
   let balanceAfter = 0;
   const settings = await getSettings();
+  const ledgerSource = await qtechLedgerSource(playerId);
 
   await db.runTransaction(async (tx) => {
     const dupSnap = await tx.get(db.doc(`qtechTransactions/${txnId}`));
@@ -221,7 +232,7 @@ export async function processWithdrawal(
         type: "bet",
         description: `QTech bet (${String(body.gameId ?? "game")})`,
         meta: {
-          source: "qtech",
+          source: ledgerSource,
           txnId,
           roundId: body.roundId,
           gameId: body.gameId,
@@ -316,6 +327,7 @@ export async function processDeposit(
 
   const referenceId = newReferenceId();
   let balanceAfter = 0;
+  const ledgerSource = await qtechLedgerSource(playerId);
 
   await db.runTransaction(async (tx) => {
     const dupSnap = await tx.get(db.doc(`qtechTransactions/${txnId}`));
@@ -334,7 +346,7 @@ export async function processDeposit(
         type: "win",
         description: `QTech win (${String(body.gameId ?? "game")})`,
         meta: {
-          source: "qtech",
+          source: ledgerSource,
           txnId,
           roundId: body.roundId,
           betId: body.betId,
@@ -405,6 +417,7 @@ export async function processRollback(
 
   const referenceId = newReferenceId();
   let balanceAfter = 0;
+  const ledgerSource = await qtechLedgerSource(playerId);
 
   await db.runTransaction(async (tx) => {
     const dupSnap = await tx.get(db.doc(`qtechTransactions/${txnId}`));
@@ -421,7 +434,7 @@ export async function processRollback(
         type: "refund",
         description: "QTech rollback",
         meta: {
-          source: "qtech",
+          source: ledgerSource,
           txnId,
           ...(opts.betId ? { betId: opts.betId } : {}),
           ...(opts.referenceId ? { referenceId: opts.referenceId } : {}),
@@ -472,6 +485,7 @@ export async function processReward(
 
   const referenceId = newReferenceId();
   let balanceAfter = 0;
+  const ledgerSource = await qtechLedgerSource(playerId);
 
   await db.runTransaction(async (tx) => {
     const wallet = await walletRead(tx, playerId);
@@ -482,7 +496,7 @@ export async function processReward(
         type: "bonus",
         creditAsBonus: true,
         description: `QTech reward (${String(body.rewardTitle ?? "reward")})`,
-        meta: { source: "qtech", txnId, rewardType: body.rewardType },
+        meta: { source: ledgerSource, txnId, rewardType: body.rewardType },
       });
     }
     balanceAfter = playableBalance(wallet);

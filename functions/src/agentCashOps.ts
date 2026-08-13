@@ -21,7 +21,7 @@ import {
   type ProfileData,
 } from "./helpers";
 import { onReferralDeposit } from "./referrals";
-import { recordDepositPlaythrough } from "./wagering";
+import { applyEarlyWithdrawalPenalties, recordDepositPlaythrough } from "./wagering";
 
 function withdrawalToken(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -214,18 +214,44 @@ async function doCashWithdraw(opts: {
   const playerId = customerPlayerId(customer, customerId);
   const withdrawalCode = `${playerId}-${withdrawalToken()}`;
   const codeRef = db.collection("agentWithdrawalCodes").doc();
+  const settings = await getSettings();
 
   await db.runTransaction(async (tx) => {
     const customerWallet = await walletRead(tx, customerId);
-    if (customerWallet.balance < amount) {
-      throw new HttpsError("failed-precondition", "Customer balance is too low for this withdrawal.");
+    if (customerWallet.frozen) {
+      throw new HttpsError("failed-precondition", "Customer wallet is frozen.");
     }
+    if (customerWallet.balance < amount) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Customer cash balance is too low. Bonus funds cannot be withdrawn."
+      );
+    }
+    const early = applyEarlyWithdrawalPenalties(
+      tx,
+      customerId,
+      customerWallet,
+      amount,
+      settings,
+      withdrawalCode
+    );
     walletWrite(tx, customerWallet, {
       uid: customerId,
       amount: -amount,
       type: "withdrawal",
       description: `Cash withdrawal at ${actorName}`,
-      meta: { otcCash: true, agentId: actorUid, agentName: actorName, withdrawalCode, playerId },
+      debitCashOnly: true,
+      meta: {
+        otcCash: true,
+        agentId: actorUid,
+        agentName: actorName,
+        withdrawalCode,
+        playerId,
+        earlyWithdrawal: early.earlyPart > 0,
+        fee: early.fee,
+        payoutAmount: early.payoutAmount,
+        bonusForfeited: early.bonusForfeited,
+      },
     });
     tx.set(codeRef, {
       code: withdrawalCode,
@@ -235,6 +261,9 @@ async function doCashWithdraw(opts: {
       agentId: actorUid,
       agentName: actorName,
       amount,
+      payoutAmount: early.payoutAmount,
+      earlyWithdrawalFee: early.fee,
+      bonusForfeited: early.bonusForfeited,
       status: "completed",
       createdAt: FieldValue.serverTimestamp(),
     });

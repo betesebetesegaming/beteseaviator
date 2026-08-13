@@ -1,4 +1,5 @@
 import { apiUrl } from "@/lib/apiUrl";
+import { authFetchHeaders } from "@/lib/authHeaders";
 import { isAviatorDepositRef } from "@/lib/payments/aviatorPaymentRefs";
 import type { RtdbDepositRecord } from "./rtdbRecords";
 
@@ -53,7 +54,7 @@ export async function reconcileDepositExternalRef(
   try {
     const res = await fetch(apiUrl("/modempay-reconcile-deposit"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await authFetchHeaders(),
       body: JSON.stringify({ externalRef }),
     });
     const data = (await res.json().catch(() => ({}))) as ReconcileDepositResult;

@@ -5,6 +5,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firestore';
 import { PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
 import { apiUrl } from "@/lib/apiUrl";
+import { authFetchHeaders } from "@/lib/authHeaders";
 import { depositPresetAmounts, MIN_DEPOSIT_GMD } from "@/lib/depositLimits";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { isTerminalDepositStatus, startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
@@ -183,15 +184,19 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
   const [dragY, setDragY] = useState(0);
 
   useEffect(() => {
-    return onSnapshot(doc(db, 'settings', 'platform'), (snap) => {
-      const providers = (snap.data()?.providers ?? {}) as Record<string, boolean>;
-      setEnabledProviders({
-        wave: providers.wave !== false,
-        afrimoney: providers.afrimoney !== false,
-        aps: providers.aps !== false,
-        qmoney: providers.qmoney !== false,
-      });
-    });
+    return onSnapshot(
+      doc(db, 'settings', 'publicPlatform'),
+      (snap) => {
+        const providers = (snap.data()?.providers ?? {}) as Record<string, boolean>;
+        setEnabledProviders({
+          wave: providers.wave !== false,
+          afrimoney: providers.afrimoney !== false,
+          aps: providers.aps !== false,
+          qmoney: providers.qmoney !== false,
+        });
+      },
+      () => undefined,
+    );
   }, []);
 
   useEffect(() => {
@@ -323,7 +328,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       try {
         const res = await fetch(apiUrl('/modempay-checkout'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await authFetchHeaders(),
           body: JSON.stringify(payload),
           signal: controller.signal,
         });

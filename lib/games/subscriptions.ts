@@ -68,10 +68,14 @@ export function subscribeActiveGames(onGames: (games: Game[]) => void): FsUnsubs
 export function subscribePlatformSettings(
   onSettings: (settings: PlatformSettings) => void
 ): FsUnsubscribe {
-  return onSnapshot(doc(db, "settings", "platform"), (snap) => {
-    const data = (snap.exists() ? snap.data() : {}) as Partial<PlatformSettings>;
-    onSettings(mergePlatformSettings(data));
-  });
+  return onSnapshot(
+    doc(db, "settings", "publicPlatform"),
+    (snap) => {
+      const data = (snap.exists() ? snap.data() : {}) as Partial<PlatformSettings>;
+      onSettings(mergePlatformSettings(data));
+    },
+    () => onSettings(mergePlatformSettings({})),
+  );
 }
 
 export function subscribeGameRound(

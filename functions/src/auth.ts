@@ -1,5 +1,6 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { defineString } from "firebase-functions/params";
+import { getBootstrapKey } from "./bootstrapKey";
 import {
   auth,
   db,
@@ -35,9 +36,7 @@ import { isAgentRole, isStaffRole as isStaffRoleCheck } from "./roles";
 /** WARNING: Do NOT use Firebase Phone Auth for OTP. Gambian SMS = Africell sendOtp/verifyOtp only. */
 
 /** Web API key used to verify agent passwords through the Identity Toolkit REST API. */
-const WEB_API_KEY = defineString("WEB_API_KEY", {
-  default: "AIzaSyCfG9tVqFxcqmOvsR9jI_cyJXi4LLPgFyA",
-});
+const WEB_API_KEY = defineString("WEB_API_KEY", { default: "" });
 
 /**
  * Finishes sign-up for a player: creates profile + wallet atomically, claims
@@ -405,10 +404,15 @@ export const agentLogin = onCall(async (req) => {
   const profile = userDoc.data() as ProfileData;
   if (profile.status !== "active") throw new HttpsError("permission-denied", "Account suspended.");
 
+  const apiKey = WEB_API_KEY.value().trim();
+  if (!apiKey) {
+    throw new HttpsError("failed-precondition", "Staff login is temporarily unavailable.");
+  }
+
   const authEmail = resolveStaffAuthEmail(profile);
 
   const res = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${WEB_API_KEY.value()}`,
+    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -427,62 +431,17 @@ function isStaffRole(role: Role | undefined): boolean {
   return isStaffRoleCheck(role);
 }
 
-async function ensureAdminProfileForUid(uid: string): Promise<void> {
-  const userRef = db.doc(`users/${uid}`);
-  const existing = await userRef.get();
-  if (existing.exists) {
-    const data = existing.data() as ProfileData;
-    if (data.role !== "admin") {
-      throw new HttpsError("permission-denied", "This Firebase account is not an admin.");
-    }
-    await auth.setCustomUserClaims(uid, { role: "admin" });
-    await db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`).set({ uid, role: "admin" }, { merge: true });
-    return;
-  }
-
-  const batch = db.batch();
-  batch.set(userRef, {
-    name: "BETESE Admin",
-    email: PRIMARY_ADMIN_EMAIL,
-    phone: null,
-    role: "admin" satisfies Role,
-    parentId: null,
-    agentSlug: null,
-    staffLoginId: PRIMARY_STAFF_LOGIN,
-    ancestors: [],
-    status: "active",
-    stats: {},
-    createdAt: FieldValue.serverTimestamp(),
-  });
-  batch.set(db.doc(`wallets/${uid}`), {
-    balance: 0,
-    bonusBalance: 0,
-    currency: "GMD",
-    frozen: false,
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-  batch.set(db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`), { uid, role: "admin" });
-  await batch.commit();
-  await auth.setCustomUserClaims(uid, { role: "admin" });
-}
-
-/** After Firebase Auth sign-in, sync staff profile + custom claims (creates admin profile if missing). */
+/** After Firebase Auth sign-in, sync staff profile + custom claims. */
 export const resolveStaffSession = onCall(async (req) => {
   const uid = requireAuth(req);
-  const email = String(req.auth?.token.email ?? "").toLowerCase().trim();
 
-  let snap = await db.doc(`users/${uid}`).get();
+  const snap = await db.doc(`users/${uid}`).get();
 
   if (!snap.exists) {
-    if (email === PRIMARY_ADMIN_EMAIL) {
-      await ensureAdminProfileForUid(uid);
-      snap = await db.doc(`users/${uid}`).get();
-    } else {
-      throw new HttpsError(
-        "not-found",
-        "No staff profile found for this account. Contact BETESE support."
-      );
-    }
+    throw new HttpsError(
+      "not-found",
+      "No staff profile found for this account. Contact BETESE support."
+    );
   }
 
   const profile = snap.data() as ProfileData;
@@ -511,20 +470,25 @@ export const resolveStaffSession = onCall(async (req) => {
   };
 });
 
-const PRIMARY_ADMIN_PASSWORD = "Betese123";
-const ADMIN_BOOTSTRAP_KEY = "beteseaviator-reset-2026";
+function assertBootstrapKey(setupKey: string): void {
+  const expected = getBootstrapKey();
+  if (!expected || setupKey !== expected) {
+    throw new HttpsError("permission-denied", "Bootstrap requires a valid setup key.");
+  }
+}
 
-/** Creates or updates the primary admin (login: admin). Bootstrap requires setupKey; updates require admin auth. */
-export const ensurePrimaryAdmin = onCall({ invoker: "public" }, async (req) => {
-  const password = String(req.data?.password ?? PRIMARY_ADMIN_PASSWORD);
+/** Creates or updates the primary admin (login: admin). Bootstrap requires ADMIN_BOOTSTRAP_KEY env. */
+export const ensurePrimaryAdmin = onCall(async (req) => {
+  const password = String(req.data?.password ?? "").trim();
   if (password.length < 8) {
     throw new HttpsError("invalid-argument", "Password must be at least 8 characters.");
   }
-  const setupKey = String(req.data?.setupKey ?? "");
+  const setupKey = String(req.data?.setupKey ?? "").trim();
 
   const staffSnap = await db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`).get();
   if (staffSnap.exists) {
-    if (setupKey && setupKey === ADMIN_BOOTSTRAP_KEY) {
+    if (setupKey) {
+      assertBootstrapKey(setupKey);
       const uid = staffSnap.data()!.uid as string;
       await auth.updateUser(uid, { password });
       return { ok: true, uid, action: "password_reset_bootstrap" };
@@ -559,8 +523,8 @@ export const ensurePrimaryAdmin = onCall({ invoker: "public" }, async (req) => {
     return { ok: true, uid, action: "linked_existing_admin" };
   }
 
-  if (!req.auth && setupKey !== ADMIN_BOOTSTRAP_KEY) {
-    throw new HttpsError("permission-denied", "Bootstrap requires a valid setup key.");
+  if (!req.auth) {
+    assertBootstrapKey(setupKey);
   }
 
   let uid: string;
@@ -605,6 +569,8 @@ export const ensurePrimaryAdmin = onCall({ invoker: "public" }, async (req) => {
   batch.set(db.doc(`staffLogins/${PRIMARY_STAFF_LOGIN}`), { uid, role: "admin" });
   batch.set(db.doc("settings/platform"), DEFAULT_SETTINGS, { merge: true });
   await batch.commit();
+  const { syncPublicPlatformSettings } = await import("./publicPlatformSettings");
+  await syncPublicPlatformSettings(DEFAULT_SETTINGS as unknown as Record<string, unknown>);
   return { ok: true, uid, action: "created", login: PRIMARY_STAFF_LOGIN, email: PRIMARY_ADMIN_EMAIL };
 });
 
@@ -613,6 +579,9 @@ export const ensurePrimaryAdmin = onCall({ invoker: "public" }, async (req) => {
  * Creates the admin, settings, games and (optionally) the demo hierarchy.
  */
 export const seedPlatform = onCall(async (req) => {
+  const setupKey = String(req.data?.setupKey ?? "").trim();
+  assertBootstrapKey(setupKey);
+
   const adminEmail = String(req.data?.adminEmail ?? "").toLowerCase().trim();
   const adminPassword = String(req.data?.adminPassword ?? "");
   const withDemoData = Boolean(req.data?.withDemoData);
@@ -705,6 +674,8 @@ export const seedPlatform = onCall(async (req) => {
   created.push("admin");
 
   await db.doc("settings/platform").set(DEFAULT_SETTINGS, { merge: true });
+  const { syncPublicPlatformSettings } = await import("./publicPlatformSettings");
+  await syncPublicPlatformSettings(DEFAULT_SETTINGS as unknown as Record<string, unknown>);
   await db.doc("stats/platform").set(
     {
       customerCount: 0,
@@ -740,7 +711,7 @@ export const seedPlatform = onCall(async (req) => {
       "✈️ Aviator — cash out before the crash",
       "💰 Wave & AfriMoney deposits in GMD",
       "🔥 Aviator Turbo — up to x200",
-      "🎁 Demo: phone 3010001 · password: password",
+      "🎁 Demo accounts available — contact BETESE support",
     ],
   });
   created.push("lobby promotions");

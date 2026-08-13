@@ -1,4 +1,5 @@
 import { isAllowedPaymentOrigin } from "./corsMiddleware";
+import { requireBootstrapKey } from "./bootstrapKey";
 import express from "express";
 import { logger } from "firebase-functions/v2";
 import { onRequest } from "firebase-functions/v2/https";
@@ -104,25 +105,13 @@ app.post("/transactions/", (req, res) => void transactionHandler(req, res));
 app.post("/bonus/reward", (req, res) => void rewardHandler(req, res));
 app.post("/bonus/rewards", (req, res) => void rewardHandler(req, res));
 
-app.get("/health", async (_req, res) => {
-  try {
-    const { purgeLegacyLobbyGames, ensureLobbyGamesIfEmpty } = await import("./lobbyGames");
-    // Old deployments recreated native games on health — always purge first.
-    await purgeLegacyLobbyGames();
-    await ensureLobbyGamesIfEmpty();
-  } catch (e) {
-    logger.error("lobby seed on health failed", e);
-  }
+app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true, service: "betese-qtcw" });
 });
 
 /** Purge fake native games + refresh QTech catalog. ?key=beteseaviator-reset-2026 */
 app.get("/bootstrap/purge-fake-games", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { seedAllLobbyGames } = await import("./lobbyGames");
     const result = await seedAllLobbyGames();
@@ -135,11 +124,7 @@ app.get("/bootstrap/purge-fake-games", async (req, res) => {
 
 /** One-time / recovery: seed Aviator + Turbo (+ inactive QTech docs). ?key=beteseaviator-reset-2026 */
 app.get("/bootstrap/seed-lobby", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { seedAllLobbyGames } = await import("./lobbyGames");
     const result = await seedAllLobbyGames();
@@ -152,11 +137,7 @@ app.get("/bootstrap/seed-lobby", async (req, res) => {
 
 /** Sync QTech CDN thumbnails onto lobby game docs. ?key=beteseaviator-reset-2026 */
 app.get("/bootstrap/sync-images", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { syncQTechLobbyImages } = await import("./qtech/gameList");
     const imageSync = await syncQTechLobbyImages();
@@ -169,11 +150,7 @@ app.get("/bootstrap/sync-images", async (req, res) => {
 
 /** Search QTech catalog and optionally import matches. ?key=...&q=chick&import=1 */
 app.get("/bootstrap/search-games", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   const q = String(req.query.q ?? "chick").trim();
   const doImport = String(req.query.import ?? "") === "1";
   try {
@@ -206,11 +183,7 @@ app.get("/bootstrap/search-games", async (req, res) => {
 
 /** List games from QTech API for given providers (when permitted). */
 app.get("/bootstrap/list-games", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   const providers = String(req.query.providers ?? "IOG,INO,INOUT,SPB,EVP,EVO,PPC,BTL").trim();
   const q = String(req.query.q ?? "chick").trim().toLowerCase();
   try {
@@ -224,11 +197,7 @@ app.get("/bootstrap/list-games", async (req, res) => {
 
 /** Debug game id probes. ?key=...&ids=SPB-aviator,IOG-chickenroad */
 app.get("/bootstrap/probe-games", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   const ids = String(req.query.ids ?? "SPB-aviator,SPB-pilotchicken,IOG-chickenroad,INO-chickenroad")
     .split(",")
     .map((s) => s.trim())
@@ -244,11 +213,7 @@ app.get("/bootstrap/probe-games", async (req, res) => {
 
 /** Import explicit game IDs from query string. ?key=...&ids=IOG-chickenroad,SPB-pilotchicken */
 app.get("/bootstrap/import-games", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   const ids = String(req.query.ids ?? "")
     .split(",")
     .map((s) => s.trim())
@@ -270,11 +235,7 @@ app.get("/bootstrap/import-games", async (req, res) => {
 
 /** Fix lobby: sync catalog QTech IDs and remove games that fail launch. */
 app.get("/bootstrap/reconcile-games", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { seedAllLobbyGames } = await import("./lobbyGames");
     const { reconcileQTechLobbyGames, syncQTechLobbyImages } = await import("./qtech/gameList");
@@ -290,11 +251,7 @@ app.get("/bootstrap/reconcile-games", async (req, res) => {
 
 /** Permanently delete inactive non-catalog games (bad auto-imports). */
 app.get("/bootstrap/purge-broken-games", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { purgeBrokenLobbyGames } = await import("./qtech/gameList");
     const purge = await purgeBrokenLobbyGames();
@@ -307,11 +264,7 @@ app.get("/bootstrap/purge-broken-games", async (req, res) => {
 
 /** Remove slot, table, and lottery games from lobby (all providers). */
 app.get("/bootstrap/purge-disallowed-lobby-games", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { purgeDisallowedLobbyGames } = await import("./qtech/gameList");
     const purge = await purgeDisallowedLobbyGames();
@@ -324,11 +277,7 @@ app.get("/bootstrap/purge-disallowed-lobby-games", async (req, res) => {
 
 /** Remove non-catalog auto-imported games (broken provider iframes). */
 app.get("/bootstrap/purge-non-catalog-games", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { purgeNonCatalogLobbyGames } = await import("./qtech/gameList");
     const purge = await purgeNonCatalogLobbyGames();
@@ -341,11 +290,7 @@ app.get("/bootstrap/purge-non-catalog-games", async (req, res) => {
 
 /** Remove IOG slot, table, and lottery games from lobby. */
 app.get("/bootstrap/purge-iog-slots-tables-lottery", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { purgeDisallowedLobbyGames } = await import("./qtech/gameList");
     const purge = await purgeDisallowedLobbyGames();
@@ -358,11 +303,7 @@ app.get("/bootstrap/purge-iog-slots-tables-lottery", async (req, res) => {
 
 /** Import InOut (IOG) games from QTech release — no lottery/loto. */
 app.get("/bootstrap/import-iog-games", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { importIOGProviderGames } = await import("./qtech/gameList");
     const result = await importIOGProviderGames();
@@ -375,11 +316,7 @@ app.get("/bootstrap/import-iog-games", async (req, res) => {
 
 /** Discover chicken games via launch probe and import to Firestore. */
 app.get("/bootstrap/import-chicken-games", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { discoverChickenGamesViaLaunch, importQTechGamesToLobby, syncQTechLobbyImages } =
       await import("./qtech/gameList");
@@ -393,13 +330,9 @@ app.get("/bootstrap/import-chicken-games", async (req, res) => {
   }
 });
 
-/** Patch platform min withdrawal (live). ?key=beteseaviator-reset-2026&min=100 */
+/** Patch platform min withdrawal (live). Requires ADMIN_BOOTSTRAP_KEY. */
 app.get("/bootstrap/set-min-withdrawal", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   const min = Number(req.query.min ?? 100);
   if (!Number.isFinite(min) || min < 0) {
     res.status(400).json({ error: "invalid_min" });
@@ -408,6 +341,8 @@ app.get("/bootstrap/set-min-withdrawal", async (req, res) => {
   try {
     const { db } = await import("./helpers");
     await db.doc("settings/platform").set({ minWithdrawal: min }, { merge: true });
+    const { syncPublicPlatformSettings } = await import("./publicPlatformSettings");
+    await syncPublicPlatformSettings();
     res.status(200).json({ ok: true, minWithdrawal: min });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -416,11 +351,7 @@ app.get("/bootstrap/set-min-withdrawal", async (req, res) => {
 
 /** List player wallets for CW certification setup. ?key=beteseaviator-reset-2026 */
 app.get("/bootstrap/list-cw-players", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { db } = await import("./helpers");
     const snap = await db.collection("users").where("role", "==", "player").limit(30).get();
@@ -450,11 +381,7 @@ app.get("/bootstrap/list-cw-players", async (req, res) => {
 /** Run CW certification + return cw_qtcw_tester.cfg for QTech handover. ?key=beteseaviator-reset-2026 */
 /** Diagnose player login by phone. ?key=beteseaviator-reset-2026&phone=3905806 */
 app.get("/bootstrap/diagnose-player", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { auth, db, normalizePhone, phoneToEmail } = await import("./helpers");
     const phone = normalizePhone(String(req.query.phone ?? ""));
@@ -497,11 +424,7 @@ app.get("/bootstrap/diagnose-player", async (req, res) => {
 });
 
 app.get("/bootstrap/repair-player-login", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { auth, db, normalizePhone, phoneToEmail } = await import("./helpers");
     const { validatePassword } = await import("./passwordPolicy");
@@ -598,11 +521,7 @@ app.get("/bootstrap/repair-player-login", async (req, res) => {
 });
 
 app.get("/bootstrap/reset-player-password", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { auth, db, normalizePhone, phoneToEmail } = await import("./helpers");
     const { validatePassword } = await import("./passwordPolicy");
@@ -669,16 +588,12 @@ app.get("/bootstrap/reset-player-password", async (req, res) => {
   }
 });
 
-/** Diagnose wallet vs ledger (excludes QTech test pollution). ?key=...&phone=3905806 */
+/** Diagnose wallet vs ledger (keeps real QTech wins; strips CW cert + old repairs only). */
 app.get("/bootstrap/diagnose-wallet", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { db, normalizePhone } = await import("./helpers");
-    const { computeLegitimateWallet } = await import("./qtech/walletRepair");
+    const { computeLegitimateWallet, summarizePlayerLedger } = await import("./qtech/walletRepair");
     const phone = normalizePhone(String(req.query.phone ?? req.query.uid ?? ""));
     let uid = String(req.query.uid ?? "").trim();
     if (phone) {
@@ -691,6 +606,12 @@ app.get("/bootstrap/diagnose-wallet", async (req, res) => {
     }
     if (!uid) {
       res.status(400).json({ error: "phone_or_uid_required" });
+      return;
+    }
+    const detail = String(req.query.detail ?? "") === "1";
+    if (detail) {
+      const summary = await summarizePlayerLedger(uid);
+      res.status(200).json({ ok: true, uid, phone: phone || null, ...summary });
       return;
     }
     const walletSnap = await db.doc(`wallets/${uid}`).get();
@@ -716,13 +637,9 @@ app.get("/bootstrap/diagnose-wallet", async (req, res) => {
   }
 });
 
-/** Repair wallet to ledger (removes QTech CW test pollution). ?key=...&phone=3905806&apply=1 */
+/** Repair wallet to ledger (keeps real QTech wins). ?key=...&phone=...&apply=1 */
 app.get("/bootstrap/repair-wallet", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
     const { db, normalizePhone } = await import("./helpers");
     const { computeLegitimateWallet, repairWalletFromLedger } = await import("./qtech/walletRepair");
@@ -744,35 +661,47 @@ app.get("/bootstrap/repair-wallet", async (req, res) => {
     if (!apply) {
       const walletSnap = await db.doc(`wallets/${uid}`).get();
       const ledger = await computeLegitimateWallet(uid);
+      const currentCash = Number(walletSnap.data()?.balance ?? 0);
+      const currentBonus = Number(walletSnap.data()?.bonusBalance ?? 0);
       res.status(200).json({
         uid,
         phone: phone || null,
         dryRun: true,
-        current: {
-          cash: Number(walletSnap.data()?.balance ?? 0),
-          bonus: Number(walletSnap.data()?.bonusBalance ?? 0),
+        current: { cash: currentCash, bonus: currentBonus },
+        ledger: { cash: ledger.cash, bonus: ledger.bonus },
+        wouldSet: {
+          cash: Math.max(currentCash, ledger.cash),
+          bonus: Math.max(currentBonus, ledger.bonus),
         },
-        wouldSet: { cash: ledger.cash, bonus: ledger.bonus },
-        excludedQTechTxns: ledger.excludedCount,
-        hint: "Add &apply=1 to apply the repair.",
+        excludedNonEconomicTxns: ledger.excludedCount,
+        hint: "Add &apply=1 to CREDIT missing funds only. This endpoint never reduces a wallet.",
       });
       return;
     }
-    const result = await repairWalletFromLedger(uid, "Remove QTech CW test pollution");
+    const result = await repairWalletFromLedger(uid, "Restore missing funds only (never decrease)");
     res.status(200).json({ ok: true, uid, phone: phone || null, ...result });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
 });
 
-app.get("/bootstrap/refresh-cw-sessions", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+/** Find/repair real customers touched by CW certification sessions. ?key=...&apply=1 */
+app.get("/bootstrap/repair-cw-polluted-wallets", async (req, res) => {
+  if (!requireBootstrapKey(req, res)) return;
   try {
-    const playerUid = String(req.query.playerUid ?? "").trim() || undefined;
+    const apply = String(req.query.apply ?? "") === "1";
+    const limit = req.query.limit !== undefined ? Number(req.query.limit) : 50;
+    const { repairCwPollutedCustomerWallets } = await import("./qtech/walletRepair");
+    const result = await repairCwPollutedCustomerWallets({ apply, limit });
+    res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+app.get("/bootstrap/refresh-cw-sessions", async (req, res) => {
+  if (!requireBootstrapKey(req, res)) return;
+  try {
     const { seedCwTestSessions, buildCwTesterCfg } = await import("./qtech/cwTester");
     const { getQTechSettings } = await import("./qtech/config");
     const { ensureCwTestPlayer } = await import("./qtech/cwTestPlayer");
@@ -783,14 +712,12 @@ app.get("/bootstrap/refresh-cw-sessions", async (req, res) => {
       return;
     }
 
-    let uid = playerUid;
-    if (!uid) {
-      const player = await ensureCwTestPlayer();
-      uid = player.uid;
-    }
+    // Always the dedicated CW test player — never a real customer.
+    const player = await ensureCwTestPlayer();
+    const uid = player.uid;
 
     const gameId = String(req.query.gameId ?? "SPB-aviator").trim();
-    const sessions = await seedCwTestSessions(uid, "qtech-crash", gameId);
+    const sessions = await seedCwTestSessions(uid, undefined, gameId);
     const cfg = buildCwTesterCfg({
       passKey: settings.passKey,
       playerId: uid,
@@ -816,15 +743,11 @@ app.get("/bootstrap/refresh-cw-sessions", async (req, res) => {
 });
 
 app.get("/bootstrap/run-cw-certification", async (req, res) => {
-  const key = String(req.query.key ?? "");
-  if (key !== "beteseaviator-reset-2026") {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+  if (!requireBootstrapKey(req, res)) return;
   try {
-    const playerUid = String(req.query.playerUid ?? "").trim() || undefined;
     const { runCwHandoverPackage } = await import("./qtech/cwTester");
-    const pkg = await runCwHandoverPackage({ playerUid });
+    // Always dedicated CW test player — ignore any customer UID query param.
+    const pkg = await runCwHandoverPackage({});
     res.status(200).json(pkg);
   } catch (e) {
     logger.error("bootstrap run-cw-certification failed", e);

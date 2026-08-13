@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import type { Request, Response } from 'express';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
+import type { AuthenticatedRequest } from '../httpAuth';
 import {
   createCheckoutSession,
   createTransfer,
@@ -17,6 +18,7 @@ import {
   modemPayErrorMessage,
   modemPayMethodLabel,
   normalizeModemPayAccountNumber,
+  sanitizeBeneficiaryName,
   MODEMPAY_CARD_MIN_GMD,
   type ModemPayMethod,
   type ModemPayPayoutNetwork,
@@ -46,6 +48,19 @@ import {
 function serializeError(err: unknown): { message: string; stack?: string } {
   if (err instanceof Error) return { message: err.message, stack: err.stack };
   return { message: String(err) };
+}
+
+function callerUid(req: Request): string {
+  return (req as AuthenticatedRequest).authUid || '';
+}
+
+function denyUnlessCallerOwns(req: Request, res: Response, customerId: string): boolean {
+  const uid = callerUid(req);
+  if (!uid || !customerId || customerId !== uid) {
+    res.status(403).json({ error: 'Not allowed for this account.' });
+    return false;
+  }
+  return true;
 }
 
 /** Credit wallets/{uid} when checkout completed but sync failed (idempotent via flag). */
@@ -342,6 +357,11 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
   }
 
   const customerId = body.customerId ? String(body.customerId).trim() : '';
+  if (!customerId) {
+    res.status(400).json({ error: 'customerId is required' });
+    return;
+  }
+  if (!denyUnlessCallerOwns(req, res, customerId)) return;
   if (customerId) {
     if (!Number.isFinite(amount) || amount < MIN_DEPOSIT_GMD) {
       res.status(400).json({ error: `Minimum deposit is GMD ${MIN_DEPOSIT_GMD}.` });
@@ -735,12 +755,16 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
     customerId = customerId || String(requestData.user_id || '');
     if (!Number.isFinite(amount) || amount <= 0) amount = Number(requestData.amount || 0);
     recipientPhone = recipientPhone || String(requestData.recipient_phone || '');
-    recipientName = recipientName || String(requestData.user_name || 'Customer');
+    // ModemPay requires ≥3 chars — short nicknames like "Ik" must be padded.
+    recipientName = sanitizeBeneficiaryName(
+      recipientName || String(requestData.user_name || ''),
+    );
 
     if (!customerId) {
       res.status(400).json({ error: 'customerId is required' });
       return;
     }
+    if (!denyUnlessCallerOwns(req, res, customerId)) return;
     if (!Number.isFinite(amount) || amount <= 0) {
       res.status(400).json({ error: 'amount must be a positive number' });
       return;
@@ -782,8 +806,8 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
     }
     const walletPreview = parsePlaythroughWallet(walletSnap.data(), walletSnap.exists);
     if (walletPreview.balance < amount) {
-      await failWithdrawalWithoutHold(requestId, customerId, 'Insufficient balance.');
-      res.status(400).json({ error: 'Insufficient balance.' });
+      await failWithdrawalWithoutHold(requestId, customerId, 'Insufficient cash balance. Bonus funds cannot be withdrawn.');
+      res.status(400).json({ error: 'Insufficient cash balance. Bonus funds cannot be withdrawn.' });
       return;
     }
 
@@ -805,7 +829,9 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
 
         const wallet = await walletRead(tx, customerId);
         if (wallet.frozen) throw new Error('Wallet is frozen.');
-        if (wallet.balance < amount) throw new Error('Insufficient balance.');
+        if (wallet.balance < amount) {
+          throw new Error('Insufficient cash balance. Bonus funds cannot be withdrawn.');
+        }
 
         const early = applyEarlyWithdrawalPenalties(tx, customerId, wallet, amount, settings, requestId);
         payoutAmount = early.payoutAmount;
@@ -815,6 +841,7 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
           amount: -amount,
           type: 'withdrawal',
           description: `Withdrawal hold (${requestId})`,
+          debitCashOnly: true,
           meta: {
             externalRef: requestId,
             source: 'modempay',
@@ -1937,7 +1964,22 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
     return;
   }
 
+  const uid = callerUid(req);
+  if (!uid) {
+    res.status(401).json({ error: 'Sign in required.' });
+    return;
+  }
+
   try {
+    const depositSnap = await adminDb.collection('deposit_requests').doc(externalRef).get();
+    if (depositSnap.exists) {
+      const owner = String(depositSnap.data()?.customer_id || '');
+      if (owner && owner !== uid) {
+        res.status(403).json({ error: 'Not allowed for this deposit.' });
+        return;
+      }
+    }
+
     const checkoutSnap = await adminDb.collection('modempay_checkouts').doc(externalRef).get();
     if (!checkoutSnap.exists) {
       // No checkout marker — its write may have been lost. Do NOT hard-404: the
@@ -1962,9 +2004,16 @@ export async function reconcileDepositHandler(req: Request, res: Response): Prom
       amount?: number;
       credited_amount?: number;
       method?: string;
+      customer_id?: string | null;
     };
-    const depositSnap = await adminDb.collection('deposit_requests').doc(externalRef).get();
-    const depositStatus = String(depositSnap.data()?.status || 'Pending');
+    const checkoutOwner = String(checkout.customer_id || depositSnap.data()?.customer_id || '');
+    if (checkoutOwner && checkoutOwner !== uid) {
+      res.status(403).json({ error: 'Not allowed for this deposit.' });
+      return;
+    }
+    const depositStatus = depositSnap.exists
+      ? String(depositSnap.data()?.status || 'Pending')
+      : 'Pending';
 
     let checkoutStatus = String(checkout.status || 'pending').toLowerCase();
     let providerPayload = checkout.raw_payload || {};

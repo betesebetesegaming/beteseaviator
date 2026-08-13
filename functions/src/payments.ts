@@ -115,12 +115,19 @@ export const requestWithdrawal = onCall(async (req) => {
   const ref = db.collection("paymentRequests").doc();
   await db.runTransaction(async (tx) => {
     const wallet = await walletRead(tx, uid);
+    if (wallet.frozen) {
+      throw new HttpsError("failed-precondition", "Wallet is frozen. Contact customer service.");
+    }
+    if (wallet.balance < amount) {
+      throw new HttpsError("failed-precondition", "Insufficient cash balance. Bonus funds cannot be withdrawn.");
+    }
     const early = applyEarlyWithdrawalPenalties(tx, uid, wallet, amount, settings, ref.id);
     walletWrite(tx, wallet, {
       uid,
       amount: -amount,
       type: "withdrawal",
       description: "Withdrawal",
+      debitCashOnly: true,
       meta: {
         provider,
         phone,

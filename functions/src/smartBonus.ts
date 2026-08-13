@@ -1004,6 +1004,48 @@ export const processHappyHour = onSchedule(
   }
 );
 
+/**
+ * True when the player logged in or placed a bet within `activeDays`.
+ *
+ * Prefers the nightly `playerHealth` snapshot when it exists, but falls back to
+ * live signals (last-login ping + most recent bet) when it doesn't — otherwise a
+ * Happy Hour reaches nobody unless the Smart Bonus analysis has already populated
+ * playerHealth (which it only does when Smart Bonus is enabled). Both fallbacks are
+ * single indexed reads, so the every-minute worker stays cheap.
+ */
+async function isRecentlyActive(
+  uid: string,
+  health: FirebaseFirestore.DocumentData,
+  activeDays: number,
+  nowMs: number
+): Promise<boolean> {
+  const fromHealth = Math.min(
+    Number(health.daysSinceLastBet ?? Infinity),
+    Number(health.daysSinceLastLogin ?? Infinity)
+  );
+  if (Number.isFinite(fromHealth)) return fromHealth <= activeDays;
+
+  const cutoff = nowMs - activeDays * DAY_MS;
+
+  // Last-login ping (single doc read).
+  const activity = (await db.doc(`playerActivity/${uid}`).get()).data() ?? {};
+  const loginMs = (activity.lastLoginAt as FirebaseFirestore.Timestamp | null)?.toMillis?.() ?? null;
+  if (loginMs && loginMs >= cutoff) return true;
+
+  // Most recent bet (single read via the userId + type + createdAt index).
+  const betSnap = await db
+    .collection("transactions")
+    .where("userId", "==", uid)
+    .where("type", "==", "bet")
+    .orderBy("createdAt", "desc")
+    .limit(1)
+    .get();
+  const betMs = betSnap.empty
+    ? null
+    : (betSnap.docs[0].data().createdAt as FirebaseFirestore.Timestamp | null)?.toMillis?.() ?? null;
+  return betMs != null && betMs >= cutoff;
+}
+
 async function processHappyHourCore(): Promise<void> {
   const snap = await db.collection("happyHourCampaigns").where("status", "==", "running").limit(1).get();
   if (snap.empty) return;
@@ -1034,6 +1076,7 @@ async function processHappyHourCore(): Promise<void> {
   let smsSent = Number(c.smsSent ?? 0);
   let smsFailed = Number(c.smsFailed ?? 0);
   let skipped = Number(c.skipped ?? 0);
+  const nowMs = Date.now();
 
   let q = db
     .collection("users")
@@ -1050,11 +1093,11 @@ async function processHappyHourCore(): Promise<void> {
     try {
       const u = userDoc.data();
       const health = (await db.doc(`playerHealth/${userDoc.id}`).get()).data() ?? {};
-      const days = Number(health.daysSinceLastBet ?? Infinity);
-      if (!(days <= activeDays)) {
+      if (!(await isRecentlyActive(userDoc.id, health, activeDays, nowMs))) {
         skipped += 1;
         continue; // not a recently-active player
       }
+      const daysBet = Number(health.daysSinceLastBet ?? NaN);
 
       const offerId = await createOfferIfEligible({
         uid: userDoc.id,
@@ -1065,7 +1108,7 @@ async function processHappyHourCore(): Promise<void> {
         playerNumber: (u.playerNumber as number | null) ?? null,
         healthScore: Number(health.healthScore ?? 0),
         tier: (health.tier as HealthTier) ?? "active",
-        daysInactive: Number.isFinite(days) ? days : 0,
+        daysInactive: Number.isFinite(daysBet) ? daysBet : 0,
         bonusAmount,
         matchDeposit,
         wagerMultiplier,

@@ -166,6 +166,10 @@ export const adminSetUserStatus = onCall(async (req) => {
   }
 
   await db.doc(`users/${uid}`).update({ status });
+  const profileRole = profile.role;
+  if (profileRole) {
+    await auth.setCustomUserClaims(uid, { role: profileRole });
+  }
   if (profile.agentSlug) {
     await db.doc(`slugs/${profile.agentSlug}`).set(
       { active: status === "active" },
@@ -550,6 +554,8 @@ export const adminSaveSettings = onCall(async (req) => {
   }
 
   await db.doc("settings/platform").set(clean, { merge: true });
+  const { syncPublicPlatformSettings } = await import("./publicPlatformSettings");
+  await syncPublicPlatformSettings(clean);
   if (clean.qtech) {
     const { clearAllQTechRuntimeCaches } = await import("./qtech/clearCaches");
     clearAllQTechRuntimeCaches();
@@ -802,7 +808,6 @@ export const adminRefreshDailyDemos = onCall(async (req) => {
       role: "Customer",
       login: demo.phone,
       loginHint: "Phone number at sign-in",
-      password,
       balance: `${demo.balance.toLocaleString()} GMD`,
       description: `Today's demo account (${date}). Resets daily.`,
     });
@@ -810,12 +815,15 @@ export const adminRefreshDailyDemos = onCall(async (req) => {
 
   await db.doc("settings/demoAccounts").set({
     date,
-    password,
     accounts,
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  return { ok: true, date, accounts };
+  return {
+    ok: true,
+    date,
+    accounts: accounts.map((a) => ({ ...a, password })),
+  };
 });
 
 /** Admin toggles lobby games (Aviator/Crash via QTech or native). */
@@ -1109,6 +1117,8 @@ export const adminSaveQTechSettings = onCall(async (req) => {
     lobbyUrl: String(qt.lobbyUrl ?? "https://www.beteseaviator.com/play").trim().slice(0, 256),
   };
   await db.doc("settings/platform").set({ qtech }, { merge: true });
+  const { syncPublicPlatformSettings } = await import("./publicPlatformSettings");
+  await syncPublicPlatformSettings({ qtech });
   const { clearAllQTechRuntimeCaches } = await import("./qtech/clearCaches");
   clearAllQTechRuntimeCaches();
   const { getQTechSetupStatus } = await import("./qtech/games");

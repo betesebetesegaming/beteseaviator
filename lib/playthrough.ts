@@ -85,7 +85,8 @@ export function previewWithdrawal(
   const earlyPart = playthroughMet ? 0 : round2(Math.max(0, amount - freeWithdrawable));
   const fee = earlyPart > 0 ? round2(earlyPart * earlyFeeRate) : 0;
   const payoutAmount = round2(Math.max(0, amount - fee));
-  const bonusForfeited = earlyPart > 0 ? round2(Number(wallet.bonusBalance ?? 0)) : 0;
+  // Bonus is never withdrawable — any cash withdrawal forfeits remaining bonus.
+  const bonusForfeited = round2(Number(wallet.bonusBalance ?? 0));
   return {
     playthroughMet,
     fee,

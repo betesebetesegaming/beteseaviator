@@ -15,6 +15,7 @@ import {
   webhookHandler,
   reconcileDepositHandler,
 } from "./routes/modempay";
+import { requireHttpAuth, requireHttpRole } from "./httpAuth";
 
 /**
  * Single Cloud Function hosting every ModemPay route (same handlers as betesepmu).
@@ -35,17 +36,20 @@ app.post(
 
 app.use(express.json({ limit: "6mb" }));
 
-app.post("/modempay-checkout", (req, res) => void checkoutHandler(req, res));
-app.post("/wave-payment", (req, res) => void wavePaymentHandler(req, res));
-app.post("/aps-payment", (req, res) => void apsPaymentHandler(req, res));
-app.post("/afrimoney-payment", (req, res) => void afrimoneyPaymentHandler(req, res));
-app.post("/qmoney-payment", (req, res) => void qmoneyPaymentHandler(req, res));
-app.post("/card-payment", (req, res) => void cardPaymentHandler(req, res));
-app.post("/modempay-payout", (req, res) => void payoutHandler(req, res));
-app.post("/modempay-refund", (req, res) => void refundHandler(req, res));
-app.get("/modempay-balances", (req, res) => void balancesHandler(req, res));
-app.get("/modempay-transactions/:id", (req, res) => void transactionHandler(req, res));
-app.post("/modempay-reconcile-deposit", (req, res) => void reconcileDepositHandler(req, res));
+const playerAuth = requireHttpAuth();
+const adminAuth = requireHttpRole(["admin"]);
+
+app.post("/modempay-checkout", playerAuth, (req, res) => void checkoutHandler(req, res));
+app.post("/wave-payment", playerAuth, (req, res) => void wavePaymentHandler(req, res));
+app.post("/aps-payment", playerAuth, (req, res) => void apsPaymentHandler(req, res));
+app.post("/afrimoney-payment", playerAuth, (req, res) => void afrimoneyPaymentHandler(req, res));
+app.post("/qmoney-payment", playerAuth, (req, res) => void qmoneyPaymentHandler(req, res));
+app.post("/card-payment", playerAuth, (req, res) => void cardPaymentHandler(req, res));
+app.post("/modempay-payout", playerAuth, (req, res) => void payoutHandler(req, res));
+app.post("/modempay-refund", adminAuth, (req, res) => void refundHandler(req, res));
+app.get("/modempay-balances", adminAuth, (req, res) => void balancesHandler(req, res));
+app.get("/modempay-transactions/:id", adminAuth, (req, res) => void transactionHandler(req, res));
+app.post("/modempay-reconcile-deposit", playerAuth, (req, res) => void reconcileDepositHandler(req, res));
 
 export const modempayApi = onRequest(
   {

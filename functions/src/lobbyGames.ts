@@ -93,9 +93,13 @@ export async function seedAllLobbyGames(): Promise<{
   qtechGameIds: string[];
   removedGameIds: string[];
   total: number;
+  clearedExclusions?: string[];
   imageSync?: { updated: string[]; skipped: string[]; missing: string[] };
 }> {
   const removedGameIds = await purgeLegacyLobbyGames();
+  const { QTECH_GAME_SEEDS } = await import("./gameCatalog");
+  const { clearExcludedLobbyGameIds } = await import("./lobbyExclusions");
+  const clearedExclusions = await clearExcludedLobbyGameIds(QTECH_GAME_SEEDS.map((s) => s.id));
   const { ensureQTechGameDocs } = await import("./qtech/games");
   const qtechGameIds = await ensureQTechGameDocs();
   await ensureFeaturedFootballCrashGames();
@@ -110,6 +114,7 @@ export async function seedAllLobbyGames(): Promise<{
     qtechGameIds,
     removedGameIds,
     total: qtechGameIds.length,
+    clearedExclusions,
     imageSync,
   };
 }

@@ -1,7 +1,7 @@
 import type { Game } from "@/lib/types";
 import { isAllowedLobbyGame } from "@/lib/lobbyGamePolicy";
 
-/** Player lobby: active QTech games with a real catalog game ID only. */
+/** Player lobby: active QTech games that pass lobby policy (crash / instant win). */
 export function isPlayerLobbyGame(
   game: Pick<Game, "engine" | "status" | "qtechGameId" | "name" | "id">,
 ): boolean {
@@ -14,7 +14,7 @@ export function isPlayerLobbyGame(
   });
 }
 
-/** Admin dashboard + promos: QTech catalog games only. */
+/** Admin dashboard + promos: any QTech lobby game doc. */
 export function isLobbyGame(game: Pick<Game, "engine" | "qtechGameId">): boolean {
   return game.engine === "qtech" && String(game.qtechGameId ?? "").trim().length > 0;
 }

@@ -4,6 +4,7 @@ import { logger } from "firebase-functions/v2";
 import { resolveLobbyGameId } from "../gameCatalog";
 import { db, requireRole } from "../helpers";
 import { getQTechAccessToken, qtechNetworkError, shouldRefreshQTechToken } from "./auth";
+import { qtechFetch } from "./http";
 import { getQTechSettings } from "./config";
 import {
   deriveQtechGameIdFromDocId,
@@ -106,7 +107,7 @@ async function fetchLaunchUrl(
   }> {
     let res: Response;
     try {
-      res = await fetch(url, {
+      res = await qtechFetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

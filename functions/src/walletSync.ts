@@ -91,6 +91,7 @@ export async function syncAviatorWalletDebit(
       amount: -amount,
       type: "withdrawal",
       description: `Withdrawal hold (${externalRef})`,
+      debitCashOnly: true,
       meta: { externalRef, source: "modempay" },
     });
   });

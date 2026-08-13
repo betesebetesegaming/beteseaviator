@@ -2,6 +2,7 @@ import * as crypto from "crypto";
 import { db, FieldValue, round2, walletRead, walletWrite } from "../helpers";
 import { getQTechSettings } from "./config";
 import { createWalletSession } from "./session";
+import { ensureCwTestPlayer, CW_TEST_LOBBY_GAME_ID } from "./cwTestPlayer";
 
 const TEST_AMOUNT = 10;
 const MIN_BALANCE = 50;
@@ -307,7 +308,7 @@ async function runIdempotencyChecks(ctx: CwCtx, steps: Step[]): Promise<void> {
 
 export async function seedCwTestSessions(
   uid: string,
-  gameId = "qtech-crash",
+  gameId = CW_TEST_LOBBY_GAME_ID,
   qtechGameId = GAME_ID
 ): Promise<{ active: string; expired: string }> {
   const active = await createWalletSession(uid, gameId, qtechGameId);
@@ -345,24 +346,20 @@ async function ensureCwTestFunding(uid: string, targetBalance: number): Promise<
   return round2(Number(after.data()?.balance ?? 0) + Number(after.data()?.bonusBalance ?? 0));
 }
 
-import { ensureCwTestPlayer } from "./cwTestPlayer";
-
 async function pickTestPlayer(preferredUid?: string): Promise<{
   uid: string;
   balance: number;
 }> {
+  // Never run CW certification against a real customer wallet.
   if (preferredUid) {
-    const user = await db.doc(`users/${preferredUid}`).get();
-    if (!user.exists || user.data()?.role !== "player") {
-      throw new Error("Player UID not found or not a player account.");
+    const dedicated = await ensureCwTestPlayer();
+    if (preferredUid.trim() !== dedicated.uid) {
+      throw new Error(
+        "Common Wallet tests may only use the dedicated CW test player (phone 9900099). Do not enter a real customer UID.",
+      );
     }
-    const wallet = await db.doc(`wallets/${preferredUid}`).get();
-    const balance = round2(
-      Number(wallet.data()?.balance ?? 0) + Number(wallet.data()?.bonusBalance ?? 0)
-    );
-    return { uid: preferredUid, balance };
+    return dedicated;
   }
-
   return ensureCwTestPlayer();
 }
 
@@ -420,7 +417,7 @@ export async function runQTechCwTestSuite(opts?: {
   }
 
   const gameId = opts?.gameId ?? GAME_ID;
-  const sessions = await seedCwTestSessions(player.uid, "qtech-crash", gameId);
+  const sessions = await seedCwTestSessions(player.uid, CW_TEST_LOBBY_GAME_ID, gameId);
   const ctx: CwCtx = {
     baseUrl,
     passKey: cfg.passKey,

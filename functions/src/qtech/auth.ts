@@ -1,6 +1,7 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { getQTechSettings } from "./config";
+import { qtechFetch } from "./http";
 import { isIntApiBase } from "./runtimeCache";
 
 type TokenCache = { key: string; token: string; expiresAt: number };
@@ -62,7 +63,7 @@ export async function getQTechAccessToken(
 
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await qtechFetch(url, {
       method: "GET",
       headers: { Accept: "application/json" },
     });

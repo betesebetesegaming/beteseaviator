@@ -45,9 +45,13 @@ export default function AgentWalletPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    return onSnapshot(doc(db, "settings", "platform"), (snap) => {
-      if (snap.exists()) setSettings({ ...DEFAULT_SETTINGS, ...(snap.data() as PlatformSettings) });
-    });
+    return onSnapshot(
+      doc(db, "settings", "publicPlatform"),
+      (snap) => {
+        if (snap.exists()) setSettings({ ...DEFAULT_SETTINGS, ...(snap.data() as PlatformSettings) });
+      },
+      () => undefined,
+    );
   }, []);
 
   useEffect(() => {

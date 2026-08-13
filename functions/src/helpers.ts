@@ -72,6 +72,7 @@ export type Provider = (typeof PROVIDERS)[number];
 export const MIN_DEPOSIT_GMD = 25;
 
 let minDepositMigrationQueued = false;
+let publicPlatformSyncQueued = false;
 
 /** One-time write: legacy Firestore minDeposit (e.g. 50/20) → MIN_DEPOSIT_GMD. */
 function ensureMinDepositMigration(stored: unknown): void {
@@ -221,11 +222,25 @@ export function txnReference(): string {
     .toUpperCase()}`;
 }
 
+function ensurePublicPlatformSync(data: FirebaseFirestore.DocumentData): void {
+  if (publicPlatformSyncQueued) return;
+  publicPlatformSyncQueued = true;
+  void import("./publicPlatformSettings")
+    .then(({ syncPublicPlatformSettings }) =>
+      syncPublicPlatformSettings(data as Record<string, unknown>),
+    )
+    .catch((err) => {
+      publicPlatformSyncQueued = false;
+      console.warn("publicPlatform sync failed", err);
+    });
+}
+
 export async function getSettings(): Promise<Settings> {
   const snap = await db.doc("settings/platform").get();
   const data = snap.data() ?? {};
   const { minDeposit: storedMinDeposit, ...platformRest } = data;
   ensureMinDepositMigration(storedMinDeposit);
+  ensurePublicPlatformSync(data);
   return {
     ...DEFAULT_SETTINGS,
     ...platformRest,
@@ -402,6 +417,10 @@ export function walletWrite(
     wallet.bonusBalance = round2(wallet.bonusBalance + amount);
   } else {
     wallet.balance = round2(wallet.balance + amount);
+  }
+
+  if (wallet.balance < 0 || wallet.bonusBalance < 0) {
+    throw new HttpsError("failed-precondition", "Wallet balance cannot go negative.");
   }
 
   tx.set(

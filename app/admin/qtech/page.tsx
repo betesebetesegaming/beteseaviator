@@ -92,7 +92,6 @@ export default function AdminQTechPage() {
   const [previewing, setPreviewing] = useState(false);
   const [cwTesting, setCwTesting] = useState(false);
   const [cwResult, setCwResult] = useState<QTechCwTestResult | null>(null);
-  const [testPlayerUid, setTestPlayerUid] = useState("");
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -727,17 +726,12 @@ export default function AdminQTechPage() {
         </p>
         <ul className="mt-3 list-inside list-disc text-xs text-slate-500">
           <li>Pass-Key must be saved in section 3 above.</li>
-          <li>Uses a player wallet with at least 200 GMD playable balance (cash + bonus).</li>
-          <li>Test amount defaults to 10 GMD per bet — real money moves on the test player.</li>
+          <li>
+            Always uses the dedicated CW test player (phone <code className="text-slate-300">9900099</code>) —
+            never a real customer.
+          </li>
+          <li>Test amount defaults to 10 GMD per bet on that test wallet only.</li>
         </ul>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <Input
-            label="Test player UID (optional)"
-            placeholder="Auto-pick highest-balance player"
-            value={testPlayerUid}
-            onChange={(e) => setTestPlayerUid(e.target.value)}
-          />
-        </div>
         <Button
           className="mt-4"
           onClick={async () => {
@@ -748,9 +742,7 @@ export default function AdminQTechPage() {
             setCwTesting(true);
             setCwResult(null);
             try {
-              const res = await adminRunQTechCwTest({
-                playerUid: testPlayerUid.trim() || undefined,
-              });
+              const res = await adminRunQTechCwTest({});
               setCwResult(res);
               if (res.ok) {
                 toast.success(`Common Wallet tests passed in ${Math.round(res.durationMs / 1000)}s`);

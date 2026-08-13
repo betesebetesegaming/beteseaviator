@@ -7,7 +7,7 @@
  * roll back a bonus credit or block an admin action. The caller logs the result.
  */
 import { logger } from "firebase-functions/v2";
-import { sendViaAfricell } from "./routes/otp";
+import { sendSmsWithFallback } from "./routes/otp";
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || "https://www.beteseaviator.com").replace(/\/+$/, "");
 
@@ -79,8 +79,10 @@ export async function sendBonusSms(
   const msisdn = toMsisdn(phone);
   if (!msisdn) return { ok: false, error: "no phone number on file" };
   try {
-    const { messageId } = await sendViaAfricell(msisdn, withLink(message));
-    logger.info("smartBonus SMS sent", { msisdn, messageId });
+    // Same Africell → PMU failover as withdrawal/signup OTP. Direct Africell from
+    // Aviator us-central1 often times out; without PMU, Happy Hour texts all fail.
+    const { messageId, via } = await sendSmsWithFallback(msisdn, withLink(message));
+    logger.info("smartBonus SMS sent", { msisdn, messageId, via });
     return { ok: true, messageId };
   } catch (e) {
     logger.warn("smartBonus SMS failed", { msisdn, error: String(e) });

@@ -111,11 +111,16 @@ export function recordDepositPlaythrough(
   depositAmount: number
 ): void {
   if (depositAmount <= 0) return;
+  // Stale progress from when nothing was pending must not auto-unlock a new deposit.
+  if (wallet.pendingDepositTotal <= 0) {
+    wallet.depositWagerProgress = 0;
+  }
   wallet.pendingDepositTotal = round2(wallet.pendingDepositTotal + depositAmount);
   tx.set(
     db.doc(`wallets/${uid}`),
     {
       pendingDepositTotal: wallet.pendingDepositTotal,
+      depositWagerProgress: wallet.depositWagerProgress,
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true }
@@ -209,7 +214,10 @@ export function applyBetWagering(
   if (betAmount <= 0) return;
   const { depositRate } = playthroughRates(settings);
 
-  wallet.depositWagerProgress = round2(wallet.depositWagerProgress + betAmount);
+  // Only count toward deposit playthrough while a deposit is still locked.
+  if (wallet.pendingDepositTotal > 0) {
+    wallet.depositWagerProgress = round2(wallet.depositWagerProgress + betAmount);
+  }
   if (fromBonus > 0) {
     wallet.bonusWagerProgress = round2(wallet.bonusWagerProgress + fromBonus);
   }
@@ -259,11 +267,13 @@ export function evaluateEarlyWithdrawal(
     : round2(Math.max(0, withdrawAmount - freeWithdrawable));
   const fee = earlyPart > 0 ? round2(earlyPart * earlyFeeRate) : 0;
   const payoutAmount = round2(Math.max(0, withdrawAmount - fee));
+  // Bonus is never withdrawable; any cash withdrawal forfeits remaining bonus.
+  const bonusForfeited = round2(wallet.bonusBalance);
   return {
     playthroughMet,
     fee,
     payoutAmount,
-    bonusForfeited: earlyPart > 0 ? round2(wallet.bonusBalance) : 0,
+    bonusForfeited,
     requiredWager,
     wagerProgress: wallet.depositWagerProgress,
     pendingDeposit: wallet.pendingDepositTotal,
@@ -273,8 +283,10 @@ export function evaluateEarlyWithdrawal(
 }
 
 /**
- * Early withdrawal of locked deposit: forfeit bonus + fee on early part only.
- * Free unlock (played + winnings) pays 100%. Returns ModemPay send amount.
+ * Cash withdrawal security:
+ * - Bonus balance is NEVER paid out (forfeited on any withdrawal).
+ * - Early withdrawal of locked deposit: fee on early part only.
+ * - Free unlock (played + winnings) pays 100% of cash. Returns ModemPay send amount.
  */
 export function applyEarlyWithdrawalPenalties(
   tx: FirebaseFirestore.Transaction,
@@ -285,8 +297,8 @@ export function applyEarlyWithdrawalPenalties(
   requestId: string
 ): EarlyWithdrawalResult {
   const result = evaluateEarlyWithdrawal(wallet, withdrawAmount, settings);
-  if (result.earlyPart <= 0) return result;
 
+  // Always strip unconverted bonus before cash leaves — bonus is play-only until wagered.
   if (result.bonusForfeited > 0 && wallet.bonusBalance > 0) {
     const forfeited = round2(wallet.bonusBalance);
     const cashBefore = wallet.balance;
@@ -311,11 +323,18 @@ export function applyEarlyWithdrawalPenalties(
       balanceAfter: wallet.balance,
       reference: txnReference(),
       status: "completed",
-      description: "Bonus forfeited — early withdrawal before full deposit turnover",
-      meta: { requestId, source: "early_withdrawal" },
+      description: result.earlyPart > 0
+        ? "Bonus forfeited — early withdrawal before full deposit turnover"
+        : "Bonus forfeited — cash withdrawal before bonus wagering complete",
+      meta: {
+        requestId,
+        source: result.earlyPart > 0 ? "early_withdrawal" : "withdrawal_bonus_forfeit",
+      },
       createdAt: FieldValue.serverTimestamp(),
     });
   }
+
+  if (result.earlyPart <= 0) return result;
 
   if (result.fee > 0) {
     tx.set(db.collection("transactions").doc(), {

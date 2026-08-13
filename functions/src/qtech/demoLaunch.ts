@@ -1,8 +1,10 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { db } from "../helpers";
-import { isCatalogQTechGameId, resolveLobbyGameId } from "../gameCatalog";
+import { resolveLobbyGameId } from "../gameCatalog";
+import { isValidQTechGameIdFormat } from "../lobbyGamePolicy";
 import { getQTechAccessToken, qtechNetworkError, shouldRefreshQTechToken } from "./auth";
+import { qtechFetch } from "./http";
 import { getQTechSettings } from "./config";
 import {
   demoLaunchCacheGet,
@@ -26,14 +28,14 @@ export function parsePlayDevice(raw: string | undefined): QTechPlayDevice {
   return String(raw || "mobile").toLowerCase() === "desktop" ? "desktop" : "mobile";
 }
 
-/** Firestore doc id qt-spb-aviator → QTech id SPB-aviator (catalog games only). */
+/** Firestore doc id qt-spb-aviator → QTech id SPB-aviator. */
 export function deriveQtechGameIdFromDocId(gameId: string): string | null {
   const slug = gameId.trim().replace(/^qt-/, "");
   if (!slug.includes("-")) return null;
   const parts = slug.split("-");
   parts[0] = parts[0].toUpperCase();
   const qtechGameId = parts.join("-");
-  return isCatalogQTechGameId(qtechGameId) ? qtechGameId : null;
+  return isValidQTechGameIdFormat(qtechGameId) ? qtechGameId : null;
 }
 
 async function loadActiveQTechGame(rawGameId: string): Promise<{ qtechGameId: string }> {
@@ -75,7 +77,7 @@ async function requestDemoLaunchUrl(
 ): Promise<{ ok: true; url: string } | { ok: false; status: number; body: Record<string, unknown> }> {
   let res: Response;
   try {
-    res = await fetch(`${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(qtechGameId)}/launch-url`, {
+    res = await qtechFetch(`${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(qtechGameId)}/launch-url`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

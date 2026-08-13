@@ -121,7 +121,11 @@ service cloud.firestore {
     }
 
     match /settings/{docId} {
-      allow read: if isAdmin() || docId == 'platform' || docId == 'lobbyPromos' || docId == 'lobbyLayout' || docId == 'demoAccounts';
+      // publicPlatform = non-secret lobby/payment config; platform + demoAccounts = admin only
+      allow read: if isAdmin()
+        || docId == 'publicPlatform'
+        || docId == 'lobbyPromos'
+        || docId == 'lobbyLayout';
       allow write: if false;
     }
 

@@ -4,6 +4,7 @@ import { QTECH_GAME_SEEDS, qtechGameDocId } from "../gameCatalog";
 import { excludeLobbyGameId, removeGameFromLobbyLayout } from "../lobbyExclusions";
 import { disallowedLobbyGameKind, isAllowedLobbyGame } from "../lobbyGamePolicy";
 import { getQTechAccessToken, qtechNetworkError } from "./auth";
+import { qtechFetch } from "./http";
 import { getQTechSettings } from "./config";
 import {
   buildChickenGameCandidates,
@@ -63,7 +64,7 @@ async function fetchGameListPage(
 
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await qtechFetch(url, {
       method: "GET",
       headers: {
         Accept: "application/json",
@@ -251,7 +252,7 @@ export async function probeQTechGameIds(ids: string[]): Promise<
       const id = raw.trim();
       let betValuesStatus = 0;
       try {
-        const bv = await fetch(`${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(id)}/bet-values`, {
+        const bv = await qtechFetch(`${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(id)}/bet-values`, {
           method: "GET",
           headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
         });
@@ -263,7 +264,7 @@ export async function probeQTechGameIds(ids: string[]): Promise<
       let launchStatus = 0;
       let launchUrl: string | undefined;
       try {
-        const launch = await fetch(`${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(id)}/launch-url`, {
+        const launch = await qtechFetch(`${cfg.apiBaseUrl}/v1/games/${encodeURIComponent(id)}/launch-url`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -88,6 +88,15 @@ function providerForQtechId(qtechGameId: string): string {
     YOG: "YOriginal",
     YOR: "YOriginal",
     ABR: "AbraCadabra",
+    ABC: "AbraCadabra",
+    "77G": "77 Gaming",
+    ADL: "Ad Lunam",
+    AID: "air dice",
+    AMG: "Amigo Gaming",
+    AUX: "AvatarUX",
+    BAR: "BARBARA BANG",
+    BGG: "BIGPOT Gaming",
+    BLG: "blaze gaming",
   };
   return map[code] ?? code;
 }
@@ -185,6 +194,100 @@ const PARTNER_GAMES: QTechSeed[] = [
   { qtechGameId: "MIL-chickenx", name: "Chicken X", type: "slots", lobbyCategory: "instantwin" },
   // Pixmove (PIX)
   { qtechGameId: "PIX-chicknrun", name: "Chick N' Run", type: "slots", lobbyCategory: "instantwin" },
+  // 77 Gaming (77G) — crash
+  { qtechGameId: "77G-aviapilot", name: "Aviapilot", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "77G-flyrich", name: "Fly & Rich", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "77G-pilot", name: "Pilot", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "77G-richhammer", name: "Rich Hammer", type: "crash", lobbyCategory: "crash" },
+  // AbraCadabra (ABC) — crash
+  { qtechGameId: "ABC-aircraft", name: "Aircraft", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "ABC-crash", name: "Crash", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "ABC-crazyball", name: "Crazy Ball", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "ABC-crazyrocket", name: "Crazy Rocket", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "ABC-happybirdsday", name: "Happy Bird's Day", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "ABC-luckyfish", name: "Lucky Fish", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "ABC-luckyhelicopter", name: "Lucky Helicopter", type: "crash", lobbyCategory: "crash" },
+  // Evoplay (EVP) — crash (EVP-uncrossablerush already seeded above)
+  { qtechGameId: "EVP-footballmanager", name: "Football Manager", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "EVP-goblinrun", name: "Goblin Run", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "EVP-longball", name: "Long Ball", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "EVP-luckycrumbling", name: "Lucky Crumbling", type: "crash", lobbyCategory: "crash" },
+  { qtechGameId: "EVP-highstriker", name: "High Striker", type: "crash", lobbyCategory: "crash" },
+  // 77 Gaming (77G) — instant win (crash titles already seeded above)
+  { qtechGameId: "77G-dicehighorlow", name: "Dice High or Low", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-fencing", name: "Fencing", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-flipdiving", name: "Flip Diving", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-frogger", name: "Frogger", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-goalshot", name: "Goal Shot", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-headsortails", name: "Heads or Tails", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-javlinthrow", name: "Javelin Throw", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-kickthehero", name: "Kick the Hero", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-mines", name: "Mines", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-plinko", name: "Plinko", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-powerforpunch", name: "Power for Punch", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-prizedrawgame", name: "Prize Draw Game", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-rockpaperscissors", name: "Rock Paper Scissors", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-sprinters", name: "Sprinters", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "77G-surfing", name: "Surfing", type: "slots", lobbyCategory: "instantwin" },
+  // AbraCadabra (ABC) — instant win
+  { qtechGameId: "ABC-basketplinko", name: "Basket Plinko", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "ABC-coinflip", name: "Coin Flip", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "ABC-golfplinko", name: "Golf Plinko", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "ABC-grandmaroad", name: "GrandMa Road", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "ABC-hamstersmagic", name: "Hamster's Magic", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "ABC-mayanplinko", name: "Mayan Plinko", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "ABC-mines", name: "Mines", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "ABC-narcomines", name: "Narco Mines", type: "slots", lobbyCategory: "instantwin" },
+  // Ad Lunam (ADL) — instant win
+  { qtechGameId: "ADL-coinsweeper", name: "Coinsweeper", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "ADL-flipnspin", name: "Flip n' Spin", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "ADL-pinrushx", name: "Pin Rush X", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "ADL-rockpaperscissorsdraw", name: "Rock Paper Scissors DRAW!", type: "slots", lobbyCategory: "instantwin" },
+  // air dice (AID) — instant win (skip truncated sheet rows)
+  { qtechGameId: "AID-cococash", name: "Coco Cash", type: "slots", lobbyCategory: "instantwin" },
+  {
+    qtechGameId: "AID-curvycorsairsslicindicincasual",
+    name: "Curvy Corsairs Slicin' & Dicin' Casual",
+    type: "slots",
+    lobbyCategory: "instantwin",
+  },
+  {
+    qtechGameId: "AID-gunslingerlegendsbountyhunter",
+    name: "Gunslinger Legends: Bounty Hunter",
+    type: "slots",
+    lobbyCategory: "instantwin",
+  },
+  {
+    qtechGameId: "AID-katiecombstreasuresofthelostcity",
+    name: "Katie Combs – Treasures of the Lost City",
+    type: "slots",
+    lobbyCategory: "instantwin",
+  },
+  // AvatarUX (AUX) — instant win
+  { qtechGameId: "AUX-majesticmeow", name: "Majestic Meow", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "AUX-toadsbounty", name: "Toad's Bounty", type: "slots", lobbyCategory: "instantwin" },
+  // BARBARA BANG (BAR) — instant win
+  { qtechGameId: "BAR-championsroadbb", name: "Champions Road BB", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BAR-cricketlegacy", name: "Cricket Legacy", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BAR-dicebb", name: "Dice BB", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BAR-doodlecrash", name: "Doodle Crash", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BAR-footballchampionsbb", name: "Football Champions BB", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BAR-minesbb", name: "Mines BB", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BAR-plinkobb", name: "Plinko BB", type: "slots", lobbyCategory: "instantwin" },
+  // BetGames (BTV) — instant win (BTV-plinko already seeded)
+  { qtechGameId: "BTV-luckykicks", name: "Lucky Kicks", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BTV-penguinrush", name: "Penguin Rush", type: "slots", lobbyCategory: "instantwin" },
+  // BIGPOT Gaming (BGG) — instant win
+  { qtechGameId: "BGG-bountyhunter", name: "Bounty Hunter", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BGG-highlow", name: "High Low", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BGG-luckyrocket", name: "Lucky Rocket", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BGG-luckyfifth", name: "Lucky Fifth", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BGG-mazeadventure", name: "Maze Adventure", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BGG-safarirace", name: "Safari Race", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BGG-threezombies", name: "Three Zombies", type: "slots", lobbyCategory: "instantwin" },
+  // blaze gaming (BLG) — instant win
+  { qtechGameId: "BLG-frogxstormsurvival", name: "FrogX Storm Survival", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "BLG-santashilo", name: "Santas HI or LO", type: "slots", lobbyCategory: "instantwin" },
 ];
 
 export const QTECH_GAME_SEEDS: GameSeed[] = [...SPRIBE_GAMES, ...AVIATRIX_GAMES, ...OTHER_CHICKEN_GAMES, ...IOG_GAMES, ...PARTNER_GAMES].map((g) => ({

@@ -17,6 +17,7 @@ import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { requiresMandatoryOtpPhone } from "@/lib/env/publicConfig";
 import { apiUrl } from "@/lib/apiUrl";
+import { authFetchHeaders } from "@/lib/authHeaders";
 import { generateAviatorWithdrawalRef } from "@/lib/payments/aviatorPaymentRefs";
 import { PHONE_HINT, normalizeGambiaPhone, normalizePhone } from "@/lib/gambiaPhone";
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
@@ -351,7 +352,7 @@ export default function WalletPage() {
 
       const res = await fetch(apiUrl("/modempay-payout"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authFetchHeaders(),
         body: JSON.stringify({
           amount: amt,
           recipientPhone: cleanPhone,

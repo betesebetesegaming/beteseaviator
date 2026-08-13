@@ -15,6 +15,45 @@ const OTP_TTL_SECONDS = 300;
 const OTP_VERIFIED_TTL_SECONDS = 600;
 const OTP_LENGTH = 6;
 const MAX_ATTEMPTS = 5;
+const OTP_SEND_LIMIT_PER_PHONE = 5;
+const OTP_SEND_LIMIT_PER_IP = 30;
+
+function getOtpSalt(): string {
+  const salt = process.env.OTP_HASH_SALT?.trim();
+  if (!salt) {
+    throw new Error("OTP_HASH_SALT is not configured");
+  }
+  return salt;
+}
+
+function clientIp(req: Request): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.length > 0) {
+    return forwarded.split(",")[0]?.trim() || "unknown";
+  }
+  return req.socket?.remoteAddress || "unknown";
+}
+
+async function enforceOtpSendRateLimit(msisdn: string, ip: string): Promise<string | null> {
+  const hourBucket = Math.floor(Date.now() / 3_600_000);
+  const phoneRef = db.doc(`otp_rate_limits/phone_${msisdn}_${hourBucket}`);
+  const ipRef = db.doc(`otp_rate_limits/ip_${ip.replace(/[^a-zA-Z0-9._-]/g, "_")}_${hourBucket}`);
+
+  return db.runTransaction(async (tx) => {
+    const [phoneSnap, ipSnap] = await Promise.all([tx.get(phoneRef), tx.get(ipRef)]);
+    const phoneCount = Number(phoneSnap.data()?.count ?? 0);
+    const ipCount = Number(ipSnap.data()?.count ?? 0);
+    if (phoneCount >= OTP_SEND_LIMIT_PER_PHONE) {
+      return "Too many verification codes for this number. Try again later.";
+    }
+    if (ipCount >= OTP_SEND_LIMIT_PER_IP) {
+      return "Too many verification code requests. Try again later.";
+    }
+    tx.set(phoneRef, { count: phoneCount + 1, updatedAt: new Date().toISOString() }, { merge: true });
+    tx.set(ipRef, { count: ipCount + 1, updatedAt: new Date().toISOString() }, { merge: true });
+    return null;
+  });
+}
 
 /** betesepmu Cloud Functions — fallback when Aviator Africell egress is blocked. */
 const PMU_OTP_BASE_URL = (
@@ -191,70 +230,6 @@ function httpsPost(
   });
 }
 
-async function africellRequest(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<{ httpStatus: number; body: string; elapsedMs: number; error?: string }> {
-  const started = Date.now();
-  try {
-    const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
-    const body = await res.text();
-    return { httpStatus: res.status, body, elapsedMs: Date.now() - started };
-  } catch (err) {
-    return {
-      httpStatus: 0,
-      body: "",
-      elapsedMs: Date.now() - started,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
-
-async function probeAfricellLive(): Promise<Record<string, unknown>> {
-  const baseUrl = (process.env.AFRICELL_SMS_URL || "").replace(/\/+$/, "");
-  const username = process.env.AFRICELL_SMS_USERNAME || "";
-  const password = process.env.AFRICELL_SMS_PASSWORD || "";
-  const sender = process.env.AFRICELL_SMS_SENDER || "Betese";
-  const timeoutMs = Number(process.env.AFRICELL_SMS_TIMEOUT_MS || 25000);
-  const msisdn = "2207701234";
-  const message = "BETESE gateway connectivity test";
-
-  const basicUrl = `${baseUrl}/api/sendsms?sender=${encodeURIComponent(sender)}&msisdn=${encodeURIComponent(msisdn)}`;
-  const basic = Buffer.from(`${username}:${password}`).toString("base64");
-  const basicResult = await httpsPost(
-    basicUrl,
-    {
-      "Content-Type": "text/plain; charset=utf-8",
-      Authorization: `Basic ${basic}`,
-    },
-    message,
-    timeoutMs,
-  );
-
-  const queryParams = new URLSearchParams({
-    sender,
-    msisdn,
-    username,
-    password,
-    message,
-  });
-  const queryUrl = `${baseUrl}/api/sendsms?${queryParams.toString()}`;
-  const queryResult = await africellRequest(queryUrl, { method: "POST" }, timeoutMs);
-
-  return {
-    gateway: baseUrl,
-    port: baseUrl.match(/:(\d+)/)?.[1] || "unknown",
-    msisdn,
-    basicAuth: basicResult.error
-      ? basicResult
-      : { ...basicResult, parsed: parseAfricellSmsResponse(basicResult.body, basicResult.httpStatus) },
-    queryParams: queryResult.error
-      ? queryResult
-      : { ...queryResult, parsed: parseAfricellSmsResponse(queryResult.body, queryResult.httpStatus) },
-  };
-}
-
 export async function sendViaAfricell(msisdn: string, message: string): Promise<{ messageId: string | null }> {
   const baseUrl = (process.env.AFRICELL_SMS_URL || "").replace(/\/+$/, "");
   const username = process.env.AFRICELL_SMS_USERNAME || "";
@@ -307,41 +282,45 @@ export async function sendViaAfricell(msisdn: string, message: string): Promise<
   return { messageId };
 }
 
+/**
+ * Send any SMS via Africell, falling back to the PMU OTP relay when Aviator
+ * cannot reach esme.africell.gm (common from us-central1). PMU is called with a
+ * supplied `code` so it delivers `message` as-is and does not create an OTP hash.
+ */
+export async function sendSmsWithFallback(
+  msisdn: string,
+  message: string,
+): Promise<{ messageId: string | null; via: "africell" | "pmu" }> {
+  try {
+    const { messageId } = await sendViaAfricell(msisdn, message);
+    return { messageId, via: "africell" };
+  } catch (err) {
+    const localError = err instanceof Error ? err.message : String(err);
+    const phone = msisdn.startsWith("220") && msisdn.length >= 10 ? msisdn.slice(3) : msisdn;
+    logger.warn("Local Africell SMS failed, trying PMU SMS proxy", { msisdn, msg: localError });
+
+    const proxied = await proxyPmuOtp("sendOtp", {
+      phone,
+      message,
+      // Non-empty code → PMU/Aviator skip otp_codes write and just send the body.
+      code: "000000",
+    });
+    if (proxied.httpStatus >= 200 && proxied.httpStatus < 300 && proxied.data.ok === true) {
+      return {
+        messageId: (proxied.data.messageId as string | null | undefined) ?? null,
+        via: "pmu",
+      };
+    }
+    throw new Error(String(proxied.data.error || localError));
+  }
+}
+
 export async function sendOtpHandler(req: Request, res: Response): Promise<void> {
   const started = Date.now();
   const body = (req.body || {}) as { phone?: string; code?: string; message?: string; probe?: boolean | string };
 
-  if (body.probe === true) {
-    const baseUrl = process.env.AFRICELL_SMS_URL || "";
-    const username = process.env.AFRICELL_SMS_USERNAME || "";
-    const password = process.env.AFRICELL_SMS_PASSWORD || "";
-    if (!baseUrl || !username || !password) {
-      const proxied = await proxyPmuOtp("sendOtp", { probe: true });
-      if (proxied.httpStatus >= 200 && proxied.httpStatus < 300 && proxied.data.probe === true) {
-        res.json({ probe: true, gateway: proxied.data.gateway, via: "pmu" });
-        return;
-      }
-      res.status(503).json({ error: "Africell SMS credentials not configured" });
-      return;
-    }
-    res.json({ probe: true, gateway: baseUrl });
-    return;
-  }
-
-  if (body.probe === "live") {
-    const baseUrl = process.env.AFRICELL_SMS_URL || "";
-    const username = process.env.AFRICELL_SMS_USERNAME || "";
-    const password = process.env.AFRICELL_SMS_PASSWORD || "";
-    if (!baseUrl || !username || !password) {
-      res.status(503).json({ error: "Africell SMS credentials not configured" });
-      return;
-    }
-    try {
-      const result = await probeAfricellLive();
-      res.json({ ok: true, live: result });
-    } catch (err) {
-      res.status(502).json({ error: err instanceof Error ? err.message : String(err) });
-    }
+  if (body.probe === true || body.probe === "live") {
+    res.status(404).json({ error: "Not found" });
     return;
   }
 
@@ -356,7 +335,19 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const otpSalt = process.env.OTP_HASH_SALT || "betese-otp-default-salt";
+  const rateLimitErr = await enforceOtpSendRateLimit(msisdn, clientIp(req));
+  if (rateLimitErr) {
+    res.status(429).json({ error: rateLimitErr });
+    return;
+  }
+
+  let otpSalt: string;
+  try {
+    otpSalt = getOtpSalt();
+  } catch {
+    res.status(503).json({ error: "OTP service is not configured." });
+    return;
+  }
 
   const suppliedCode = (body.code || "").trim();
   let code: string;
@@ -483,7 +474,7 @@ export async function verifySmsOtp(phoneInput: string, code: string): Promise<st
     throw new Error("Invalid Gambian mobile number. Use 7 digits (e.g. 7701234).");
   }
 
-  const otpSalt = process.env.OTP_HASH_SALT || "betese-otp-default-salt";
+  const otpSalt = getOtpSalt();
   const ref = db.collection("otp_codes").doc(msisdn);
   const snap = await ref.get();
   if (!snap.exists) {

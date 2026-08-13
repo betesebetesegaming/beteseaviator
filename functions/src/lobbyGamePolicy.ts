@@ -1,8 +1,11 @@
 /** BETESE player lobby — crash + instant win only (no reel slots, tables, or lottery). */
 
-import { isCatalogQTechGameId } from "./gameCatalog";
-
 export type DisallowedLobbyKind = "lottery" | "table" | "slot";
+
+/** QTech ids look like `SPB-aviator` / `IOG-chickenroad` (provider prefix + slug). */
+export function isValidQTechGameIdFormat(qtechGameId: string): boolean {
+  return /^[A-Za-z0-9]{2,10}-[A-Za-z0-9_-]+$/.test(qtechGameId.trim());
+}
 
 export function disallowedLobbyGameKind(input: {
   qtechGameId?: string | null;
@@ -50,12 +53,16 @@ export function disallowedLobbyGameKind(input: {
   return null;
 }
 
+/**
+ * Policy gate for lobby games. Does NOT require the curated seed catalog —
+ * admins may add any launchable crash/instant-win QTech id.
+ */
 export function isAllowedLobbyGame(input: {
   qtechGameId?: string | null;
   name?: string | null;
   id?: string | null;
 }): boolean {
   const qid = String(input.qtechGameId ?? "").trim();
-  if (!qid || !isCatalogQTechGameId(qid)) return false;
+  if (!qid || !isValidQTechGameIdFormat(qid)) return false;
   return disallowedLobbyGameKind(input) === null;
 }

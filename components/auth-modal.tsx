@@ -249,6 +249,7 @@ export function AuthModal({
     if (!phoneCheck.ok) return toast.error(phoneCheck.error);
     const normalized = phoneCheck.normalized;
     if (!name.trim()) return toast.error("Enter your full name.");
+    if (name.trim().length < 3) return toast.error("Name must be at least 3 characters.");
     const pwCheck = validatePassword(password);
     if (!pwCheck.ok) return toast.error(pwCheck.message);
     if (password !== confirm) return toast.error("Passwords do not match.");
@@ -309,6 +310,7 @@ export function AuthModal({
   async function completeProfile() {
     if (!requireAgeConfirmation()) return;
     if (!name.trim()) return toast.error("Enter your full name.");
+    if (name.trim().length < 3) return toast.error("Name must be at least 3 characters.");
     const phoneCheck = validatePhoneFields();
     if (!phoneCheck.ok) return toast.error(phoneCheck.error);
     const normalized = phoneCheck.normalized;
@@ -344,6 +346,7 @@ export function AuthModal({
     const phoneCheck = validatePhoneFields();
     if (!phoneCheck.ok) return toast.error(phoneCheck.error);
     if (!name.trim()) return toast.error("Enter your full name.");
+    if (name.trim().length < 3) return toast.error("Name must be at least 3 characters.");
     const pwCheck = validatePassword(password);
     if (!pwCheck.ok) return toast.error(pwCheck.message);
     if (password !== confirm) return toast.error("Passwords do not match.");
@@ -403,6 +406,7 @@ export function AuthModal({
   function continueComplete() {
     if (!requireAgeConfirmation()) return;
     if (!name.trim()) return toast.error("Enter your full name.");
+    if (name.trim().length < 3) return toast.error("Name must be at least 3 characters.");
     const phoneCheck = validatePhoneFields();
     if (!phoneCheck.ok) return toast.error(phoneCheck.error);
     postOtpActionRef.current = () => {

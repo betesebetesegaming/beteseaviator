@@ -610,6 +610,18 @@ export function isModemPayPayoutNetwork(v: unknown): v is ModemPayPayoutNetwork 
   return typeof v === 'string' && (MODEMPAY_PAYOUT_NETWORKS as ReadonlyArray<string>).includes(v.toLowerCase());
 }
 
+/**
+ * ModemPay rejects beneficiary names shorter than 3 characters
+ * ("Beneficiary name must be at least 3 characters"). Players often
+ * register as "Ik" / "Mu" / "Mr" — pad so payouts still clear.
+ */
+export function sanitizeBeneficiaryName(name: string | undefined | null): string {
+  const raw = String(name || '').trim().replace(/\s+/g, ' ');
+  if (raw.length >= 3) return raw.slice(0, 80);
+  if (raw.length > 0) return `${raw} Player`.slice(0, 80);
+  return 'BETESE Player';
+}
+
 export async function createTransfer(input: CreateTransferInput) {
   const network = input.recipient.method.toLowerCase();
   if (!isModemPayPayoutNetwork(network)) {
@@ -625,7 +637,7 @@ export async function createTransfer(input: CreateTransferInput) {
     currency: input.currency || 'GMD',
     network,
     account_number: accountNumber,
-    beneficiary_name: input.recipient.name || 'Customer',
+    beneficiary_name: sanitizeBeneficiaryName(input.recipient.name),
     narration: input.reason || 'Betese Aviator withdrawal',
     metadata: {
       source: 'betese-aviator',
