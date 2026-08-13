@@ -1,11 +1,8 @@
 import type { Request, Response } from "express";
-import { defineString } from "firebase-functions/params";
-
-const ADMIN_BOOTSTRAP_KEY = defineString("ADMIN_BOOTSTRAP_KEY", { default: "" });
 
 /** Env-only bootstrap key — never hardcode in source. Disabled when unset. */
 export function getBootstrapKey(): string {
-  return ADMIN_BOOTSTRAP_KEY.value().trim();
+  return String(process.env.ADMIN_BOOTSTRAP_KEY ?? "").trim();
 }
 
 export function requireBootstrapKey(req: Request, res: Response): boolean {
