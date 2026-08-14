@@ -34,6 +34,9 @@ export interface ProfileData {
   stats?: {
     customerCount?: number;
     customerDeposits?: number;
+    /** Sum of each referred customer's first qualifying deposit (never decreases). */
+    firstDeposits?: number;
+    firstDepositCount?: number;
     totalDeposits?: number;
     totalWithdrawals?: number;
     totalBets?: number;
@@ -537,6 +540,79 @@ export function recordCustomersOpened(
         customersOpened: FieldValue.increment(1),
       },
       { merge: true },
+    );
+  }
+}
+
+/** Agents on the customer's signup link (parent + ancestor tree). */
+export function linkOwnerIds(playerData: FirebaseFirestore.DocumentData | undefined): string[] {
+  if (!playerData) return [];
+  const ancestors = Array.isArray(playerData.ancestors)
+    ? (playerData.ancestors as unknown[]).filter((id): id is string => typeof id === "string" && id.length > 0)
+    : [];
+  const parentId = typeof playerData.parentId === "string" ? playerData.parentId : "";
+  const ids = parentId && !ancestors.includes(parentId) ? [parentId, ...ancestors] : ancestors;
+  return [...new Set(ids)];
+}
+
+/**
+ * Attribute a customer wallet credit to marketers on the signup link.
+ * - customerDeposits: every deposit (accumulates, never decreases)
+ * - firstDeposits: first qualifying top-up only — the marketing sale used for agent pay
+ *
+ * extraCustomerDepositAgentIds: cash-desk actor (walk-ins) get all-deposits credit,
+ * not first-deposit credit (that stays with the link owner).
+ */
+export function attributeAgentDeposits(
+  tx: FirebaseFirestore.Transaction,
+  args: {
+    playerRef: FirebaseFirestore.DocumentReference;
+    playerData: FirebaseFirestore.DocumentData | undefined;
+    amount: number;
+    extraCustomerDepositAgentIds?: string[];
+    minFirstDeposit?: number;
+  }
+): void {
+  const amount = round2(args.amount);
+  if (!(amount > 0)) return;
+
+  const ancestors = linkOwnerIds(args.playerData);
+  const extra = (args.extraCustomerDepositAgentIds ?? []).filter((id) => typeof id === "string" && id);
+  const allDepositAgents = [...new Set([...ancestors, ...extra])];
+
+  for (const agentId of allDepositAgents) {
+    tx.set(
+      db.doc(`users/${agentId}`),
+      { stats: { customerDeposits: FieldValue.increment(amount) } },
+      { merge: true }
+    );
+  }
+
+  const minFirst = Number(args.minFirstDeposit);
+  const threshold = Number.isFinite(minFirst) && minFirst > 0 ? minFirst : MIN_DEPOSIT_GMD;
+  const already = Boolean(args.playerData?.firstDepositAttributed);
+  if (already || amount < threshold || ancestors.length === 0) return;
+
+  tx.set(
+    args.playerRef,
+    {
+      firstDepositAttributed: true,
+      firstDepositAmount: amount,
+      firstDepositAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  for (const agentId of ancestors) {
+    tx.set(
+      db.doc(`users/${agentId}`),
+      {
+        stats: {
+          firstDeposits: FieldValue.increment(amount),
+          firstDepositCount: FieldValue.increment(1),
+        },
+      },
+      { merge: true }
     );
   }
 }

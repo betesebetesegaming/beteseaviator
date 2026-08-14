@@ -330,7 +330,7 @@ export function OperationsHub() {
                 <tr>
                   <Th>Agent name</Th>
                   <Th>Register #</Th>
-                  <Th className="text-right">Deposited</Th>
+                  <Th className="text-right">First deposits</Th>
                   <Th className="text-right">Play (bets)</Th>
                   <Th className="text-right">Balance</Th>
                   <Th className="text-right">Profit / GGR</Th>
@@ -346,7 +346,12 @@ export function OperationsHub() {
                   <tr key={a.uid}>
                     <Td className="font-medium text-white">{a.name}</Td>
                     <Td className="font-mono text-xs text-sky-300">{a.agentSlug ?? "—"}</Td>
-                    <Td className="text-right tabular-nums">{formatXof(a.customerDeposits)}</Td>
+                    <Td className="text-right tabular-nums font-semibold text-emerald-200">
+                      {formatXof(a.firstDeposits ?? 0)}
+                      <span className="block text-[10px] font-normal text-slate-500">
+                        {(a.firstDepositCount ?? 0).toLocaleString()} first · all {formatXof(a.customerDeposits)}
+                      </span>
+                    </Td>
                     <Td className="text-right tabular-nums text-slate-300">{formatXof(a.totalBets)}</Td>
                     <Td className="text-right tabular-nums text-emerald-300">
                       {formatXof(a.walletBalance ?? 0)}

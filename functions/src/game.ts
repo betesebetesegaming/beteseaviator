@@ -15,6 +15,7 @@ import {
   bumpDailyStats,
   bumpPlatformStats,
   bumpAgentGgr,
+  bumpAgentStats,
 } from "./helpers";
 import { applyBetWagering } from "./wagering";
 import { onReferralFirstBet } from "./referrals";
@@ -258,6 +259,9 @@ async function settleRound(
           bumpDailyStats(tx, date, { wins: winAmount });
           bumpPlatformStats(tx, { totalWins: winAmount });
           bumpAgentGgr(tx, ancestors, playerId, date, { wins: winAmount });
+          for (const agentId of ancestors) {
+            bumpAgentStats(tx, agentId, { totalWins: winAmount });
+          }
         } else {
           tx.update(docSnap.ref, {
             status: "lost",
@@ -392,7 +396,11 @@ export const placeBet = onCall(async (req) => {
     });
     bumpDailyStats(tx, date, { bets: betAmount, sessions: 1 });
     bumpPlatformStats(tx, { totalBets: betAmount });
-    bumpAgentGgr(tx, profile.ancestors ?? [], uid, date, { bets: betAmount });
+    const betAncestors = profile.ancestors ?? [];
+    bumpAgentGgr(tx, betAncestors, uid, date, { bets: betAmount });
+    for (const agentId of betAncestors) {
+      bumpAgentStats(tx, agentId, { totalBets: betAmount });
+    }
   });
 
   return { sessionId: sessionRef.id, roundId: round.roundId, hash: round.hash };
@@ -460,6 +468,9 @@ export const cashout = onCall(async (req) => {
     bumpDailyStats(tx, date, { wins: winAmount });
     bumpPlatformStats(tx, { totalWins: winAmount });
     bumpAgentGgr(tx, ancestors, uid, date, { wins: winAmount });
+    for (const agentId of ancestors) {
+      bumpAgentStats(tx, agentId, { totalWins: winAmount });
+    }
   });
 
   return { multiplier, winAmount };

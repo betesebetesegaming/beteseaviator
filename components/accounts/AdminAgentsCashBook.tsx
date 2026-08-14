@@ -66,6 +66,7 @@ export function AdminAgentsCashBook() {
       agentsWithCash: agentRows.filter((a) => a.cashIn > 0 || a.cashOut > 0).length,
       totalAccounts: agentRows.reduce((s, a) => s + a.customerCount, 0),
       totalDeposits: agentRows.reduce((s, a) => s + a.customerDeposits, 0),
+      totalFirstDeposits: agentRows.reduce((s, a) => s + Number(a.firstDeposits ?? 0), 0),
       totalGgr: agentRows.reduce((s, a) => s + a.ggr, 0),
     };
   }, [agentRows]);
@@ -119,15 +120,16 @@ export function AdminAgentsCashBook() {
         <StatCard label="Agents with cash today" value={platformCash.agentsWithCash} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total accounts" value={platformCash.totalAccounts} hint="all agent customers" />
-        <StatCard label="Customer deposits (all)" value={formatXof(platformCash.totalDeposits)} />
-        <StatCard label="Total GGR / profit" value={formatXof(platformCash.totalGgr)} />
+        <StatCard label="First deposits (via links)" value={formatXof(platformCash.totalFirstDeposits)} />
+        <StatCard label="All customer deposits" value={formatXof(platformCash.totalDeposits)} />
+        <StatCard label="Total play GGR" value={formatXof(platformCash.totalGgr)} />
       </div>
 
       <div>
         <h3 className="mb-2 text-sm font-semibold text-slate-200">
-          Agent books — name · register · deposits · play · balance · profit
+          Agent books — name · register · first deposits · play · balance · profit
         </h3>
         {loading ? (
           <EmptyState message="Loading agent books…" />
@@ -139,7 +141,7 @@ export function AdminAgentsCashBook() {
               <tr>
                 <Th>Agent name</Th>
                 <Th>Register #</Th>
-                <Th className="text-right">Deposited</Th>
+                <Th className="text-right">First deposits</Th>
                 <Th className="text-right">Play</Th>
                 <Th className="text-right">Balance</Th>
                 <Th className="text-right">Profit / GGR</Th>
@@ -153,7 +155,12 @@ export function AdminAgentsCashBook() {
                 <tr key={a.uid} className={a.net > 0 ? "bg-amber-500/5" : undefined}>
                   <Td className="font-medium text-white">{a.name}</Td>
                   <Td className="font-mono text-xs text-sky-300">{a.agentSlug ?? "—"}</Td>
-                  <Td className="text-right tabular-nums">{formatXof(a.customerDeposits)}</Td>
+                  <Td className="text-right tabular-nums font-semibold text-emerald-200">
+                    {formatXof(a.firstDeposits ?? 0)}
+                    <span className="block text-[10px] font-normal text-slate-500">
+                      all {formatXof(a.customerDeposits)}
+                    </span>
+                  </Td>
                   <Td className="text-right tabular-nums text-slate-300">{formatXof(a.totalBets)}</Td>
                   <Td className="text-right tabular-nums text-emerald-300">
                     {formatXof(a.walletBalance ?? 0)}

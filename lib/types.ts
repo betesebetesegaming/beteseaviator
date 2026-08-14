@@ -29,6 +29,9 @@ export interface AgentStats {
   customerCount?: number;
   subAgentCount?: number;
   customerDeposits?: number;
+  /** Sum of each referred customer's first qualifying deposit (never decreases). */
+  firstDeposits?: number;
+  firstDepositCount?: number;
   /** Lifetime deposits credited to this user (players + own agent wallet). */
   totalDeposits?: number;
   /** Lifetime withdrawals debited from this user. */

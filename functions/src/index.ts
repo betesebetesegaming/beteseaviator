@@ -53,6 +53,8 @@ export {
   adminRebuildPlatformStats,
   adminGetPlayerAccountSummary,
   adminBackfillPlayerAccountStats,
+  adminRebuildAgentGgrStats,
+  adminRebuildAgentDepositStats,
   adminSetGameStatus,
   adminAddQTechGame,
   adminDeleteGame,
@@ -65,7 +67,7 @@ export {
   adminSaveQTechSettings,
   adminRunQTechCwTest,
 } from "./admin";
-export { processCommissions, adminRunCommissions } from "./commissions";
+export { processCommissions, adminRunCommissions, adminBackfillCommissionsRange } from "./commissions";
 export {
   runSmartBonusAnalysis,
   adminRunSmartBonusAnalysis,

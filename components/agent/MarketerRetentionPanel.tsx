@@ -111,9 +111,9 @@ export function MarketerRetentionPanel() {
         </div>
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
           <div className="text-lg font-bold text-emerald-300">
-            {formatXof(profile?.stats?.customerDeposits ?? 0)}
+            {formatXof(profile?.stats?.firstDeposits ?? 0)}
           </div>
-          <div className="text-[10px] uppercase tracking-wide text-slate-400">Total Deposits</div>
+          <div className="text-[10px] uppercase tracking-wide text-slate-400">First deposits</div>
         </div>
         <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2">
           <div className="text-lg font-bold text-violet-200">

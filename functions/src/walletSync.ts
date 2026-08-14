@@ -3,7 +3,7 @@
  * `users.wallet_balance` (same field betesepmu uses).
  */
 import { applyDepositBonuses } from "./bonuses";
-import { bumpDailyStats, bumpPlatformStats, db, getSettings, todayIso, walletRead, walletWrite } from "./helpers";
+import { attributeAgentDeposits, bumpDailyStats, bumpPlatformStats, db, getSettings, todayIso, walletRead, walletWrite } from "./helpers";
 import { recordDepositPlaythrough } from "./wagering";
 import { onReferralDeposit } from "./referrals";
 import { maybeActivateSmartBonus } from "./smartBonus";
@@ -70,6 +70,12 @@ export async function syncAviatorWalletCredit(
 
     bumpPlatformStats(tx, { totalDeposits: amount });
     bumpDailyStats(tx, todayIso(depositAt), { deposits: amount });
+    attributeAgentDeposits(tx, {
+      playerRef: userRef,
+      playerData: userSnap.data(),
+      amount,
+      minFirstDeposit: settings.minDeposit,
+    });
   });
 
   // Separate transaction: activate a pending Smart Bonus if this deposit qualifies.

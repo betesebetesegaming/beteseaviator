@@ -137,3 +137,38 @@ export const adminRunCommissions = onCall(async (req) => {
   }
   return processCommissionsForDate(date);
 });
+
+/** Re-run commissions for a date range (idempotent — already-paid days are skipped). */
+export const adminBackfillCommissionsRange = onCall(
+  {
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async (req) => {
+    await requireRole(req, ["admin"]);
+    const from = String(req.data?.from ?? "");
+    const to = String(req.data?.to ?? "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      throw new HttpsError("invalid-argument", "from and to must be YYYY-MM-DD.");
+    }
+    if (from > to) throw new HttpsError("invalid-argument", "from must be on or before to.");
+
+    const dates: string[] = [];
+    const cursor = new Date(`${from}T00:00:00.000Z`);
+    const end = new Date(`${to}T00:00:00.000Z`);
+    while (cursor <= end) {
+      dates.push(cursor.toISOString().slice(0, 10));
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    if (dates.length > 31) {
+      throw new HttpsError("invalid-argument", "Range cannot exceed 31 days.");
+    }
+
+    const days: Array<{ date: string; created: number; skipped: number; total: number }> = [];
+    for (const date of dates) {
+      const result = await processCommissionsForDate(date);
+      days.push({ date, ...result });
+    }
+    return { ok: true as const, days };
+  },
+);

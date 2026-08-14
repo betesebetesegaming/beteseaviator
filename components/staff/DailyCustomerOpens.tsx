@@ -5,7 +5,7 @@ import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { UserPlus } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
-import { todayIso, formatXof } from "@/lib/format";
+import { todayIso, daysAgoIso, formatXof } from "@/lib/format";
 import type { AgentDailyStats, UserProfile } from "@/lib/types";
 import { Card, Spinner, StatCard, TableShell, Td, Th } from "@/components/ui";
 
@@ -13,6 +13,11 @@ type AgentOpenRow = {
   uid: string;
   name: string;
   customersOpened: number;
+  firstDeposits: number;
+  firstDepositCount: number;
+  allDeposits: number;
+  customerCount: number;
+  playGgr: number;
 };
 
 /** How many customers this agent opened today (manual create + referral signups). */
@@ -41,12 +46,20 @@ export function AgentTodayCustomerOpens() {
   );
 }
 
+type AgentGgr = { lifetime: number; last7: number };
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 /** Platform total + per-agent breakdown for admin. */
 export function AdminDailyCustomerOpens() {
   const today = useMemo(() => todayIso(), []);
+  const from7 = useMemo(() => daysAgoIso(7), []);
   const [platformToday, setPlatformToday] = useState<number | null>(null);
   const [agents, setAgents] = useState<UserProfile[] | null>(null);
   const [opensByAgent, setOpensByAgent] = useState<Map<string, number> | null>(null);
+  const [ggrByAgent, setGgrByAgent] = useState<Map<string, AgentGgr> | null>(null);
 
   useEffect(() => {
     const unsubPlatform = onSnapshot(doc(db, "dailyStats", today), (snap) => {
@@ -73,30 +86,74 @@ export function AdminDailyCustomerOpens() {
         setOpensByAgent(map);
       }
     );
+    const unsubGgr = onSnapshot(collection(db, "agentDailyGgr"), (snap) => {
+      const betsL = new Map<string, number>();
+      const winsL = new Map<string, number>();
+      const bets7 = new Map<string, number>();
+      const wins7 = new Map<string, number>();
+      for (const d of snap.docs) {
+        const row = d.data() as { agentId?: string; date?: string; bets?: number; wins?: number };
+        const id = String(row.agentId || "");
+        if (!id) continue;
+        const bets = Number(row.bets ?? 0);
+        const wins = Number(row.wins ?? 0);
+        betsL.set(id, (betsL.get(id) ?? 0) + bets);
+        winsL.set(id, (winsL.get(id) ?? 0) + wins);
+        if (String(row.date || "") >= from7) {
+          bets7.set(id, (bets7.get(id) ?? 0) + bets);
+          wins7.set(id, (wins7.get(id) ?? 0) + wins);
+        }
+      }
+      const map = new Map<string, AgentGgr>();
+      for (const id of betsL.keys()) {
+        map.set(id, {
+          lifetime: Math.max(0, round2((betsL.get(id) ?? 0) - (winsL.get(id) ?? 0))),
+          last7: Math.max(0, round2((bets7.get(id) ?? 0) - (wins7.get(id) ?? 0))),
+        });
+      }
+      setGgrByAgent(map);
+    });
     return () => {
       unsubPlatform();
       unsubAgents();
       unsubOpens();
+      unsubGgr();
     };
-  }, [today]);
+  }, [today, from7]);
 
   const rows = useMemo<AgentOpenRow[] | null>(() => {
-    if (!agents || !opensByAgent) return null;
+    if (!agents || !opensByAgent || !ggrByAgent) return null;
     return agents
-      .map((a) => ({
-        uid: a.uid,
-        name: a.name,
-        customersOpened: opensByAgent.get(a.uid) ?? 0,
-      }))
-      .sort((a, b) => b.customersOpened - a.customersOpened || a.name.localeCompare(b.name));
-  }, [agents, opensByAgent]);
+      .map((a) => {
+        const stats = a.stats ?? {};
+        const fromLedger = ggrByAgent.get(a.uid);
+        return {
+          uid: a.uid,
+          name: a.name,
+          customersOpened: opensByAgent.get(a.uid) ?? 0,
+          firstDeposits: Number(stats.firstDeposits ?? 0),
+          firstDepositCount: Number(stats.firstDepositCount ?? 0),
+          allDeposits: Number(stats.customerDeposits ?? 0),
+          customerCount: Number(stats.customerCount ?? 0),
+          playGgr:
+            fromLedger?.lifetime ??
+            Math.max(0, (stats.totalBets ?? 0) - (stats.totalWins ?? 0)),
+        };
+      })
+      .sort(
+        (a, b) =>
+          b.firstDeposits - a.firstDeposits ||
+          b.customersOpened - a.customersOpened ||
+          a.name.localeCompare(b.name)
+      );
+  }, [agents, opensByAgent, ggrByAgent]);
 
   const agentTotalToday = useMemo(
     () => rows?.reduce((sum, r) => sum + r.customersOpened, 0) ?? 0,
     [rows]
   );
 
-  if (platformToday === null || rows === null) {
+  if (platformToday === null || rows === null || ggrByAgent === null) {
     return (
       <Card className="flex items-center justify-center p-8">
         <Spinner />
@@ -123,9 +180,11 @@ export function AdminDailyCustomerOpens() {
 
       <Card className="overflow-hidden p-0">
         <div className="border-b border-white/10 px-4 py-3">
-          <h2 className="font-semibold">Agent / vendor opens today</h2>
+          <h2 className="font-semibold">Marketer sales — first deposits via their link</h2>
           <p className="text-sm text-slate-400">
-            How many customer accounts each agent successfully opened today.
+            First deposits are each customer&apos;s first qualifying top-up through that agent&apos;s
+            link. That total only grows — it is what marketers worked for. Play GGR is later betting
+            and can go up or down; it is not used to pay for opening accounts.
           </p>
         </div>
         {rows.length === 0 ? (
@@ -135,30 +194,31 @@ export function AdminDailyCustomerOpens() {
             <thead>
               <tr>
                 <Th>Agent / vendor</Th>
-                <Th className="text-right">Sales (GGR)</Th>
-                <Th className="text-right">Deposits</Th>
+                <Th className="text-right">First deposits</Th>
+                <Th className="text-right">First-time customers</Th>
+                <Th className="text-right">All deposits</Th>
+                <Th className="text-right">Play GGR</Th>
                 <Th className="text-right">Opened today</Th>
                 <Th className="text-right">Lifetime customers</Th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => {
-                const agent = agents!.find((a) => a.uid === r.uid);
-                const lifetime = agent?.stats?.customerCount ?? 0;
-                const stats = agent?.stats ?? {};
-                const ggr = Math.max(0, (stats.totalBets ?? 0) - (stats.totalWins ?? 0));
-                const deposits = stats.customerDeposits ?? 0;
                 return (
                   <tr key={r.uid}>
                     <Td className="font-medium">{r.name}</Td>
-                    <Td className="text-right tabular-nums text-slate-300">{formatXof(ggr)}</Td>
-                    <Td className="text-right tabular-nums text-slate-300">{formatXof(deposits)}</Td>
+                    <Td className="text-right tabular-nums font-semibold text-emerald-200">
+                      {formatXof(r.firstDeposits)}
+                    </Td>
+                    <Td className="text-right tabular-nums text-slate-300">{r.firstDepositCount}</Td>
+                    <Td className="text-right tabular-nums text-slate-300">{formatXof(r.allDeposits)}</Td>
+                    <Td className="text-right tabular-nums text-slate-500">{formatXof(r.playGgr)}</Td>
                     <Td className="text-right tabular-nums">
                       <span className={r.customersOpened > 0 ? "font-semibold text-emerald-300" : ""}>
                         {r.customersOpened}
                       </span>
                     </Td>
-                    <Td className="text-right tabular-nums text-slate-400">{lifetime}</Td>
+                    <Td className="text-right tabular-nums text-slate-400">{r.customerCount}</Td>
                   </tr>
                 );
               })}

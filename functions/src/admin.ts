@@ -15,6 +15,7 @@ import {
   staffLoginKey,
   resolveStaffAuthEmail,
   MIN_DEPOSIT_GMD,
+  linkOwnerIds,
   type ProfileData,
   type Role,
 } from "./helpers";
@@ -1390,4 +1391,251 @@ export const adminBackfillPlayerAccountStats = onCall(
       transactionsScanned: snap.size,
     };
   }
+);
+
+/**
+ * Rebuild every marketer's stats.totalBets / totalWins from agentDailyGgr
+ * (Aviator + QTech). Dashboard Sales uses these fields.
+ */
+export const adminRebuildAgentGgrStats = onCall(
+  {
+    timeoutSeconds: 120,
+    memory: "256MiB",
+  },
+  async (req) => {
+    await requireRole(req, ["admin"]);
+
+    const snap = await db.collection("agentDailyGgr").get();
+    const byAgent = new Map<string, { bets: number; wins: number }>();
+    for (const row of snap.docs) {
+      const data = row.data();
+      const agentId = String(data.agentId || "");
+      if (!agentId) continue;
+      const cur = byAgent.get(agentId) ?? { bets: 0, wins: 0 };
+      cur.bets = round2(cur.bets + Number(data.bets ?? 0));
+      cur.wins = round2(cur.wins + Number(data.wins ?? 0));
+      byAgent.set(agentId, cur);
+    }
+
+    const agentsSnap = await db
+      .collection("users")
+      .where("role", "in", ["agent", "super_agent", "sub_agent"])
+      .get();
+
+    let updated = 0;
+    const chunkSize = 400;
+    const docs = agentsSnap.docs;
+    for (let i = 0; i < docs.length; i += chunkSize) {
+      const batch = db.batch();
+      for (const docSnap of docs.slice(i, i + chunkSize)) {
+        const totals = byAgent.get(docSnap.id) ?? { bets: 0, wins: 0 };
+        batch.set(
+          docSnap.ref,
+          { stats: { totalBets: totals.bets, totalWins: totals.wins } },
+          { merge: true },
+        );
+        updated += 1;
+      }
+      await batch.commit();
+    }
+
+    logger.info("adminRebuildAgentGgrStats", {
+      agents: updated,
+      ledgerRows: snap.size,
+    });
+
+    return { ok: true as const, agentsUpdated: updated, ledgerRows: snap.size };
+  },
+);
+
+function createdAtMs(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const n = Date.parse(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (value && typeof value === "object" && "toMillis" in value) {
+    const ms = (value as { toMillis: () => number }).toMillis();
+    return Number.isFinite(ms) ? ms : 0;
+  }
+  return 0;
+}
+
+type AgentDepositTotals = {
+  customerDeposits: number;
+  firstDeposits: number;
+  firstDepositCount: number;
+};
+
+function emptyAgentDepositTotals(): AgentDepositTotals {
+  return { customerDeposits: 0, firstDeposits: 0, firstDepositCount: 0 };
+}
+
+/**
+ * Rebuild every marketer's first-deposit sales and all-deposits from the
+ * transactions ledger + each player's signup link (ancestors / parentId).
+ *
+ * First deposits never decrease: one qualifying first top-up per customer,
+ * credited to the agent whose link opened the account. Play GGR is separate.
+ */
+export const adminRebuildAgentDepositStats = onCall(
+  {
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async (req) => {
+    await requireRole(req, ["admin"]);
+
+    const minFirst = MIN_DEPOSIT_GMD;
+    const playersSnap = await db.collection("users").where("role", "==", "player").get();
+    const playerMeta = new Map<
+      string,
+      { ancestors: string[]; ref: FirebaseFirestore.DocumentReference }
+    >();
+    for (const docSnap of playersSnap.docs) {
+      playerMeta.set(docSnap.id, {
+        ancestors: linkOwnerIds(docSnap.data()),
+        ref: docSnap.ref,
+      });
+    }
+
+    type PlayerDep = { amount: number; at: number; extraAgents: string[] };
+    const depositsByPlayer = new Map<string, PlayerDep[]>();
+
+    const txSnap = await db.collection("transactions").get();
+    for (const row of txSnap.docs) {
+      const data = row.data();
+      if (String(data.type || "") !== "deposit") continue;
+      const uid = String(data.userId || "");
+      if (!uid || !playerMeta.has(uid)) continue;
+      const amount = round2(Math.abs(Number(data.amount) || 0));
+      if (!(amount > 0)) continue;
+      const meta = (data.meta ?? {}) as Record<string, unknown>;
+      const extraAgents: string[] = [];
+      if (meta.otcCash && typeof meta.agentId === "string" && meta.agentId) {
+        extraAgents.push(meta.agentId);
+      }
+      const list = depositsByPlayer.get(uid) ?? [];
+      list.push({ amount, at: createdAtMs(data.createdAt), extraAgents });
+      depositsByPlayer.set(uid, list);
+    }
+
+    const byAgent = new Map<string, AgentDepositTotals>();
+    const bump = (agentId: string, fields: Partial<AgentDepositTotals>) => {
+      const cur = byAgent.get(agentId) ?? emptyAgentDepositTotals();
+      if (fields.customerDeposits) {
+        cur.customerDeposits = round2(cur.customerDeposits + fields.customerDeposits);
+      }
+      if (fields.firstDeposits) {
+        cur.firstDeposits = round2(cur.firstDeposits + fields.firstDeposits);
+      }
+      if (fields.firstDepositCount) {
+        cur.firstDepositCount += fields.firstDepositCount;
+      }
+      byAgent.set(agentId, cur);
+    };
+
+    const playerFlags: Array<{
+      ref: FirebaseFirestore.DocumentReference;
+      amount: number;
+      at: number;
+    }> = [];
+
+    for (const [uid, meta] of playerMeta) {
+      const deps = (depositsByPlayer.get(uid) ?? []).sort((a, b) => a.at - b.at);
+      for (const dep of deps) {
+        const agents = [...new Set([...meta.ancestors, ...dep.extraAgents])];
+        for (const agentId of agents) bump(agentId, { customerDeposits: dep.amount });
+      }
+      const first = deps.find((d) => d.amount >= minFirst);
+      if (first && meta.ancestors.length > 0) {
+        for (const agentId of meta.ancestors) {
+          bump(agentId, { firstDeposits: first.amount, firstDepositCount: 1 });
+        }
+        playerFlags.push({ ref: meta.ref, amount: first.amount, at: first.at });
+      }
+      // A player the rebuild cannot confirm this run is left untouched: we never
+      // clear an existing firstDepositAttributed flag, so a marketer's recorded
+      // sale can never be erased (and never re-credited on a later deposit).
+    }
+
+    const agentsSnap = await db
+      .collection("users")
+      .where("role", "in", ["agent", "super_agent", "sub_agent"])
+      .get();
+
+    let agentsUpdated = 0;
+    let agentsRaised = 0;
+    const chunkSize = 400;
+    const agentDocs = agentsSnap.docs;
+    for (let i = 0; i < agentDocs.length; i += chunkSize) {
+      const batch = db.batch();
+      for (const docSnap of agentDocs.slice(i, i + chunkSize)) {
+        const totals = byAgent.get(docSnap.id) ?? emptyAgentDepositTotals();
+        const storedStats = (docSnap.data().stats ?? {}) as Record<string, unknown>;
+        const storedNum = (k: string) => {
+          const n = Number(storedStats[k]);
+          return Number.isFinite(n) && n > 0 ? n : 0;
+        };
+        // Never reduce a marketer's earned totals. The rebuild may only fill in
+        // or raise them: if the recomputed value is lower (archived ledger rows,
+        // a re-parented customer, a changed role) we keep the higher stored value
+        // so the marketing sale money used to pay them is never erased.
+        const customerDeposits = Math.max(storedNum("customerDeposits"), totals.customerDeposits);
+        const firstDeposits = Math.max(storedNum("firstDeposits"), totals.firstDeposits);
+        const firstDepositCount = Math.max(storedNum("firstDepositCount"), totals.firstDepositCount);
+        if (
+          firstDeposits > storedNum("firstDeposits") ||
+          firstDepositCount > storedNum("firstDepositCount") ||
+          customerDeposits > storedNum("customerDeposits")
+        ) {
+          agentsRaised += 1;
+        }
+        batch.set(
+          docSnap.ref,
+          {
+            stats: { customerDeposits, firstDeposits, firstDepositCount },
+          },
+          { merge: true },
+        );
+        agentsUpdated += 1;
+      }
+      await batch.commit();
+    }
+
+    let playersUpdated = 0;
+    for (let i = 0; i < playerFlags.length; i += chunkSize) {
+      const batch = db.batch();
+      for (const row of playerFlags.slice(i, i + chunkSize)) {
+        batch.set(
+          row.ref,
+          {
+            firstDepositAttributed: true,
+            firstDepositAmount: row.amount,
+            firstDepositAt: row.at > 0 ? new Date(row.at) : FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+        playersUpdated += 1;
+      }
+      await batch.commit();
+    }
+
+    logger.info("adminRebuildAgentDepositStats", {
+      agents: agentsUpdated,
+      agentsRaised,
+      players: playersUpdated,
+      transactions: txSnap.size,
+      firstDepositCustomers: playerFlags.length,
+    });
+
+    return {
+      ok: true as const,
+      agentsUpdated,
+      agentsRaised,
+      playersUpdated,
+      transactionsScanned: txSnap.size,
+      firstDepositCustomers: playerFlags.length,
+    };
+  },
 );

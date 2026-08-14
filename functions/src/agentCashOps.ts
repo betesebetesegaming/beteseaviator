@@ -18,6 +18,7 @@ import {
   walletWrite,
   bumpDailyStats,
   bumpPlatformStats,
+  attributeAgentDeposits,
   type ProfileData,
 } from "./helpers";
 import { onReferralDeposit } from "./referrals";
@@ -167,15 +168,15 @@ async function doCashDeposit(opts: {
     bumpDailyStats(tx, todayIso(depositAt), { deposits: amount });
     bumpPlatformStats(tx, { totalDeposits: amount });
     const date = todayIso(depositAt);
-    // Attribute cash desk credit to the acting agent (walk-ins included) + tree ancestors.
-    const attributed = new Set<string>([actorUid, ...(customer.ancestors ?? [])]);
-    for (const agentId of attributed) {
-      tx.set(
-        db.doc(`users/${agentId}`),
-        { stats: { customerDeposits: FieldValue.increment(amount) } },
-        { merge: true },
-      );
-    }
+    // All deposits: acting cash-desk agent (walk-ins) + link tree.
+    // First deposit (marketing sale) stays with the signup-link owner only.
+    attributeAgentDeposits(tx, {
+      playerRef: userRef,
+      playerData: userSnap.data() ?? customer,
+      amount,
+      extraCustomerDepositAgentIds: [actorUid],
+      minFirstDeposit: settings.minDeposit,
+    });
     tx.set(
       db.doc(`agentDailyStats/${actorUid}_${date}`),
       {

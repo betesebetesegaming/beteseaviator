@@ -361,6 +361,31 @@ export const adminBackfillPlayerAccountStats = call<
   { ok: true; usersUpdated: number; transactionsScanned: number }
 >("adminBackfillPlayerAccountStats");
 
+export const adminRebuildAgentGgrStats = call<
+  Record<string, never>,
+  { ok: true; agentsUpdated: number; ledgerRows: number }
+>("adminRebuildAgentGgrStats");
+
+export const adminRebuildAgentDepositStats = call<
+  Record<string, never>,
+  {
+    ok: true;
+    agentsUpdated: number;
+    agentsRaised: number;
+    playersUpdated: number;
+    transactionsScanned: number;
+    firstDepositCustomers: number;
+  }
+>("adminRebuildAgentDepositStats");
+
+export const adminBackfillCommissionsRange = call<
+  { from: string; to: string },
+  {
+    ok: true;
+    days: Array<{ date: string; created: number; skipped: number; total: number }>;
+  }
+>("adminBackfillCommissionsRange");
+
 export const adminSetGameStatus = call<
   {
     gameId: string;
@@ -498,6 +523,8 @@ export type OperationsHubResponse = {
     customerCount: number;
     customersOpenedToday: number;
     customerDeposits: number;
+    firstDeposits: number;
+    firstDepositCount: number;
     cashDepositsToday: number;
     cashWithdrawalsToday: number;
     cashDepositCountToday: number;
