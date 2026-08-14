@@ -155,8 +155,8 @@ export function AgentSalesSummary() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-slate-400">
-        Sales detail. First deposits via your link never reduce. Play GGR is later betting. For the
-        full statement — cash desk, Wave, and commission wallet — open{" "}
+        Sales detail (GGR, Wave day stats). For the full professional statement — cash desk balance,
+        Wave, sales, and commission wallet — open{" "}
         <Link href="/admin/accounts?tab=book" className="font-medium text-amber-300 hover:underline">
           Account book
         </Link>
@@ -191,12 +191,7 @@ export function AgentSalesSummary() {
       <AgentPeriodStats />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="First deposits (your link)"
-          value={formatXof(stats.firstDeposits ?? 0)}
-          hint={`${stats.firstDepositCount ?? 0} first-time customers · never reduces`}
-        />
-        <StatCard label="Lifetime play GGR" value={formatXof(lifetimeGgr)} hint="bets minus wins — not first-deposit pay" />
+        <StatCard label="Lifetime sales (GGR)" value={formatXof(lifetimeGgr)} hint="all time from your customers" />
         <StatCard label="Commission in wallet" value={formatXof(wallet?.balance ?? 0)} hint="available now" />
         <StatCard
           label="Cash deposits today"
@@ -234,7 +229,7 @@ export function AgentSalesSummary() {
           <p className="mb-4 text-xs text-slate-500">{week.label}</p>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-400">Play GGR</span>
+              <span className="text-slate-400">Sales (GGR)</span>
               <span className="font-semibold">{weekGgr != null ? formatXof(weekGgr) : "…"}</span>
             </div>
             <div className="flex justify-between">
@@ -258,7 +253,7 @@ export function AgentSalesSummary() {
           <p className="mb-4 text-xs text-slate-500">{month.label}</p>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-400">Play GGR</span>
+              <span className="text-slate-400">Sales (GGR)</span>
               <span className="font-semibold">{monthGgr != null ? formatXof(monthGgr) : "…"}</span>
             </div>
             <div className="flex justify-between">

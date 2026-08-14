@@ -13,7 +13,6 @@ import {
   todayIso,
   walletRead,
   walletWrite,
-  attributeAgentDeposits,
   bumpDailyStats,
   bumpPlatformStats,
   PROVIDERS,
@@ -180,6 +179,7 @@ async function settleDepositPaid(requestId: string, source: string): Promise<voi
 
     const userRef = db.doc(`users/${r.userId}`);
     const userSnap = await tx.get(userRef);
+    const ancestors = (userSnap.data()?.ancestors as string[] | undefined) ?? [];
     const wallet = await walletRead(tx, r.userId);
 
     await onReferralDeposit(tx, r.userId, r.amount, settings);
@@ -209,12 +209,13 @@ async function settleDepositPaid(requestId: string, source: string): Promise<voi
     tx.update(ref, { status: "paid", settledAt: FieldValue.serverTimestamp() });
     bumpDailyStats(tx, todayIso(), { deposits: r.amount });
     bumpPlatformStats(tx, { totalDeposits: r.amount });
-    attributeAgentDeposits(tx, {
-      playerRef: userRef,
-      playerData: userSnap.data(),
-      amount: r.amount,
-      minFirstDeposit: settings.minDeposit,
-    });
+    for (const agentId of ancestors) {
+      tx.set(
+        db.doc(`users/${agentId}`),
+        { stats: { customerDeposits: FieldValue.increment(r.amount) } },
+        { merge: true }
+      );
+    }
     creditedUserId = String(r.userId);
     creditedAmount = Number(r.amount);
   });

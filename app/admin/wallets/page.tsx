@@ -35,7 +35,7 @@ type RoleFilter = "all" | "players" | "agents";
 
 function depositsForRow(r: Row): number {
   if (isAgentRole(r.role)) {
-    return Number(r.stats?.firstDeposits ?? r.stats?.customerDeposits ?? r.stats?.totalDeposits ?? 0);
+    return Number(r.stats?.customerDeposits ?? r.stats?.totalDeposits ?? 0);
   }
   return Number(r.stats?.totalDeposits ?? 0);
 }

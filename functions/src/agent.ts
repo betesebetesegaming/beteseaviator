@@ -24,7 +24,6 @@ import {
   RESERVED_SLUGS,
   staffLoginKey,
   recordCustomersOpened,
-  attributeAgentDeposits,
   type ProfileData,
 } from "./helpers";
 import { onReferralDeposit } from "./referrals";
@@ -240,12 +239,13 @@ export const agentDepositToCustomer = onCall(async (req) => {
 
     bumpDailyStats(tx, todayIso(depositAt), { deposits: amount });
     bumpPlatformStats(tx, { totalDeposits: amount });
-    attributeAgentDeposits(tx, {
-      playerRef: userRef,
-      playerData: userSnap.data() ?? customer,
-      amount,
-      minFirstDeposit: settings.minDeposit,
-    });
+    for (const agentId of customer.ancestors ?? []) {
+      tx.set(
+        db.doc(`users/${agentId}`),
+        { stats: { customerDeposits: FieldValue.increment(amount) } },
+        { merge: true }
+      );
+    }
   });
 
   await consumeOtpVerifiedForPhone(customerPhone).catch(() => undefined);

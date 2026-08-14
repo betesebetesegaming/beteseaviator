@@ -39,8 +39,6 @@ type AgentSummary = {
   customerCount: number;
   customersOpenedToday: number;
   customerDeposits: number;
-  firstDeposits: number;
-  firstDepositCount: number;
   cashDepositsToday: number;
   cashWithdrawalsToday: number;
   cashDepositCountToday: number;
@@ -122,8 +120,6 @@ function agentSummaryFromDoc(
     customerCount: Number(stats.customerCount ?? 0),
     customersOpenedToday: opensByAgent.get(d.id) ?? 0,
     customerDeposits: Number(stats.customerDeposits ?? 0),
-    firstDeposits: Number(stats.firstDeposits ?? 0),
-    firstDepositCount: Number(stats.firstDepositCount ?? 0),
     cashDepositsToday: cash?.deposits ?? 0,
     cashWithdrawalsToday: cash?.withdrawals ?? 0,
     cashDepositCountToday: cash?.depositCount ?? 0,

@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { doc, onSnapshot } from "firebase/firestore";
 import Link from "next/link";
 import { db } from "@/lib/firestore";
-import { adminRebuildPlatformStats, adminBackfillPlayerAccountStats, adminRebuildAgentGgrStats, adminRebuildAgentDepositStats, adminBackfillCommissionsRange, adminReleaseReferralBonuses, adminSaveSettings, errorMessage } from "@/lib/api";
+import { adminRebuildPlatformStats, adminBackfillPlayerAccountStats, adminReleaseReferralBonuses, adminSaveSettings, errorMessage } from "@/lib/api";
 import {
   DEFAULT_SETTINGS,
   PROVIDER_LABELS,
@@ -13,7 +13,7 @@ import {
   type PlatformSettings,
 } from "@/lib/types";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
-import { formatXof, daysAgoIso } from "@/lib/format";
+import { formatXof } from "@/lib/format";
 import { Button, Card, Input } from "@/components/ui";
 
 export default function AdminSettingsPage() {
@@ -21,9 +21,6 @@ export default function AdminSettingsPage() {
   const [busy, setBusy] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [rebuildingCustomers, setRebuildingCustomers] = useState(false);
-  const [rebuildingAgents, setRebuildingAgents] = useState(false);
-  const [rebuildingFirstDeposits, setRebuildingFirstDeposits] = useState(false);
-  const [backfillingCommissions, setBackfillingCommissions] = useState(false);
   const [releasingReferrals, setReleasingReferrals] = useState(false);
 
   useEffect(() => {
@@ -103,52 +100,6 @@ export default function AdminSettingsPage() {
       toast.error(errorMessage(e));
     } finally {
       setRebuildingCustomers(false);
-    }
-  }
-
-  async function rebuildAgentGgr() {
-    setRebuildingAgents(true);
-    try {
-      const res = await adminRebuildAgentGgrStats({});
-      toast.success(
-        `Play GGR rebuilt — ${res.agentsUpdated} agents from ${res.ledgerRows} daily GGR rows.`
-      );
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setRebuildingAgents(false);
-    }
-  }
-
-  async function rebuildAgentFirstDeposits() {
-    setRebuildingFirstDeposits(true);
-    try {
-      const res = await adminRebuildAgentDepositStats({});
-      toast.success(
-        `First deposits rebuilt — ${res.firstDepositCustomers} customers, ${res.agentsRaised} marketers raised (never reduced), from ${res.transactionsScanned} ledger rows.`
-      );
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setRebuildingFirstDeposits(false);
-    }
-  }
-
-  async function backfillLast7DaysCommissions() {
-    setBackfillingCommissions(true);
-    try {
-      const from = daysAgoIso(7);
-      const to = daysAgoIso(1);
-      const res = await adminBackfillCommissionsRange({ from, to });
-      const created = res.days.reduce((sum, d) => sum + d.created, 0);
-      const paid = res.days.reduce((sum, d) => sum + d.total, 0);
-      toast.success(
-        `Commissions ${from} → ${to}: ${created} new payouts, ${formatXof(paid)} credited.`
-      );
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setBackfillingCommissions(false);
     }
   }
 
@@ -436,36 +387,6 @@ export default function AdminSettingsPage() {
         {rebuildingCustomers
           ? "Rebuilding customer books…"
           : "Rebuild customer account books (deposits / played / win-loss)"}
-      </Button>
-      <Button
-        variant="secondary"
-        className="mt-3 w-full"
-        onClick={rebuildAgentGgr}
-        disabled={rebuildingAgents}
-      >
-        {rebuildingAgents
-          ? "Rebuilding play GGR…"
-          : "Rebuild play GGR (bets − wins, can go up or down)"}
-      </Button>
-      <Button
-        variant="secondary"
-        className="mt-3 w-full"
-        onClick={rebuildAgentFirstDeposits}
-        disabled={rebuildingFirstDeposits}
-      >
-        {rebuildingFirstDeposits
-          ? "Rebuilding first deposits…"
-          : "Rebuild first deposits via marketing links (never reduces)"}
-      </Button>
-      <Button
-        variant="secondary"
-        className="mt-3 w-full"
-        onClick={backfillLast7DaysCommissions}
-        disabled={backfillingCommissions}
-      >
-        {backfillingCommissions
-          ? "Paying last 7 days…"
-          : "Pay any missing marketer commissions (last 7 days)"}
       </Button>
     </div>
   );
