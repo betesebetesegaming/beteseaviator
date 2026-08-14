@@ -571,7 +571,6 @@ export function attributeAgentDeposits(
     amount: number;
     extraCustomerDepositAgentIds?: string[];
     minFirstDeposit?: number;
-    at?: Date;
   }
 ): void {
   const amount = round2(args.amount);
@@ -604,7 +603,6 @@ export function attributeAgentDeposits(
     { merge: true }
   );
 
-  const date = todayIso(args.at ?? new Date());
   for (const agentId of ancestors) {
     tx.set(
       db.doc(`users/${agentId}`),
@@ -613,16 +611,6 @@ export function attributeAgentDeposits(
           firstDeposits: FieldValue.increment(amount),
           firstDepositCount: FieldValue.increment(1),
         },
-      },
-      { merge: true }
-    );
-    tx.set(
-      db.doc(`agentDailyStats/${agentId}_${date}`),
-      {
-        agentId,
-        date,
-        firstDeposits: FieldValue.increment(amount),
-        firstDepositCount: FieldValue.increment(1),
       },
       { merge: true }
     );

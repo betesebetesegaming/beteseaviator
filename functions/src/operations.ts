@@ -41,8 +41,6 @@ type AgentSummary = {
   customerDeposits: number;
   firstDeposits: number;
   firstDepositCount: number;
-  monthFirstDeposits: number;
-  monthFirstDepositCount: number;
   cashDepositsToday: number;
   cashWithdrawalsToday: number;
   cashDepositCountToday: number;
@@ -107,7 +105,6 @@ function agentSummaryFromDoc(
   d: QueryDocumentSnapshot,
   opensByAgent: Map<string, number>,
   cashByAgent: Map<string, { deposits: number; withdrawals: number; depositCount: number }>,
-  monthByAgent: Map<string, { firstDeposits: number; firstDepositCount: number }>,
   walletBalance = 0,
 ): AgentSummary {
   const p = d.data() as ProfileData;
@@ -115,7 +112,6 @@ function agentSummaryFromDoc(
   const totalBets = Number(stats.totalBets ?? 0);
   const totalWins = Number(stats.totalWins ?? 0);
   const cash = cashByAgent.get(d.id);
-  const month = monthByAgent.get(d.id);
   return {
     uid: d.id,
     name: p.name,
@@ -128,8 +124,6 @@ function agentSummaryFromDoc(
     customerDeposits: Number(stats.customerDeposits ?? 0),
     firstDeposits: Number(stats.firstDeposits ?? 0),
     firstDepositCount: Number(stats.firstDepositCount ?? 0),
-    monthFirstDeposits: Number(month?.firstDeposits ?? 0),
-    monthFirstDepositCount: Number(month?.firstDepositCount ?? 0),
     cashDepositsToday: cash?.deposits ?? 0,
     cashWithdrawalsToday: cash?.withdrawals ?? 0,
     cashDepositCountToday: cash?.depositCount ?? 0,
@@ -166,12 +160,10 @@ async function loadAdminPlatformData(today: string): Promise<{
   agents: AgentSummary[];
   parentIdByUid: Map<string, string>;
 }> {
-  const monthFrom = `${today.slice(0, 7)}-01`;
-  const [agentSnap, playerSnap, dailySnap, monthSnap] = await Promise.all([
+  const [agentSnap, playerSnap, dailySnap] = await Promise.all([
     db.collection("users").where("role", "in", [...AGENT_ROLES]).get(),
     db.collection("users").where("role", "==", "player").limit(2000).get(),
     db.collection("agentDailyStats").where("date", "==", today).get(),
-    db.collection("agentDailyStats").where("date", ">=", monthFrom).get(),
   ]);
 
   const parentNameByUid = new Map<string, string>();
@@ -192,19 +184,6 @@ async function loadAdminPlatformData(today: string): Promise<{
     });
   }
 
-  const monthByAgent = new Map<string, { firstDeposits: number; firstDepositCount: number }>();
-  for (const d of monthSnap.docs) {
-    const row = d.data();
-    const date = String(row.date || "");
-    if (date < monthFrom || date > today) continue;
-    const agentId = String(row.agentId || "");
-    if (!agentId) continue;
-    const cur = monthByAgent.get(agentId) ?? { firstDeposits: 0, firstDepositCount: 0 };
-    cur.firstDeposits = Math.round((cur.firstDeposits + Number(row.firstDeposits ?? 0)) * 100) / 100;
-    cur.firstDepositCount += Number(row.firstDepositCount ?? 0);
-    monthByAgent.set(agentId, cur);
-  }
-
   const agentWalletSnaps = await Promise.all(
     agentSnap.docs.map((d) => db.doc(`wallets/${d.id}`).get()),
   );
@@ -215,15 +194,7 @@ async function loadAdminPlatformData(today: string): Promise<{
   });
 
   const agents = agentSnap.docs
-    .map((d) =>
-      agentSummaryFromDoc(
-        d,
-        opensByAgent,
-        cashByAgent,
-        monthByAgent,
-        walletByAgent.get(d.id) ?? 0,
-      ),
-    )
+    .map((d) => agentSummaryFromDoc(d, opensByAgent, cashByAgent, walletByAgent.get(d.id) ?? 0))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const parentIdByUid = new Map<string, string>();

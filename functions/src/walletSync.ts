@@ -75,7 +75,6 @@ export async function syncAviatorWalletCredit(
       playerData: userSnap.data(),
       amount,
       minFirstDeposit: settings.minDeposit,
-      at: depositAt,
     });
   });
 

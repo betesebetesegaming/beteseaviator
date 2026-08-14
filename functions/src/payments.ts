@@ -214,7 +214,6 @@ async function settleDepositPaid(requestId: string, source: string): Promise<voi
       playerData: userSnap.data(),
       amount: r.amount,
       minFirstDeposit: settings.minDeposit,
-      at: new Date(),
     });
     creditedUserId = String(r.userId);
     creditedAmount = Number(r.amount);

@@ -188,14 +188,6 @@
         { "fieldPath": "date", "order": "ASCENDING" },
         { "fieldPath": "agentId", "order": "ASCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "agentDailyStats",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "agentId", "order": "ASCENDING" },
-        { "fieldPath": "date", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []

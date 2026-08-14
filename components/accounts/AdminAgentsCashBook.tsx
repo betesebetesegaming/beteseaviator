@@ -8,7 +8,6 @@ import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { getOperationsHub, type OperationsHubResponse, errorMessage } from "@/lib/api";
 import { formatDate, formatXof, todayIso } from "@/lib/format";
-import { monthEndPayFromFirstOpen } from "@/lib/marketerFirstDepositPay";
 import { isOtcCashMeta } from "@/lib/transactionChannel";
 import { Button, Card, EmptyState, Select, StatCard, TableShell, Td, Th } from "@/components/ui";
 
@@ -121,15 +120,16 @@ export function AdminAgentsCashBook() {
         <StatCard label="Agents with cash today" value={platformCash.agentsWithCash} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total accounts" value={platformCash.totalAccounts} hint="all agent customers" />
-        <StatCard label="First-open cash (pay)" value={formatXof(platformCash.totalFirstDeposits)} hint="lifetime via links" />
-        <StatCard label="Customer play GGR (NOT pay)" value={formatXof(platformCash.totalGgr)} />
+        <StatCard label="First deposits (via links)" value={formatXof(platformCash.totalFirstDeposits)} />
+        <StatCard label="All customer deposits" value={formatXof(platformCash.totalDeposits)} />
+        <StatCard label="Total play GGR" value={formatXof(platformCash.totalGgr)} />
       </div>
 
       <div>
         <h3 className="mb-2 text-sm font-semibold text-slate-200">
-          Agent books — first-open cash (pay) vs customer play (not pay)
+          Agent books — name · register · first deposits · play · balance · profit
         </h3>
         {loading ? (
           <EmptyState message="Loading agent books…" />
@@ -141,10 +141,10 @@ export function AdminAgentsCashBook() {
               <tr>
                 <Th>Agent name</Th>
                 <Th>Register #</Th>
-                <Th className="text-right">This month first-open</Th>
-                <Th className="text-right">Month-end pay</Th>
-                <Th className="text-right">Lifetime first-open</Th>
-                <Th className="text-right">Customer play (NOT pay)</Th>
+                <Th className="text-right">First deposits</Th>
+                <Th className="text-right">Play</Th>
+                <Th className="text-right">Balance</Th>
+                <Th className="text-right">Profit / GGR</Th>
                 <Th className="text-right">Cash today</Th>
                 <Th className="text-right">Accounts</Th>
                 <Th>Action</Th>
@@ -156,17 +156,17 @@ export function AdminAgentsCashBook() {
                   <Td className="font-medium text-white">{a.name}</Td>
                   <Td className="font-mono text-xs text-sky-300">{a.agentSlug ?? "—"}</Td>
                   <Td className="text-right tabular-nums font-semibold text-emerald-200">
-                    {formatXof(a.monthFirstDeposits ?? 0)}
-                  </Td>
-                  <Td className="text-right tabular-nums font-semibold text-amber-200">
-                    {formatXof(monthEndPayFromFirstOpen(a.monthFirstDeposits ?? 0).pay)}
-                  </Td>
-                  <Td className="text-right tabular-nums text-emerald-100">
                     {formatXof(a.firstDeposits ?? 0)}
+                    <span className="block text-[10px] font-normal text-slate-500">
+                      all {formatXof(a.customerDeposits)}
+                    </span>
                   </Td>
-                  <Td className="text-right tabular-nums text-slate-500">
+                  <Td className="text-right tabular-nums text-slate-300">{formatXof(a.totalBets)}</Td>
+                  <Td className="text-right tabular-nums text-emerald-300">
+                    {formatXof(a.walletBalance ?? 0)}
+                  </Td>
+                  <Td className="text-right tabular-nums font-semibold text-violet-200">
                     {formatXof(a.ggr)}
-                    <span className="block text-[10px] font-normal text-slate-600">bets {formatXof(a.totalBets)}</span>
                   </Td>
                   <Td className="text-right tabular-nums text-amber-200">
                     {formatXof(a.net)}

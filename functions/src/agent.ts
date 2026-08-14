@@ -245,7 +245,6 @@ export const agentDepositToCustomer = onCall(async (req) => {
       playerData: userSnap.data() ?? customer,
       amount,
       minFirstDeposit: settings.minDeposit,
-      at: depositAt,
     });
   });
 
