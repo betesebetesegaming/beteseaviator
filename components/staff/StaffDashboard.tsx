@@ -26,6 +26,7 @@ import { isAgentRole } from "@/lib/roles";
 import { StaffAccountCard } from "@/components/staff/StaffAccountCard";
 import { AgentPeriodStats } from "@/components/staff/AgentPeriodStats";
 import { AgentQuickStart } from "@/components/agent/AgentQuickStart";
+import { MarketerFirstOpenCash } from "@/components/agent/MarketerFirstOpenCash";
 import {
   AdminDailyCustomerOpens,
   AgentTodayCustomerOpens,
@@ -49,7 +50,6 @@ export function StaffDashboard() {
   const { profile, wallet } = useAuth();
   const isAdmin = profile?.role === "admin";
   const stats = profile?.stats ?? {};
-  const agentGgr = (stats.totalBets ?? 0) - (stats.totalWins ?? 0);
 
   const [platformStats, setPlatformStats] = useState<PlatformStats>({});
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
@@ -227,14 +227,16 @@ export function StaffDashboard() {
         </p>
         <h1 className="text-xl font-bold">Welcome back, {profile.name}</h1>
         <p className="mt-1 text-sm text-slate-400">
-        Share your marketing link — customers who register through it are yours. First deposits
-        via your link accumulate on your account and never go down. Play GGR is separate.
+          Share your marketing link — customers who register through it are yours. First-open cash
+          via your link is your sale and never goes down. Customer play is not your pay.
         </p>
       </div>
 
       <StaffAccountCard profile={profile} />
 
       {isAgentRole(profile.role) && profile.agentSlug ? <AgentQuickStart /> : null}
+
+      <MarketerFirstOpenCash />
 
       <AgentPeriodStats />
 
@@ -249,23 +251,6 @@ export function StaffDashboard() {
           />
         </Link>
         <StatCard label="My Customers" value={stats.customerCount ?? 0} icon={<Users size={20} />} />
-        <StatCard
-          label="First deposits (your link)"
-          value={formatXof(stats.firstDeposits ?? 0)}
-          hint={`${stats.firstDepositCount ?? 0} first-time customers · never reduces`}
-          icon={<Banknote size={20} />}
-        />
-        <StatCard
-          label="All customer deposits"
-          value={formatXof(stats.customerDeposits ?? 0)}
-          icon={<Banknote size={20} />}
-        />
-        <StatCard
-          label="Play GGR"
-          value={formatXof(Math.max(0, agentGgr))}
-          hint="bets minus wins — not first-deposit pay"
-          icon={<TrendingUp size={20} />}
-        />
         <StatCard label="Commission Due" value={formatXof(wallet?.balance ?? 0)} icon={<WalletCards size={20} />} />
         <StatCard label="Commission Earned" value={formatXof(stats.commissionEarned ?? 0)} icon={<Award size={20} />} />
       </div>
@@ -281,7 +266,7 @@ export function StaffDashboard() {
         </Card>
         <Card className="p-4">
           <h2 className="mb-2 font-semibold">Accounts &amp; sales</h2>
-          <p className="mb-4 text-sm text-slate-400">First deposits via your link, play GGR, and commissions.</p>
+          <p className="mb-4 text-sm text-slate-400">First-open cash via your link (your sale) and commission wallet.</p>
           <Link href="/admin/accounts">
             <Button variant="secondary" className="w-full">
               Open accounts

@@ -22,6 +22,7 @@ import { collection, doc, onSnapshot, orderBy, query, where } from "firebase/fir
 import { db } from "@/lib/firestore";
 import type { AgentDailyStats, Commission } from "@/lib/types";
 import { AgentPeriodStats } from "@/components/staff/AgentPeriodStats";
+import { MarketerFirstOpenCash } from "@/components/agent/MarketerFirstOpenCash";
 import { Card, StatCard } from "@/components/ui";
 
 function useAgentCommissionsRange(agentId: string | undefined, from: string, to: string) {
@@ -155,13 +156,15 @@ export function AgentSalesSummary() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-slate-400">
-        Sales detail. First deposits via your link never reduce. Play GGR is later betting. For the
-        full statement — cash desk, Wave, and commission wallet — open{" "}
+        First-open cash is your sale (month-end pay). Customer play is later betting — not your
+        sale. For cash desk and commission wallet, open{" "}
         <Link href="/admin/accounts?tab=book" className="font-medium text-amber-300 hover:underline">
           Account book
         </Link>
         .
       </p>
+
+      <MarketerFirstOpenCash />
 
       {(Number(cashToday?.cashDeposits ?? 0) > 0 || Number(cashToday?.cashDepositCount ?? 0) > 0) ? (
         <Card className="border-amber-500/40 bg-amber-500/10 p-5">
@@ -191,12 +194,7 @@ export function AgentSalesSummary() {
       <AgentPeriodStats />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="First deposits (your link)"
-          value={formatXof(stats.firstDeposits ?? 0)}
-          hint={`${stats.firstDepositCount ?? 0} first-time customers · never reduces`}
-        />
-        <StatCard label="Lifetime play GGR" value={formatXof(lifetimeGgr)} hint="bets minus wins — not first-deposit pay" />
+        <StatCard label="Customer play GGR (NOT your sale)" value={formatXof(lifetimeGgr)} hint="bets minus wins — we do not pay this" />
         <StatCard label="Commission in wallet" value={formatXof(wallet?.balance ?? 0)} hint="available now" />
         <StatCard
           label="Cash deposits today"

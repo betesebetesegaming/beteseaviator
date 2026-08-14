@@ -397,6 +397,9 @@ export interface AgentDailyStats {
   agentId: string;
   date: string;
   customersOpened: number;
+  /** First qualifying deposits via this agent's link on this date (pay). */
+  firstDeposits?: number;
+  firstDepositCount?: number;
   /** OTC cash credits handled by this agent today. */
   cashDeposits?: number;
   cashDepositCount?: number;

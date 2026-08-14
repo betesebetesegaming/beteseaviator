@@ -45,13 +45,17 @@ export function AgentPeriodStats() {
   const monthCommission = sumAgentCommissions(monthRows);
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="space-y-2">
+      <p className="text-xs text-slate-500">
+        Customer play only (bets minus wins). This is not first-open cash and is not month-end marketer pay.
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
       <Card className="p-4">
         <p className="text-xs font-bold uppercase tracking-widest text-sky-400">This week</p>
         <p className="mt-1 text-xs text-slate-500">{week.label}</p>
         <div className="mt-3 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Your customers&apos; GGR</span>
+            <span className="text-slate-400">Customer play (GGR)</span>
             <span className="font-semibold tabular-nums text-white">{formatXof(weekGgr)}</span>
           </div>
           <div className="flex justify-between text-sm">
@@ -65,7 +69,7 @@ export function AgentPeriodStats() {
         <p className="mt-1 text-xs text-slate-500">{month.label}</p>
         <div className="mt-3 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Your customers&apos; GGR</span>
+            <span className="text-slate-400">Customer play (GGR)</span>
             <span className="font-semibold tabular-nums text-white">{formatXof(monthGgr)}</span>
           </div>
           <div className="flex justify-between text-sm">
@@ -74,6 +78,7 @@ export function AgentPeriodStats() {
           </div>
         </div>
       </Card>
+    </div>
     </div>
   );
 }

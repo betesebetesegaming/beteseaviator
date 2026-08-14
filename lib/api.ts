@@ -373,6 +373,7 @@ export const adminRebuildAgentDepositStats = call<
     agentsUpdated: number;
     agentsRaised: number;
     playersUpdated: number;
+    dailyRows?: number;
     transactionsScanned: number;
     firstDepositCustomers: number;
   }
@@ -525,6 +526,8 @@ export type OperationsHubResponse = {
     customerDeposits: number;
     firstDeposits: number;
     firstDepositCount: number;
+    monthFirstDeposits: number;
+    monthFirstDepositCount: number;
     cashDepositsToday: number;
     cashWithdrawalsToday: number;
     cashDepositCountToday: number;

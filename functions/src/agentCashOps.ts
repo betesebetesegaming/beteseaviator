@@ -176,6 +176,7 @@ async function doCashDeposit(opts: {
       amount,
       extraCustomerDepositAgentIds: [actorUid],
       minFirstDeposit: settings.minDeposit,
+      at: depositAt,
     });
     tx.set(
       db.doc(`agentDailyStats/${actorUid}_${date}`),

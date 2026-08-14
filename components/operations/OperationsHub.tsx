@@ -14,6 +14,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { getOperationsHub, type OperationsHubResponse, errorMessage } from "@/lib/api";
 import { formatDate, formatXof } from "@/lib/format";
+import { monthEndPayFromFirstOpen } from "@/lib/marketerFirstDepositPay";
 import { formatPlayerId } from "@/lib/playerId";
 import { isOtcCashMeta, transactionChannel, transactionChannelLabel } from "@/lib/transactionChannel";
 import type { Role, TransactionType } from "@/lib/types";
@@ -307,9 +308,11 @@ export function OperationsHub() {
 
       {tab === "agents" && isAdmin && (
         <div className="space-y-4">
-          <p className="text-sm text-slate-400">
-            Clear agent books for the back office: register number, customer deposits, play volume,
-            balance, profit (GGR), and total accounts. Click Customers / Ledger to drill in.
+          <p className="text-sm text-slate-300">
+            <span className="font-semibold text-emerald-300">First-open cash</span> is the actual
+            first deposit via that marketer&apos;s link — that is what we pay at month end.{" "}
+            <span className="font-semibold text-slate-500">Customer play</span> is later betting. Do
+            not treat play as sales.
           </p>
           <label className="block max-w-md text-sm">
             <span className="mb-1 text-slate-400">Search agents</span>
@@ -330,13 +333,12 @@ export function OperationsHub() {
                 <tr>
                   <Th>Agent name</Th>
                   <Th>Register #</Th>
-                  <Th className="text-right">First deposits</Th>
-                  <Th className="text-right">Play (bets)</Th>
+                  <Th className="text-right">This month first-open</Th>
+                  <Th className="text-right">Month-end pay</Th>
+                  <Th className="text-right">Lifetime first-open</Th>
+                  <Th className="text-right">Customer play (NOT pay)</Th>
                   <Th className="text-right">Balance</Th>
-                  <Th className="text-right">Profit / GGR</Th>
-                  <Th className="text-right">Cash in today</Th>
                   <Th className="text-right">Accounts</Th>
-                  <Th className="text-right">Commission</Th>
                   <Th>Status</Th>
                   <Th>Action</Th>
                 </tr>
@@ -347,30 +349,28 @@ export function OperationsHub() {
                     <Td className="font-medium text-white">{a.name}</Td>
                     <Td className="font-mono text-xs text-sky-300">{a.agentSlug ?? "—"}</Td>
                     <Td className="text-right tabular-nums font-semibold text-emerald-200">
+                      {formatXof(a.monthFirstDeposits ?? 0)}
+                      <span className="block text-[10px] font-normal text-slate-500">
+                        {(a.monthFirstDepositCount ?? 0).toLocaleString()} first this month
+                      </span>
+                    </Td>
+                    <Td className="text-right tabular-nums font-semibold text-amber-200">
+                      {formatXof(monthEndPayFromFirstOpen(a.monthFirstDeposits ?? 0).pay)}
+                    </Td>
+                    <Td className="text-right tabular-nums text-emerald-100">
                       {formatXof(a.firstDeposits ?? 0)}
                       <span className="block text-[10px] font-normal text-slate-500">
-                        {(a.firstDepositCount ?? 0).toLocaleString()} first · all {formatXof(a.customerDeposits)}
+                        {(a.firstDepositCount ?? 0).toLocaleString()} first-time
                       </span>
                     </Td>
-                    <Td className="text-right tabular-nums text-slate-300">{formatXof(a.totalBets)}</Td>
-                    <Td className="text-right tabular-nums text-emerald-300">
+                    <Td className="text-right tabular-nums text-slate-500">
+                      {formatXof(a.totalBets)}
+                      <span className="block text-[10px] font-normal text-slate-600">
+                        GGR {formatXof(a.ggr)} · not pay
+                      </span>
+                    </Td>
+                    <Td className="text-right tabular-nums text-slate-300">
                       {formatXof(a.walletBalance ?? 0)}
-                    </Td>
-                    <Td className="text-right tabular-nums font-semibold text-violet-200">
-                      {formatXof(a.ggr)}
-                      <span className="block text-[10px] font-normal text-slate-500">
-                        wins {formatXof(a.totalWins)}
-                      </span>
-                    </Td>
-                    <Td className="text-right tabular-nums">
-                      <span className={a.cashDepositsToday > 0 ? "font-semibold text-amber-200" : ""}>
-                        {formatXof(a.cashDepositsToday ?? 0)}
-                      </span>
-                      {(a.cashDepositCountToday ?? 0) > 0 ? (
-                        <span className="block text-[10px] text-slate-500">
-                          {a.cashDepositCountToday} cash deposit{a.cashDepositCountToday === 1 ? "" : "s"}
-                        </span>
-                      ) : null}
                     </Td>
                     <Td className="text-right tabular-nums">
                       {a.customerCount}
@@ -379,9 +379,6 @@ export function OperationsHub() {
                           +{a.customersOpenedToday} today
                         </span>
                       ) : null}
-                    </Td>
-                    <Td className="text-right tabular-nums text-emerald-300">
-                      {formatXof(a.commissionEarned)}
                     </Td>
                     <Td>
                       <Badge value={a.status} />

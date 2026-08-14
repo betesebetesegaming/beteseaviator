@@ -1541,6 +1541,15 @@ export const adminRebuildAgentDepositStats = onCall(
       at: number;
     }> = [];
 
+    const dailyByKey = new Map<string, { agentId: string; date: string; firstDeposits: number; firstDepositCount: number }>();
+    const bumpDaily = (agentId: string, date: string, amount: number) => {
+      const key = `${agentId}_${date}`;
+      const cur = dailyByKey.get(key) ?? { agentId, date, firstDeposits: 0, firstDepositCount: 0 };
+      cur.firstDeposits = round2(cur.firstDeposits + amount);
+      cur.firstDepositCount += 1;
+      dailyByKey.set(key, cur);
+    };
+
     for (const [uid, meta] of playerMeta) {
       const deps = (depositsByPlayer.get(uid) ?? []).sort((a, b) => a.at - b.at);
       for (const dep of deps) {
@@ -1549,8 +1558,11 @@ export const adminRebuildAgentDepositStats = onCall(
       }
       const first = deps.find((d) => d.amount >= minFirst);
       if (first && meta.ancestors.length > 0) {
+        const date =
+          first.at > 0 ? new Date(first.at).toISOString().slice(0, 10) : todayIso();
         for (const agentId of meta.ancestors) {
           bump(agentId, { firstDeposits: first.amount, firstDepositCount: 1 });
+          bumpDaily(agentId, date, first.amount);
         }
         playerFlags.push({ ref: meta.ref, amount: first.amount, at: first.at });
       }
@@ -1603,6 +1615,26 @@ export const adminRebuildAgentDepositStats = onCall(
       await batch.commit();
     }
 
+    const dailyRows = [...dailyByKey.values()];
+    let dailyUpdated = 0;
+    for (let i = 0; i < dailyRows.length; i += chunkSize) {
+      const batch = db.batch();
+      for (const row of dailyRows.slice(i, i + chunkSize)) {
+        batch.set(
+          db.doc(`agentDailyStats/${row.agentId}_${row.date}`),
+          {
+            agentId: row.agentId,
+            date: row.date,
+            firstDeposits: row.firstDeposits,
+            firstDepositCount: row.firstDepositCount,
+          },
+          { merge: true },
+        );
+        dailyUpdated += 1;
+      }
+      await batch.commit();
+    }
+
     let playersUpdated = 0;
     for (let i = 0; i < playerFlags.length; i += chunkSize) {
       const batch = db.batch();
@@ -1625,6 +1657,7 @@ export const adminRebuildAgentDepositStats = onCall(
       agents: agentsUpdated,
       agentsRaised,
       players: playersUpdated,
+      dailyRows: dailyUpdated,
       transactions: txSnap.size,
       firstDepositCustomers: playerFlags.length,
     });
@@ -1634,6 +1667,7 @@ export const adminRebuildAgentDepositStats = onCall(
       agentsUpdated,
       agentsRaised,
       playersUpdated,
+      dailyRows: dailyUpdated,
       transactionsScanned: txSnap.size,
       firstDepositCustomers: playerFlags.length,
     };

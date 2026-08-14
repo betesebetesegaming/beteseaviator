@@ -5,7 +5,9 @@ import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { UserPlus } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
-import { todayIso, daysAgoIso, formatXof } from "@/lib/format";
+import { todayIso, formatXof } from "@/lib/format";
+import { monthRangeIso } from "@/lib/ggrAccounting";
+import { monthEndPayFromFirstOpen } from "@/lib/marketerFirstDepositPay";
 import type { AgentDailyStats, UserProfile } from "@/lib/types";
 import { Card, Spinner, StatCard, TableShell, Td, Th } from "@/components/ui";
 
@@ -15,9 +17,9 @@ type AgentOpenRow = {
   customersOpened: number;
   firstDeposits: number;
   firstDepositCount: number;
-  allDeposits: number;
+  monthFirstDeposits: number;
+  monthFirstDepositCount: number;
   customerCount: number;
-  playGgr: number;
 };
 
 /** How many customers this agent opened today (manual create + referral signups). */
@@ -46,20 +48,16 @@ export function AgentTodayCustomerOpens() {
   );
 }
 
-type AgentGgr = { lifetime: number; last7: number };
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-/** Platform total + per-agent breakdown for admin. */
+/** Back-office: first-open cash (pay) only — customer play is not shown here. */
 export function AdminDailyCustomerOpens() {
   const today = useMemo(() => todayIso(), []);
-  const from7 = useMemo(() => daysAgoIso(7), []);
+  const month = useMemo(() => monthRangeIso(), []);
   const [platformToday, setPlatformToday] = useState<number | null>(null);
   const [agents, setAgents] = useState<UserProfile[] | null>(null);
   const [opensByAgent, setOpensByAgent] = useState<Map<string, number> | null>(null);
-  const [ggrByAgent, setGgrByAgent] = useState<Map<string, AgentGgr> | null>(null);
+  const [monthByAgent, setMonthByAgent] = useState<Map<string, { cash: number; count: number }> | null>(
+    null
+  );
 
   useEffect(() => {
     const unsubPlatform = onSnapshot(doc(db, "dailyStats", today), (snap) => {
@@ -86,74 +84,71 @@ export function AdminDailyCustomerOpens() {
         setOpensByAgent(map);
       }
     );
-    const unsubGgr = onSnapshot(collection(db, "agentDailyGgr"), (snap) => {
-      const betsL = new Map<string, number>();
-      const winsL = new Map<string, number>();
-      const bets7 = new Map<string, number>();
-      const wins7 = new Map<string, number>();
-      for (const d of snap.docs) {
-        const row = d.data() as { agentId?: string; date?: string; bets?: number; wins?: number };
-        const id = String(row.agentId || "");
-        if (!id) continue;
-        const bets = Number(row.bets ?? 0);
-        const wins = Number(row.wins ?? 0);
-        betsL.set(id, (betsL.get(id) ?? 0) + bets);
-        winsL.set(id, (winsL.get(id) ?? 0) + wins);
-        if (String(row.date || "") >= from7) {
-          bets7.set(id, (bets7.get(id) ?? 0) + bets);
-          wins7.set(id, (wins7.get(id) ?? 0) + wins);
+    const unsubMonth = onSnapshot(
+      query(collection(db, "agentDailyStats"), where("date", ">=", month.from)),
+      (snap) => {
+        const map = new Map<string, { cash: number; count: number }>();
+        for (const d of snap.docs) {
+          const row = d.data() as AgentDailyStats;
+          const date = String(row.date || "");
+          if (date > month.to) continue;
+          const id = String(row.agentId || "");
+          if (!id) continue;
+          const cur = map.get(id) ?? { cash: 0, count: 0 };
+          cur.cash += Number(row.firstDeposits ?? 0);
+          cur.count += Number(row.firstDepositCount ?? 0);
+          map.set(id, cur);
         }
+        setMonthByAgent(map);
       }
-      const map = new Map<string, AgentGgr>();
-      for (const id of betsL.keys()) {
-        map.set(id, {
-          lifetime: Math.max(0, round2((betsL.get(id) ?? 0) - (winsL.get(id) ?? 0))),
-          last7: Math.max(0, round2((bets7.get(id) ?? 0) - (wins7.get(id) ?? 0))),
-        });
-      }
-      setGgrByAgent(map);
-    });
+    );
     return () => {
       unsubPlatform();
       unsubAgents();
       unsubOpens();
-      unsubGgr();
+      unsubMonth();
     };
-  }, [today, from7]);
+  }, [today, month.from, month.to]);
 
   const rows = useMemo<AgentOpenRow[] | null>(() => {
-    if (!agents || !opensByAgent || !ggrByAgent) return null;
+    if (!agents || !opensByAgent || !monthByAgent) return null;
     return agents
       .map((a) => {
         const stats = a.stats ?? {};
-        const fromLedger = ggrByAgent.get(a.uid);
+        const monthRow = monthByAgent.get(a.uid);
         return {
           uid: a.uid,
           name: a.name,
           customersOpened: opensByAgent.get(a.uid) ?? 0,
           firstDeposits: Number(stats.firstDeposits ?? 0),
           firstDepositCount: Number(stats.firstDepositCount ?? 0),
-          allDeposits: Number(stats.customerDeposits ?? 0),
+          monthFirstDeposits: Math.round((monthRow?.cash ?? 0) * 100) / 100,
+          monthFirstDepositCount: monthRow?.count ?? 0,
           customerCount: Number(stats.customerCount ?? 0),
-          playGgr:
-            fromLedger?.lifetime ??
-            Math.max(0, (stats.totalBets ?? 0) - (stats.totalWins ?? 0)),
         };
       })
       .sort(
         (a, b) =>
+          b.monthFirstDeposits - a.monthFirstDeposits ||
           b.firstDeposits - a.firstDeposits ||
-          b.customersOpened - a.customersOpened ||
           a.name.localeCompare(b.name)
       );
-  }, [agents, opensByAgent, ggrByAgent]);
+  }, [agents, opensByAgent, monthByAgent]);
 
   const agentTotalToday = useMemo(
     () => rows?.reduce((sum, r) => sum + r.customersOpened, 0) ?? 0,
     [rows]
   );
+  const monthCashTotal = useMemo(
+    () => rows?.reduce((sum, r) => sum + r.monthFirstDeposits, 0) ?? 0,
+    [rows]
+  );
+  const lifetimeCashTotal = useMemo(
+    () => rows?.reduce((sum, r) => sum + r.firstDeposits, 0) ?? 0,
+    [rows]
+  );
 
-  if (platformToday === null || rows === null || ggrByAgent === null) {
+  if (platformToday === null || rows === null) {
     return (
       <Card className="flex items-center justify-center p-8">
         <Spinner />
@@ -163,7 +158,7 @@ export function AdminDailyCustomerOpens() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="New customers today"
           value={platformToday}
@@ -176,15 +171,25 @@ export function AdminDailyCustomerOpens() {
           hint="accounts linked to an agent"
           icon={<UserPlus size={20} />}
         />
+        <StatCard
+          label="First-open cash this month"
+          value={formatXof(monthCashTotal)}
+          hint={`${month.label} · what we pay on`}
+        />
+        <StatCard
+          label="Lifetime first-open cash"
+          value={formatXof(lifetimeCashTotal)}
+          hint="all marketers · never reduces"
+        />
       </div>
 
       <Card className="overflow-hidden p-0">
-        <div className="border-b border-white/10 px-4 py-3">
-          <h2 className="font-semibold">Marketer sales — first deposits via their link</h2>
-          <p className="text-sm text-slate-400">
-            First deposits are each customer&apos;s first qualifying top-up through that agent&apos;s
-            link. That total only grows — it is what marketers worked for. Play GGR is later betting
-            and can go up or down; it is not used to pay for opening accounts.
+        <div className="border-b border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+          <h2 className="font-semibold text-emerald-100">First-open cash — marketer pay</h2>
+          <p className="mt-1 text-sm text-slate-300">
+            Green is actual first deposits via each marketer&apos;s link. That is the sale we pay at
+            month end (40k → 7,000 · 60k+ → 8,500 · 100–150k → 10,000 · 150–200k → 12,000 · 200k+ →
+            15,000). Customer play / bets is not in this table.
           </p>
         </div>
         {rows.length === 0 ? (
@@ -193,26 +198,34 @@ export function AdminDailyCustomerOpens() {
           <TableShell>
             <thead>
               <tr>
-                <Th>Agent / vendor</Th>
-                <Th className="text-right">First deposits</Th>
+                <Th>Marketer</Th>
+                <Th className="text-right">This month first-open</Th>
+                <Th className="text-right">Month-end pay</Th>
+                <Th className="text-right">Lifetime first-open</Th>
                 <Th className="text-right">First-time customers</Th>
-                <Th className="text-right">All deposits</Th>
-                <Th className="text-right">Play GGR</Th>
                 <Th className="text-right">Opened today</Th>
-                <Th className="text-right">Lifetime customers</Th>
+                <Th className="text-right">Accounts</Th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => {
+                const pay = monthEndPayFromFirstOpen(r.monthFirstDeposits);
                 return (
                   <tr key={r.uid}>
                     <Td className="font-medium">{r.name}</Td>
                     <Td className="text-right tabular-nums font-semibold text-emerald-200">
+                      {formatXof(r.monthFirstDeposits)}
+                      <span className="block text-[10px] font-normal text-slate-500">
+                        {r.monthFirstDepositCount} this month
+                      </span>
+                    </Td>
+                    <Td className="text-right tabular-nums font-semibold text-amber-200">
+                      {formatXof(pay.pay)}
+                    </Td>
+                    <Td className="text-right tabular-nums text-emerald-100">
                       {formatXof(r.firstDeposits)}
                     </Td>
                     <Td className="text-right tabular-nums text-slate-300">{r.firstDepositCount}</Td>
-                    <Td className="text-right tabular-nums text-slate-300">{formatXof(r.allDeposits)}</Td>
-                    <Td className="text-right tabular-nums text-slate-500">{formatXof(r.playGgr)}</Td>
                     <Td className="text-right tabular-nums">
                       <span className={r.customersOpened > 0 ? "font-semibold text-emerald-300" : ""}>
                         {r.customersOpened}
