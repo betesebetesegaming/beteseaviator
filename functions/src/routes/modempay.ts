@@ -781,6 +781,7 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
         err instanceof HttpsError
           ? err.message
           : 'SMS verification required before withdrawal.';
+      await failWithdrawalWithoutHold(requestId, customerId, msg);
       res.status(403).json({ error: msg });
       return;
     }

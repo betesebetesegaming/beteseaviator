@@ -371,7 +371,13 @@ export default function WalletPage() {
       setWithdrawAmount("");
       setTab("history");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Withdrawal failed.");
+      const msg = e instanceof Error ? e.message : "Withdrawal failed.";
+      toast.error(msg);
+      if (/sms verification|verify your mobile|otp/i.test(msg)) {
+        withdrawalOtp.reset();
+        setWithdrawOtpDismissed(false);
+        setWithdrawStep("otp");
+      }
     } finally {
       setBusy(false);
     }
@@ -469,12 +475,12 @@ export default function WalletPage() {
 
       {tab === "deposit" && !frozen && (
         <Card>
-          <h2 className="mb-2 font-semibold">Deposit with Wave</h2>
+          <h2 className="mb-2 font-semibold">Deposit with mobile money</h2>
           <p className="mb-4 text-sm text-slate-400">
-            Deposits from GMD {MIN_DEPOSIT_GMD} and above via Wave.
+            Deposits from GMD {MIN_DEPOSIT_GMD} and above via Wave, AfriMoney, APS, or QMoney.
           </p>
           <Button className="w-full" onClick={() => setDepositOpen(true)}>
-            Pay with Wave
+            Deposit now
           </Button>
         </Card>
       )}

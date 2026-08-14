@@ -31,13 +31,14 @@ export async function probeSignupOtpGateway(): Promise<{ status: OtpGatewayStatu
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const err = String(data.error || "SMS gateway unavailable.");
-      if (isOtpGatewayUnavailableError(err)) {
-        return { status: "unavailable", error: err };
-      }
-      if (res.status === 400 && /phone is required/i.test(err)) {
+      // Probe was briefly disabled (404). Don't lock the signup/withdraw OTP UI.
+      if (res.status === 404 || res.status === 400) {
         return { status: "unknown" };
       }
-      return { status: "unavailable", error: err };
+      if (isOtpGatewayUnavailableError(err) || res.status >= 500) {
+        return { status: "unavailable", error: err };
+      }
+      return { status: "unknown", error: err };
     }
     if (data.probe === true) {
       return { status: "available" };

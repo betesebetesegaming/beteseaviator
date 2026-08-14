@@ -11,19 +11,23 @@ export function PlayDepositReturnHandler() {
   useEffect(() => {
     const route = () => {
       if (typeof window === "undefined") return;
+      // Wallet page consumes the pending ref itself — don't eat it here first.
+      if (window.location.pathname.startsWith("/play/wallet")) return;
       const ref = readPendingDepositRef();
       if (!ref) return;
-      if (window.location.pathname.startsWith("/play/wallet")) return;
       router.replace(`/play/wallet?deposit=${encodeURIComponent(ref)}`);
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") route();
     };
 
     route();
     window.addEventListener("focus", route);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") route();
-    });
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.removeEventListener("focus", route);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [router]);
 

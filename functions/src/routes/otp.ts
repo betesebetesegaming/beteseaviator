@@ -315,11 +315,39 @@ export async function sendSmsWithFallback(
   }
 }
 
+function otpGatewayReady(): { ok: boolean; via?: "africell" | "pmu"; error?: string } {
+  try {
+    getOtpSalt();
+  } catch {
+    return { ok: false, error: "OTP service is not configured." };
+  }
+  const hasAfricell = Boolean(
+    (process.env.AFRICELL_SMS_URL || "").trim() &&
+      (process.env.AFRICELL_SMS_USERNAME || "").trim() &&
+      (process.env.AFRICELL_SMS_PASSWORD || "").trim(),
+  );
+  const hasPmu = Boolean((process.env.PMU_OTP_API_BASE_URL || PMU_OTP_BASE_URL).trim());
+  if (hasAfricell) return { ok: true, via: "africell" };
+  if (hasPmu) return { ok: true, via: "pmu" };
+  return { ok: false, error: "Africell SMS credentials not configured" };
+}
+
 export async function sendOtpHandler(req: Request, res: Response): Promise<void> {
   const started = Date.now();
   const body = (req.body || {}) as { phone?: string; code?: string; message?: string; probe?: boolean | string };
 
-  if (body.probe === true || body.probe === "live") {
+  // Config-only health check — never send SMS. `live` stays disabled (it used to
+  // fire a real Africell message at a hardcoded number).
+  if (body.probe === true) {
+    const ready = otpGatewayReady();
+    if (!ready.ok) {
+      res.status(503).json({ error: ready.error || "SMS gateway unavailable." });
+      return;
+    }
+    res.json({ probe: true, gateway: ready.via });
+    return;
+  }
+  if (body.probe === "live") {
     res.status(404).json({ error: "Not found" });
     return;
   }

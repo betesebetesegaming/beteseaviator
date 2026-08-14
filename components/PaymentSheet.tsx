@@ -681,8 +681,10 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                 <label className="block text-xs font-black uppercase tracking-widest text-slate-600 mb-1">
                   {method === 'AfriMoney' ? 'AfriMoney phone'
                     : method === 'QMoney' ? 'QMoney phone'
+                    : method === 'Wave' ? 'Wave phone'
+                    : method === 'APS' ? 'APS phone'
                     : method === 'Card' ? 'Phone (for receipt)'
-                    : 'Phone (for receipt)'}
+                    : 'Wallet phone'}
                 </label>
                 <input
                   type="tel"
