@@ -3,15 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { UserPlus } from "lucide-react";
-import toast from "react-hot-toast";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { todayIso, formatXof } from "@/lib/format";
 import { monthRangeIso } from "@/lib/ggrAccounting";
 import { monthEndPayFromFirstOpen } from "@/lib/marketerFirstDepositPay";
-import { adminRebuildAgentDepositStats, errorMessage } from "@/lib/api";
 import type { AgentDailyStats, UserProfile } from "@/lib/types";
-import { Button, Card, Spinner, StatCard, TableShell, Td, Th } from "@/components/ui";
+import { Card, Spinner, StatCard, TableShell, Td, Th } from "@/components/ui";
 
 type AgentOpenRow = {
   uid: string;
@@ -60,21 +58,6 @@ export function AdminDailyCustomerOpens() {
   const [monthByAgent, setMonthByAgent] = useState<Map<string, { cash: number; count: number }> | null>(
     null
   );
-  const [loadingCash, setLoadingCash] = useState(false);
-
-  async function loadFirstOpenCash() {
-    setLoadingCash(true);
-    try {
-      const res = await adminRebuildAgentDepositStats({});
-      toast.success(
-        `First-open cash loaded — ${res.firstDepositCustomers} customers across ${res.agentsUpdated} marketers.`
-      );
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setLoadingCash(false);
-    }
-  }
 
   useEffect(() => {
     const unsubPlatform = onSnapshot(doc(db, "dailyStats", today), (snap) => {
@@ -201,18 +184,13 @@ export function AdminDailyCustomerOpens() {
       </div>
 
       <Card className="overflow-hidden p-0">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-          <div>
-            <h2 className="font-semibold text-emerald-100">First-open cash — marketer pay</h2>
-            <p className="mt-1 text-sm text-slate-300">
-              Green is actual first deposits via each marketer&apos;s link. That is the sale we pay at
-              month end (40k → 7,000 · 60k+ → 8,500 · 100–150k → 10,000 · 150–200k → 12,000 · 200k+ →
-              15,000). Customer play / bets is not in this table.
-            </p>
-          </div>
-          <Button onClick={() => void loadFirstOpenCash()} disabled={loadingCash} className="shrink-0">
-            {loadingCash ? "Loading first-open cash…" : "Load first-open cash"}
-          </Button>
+        <div className="border-b border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+          <h2 className="font-semibold text-emerald-100">First-open cash — marketer pay</h2>
+          <p className="mt-1 text-sm text-slate-300">
+            Green is actual first deposits via each marketer&apos;s link. That is the sale we pay at
+            month end (40k → 7,000 · 60k+ → 8,500 · 100–150k → 10,000 · 150–200k → 12,000 · 200k+ →
+            15,000). Customer play / bets is not in this table.
+          </p>
         </div>
         {rows.length === 0 ? (
           <p className="p-4 text-sm text-slate-400">No agents on the platform yet.</p>
