@@ -47,6 +47,8 @@ export const adminBackfillPlayerIds = call<
   { ok: true; updated: string[]; count: number }
 >("adminBackfillPlayerIds");
 
+export const adminLookupUser = call<{ query: string }, { uids: string[] }>("adminLookupUser");
+
 /** Reset player password after SMS OTP verification (forgot password flow). */
 export const resetPlayerPassword = call<
   { phone: string; password: string },

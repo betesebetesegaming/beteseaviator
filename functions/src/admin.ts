@@ -277,6 +277,40 @@ export const adminResetPlayerPassword = onCall(async (req) => {
   return { ok: true, uid, phone, authEmail };
 });
 
+/**
+ * Find any account by Gambian phone or Player ID. Admin list pages only load the
+ * newest 500 users, so this is the path that can still find older customers.
+ */
+export const adminLookupUser = onCall(async (req) => {
+  await requireRole(req, ["admin"]);
+  const raw = String(req.data?.query ?? "").trim();
+  if (!raw) throw new HttpsError("invalid-argument", "Enter a phone or Player ID.");
+
+  const uids = new Set<string>();
+  const phone = normalizePhone(raw);
+
+  if (phone) {
+    const phoneSnap = await db.doc(`phones/${phone}`).get();
+    const phoneUid = String(phoneSnap.data()?.uid ?? "");
+    if (phoneUid) uids.add(phoneUid);
+
+    const byPhone = await db.collection("users").where("phone", "==", phone).limit(5).get();
+    for (const d of byPhone.docs) uids.add(d.id);
+  }
+
+  const idMatch = raw.toUpperCase().replace(/\s/g, "").match(/^(?:BTE-?)?0*(\d+)$/);
+  if (idMatch) {
+    const num = Number(idMatch[1]);
+    const looksLikePhone = Boolean(phone) && String(num).length >= 7;
+    if (Number.isFinite(num) && num > 0 && !looksLikePhone) {
+      const byNum = await db.collection("users").where("playerNumber", "==", num).limit(5).get();
+      for (const d of byNum.docs) uids.add(d.id);
+    }
+  }
+
+  return { uids: Array.from(uids) };
+});
+
 /** Admin sets a new password when a customer or agent forgot theirs (passwords cannot be read back). */
 export const adminSetUserPassword = onCall(async (req) => {
   await requireRole(req, ["admin"]);
