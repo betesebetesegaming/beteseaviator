@@ -11,6 +11,7 @@ import { adminCreateUser, adminBackfillPlayerIds, adminSetAgentCashOps, adminSet
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
 import { agentSignupUrl } from "@/lib/agentLinks";
 import { staffSignInId } from "@/lib/staffAccount";
+import { lookupUsersByPhoneOrId } from "@/lib/adminUserLookup";
 import { normalizePhone, formatDate } from "@/lib/format";
 import {
   PASSWORD_FIELD_LABEL,
@@ -47,6 +48,8 @@ export default function AdminUsersPage() {
 function AdminUsersContent() {
   const searchParams = useSearchParams();
   const [users, setUsers] = useState<UserProfile[] | null>(null);
+  const [lookupHits, setLookupHits] = useState<UserProfile[]>([]);
+  const [lookingUp, setLookingUp] = useState(false);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role | "all">("all");
   const [busyUid, setBusyUid] = useState<string | null>(null);
@@ -93,14 +96,49 @@ function AdminUsersContent() {
     });
   }, []);
 
+  useEffect(() => {
+    const s = search.trim();
+    if (!s) {
+      setLookupHits([]);
+      setLookingUp(false);
+      return;
+    }
+    let cancelled = false;
+    setLookingUp(true);
+    const t = window.setTimeout(() => {
+      void lookupUsersByPhoneOrId(s)
+        .then((hits) => {
+          if (!cancelled) setLookupHits(hits);
+        })
+        .catch(() => {
+          if (!cancelled) setLookupHits([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLookingUp(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [search]);
+
+  const mergedUsers = useMemo(() => {
+    if (!users) return null;
+    const map = new Map<string, UserProfile>();
+    for (const u of users) map.set(u.uid, u);
+    for (const u of lookupHits) map.set(u.uid, u);
+    return Array.from(map.values());
+  }, [users, lookupHits]);
+
   const agents = useMemo(
-    () => (users ?? []).filter((u) => isAgentRole(u.role)),
-    [users]
+    () => (mergedUsers ?? []).filter((u) => isAgentRole(u.role)),
+    [mergedUsers]
   );
 
   const filtered = useMemo(() => {
-    if (!users) return null;
-    let list = users;
+    if (!mergedUsers) return null;
+    let list = mergedUsers;
     if (roleFilter !== "all") list = list.filter((u) => u.role === roleFilter);
     const s = search.trim().toLowerCase();
     if (s) {
@@ -115,7 +153,7 @@ function AdminUsersContent() {
       );
     }
     return list;
-  }, [users, search, roleFilter]);
+  }, [mergedUsers, search, roleFilter]);
 
   async function toggleStatus(u: UserProfile) {
     const next = u.status === "active" ? "suspended" : "active";
@@ -292,7 +330,7 @@ function AdminUsersContent() {
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
           <Input
-            placeholder="Search name, phone, Player ID, username…"
+            placeholder="Phone, Player ID (BTE-00009), name…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -308,10 +346,14 @@ function AdminUsersContent() {
         </div>
       </div>
 
-      {!filtered ? (
+      <p className="mb-3 text-xs text-slate-500">
+        The table lists the newest 500 accounts. Type a phone or Player ID to find anyone, including older customers.
+      </p>
+
+      {!filtered || (lookingUp && filtered.length === 0) ? (
         <Spinner />
       ) : filtered.length === 0 ? (
-        <EmptyState message="No users match." />
+        <EmptyState message="No users match. Try the 7-digit phone or Player ID (e.g. BTE-00009)." />
       ) : (
         <TableShell>
           <thead>
@@ -330,7 +372,7 @@ function AdminUsersContent() {
           <tbody>
             {filtered.map((u) => {
               const owner = u.role === "player" && u.parentId
-                ? users?.find((a) => a.uid === u.parentId)
+                ? mergedUsers?.find((a) => a.uid === u.parentId)
                 : null;
               return (
               <tr key={u.uid}>

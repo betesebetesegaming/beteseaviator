@@ -12,7 +12,9 @@ import {
 import { Search, Snowflake, Banknote, HandCoins, BookOpen } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { adminAdjustWallet, adminFreezeWallet, errorMessage } from "@/lib/api";
+import { lookupUsersByPhoneOrId } from "@/lib/adminUserLookup";
 import { formatXof, normalizePhone } from "@/lib/format";
+import { formatPlayerId } from "@/lib/playerId";
 import { accountTotalsFromStats } from "@/lib/playerAccount";
 import { isAgentRole } from "@/lib/roles";
 import type { UserProfile, Wallet } from "@/lib/types";
@@ -42,6 +44,8 @@ function depositsForRow(r: Row): number {
 
 export default function AdminWalletsPage() {
   const [users, setUsers] = useState<UserProfile[] | null>(null);
+  const [lookupHits, setLookupHits] = useState<UserProfile[]>([]);
+  const [lookingUp, setLookingUp] = useState(false);
   const [wallets, setWallets] = useState<Record<string, Wallet>>({});
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
@@ -71,9 +75,44 @@ export default function AdminWalletsPage() {
     };
   }, []);
 
-  const rows: Row[] | null = useMemo(() => {
+  useEffect(() => {
+    const s = search.trim();
+    if (!s) {
+      setLookupHits([]);
+      setLookingUp(false);
+      return;
+    }
+    let cancelled = false;
+    setLookingUp(true);
+    const t = window.setTimeout(() => {
+      void lookupUsersByPhoneOrId(s)
+        .then((hits) => {
+          if (!cancelled) setLookupHits(hits);
+        })
+        .catch(() => {
+          if (!cancelled) setLookupHits([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLookingUp(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [search]);
+
+  const mergedUsers = useMemo(() => {
     if (!users) return null;
-    let list = users
+    const map = new Map<string, UserProfile>();
+    for (const u of users) map.set(u.uid, u);
+    for (const u of lookupHits) map.set(u.uid, u);
+    return Array.from(map.values());
+  }, [users, lookupHits]);
+
+  const rows: Row[] | null = useMemo(() => {
+    if (!mergedUsers) return null;
+    let list = mergedUsers
       .filter((u) => u.role !== "admin")
       .map((u) => ({ ...u, wallet: wallets[u.uid] }));
     if (roleFilter === "players") {
@@ -88,11 +127,13 @@ export default function AdminWalletsPage() {
           u.name?.toLowerCase().includes(s) ||
           u.email?.toLowerCase().includes(s) ||
           u.agentSlug?.toLowerCase().includes(s) ||
-          u.phone?.includes(normalizePhone(s) || s)
+          u.phone?.includes(normalizePhone(s) || s) ||
+          (u.playerNumber ? formatPlayerId(u.playerNumber).toLowerCase().includes(s) : false) ||
+          String(u.playerNumber ?? "").includes(s)
       );
     }
     return list;
-  }, [users, wallets, search, roleFilter]);
+  }, [mergedUsers, wallets, search, roleFilter]);
 
   function openAdjust(row: Row, mode: "credit" | "withdraw") {
     setAdjustMode(mode);
@@ -163,7 +204,7 @@ export default function AdminWalletsPage() {
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
           <Input
-            placeholder="Search name, phone, email…"
+            placeholder="Phone, Player ID, name…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -187,10 +228,14 @@ export default function AdminWalletsPage() {
         </div>
       </div>
 
-      {!rows ? (
+      <p className="mb-3 text-xs text-slate-500">
+        The table lists the newest 500 accounts. Type a phone or Player ID to find anyone.
+      </p>
+
+      {!rows || (lookingUp && rows.length === 0) ? (
         <Spinner />
       ) : rows.length === 0 ? (
-        <EmptyState message="No users match." />
+        <EmptyState message="No users match. Try the 7-digit phone or Player ID." />
       ) : (
         <TableShell>
           <thead>
