@@ -32,7 +32,11 @@ export function AdminAccountBook() {
     setError(null);
     const type =
       typeFilter === "deposit" || typeFilter === "withdrawal" ? typeFilter : undefined;
-    void getOperationsHub({ type, limit: 300 })
+    void getOperationsHub({
+      type,
+      limit: 300,
+      agentId: agentFilter || undefined,
+    })
       .then((res) => {
         if (!cancelled) setData(res);
       })
@@ -48,27 +52,28 @@ export function AdminAccountBook() {
     return () => {
       cancelled = true;
     };
-  }, [typeFilter]);
+  }, [typeFilter, agentFilter]);
 
   const reload = useCallback(() => {
     setRefreshing(true);
     setError(null);
     const type =
       typeFilter === "deposit" || typeFilter === "withdrawal" ? typeFilter : undefined;
-    void getOperationsHub({ type, limit: 300 })
+    void getOperationsHub({
+      type,
+      limit: 300,
+      agentId: agentFilter || undefined,
+    })
       .then((res) => setData(res))
       .catch((e) => setError(errorMessage(e)))
       .finally(() => setRefreshing(false));
-  }, [typeFilter]);
+  }, [typeFilter, agentFilter]);
 
   const rows = useMemo(() => {
     if (!data) return [];
     let list = data.transactions;
     if (typeFilter === "money") {
       list = list.filter((t) => t.type === "deposit" || t.type === "withdrawal");
-    }
-    if (agentFilter) {
-      list = list.filter((t) => t.agentId === agentFilter);
     }
     if (channelFilter !== "all") {
       list = list.filter((t) => {
@@ -91,7 +96,7 @@ export function AdminAccountBook() {
       );
     }
     return list;
-  }, [data, typeFilter, agentFilter, channelFilter, search]);
+  }, [data, typeFilter, channelFilter, search]);
 
   const totals = useMemo(() => {
     const deposits = rows

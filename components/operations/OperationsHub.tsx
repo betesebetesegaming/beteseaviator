@@ -58,6 +58,7 @@ export function OperationsHub() {
       const res = await getOperationsHub({
         type: typeFilter === "all" ? undefined : typeFilter,
         limit: isAdmin ? 300 : 200,
+        agentId: isAdmin && agentFilter ? agentFilter : undefined,
       });
       setData(res);
     } catch (e) {
@@ -68,9 +69,10 @@ export function OperationsHub() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [typeFilter, isAdmin]);
+  }, [typeFilter, isAdmin, agentFilter]);
 
   useEffect(() => {
+    setLoading(true);
     void load();
     const id = window.setInterval(() => void load(), 60_000);
     return () => clearInterval(id);
@@ -79,9 +81,8 @@ export function OperationsHub() {
   const filteredTx = useMemo(() => {
     if (!data) return [];
     let list = data.transactions;
-    if (agentFilter) {
-      list = list.filter((t) => t.agentId === agentFilter);
-    }
+    // Agent scope is loaded on the server when agentFilter is set — don't
+    // drop cash-desk / Wave rows that are missing agentId on the document.
     if (channelFilter === "cashdesk") {
       list = list.filter((t) => isOtcCashMeta(t.meta));
     } else if (channelFilter === "modempay") {
@@ -99,7 +100,7 @@ export function OperationsHub() {
         t.reference.toLowerCase().includes(q) ||
         t.description.toLowerCase().includes(q)
     );
-  }, [data, search, agentFilter, channelFilter]);
+  }, [data, search, channelFilter]);
 
   const filteredLive = useMemo(() => {
     if (!data) return [];
@@ -468,6 +469,17 @@ export function OperationsHub() {
             Full book — time, Player ID, deposit / withdraw amount, and agent name (click agent to
             filter).
           </p>
+          {isAdmin && agentFilter ? (
+            <Card className="flex flex-wrap items-center justify-between gap-3 border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+              <span>
+                Showing ledger for{" "}
+                <strong>{data?.agents?.find((a) => a.uid === agentFilter)?.name ?? "this agent"}</strong>
+              </span>
+              <Button variant="secondary" className="!py-1 text-xs" onClick={() => setAgentFilter(null)}>
+                Show all agents
+              </Button>
+            </Card>
+          ) : null}
           {isAdmin ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Card className="p-3 text-sm">
@@ -543,7 +555,13 @@ export function OperationsHub() {
           {loading ? (
             <EmptyState message="Loading transactions…" />
           ) : filteredTx.length === 0 ? (
-            <EmptyState message="No transactions in your scope." />
+            <EmptyState
+              message={
+                agentFilter
+                  ? "No transactions for this agent yet."
+                  : "No transactions in your scope."
+              }
+            />
           ) : (
             <TableShell>
               <thead>

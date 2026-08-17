@@ -36,6 +36,25 @@ const AGENT_TABS = [
   { id: "transactions", label: "Full ledger" },
 ] as const;
 
+const ADMIN_TAB_HELP: Record<(typeof ADMIN_TABS)[number]["id"], string> = {
+  monthly: "House profit by month — bets, wins, GGR, cash, Wave, and what BETESE kept.",
+  agentcash: "Shop cash each agent collected today. This is physical money they must remit.",
+  book: "Every customer deposit and withdrawal. Choose an agent to open that agent’s money book.",
+  modempay: "Wave / mobile money only (ModemPay). Not cash at the shop.",
+  summary: "This week and this month in one view.",
+  transactions: "Everything: deposits, withdrawals, bets, wins, and bonuses.",
+  agents: "Commission BETESE owes each agent — not player wallet money.",
+};
+
+const AGENT_TAB_HELP: Record<(typeof AGENT_TABS)[number]["id"], string> = {
+  book: "Your customers’ deposits and withdrawals in one book.",
+  cashdesk: "Cash you took or paid at the shop today.",
+  modempay: "Wave / mobile money for your customers only.",
+  commissions: "What you earn from your customers’ play.",
+  sales: "How much your shop deposited, played, and earned.",
+  transactions: "Your wallet, your customers, and your cash-desk moves.",
+};
+
 type AdminTab = (typeof ADMIN_TABS)[number]["id"];
 type AgentTab = (typeof AGENT_TABS)[number]["id"];
 
@@ -74,9 +93,30 @@ export function AccountsHub() {
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-400">
           {isAdmin
-            ? "Platform books: agent shop cash for remittance, Wave/ModemPay, month P&L, and commissions. Cash desk and Wave stay separate."
-            : "One clear account book for your shop. Cash desk (physical) is separate from Wave (mobile money) and from your commission wallet."}
+            ? "Three kinds of money, kept separate: shop cash, Wave, and agent commission."
+            : "Three kinds of money, kept separate: shop cash, Wave, and your commission."}
         </p>
+      </div>
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-200">1. Cash desk</p>
+          <p className="mt-1 text-sm text-slate-300">
+            Physical dalasi at the shop. Agent collects or pays a customer in person.
+          </p>
+        </div>
+        <div className="rounded-xl border border-sky-500/25 bg-sky-500/5 p-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-sky-300">2. Wave</p>
+          <p className="mt-1 text-sm text-slate-300">
+            Mobile money through ModemPay. Customer pays or receives on their phone.
+          </p>
+        </div>
+        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">3. Commission</p>
+          <p className="mt-1 text-sm text-slate-300">
+            What the agent earns from play. This is not the customer’s wallet.
+          </p>
+        </div>
       </div>
 
       <div className="mb-6 flex flex-wrap gap-1 rounded-xl bg-slate-900/80 p-1">
@@ -95,6 +135,10 @@ export function AccountsHub() {
           </button>
         ))}
       </div>
+
+      <p className="mb-6 rounded-lg border border-white/10 bg-slate-900/50 px-3 py-2 text-sm text-slate-300">
+        {isAdmin ? ADMIN_TAB_HELP[adminTab] : AGENT_TAB_HELP[agentTab]}
+      </p>
 
       {isAdmin ? (
         <>

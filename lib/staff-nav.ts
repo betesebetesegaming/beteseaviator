@@ -129,6 +129,7 @@ export const STAFF_NAV: StaffNavItem[] = [
     label: "Accounts",
     icon: Calculator,
     roles: ["admin", "agent", "super_agent", "sub_agent"],
+    pinned: true,
   },
   {
     href: "/admin/reports",

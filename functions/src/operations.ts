@@ -1,5 +1,5 @@
 import type { DocumentSnapshot, QueryDocumentSnapshot, QuerySnapshot } from "firebase-admin/firestore";
-import { onCall } from "firebase-functions/v2/https";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
 import {
   db,
   rtdb,
@@ -378,6 +378,7 @@ export const getOperationsHub = onCall(async (req) => {
   const { uid, profile } = await requireRole(req, ["admin", "agent"]);
   const typeFilter = req.data?.type ? String(req.data.type) : null;
   const limit = Math.min(Math.max(Number(req.data?.limit) || 150, 1), 300);
+  const requestedAgentId = req.data?.agentId ? String(req.data.agentId).trim() : "";
   const today = todayIso();
 
   const isAdmin = profile.role === "admin";
@@ -406,7 +407,31 @@ export const getOperationsHub = onCall(async (req) => {
       if (m.parentId) parentIdByUid.set(m.uid, m.parentId);
     }
     nameByUid.set(uid, profile.name);
+
+    // Admin "Ledger" click: load that agent's customers + cash-desk rows,
+    // not the last 300 platform-wide transactions (which often miss the book).
+    if (requestedAgentId) {
+      const agentSnap = await db.doc(`users/${requestedAgentId}`).get();
+      if (!agentSnap.exists) {
+        throw new HttpsError("not-found", "Agent not found.");
+      }
+      const customers = await db
+        .collection("users")
+        .where("role", "==", "player")
+        .where("ancestors", "array-contains", requestedAgentId)
+        .get();
+      allowed = new Set([requestedAgentId, ...customers.docs.map((d) => d.id)]);
+      for (const d of customers.docs) {
+        const member = memberFromDoc(d, agentNameByUid);
+        nameByUid.set(member.uid, member.name);
+        if (member.playerId) playerIdByUid.set(member.uid, member.playerId);
+        if (member.parentId) parentIdByUid.set(member.uid, member.parentId);
+      }
+    }
   } else {
+    if (requestedAgentId && requestedAgentId !== uid) {
+      throw new HttpsError("permission-denied", "You can only open your own ledger.");
+    }
     network = await loadNetwork(uid, profile);
     allowed = new Set([uid, ...network.map((m) => m.uid)]);
     nameByUid.set(uid, profile.name);
@@ -425,7 +450,7 @@ export const getOperationsHub = onCall(async (req) => {
     string,
     Record<string, unknown>
   > | null;
-  const live = parsePresence(presenceVal, allowed);
+  const live = parsePresence(presenceVal, isAdmin ? null : allowed);
 
   const transactions = await loadTransactions({
     allowed,
@@ -435,7 +460,7 @@ export const getOperationsHub = onCall(async (req) => {
     playerIdByUid,
     parentIdByUid,
     agentNameByUid,
-    includeOtcByAgentId: isAdmin ? null : uid,
+    includeOtcByAgentId: isAdmin ? requestedAgentId || null : uid,
   });
 
   return {

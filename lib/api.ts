@@ -537,7 +537,7 @@ export type OperationsHubResponse = {
 };
 
 export const getOperationsHub = call<
-  { type?: string; limit?: number },
+  { type?: string; limit?: number; agentId?: string },
   OperationsHubResponse
 >("getOperationsHub");
 
