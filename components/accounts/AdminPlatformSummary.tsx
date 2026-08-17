@@ -85,8 +85,8 @@ export function AdminPlatformSummary() {
   }, []);
 
   useEffect(() => {
-    const unsubD = subscribeDeposits(undefined, setDeposits);
-    const unsubW = subscribeWithdrawals(undefined, setWithdrawals);
+    const unsubD = subscribeDeposits(undefined, setDeposits, { maxRows: 0 });
+    const unsubW = subscribeWithdrawals(undefined, setWithdrawals, { maxRows: 0 });
     return () => {
       unsubD();
       unsubW();

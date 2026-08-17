@@ -37,7 +37,7 @@ const AGENT_TABS = [
 ] as const;
 
 const ADMIN_TAB_HELP: Record<(typeof ADMIN_TABS)[number]["id"], string> = {
-  monthly: "House profit by month — bets, wins, GGR, cash, Wave, and what BETESE kept.",
+  monthly: "House profit by month. Wave = phone money. Shop cash = physical cash at the desk only.",
   agentcash: "Shop cash each agent collected today. This is physical money they must remit.",
   book: "Every customer deposit and withdrawal. Choose an agent to open that agent’s money book.",
   modempay: "Wave / mobile money only (ModemPay). Not cash at the shop.",

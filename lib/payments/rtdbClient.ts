@@ -29,10 +29,15 @@ function loadRtdb(): Promise<{ mod: RtdbModule; db: Database }> {
   return cachedLoad;
 }
 
+function takeRows<T>(rows: T[], maxRows: number): T[] {
+  if (maxRows <= 0) return rows;
+  return rows.slice(0, maxRows);
+}
+
 function sortByTimestampDesc<T extends { timestamp?: string; requested_at?: string }>(rows: T[]): T[] {
   return rows.sort((a, b) => {
-    const aTs = String(a.timestamp || a.requested_at || '');
-    const bTs = String(b.timestamp || b.requested_at || '');
+    const aTs = String(a.timestamp || a.requested_at || "");
+    const bTs = String(b.timestamp || b.requested_at || "");
     return bTs.localeCompare(aTs);
   });
 }
@@ -111,7 +116,9 @@ export async function rtdbFetchWithdrawals(limit = 200): Promise<RtdbWithdrawalR
 export function subscribeDeposits(
   customerId: string | undefined,
   onRows: (rows: RtdbDepositRecord[]) => void,
+  opts?: { maxRows?: number },
 ): Unsubscribe {
+  const maxRows = opts?.maxRows ?? 500;
   let realUnsub: Unsubscribe | null = null;
   let cancelled = false;
   void loadRtdb()
@@ -128,7 +135,9 @@ export function subscribeDeposits(
               onRows([]);
               return;
             }
-            onRows(sortByTimestampDesc(snapshotToList<RtdbDepositRecord>(snap)).slice(0, 500));
+            onRows(
+              takeRows(sortByTimestampDesc(snapshotToList<RtdbDepositRecord>(snap)), maxRows),
+            );
           } catch (err) {
             console.error("subscribeDeposits snapshot parse failed", err);
             onRows([]);
@@ -155,7 +164,9 @@ export function subscribeDeposits(
 export function subscribeWithdrawals(
   userId: string | undefined,
   onRows: (rows: RtdbWithdrawalRecord[]) => void,
+  opts?: { maxRows?: number },
 ): Unsubscribe {
+  const maxRows = opts?.maxRows ?? 500;
   let realUnsub: Unsubscribe | null = null;
   let cancelled = false;
   void loadRtdb()
@@ -172,7 +183,9 @@ export function subscribeWithdrawals(
               onRows([]);
               return;
             }
-            onRows(sortByTimestampDesc(snapshotToList<RtdbWithdrawalRecord>(snap)).slice(0, 500));
+            onRows(
+              takeRows(sortByTimestampDesc(snapshotToList<RtdbWithdrawalRecord>(snap)), maxRows),
+            );
           } catch (err) {
             console.error("subscribeWithdrawals snapshot parse failed", err);
             onRows([]);

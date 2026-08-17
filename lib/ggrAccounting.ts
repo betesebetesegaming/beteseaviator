@@ -1,4 +1,4 @@
-import type { Commission, DailyStats } from "@/lib/types";
+import type { AgentDailyStats, Commission, DailyStats } from "@/lib/types";
 import { apiProviderCommissionDue, ggrFromTotals } from "@/lib/platformFinancials";
 
 export type PeriodRange = {
@@ -103,6 +103,28 @@ export function groupCommissionsByMonth(rows: Commission[]): Map<string, number>
   }
   for (const [k, v] of byMonth) {
     byMonth.set(k, Math.round(v * 100) / 100);
+  }
+  return byMonth;
+}
+
+/** Shop cash desk only (OTC) — not Wave. */
+export function groupAgentCashByMonth(
+  rows: AgentDailyStats[],
+): Map<string, { deposits: number; withdrawals: number }> {
+  const byMonth = new Map<string, { deposits: number; withdrawals: number }>();
+  for (const r of rows) {
+    const key = monthKeyFromIsoDate(r.date);
+    if (!key) continue;
+    const cur = byMonth.get(key) ?? { deposits: 0, withdrawals: 0 };
+    cur.deposits += Number(r.cashDeposits ?? 0);
+    cur.withdrawals += Number(r.cashWithdrawals ?? 0);
+    byMonth.set(key, cur);
+  }
+  for (const [k, v] of byMonth) {
+    byMonth.set(k, {
+      deposits: Math.round(v.deposits * 100) / 100,
+      withdrawals: Math.round(v.withdrawals * 100) / 100,
+    });
   }
   return byMonth;
 }

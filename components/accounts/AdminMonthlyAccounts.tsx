@@ -15,6 +15,7 @@ import { formatXof } from "@/lib/format";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
 import {
   buildPeriodAccounting,
+  groupAgentCashByMonth,
   groupCommissionsByMonth,
   groupDailyStatsByMonth,
   monthsBackRangeIso,
@@ -22,7 +23,7 @@ import {
 import { groupModemPayCashByMonth } from "@/lib/modemPayAccounting";
 import { subscribeDeposits, subscribeWithdrawals } from "@/lib/payments/rtdbClient";
 import type { RtdbDepositRecord, RtdbWithdrawalRecord } from "@/lib/payments/rtdbRecords";
-import type { Commission, DailyStats, PlatformSettings } from "@/lib/types";
+import type { AgentDailyStats, Commission, DailyStats, PlatformSettings } from "@/lib/types";
 import { DEFAULT_SETTINGS } from "@/lib/types";
 import { Card, EmptyState, Spinner, StatCard, TableShell, Td, Th } from "@/components/ui";
 
@@ -40,8 +41,10 @@ type MonthRow = {
   modemPayDeposits: number;
   modemPayWithdrawals: number;
   modemPayNet: number;
-  systemDeposits: number;
-  systemWithdrawals: number;
+  cashDeskDeposits: number;
+  cashDeskWithdrawals: number;
+  otherDeposits: number;
+  otherWithdrawals: number;
   providerDue: number;
   agentCommission: number;
   profit: number;
@@ -88,6 +91,7 @@ export function AdminMonthlyAccounts() {
   const [commissions, setCommissions] = useState<Commission[] | null>(null);
   const [modemPayDeposits, setModemPayDeposits] = useState<RtdbDepositRecord[]>([]);
   const [modemPayWithdrawals, setModemPayWithdrawals] = useState<RtdbWithdrawalRecord[]>([]);
+  const [agentDaily, setAgentDaily] = useState<AgentDailyStats[] | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -119,13 +123,27 @@ export function AdminMonthlyAccounts() {
   }, [range.from, range.to]);
 
   useEffect(() => {
-    const unsubD = subscribeDeposits(undefined, setModemPayDeposits);
-    const unsubW = subscribeWithdrawals(undefined, setModemPayWithdrawals);
+    const unsubD = subscribeDeposits(undefined, setModemPayDeposits, { maxRows: 0 });
+    const unsubW = subscribeWithdrawals(undefined, setModemPayWithdrawals, { maxRows: 0 });
     return () => {
       unsubD();
       unsubW();
     };
   }, []);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "agentDailyStats"),
+      where("date", ">=", range.from),
+      where("date", "<=", range.to),
+      orderBy("date", "asc"),
+    );
+    return onSnapshot(
+      q,
+      (snap) => setAgentDaily(snap.docs.map((d) => d.data() as AgentDailyStats)),
+      () => setAgentDaily([]),
+    );
+  }, [range.from, range.to]);
 
   const providerName = settings.apiProviderName || "QTech";
   const providerRate = settings.apiProviderRate ?? 0;
@@ -137,8 +155,13 @@ export function AdminMonthlyAccounts() {
     [modemPayDeposits, modemPayWithdrawals, range.from, range.to]
   );
 
+  const cashDeskByMonth = useMemo(
+    () => groupAgentCashByMonth(agentDaily ?? []),
+    [agentDaily],
+  );
+
   const rows: MonthRow[] | null = useMemo(() => {
-    if (!days || !commissions) return null;
+    if (!days || !commissions || !agentDaily) return null;
     const commissionByMonth = groupCommissionsByMonth(commissions);
     return groupDailyStatsByMonth(days).map((month) => {
       const accounting = buildPeriodAccounting(
@@ -147,9 +170,12 @@ export function AdminMonthlyAccounts() {
         commissionByMonth.get(month.monthKey) ?? 0
       );
       const mp = modemPayByMonth.get(month.monthKey) ?? { deposits: 0, withdrawals: 0 };
+      const cash = cashDeskByMonth.get(month.monthKey) ?? { deposits: 0, withdrawals: 0 };
       const modemPayNet = Math.round((mp.deposits - mp.withdrawals) * 100) / 100;
-      const systemDeposits = Math.round((month.deposits - mp.deposits) * 100) / 100;
-      const systemWithdrawals = Math.round((month.withdrawals - mp.withdrawals) * 100) / 100;
+      const otherDeposits = Math.round((month.deposits - mp.deposits - cash.deposits) * 100) / 100;
+      const otherWithdrawals = Math.round(
+        (month.withdrawals - mp.withdrawals - cash.withdrawals) * 100,
+      ) / 100;
       return {
         monthKey: month.monthKey,
         label: month.label,
@@ -162,14 +188,16 @@ export function AdminMonthlyAccounts() {
         modemPayDeposits: mp.deposits,
         modemPayWithdrawals: mp.withdrawals,
         modemPayNet,
-        systemDeposits,
-        systemWithdrawals,
+        cashDeskDeposits: cash.deposits,
+        cashDeskWithdrawals: cash.withdrawals,
+        otherDeposits,
+        otherWithdrawals,
         providerDue: accounting.providerDue,
         agentCommission: accounting.agentCommission,
         profit: accounting.beteseKeeps,
       };
     });
-  }, [days, commissions, providerRate, modemPayByMonth]);
+  }, [days, commissions, agentDaily, providerRate, modemPayByMonth, cashDeskByMonth]);
 
   useEffect(() => {
     if (!rows?.length) return;
@@ -190,6 +218,9 @@ export function AdminMonthlyAccounts() {
         withdrawals: acc.withdrawals + r.withdrawals,
         modemPayDeposits: acc.modemPayDeposits + r.modemPayDeposits,
         modemPayWithdrawals: acc.modemPayWithdrawals + r.modemPayWithdrawals,
+        cashDeskDeposits: acc.cashDeskDeposits + r.cashDeskDeposits,
+        cashDeskWithdrawals: acc.cashDeskWithdrawals + r.cashDeskWithdrawals,
+        otherDeposits: acc.otherDeposits + r.otherDeposits,
         providerDue: acc.providerDue + r.providerDue,
         agentCommission: acc.agentCommission + r.agentCommission,
       }),
@@ -200,6 +231,9 @@ export function AdminMonthlyAccounts() {
         withdrawals: 0,
         modemPayDeposits: 0,
         modemPayWithdrawals: 0,
+        cashDeskDeposits: 0,
+        cashDeskWithdrawals: 0,
+        otherDeposits: 0,
         providerDue: 0,
         agentCommission: 0,
       }
@@ -215,11 +249,11 @@ export function AdminMonthlyAccounts() {
         <ol className="grid gap-2 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-5">
           <li>
             <span className="font-medium text-white">1. Customer money</span>
-            <p className="text-xs text-slate-500">All deposits · withdrawals (ModemPay + cash desk / system)</p>
+            <p className="text-xs text-slate-500">All wallet top-ups — Wave, shop cash, and other</p>
           </li>
           <li>
-            <span className="font-medium text-white">2. ModemPay only</span>
-            <p className="text-xs text-slate-500">Wave / Afrimoney paid through ModemPay — for balancing</p>
+            <span className="font-medium text-white">2. Wave (ModemPay)</span>
+            <p className="text-xs text-slate-500">Mobile money on the phone — every Wave payment this month</p>
           </li>
           <li>
             <span className="font-medium text-white">3. Sales</span>
@@ -316,12 +350,12 @@ export function AdminMonthlyAccounts() {
               </p>
               <BreakdownRow
                 label="Deposits"
-                hint="ModemPay + cash desk / system"
+                hint="Wave + shop cash + other"
                 value={formatXof(selected.deposits)}
               />
               <BreakdownRow
                 label="Withdrawals"
-                hint="ModemPay + cash desk / system"
+                hint="Wave + shop cash + other"
                 value={formatXof(selected.withdrawals)}
               />
               <BreakdownRow
@@ -332,34 +366,38 @@ export function AdminMonthlyAccounts() {
               />
 
               <p className="mb-1 mt-4 text-xs font-bold uppercase tracking-wider text-amber-500/80">
-                ModemPay only (balancing)
+                Where the deposits came from
               </p>
               <BreakdownRow
-                label="ModemPay deposits"
-                hint="Paid through Wave / Afrimoney via ModemPay"
+                label="Wave deposits"
+                hint="Mobile money through ModemPay — all payments, not a sample"
                 value={formatXof(selected.modemPayDeposits)}
               />
               <BreakdownRow
-                label="ModemPay withdrawals"
-                hint="Paid out through ModemPay"
+                label="Wave withdrawals"
+                hint="Paid out to the customer’s phone"
                 value={formatXof(selected.modemPayWithdrawals)}
               />
               <BreakdownRow
-                label="ModemPay net"
-                hint="ModemPay deposits minus ModemPay withdrawals"
-                value={formatXof(selected.modemPayNet)}
-                strong
+                label="Shop cash desk deposits"
+                hint="Physical cash an agent collected in person (only if cash desk is ON)"
+                value={formatXof(selected.cashDeskDeposits)}
               />
               <BreakdownRow
-                label="Cash desk / system deposits"
-                hint="Total deposits minus ModemPay"
-                value={formatXof(selected.systemDeposits)}
+                label="Shop cash desk withdrawals"
+                hint="Physical cash an agent paid out in person"
+                value={formatXof(selected.cashDeskWithdrawals)}
+              />
+              <BreakdownRow
+                label="Other deposits"
+                hint="Not Wave and not shop cash — e.g. agent wallet transfer or admin credit"
+                value={formatXof(selected.otherDeposits)}
                 muted
               />
               <BreakdownRow
-                label="Cash desk / system withdrawals"
-                hint="Total withdrawals minus ModemPay"
-                value={formatXof(selected.systemWithdrawals)}
+                label="Other withdrawals"
+                hint="Not Wave and not shop cash"
+                value={formatXof(selected.otherWithdrawals)}
                 muted
               />
 
@@ -407,28 +445,17 @@ export function AdminMonthlyAccounts() {
 
       <Card className="mb-6 overflow-hidden border-amber-500/25 bg-amber-500/[0.04] p-0">
         <div className="border-b border-amber-500/15 px-4 py-3">
-          <h2 className="font-semibold text-white">ModemPay balancing (Betese Aviator only)</h2>
+          <h2 className="font-semibold text-white">Wave vs shop cash</h2>
           <p className="text-xs text-slate-500">
-            Only Aviator money paid through ModemPay (Wave / Afrimoney). This is not Betese PMU —
-            the two apps use separate ModemPay merchants and separate Firebase accounts. Cash desk /
-            system = total customer money minus Aviator ModemPay.
+            Wave is every ModemPay payment. Shop cash is only physical money at the agent desk.
+            These are not mixed. Other = wallet credits that are neither Wave nor shop cash.
           </p>
         </div>
         <div className="grid gap-4 border-b border-amber-500/10 px-4 py-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="ModemPay deposits" value={formatXof(totals.modemPayDeposits)} />
-          <StatCard label="ModemPay withdrawals" value={formatXof(totals.modemPayWithdrawals)} />
-          <StatCard
-            label="ModemPay net"
-            value={formatXof(
-              Math.round((totals.modemPayDeposits - totals.modemPayWithdrawals) * 100) / 100
-            )}
-          />
-          <StatCard
-            label="Cash desk / system deposits"
-            value={formatXof(
-              Math.round((totals.deposits - totals.modemPayDeposits) * 100) / 100
-            )}
-          />
+          <StatCard label="Wave deposits" value={formatXof(totals.modemPayDeposits)} />
+          <StatCard label="Wave withdrawals" value={formatXof(totals.modemPayWithdrawals)} />
+          <StatCard label="Shop cash deposits" value={formatXof(totals.cashDeskDeposits)} hint="OTC only" />
+          <StatCard label="Other deposits" value={formatXof(totals.otherDeposits)} hint="not Wave, not cash desk" />
         </div>
         {rows.length === 0 ? (
           <div className="p-6">
@@ -439,11 +466,10 @@ export function AdminMonthlyAccounts() {
             <thead>
               <tr>
                 <Th>Month / date</Th>
-                <Th>ModemPay deposits</Th>
-                <Th>ModemPay withdrawals</Th>
-                <Th>ModemPay net</Th>
-                <Th>Cash desk / system deposits</Th>
-                <Th>Cash desk / system withdrawals</Th>
+                <Th>Wave deposits</Th>
+                <Th>Wave withdrawals</Th>
+                <Th>Shop cash deposits</Th>
+                <Th>Other deposits</Th>
               </tr>
             </thead>
             <tbody>
@@ -462,13 +488,8 @@ export function AdminMonthlyAccounts() {
                     <Td className="tabular-nums text-amber-100">
                       {formatXof(r.modemPayWithdrawals)}
                     </Td>
-                    <Td className="tabular-nums font-semibold text-amber-200">
-                      {formatXof(r.modemPayNet)}
-                    </Td>
-                    <Td className="tabular-nums text-slate-400">{formatXof(r.systemDeposits)}</Td>
-                    <Td className="tabular-nums text-slate-400">
-                      {formatXof(r.systemWithdrawals)}
-                    </Td>
+                    <Td className="tabular-nums text-amber-200">{formatXof(r.cashDeskDeposits)}</Td>
+                    <Td className="tabular-nums text-slate-400">{formatXof(r.otherDeposits)}</Td>
                   </tr>
                 );
               })}
