@@ -13,8 +13,6 @@ import {
   AlertCircle,
   Radio,
   Activity,
-  Award,
-  WalletCards,
   Percent,
 } from "lucide-react";
 import { db } from "@/lib/firestore";
@@ -26,11 +24,12 @@ import { isAgentRole } from "@/lib/roles";
 import { StaffAccountCard } from "@/components/staff/StaffAccountCard";
 import { AgentPeriodStats } from "@/components/staff/AgentPeriodStats";
 import { AgentQuickStart } from "@/components/agent/AgentQuickStart";
+import { AgentProfitOverview } from "@/components/agent/AgentProfitOverview";
 import {
   AdminDailyCustomerOpens,
   AgentTodayCustomerOpens,
 } from "@/components/staff/DailyCustomerOpens";
-import { commissionableGgr, apiProviderCommissionDue, ggrFromTotals } from "@/lib/platformFinancials";
+import { apiProviderCommissionDue, ggrFromTotals } from "@/lib/platformFinancials";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
 import { DEFAULT_SETTINGS, type PlatformSettings } from "@/lib/types";
 import { Button, Card, StatCard } from "@/components/ui";
@@ -50,11 +49,6 @@ export function StaffDashboard() {
   const { profile, wallet } = useAuth();
   const isAdmin = profile?.role === "admin";
   const stats = profile?.stats ?? {};
-  const agentGgr = commissionableGgr(
-    stats.customerDeposits ?? 0,
-    stats.customerWithdrawals ?? 0,
-    stats.customerCashHeld ?? 0
-  );
 
   const [platformStats, setPlatformStats] = useState<PlatformStats>({});
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
@@ -231,14 +225,25 @@ export function StaffDashboard() {
         </p>
         <h1 className="text-xl font-bold">Welcome back, {profile.name}</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Share your marketing link — customers who register through it are yours. View customers,
-          commissions, and transactions here.
+          Share your marketing link — customers who register through it are yours. Profit below is
+          money BETESE kept from those players this month. You earn 5% of that month&apos;s profit.
+          Today and this week show the same 5% on that period only. Next month starts at zero.
         </p>
       </div>
 
       <StaffAccountCard profile={profile} />
 
       {isAgentRole(profile.role) && profile.agentSlug ? <AgentQuickStart /> : null}
+
+      {isAgentRole(profile.role) ? (
+        <AgentProfitOverview
+          agentId={profile.uid}
+          commissionEarned={stats.commissionEarned ?? 0}
+          commissionWallet={wallet?.balance ?? 0}
+          storedDeposits={stats.customerDeposits ?? 0}
+          anchors={stats}
+        />
+      ) : null}
 
       <AgentPeriodStats />
 
@@ -253,10 +258,6 @@ export function StaffDashboard() {
           />
         </Link>
         <StatCard label="My Customers" value={stats.customerCount ?? 0} icon={<Users size={20} />} />
-        <StatCard label="Customer Deposits" value={formatXof(stats.customerDeposits ?? 0)} icon={<Banknote size={20} />} />
-        <StatCard label="GGR profit" value={formatXof(Math.max(0, agentGgr))} hint="deposits − withdrawals − wallet cash" icon={<TrendingUp size={20} />} />
-        <StatCard label="Commission Due" value={formatXof(wallet?.balance ?? 0)} icon={<WalletCards size={20} />} />
-        <StatCard label="Commission Earned" value={formatXof(stats.commissionEarned ?? 0)} icon={<Award size={20} />} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -269,8 +270,8 @@ export function StaffDashboard() {
           </Link>
         </Card>
         <Card className="p-4">
-          <h2 className="mb-2 font-semibold">Accounts &amp; sales</h2>
-          <p className="mb-4 text-sm text-slate-400">Your GGR, customer ModemPay payments, and commissions.</p>
+          <h2 className="mb-2 font-semibold">Accounts &amp; profit</h2>
+          <p className="mb-4 text-sm text-slate-400">Your GGR profit, customer payments, and commissions.</p>
           <Link href="/admin/accounts">
             <Button variant="secondary" className="w-full">
               Open accounts

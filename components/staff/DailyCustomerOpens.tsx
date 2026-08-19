@@ -6,6 +6,8 @@ import { UserPlus } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { todayIso, formatXof } from "@/lib/format";
+import { agentPeriodGgr, agentPeriodSales } from "@/lib/agentPeriodGgr";
+import { monthRangeIso, weekRangeIso } from "@/lib/ggrAccounting";
 import {
   addPlayerToAgentBook,
   agentCommissionDue,
@@ -16,7 +18,13 @@ import {
   type AgentCommissionBook,
 } from "@/lib/platformFinancials";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
-import { DEFAULT_SETTINGS, type AgentDailyStats, type PlatformSettings, type UserProfile } from "@/lib/types";
+import {
+  DEFAULT_SETTINGS,
+  type AgentDailyStats,
+  type Commission,
+  type PlatformSettings,
+  type UserProfile,
+} from "@/lib/types";
 import { Card, Spinner, StatCard, TableShell, Td, Th } from "@/components/ui";
 
 type AgentOpenRow = {
@@ -54,11 +62,14 @@ export function AgentTodayCustomerOpens() {
 /** Platform total + per-agent breakdown for admin. */
 export function AdminDailyCustomerOpens() {
   const today = useMemo(() => todayIso(), []);
+  const week = useMemo(() => weekRangeIso(), []);
+  const month = useMemo(() => monthRangeIso(), []);
   const [platformToday, setPlatformToday] = useState<number | null>(null);
   const [agents, setAgents] = useState<UserProfile[] | null>(null);
   const [players, setPlayers] = useState<UserProfile[] | null>(null);
   const [opensByAgent, setOpensByAgent] = useState<Map<string, number> | null>(null);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
+  const [commissions, setCommissions] = useState<Commission[] | null>(null);
 
   useEffect(() => {
     const unsubPlatform = onSnapshot(doc(db, "dailyStats", today), (snap) => {
@@ -94,14 +105,21 @@ export function AdminDailyCustomerOpens() {
     const unsubSettings = onSnapshot(doc(db, "settings", "platform"), (snap) => {
       if (snap.exists()) setSettings(mergePlatformSettings(snap.data() as Partial<PlatformSettings>));
     });
+    const unsubCommissions = onSnapshot(
+      query(collection(db, "commissions"), where("periodDate", ">=", month.from)),
+      (snap) => {
+        setCommissions(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Commission));
+      }
+    );
     return () => {
       unsubPlatform();
       unsubAgents();
       unsubPlayers();
       unsubOpens();
       unsubSettings();
+      unsubCommissions();
     };
-  }, [today]);
+  }, [today, month.from]);
 
   const rows = useMemo<AgentOpenRow[] | null>(() => {
     if (!agents || !opensByAgent) return null;
@@ -133,6 +151,19 @@ export function AdminDailyCustomerOpens() {
     [rows]
   );
 
+  const creditedByAgent = useMemo(() => {
+    const map = new Map<string, { day: number; week: number; month: number }>();
+    for (const c of commissions ?? []) {
+      const cur = map.get(c.agentId) ?? { day: 0, week: 0, month: 0 };
+      const g = Number(c.ggrAmount) || 0;
+      cur.month += g;
+      if (c.periodDate >= week.from) cur.week += g;
+      if (c.periodDate === today) cur.day += g;
+      map.set(c.agentId, cur);
+    }
+    return map;
+  }, [commissions, week.from, today]);
+
   if (platformToday === null || rows === null || players === null) {
     return (
       <Card className="flex items-center justify-center p-8">
@@ -140,6 +171,8 @@ export function AdminDailyCustomerOpens() {
       </Card>
     );
   }
+
+  const pct = ((settings.agentRate ?? 0.05) * 100).toFixed(0);
 
   return (
     <div className="space-y-4">
@@ -162,10 +195,11 @@ export function AdminDailyCustomerOpens() {
         <div className="border-b border-white/10 px-4 py-3">
           <h2 className="font-semibold">Agent / vendor opens today</h2>
           <p className="text-sm text-slate-400">
-            First deposit and later top-ups all count as play money. GGR profit is cash BETESE
-            kept (deposits minus withdrawals minus money still in those wallets) — not recycled
-            bets. Each agent earns {((settings.agentRate ?? 0.05) * 100).toFixed(0)}% of that
-            profit for the day, week, and month.
+            First deposit and later top-ups are play money. GGR is cash BETESE kept after customers
+            play (deposits minus withdrawals minus money still in those wallets) — it moves on every
+            win or loss. Each agent earns {((settings.agentRate ?? 0.05) * 100).toFixed(0)}% of
+            that period&apos;s profit: today, this week, and this month are different totals. Month
+            profit is only final at month end. A new month starts sales and GGR at zero.
           </p>
         </div>
         {rows.length === 0 ? (
@@ -174,15 +208,33 @@ export function AdminDailyCustomerOpens() {
           <TableShell>
             <thead>
               <tr>
-                <Th>Agent / vendor</Th>
-                <Th className="text-right">GGR profit</Th>
-                <Th className="text-right">
-                  Agent {((settings.agentRate ?? 0.05) * 100).toFixed(0)}%
+                <Th rowSpan={2}>Agent / vendor</Th>
+                <Th colSpan={2} className="text-center">
+                  Today
                 </Th>
-                <Th className="text-right">Deposits (all)</Th>
-                <Th className="text-right">Withdrawals</Th>
-                <Th className="text-right">Opened today</Th>
-                <Th className="text-right">Lifetime customers</Th>
+                <Th colSpan={2} className="text-center">
+                  This week
+                </Th>
+                <Th colSpan={2} className="text-center">
+                  This month
+                </Th>
+                <Th rowSpan={2} className="text-right">
+                  Month sales
+                </Th>
+                <Th rowSpan={2} className="text-right">
+                  Opened today
+                </Th>
+                <Th rowSpan={2} className="text-right">
+                  Lifetime customers
+                </Th>
+              </tr>
+              <tr>
+                <Th className="text-right">GGR</Th>
+                <Th className="text-right">{pct}% </Th>
+                <Th className="text-right">GGR</Th>
+                <Th className="text-right">{pct}%</Th>
+                <Th className="text-right">GGR</Th>
+                <Th className="text-right">{pct}%</Th>
               </tr>
             </thead>
             <tbody>
@@ -196,15 +248,34 @@ export function AdminDailyCustomerOpens() {
                 );
                 const withdrawals = book?.withdrawals ?? 0;
                 const cashHeld = book?.cashHeld ?? agent?.stats?.customerCashHeld ?? 0;
-                const ggr = commissionableGgr(deposits, withdrawals, cashHeld);
-                const share = agentCommissionDue(ggr, settings.agentRate ?? 0.05);
+                const lifetimeGgr = commissionableGgr(deposits, withdrawals, cashHeld);
+                const credited = creditedByAgent.get(r.uid);
+                const dayGgr = agentPeriodGgr("day", lifetimeGgr, agent?.stats, credited?.day ?? 0);
+                const weekGgr = agentPeriodGgr("week", lifetimeGgr, agent?.stats, credited?.week ?? 0);
+                const monthGgr = agentPeriodGgr(
+                  "month",
+                  lifetimeGgr,
+                  agent?.stats,
+                  credited?.month ?? 0
+                );
+                const monthSales = agentPeriodSales("month", deposits, agent?.stats);
+                const rate = settings.agentRate ?? 0.05;
                 return (
                   <tr key={r.uid}>
                     <Td className="font-medium">{r.name}</Td>
-                    <Td className="text-right tabular-nums text-slate-300">{formatXof(ggr)}</Td>
-                    <Td className="text-right tabular-nums text-emerald-300">{formatXof(share)}</Td>
-                    <Td className="text-right tabular-nums text-slate-300">{formatXof(deposits)}</Td>
-                    <Td className="text-right tabular-nums text-slate-400">{formatXof(withdrawals)}</Td>
+                    <Td className="text-right tabular-nums text-slate-300">{formatXof(dayGgr)}</Td>
+                    <Td className="text-right tabular-nums text-emerald-300">
+                      {formatXof(agentCommissionDue(dayGgr, rate))}
+                    </Td>
+                    <Td className="text-right tabular-nums text-slate-300">{formatXof(weekGgr)}</Td>
+                    <Td className="text-right tabular-nums text-emerald-300">
+                      {formatXof(agentCommissionDue(weekGgr, rate))}
+                    </Td>
+                    <Td className="text-right tabular-nums text-slate-300">{formatXof(monthGgr)}</Td>
+                    <Td className="text-right tabular-nums text-emerald-300">
+                      {formatXof(agentCommissionDue(monthGgr, rate))}
+                    </Td>
+                    <Td className="text-right tabular-nums text-slate-300">{formatXof(monthSales)}</Td>
                     <Td className="text-right tabular-nums">
                       <span className={r.customersOpened > 0 ? "font-semibold text-emerald-300" : ""}>
                         {r.customersOpened}

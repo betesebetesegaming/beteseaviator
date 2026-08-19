@@ -16,12 +16,16 @@ import {
 import { monthRangeIso, sumAgentCommissions, sumAgentGgr, weekRangeIso } from "@/lib/ggrAccounting";
 import { formatDate, formatXof, todayIso } from "@/lib/format";
 import { isOtcCashMeta } from "@/lib/transactionChannel";
-import { collection, doc, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { collection, doc, documentId, getDocs, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 import type { AgentDailyStats, Commission, UserProfile, Wallet } from "@/lib/types";
 import { accountTotalsFromStats } from "@/lib/playerAccount";
+import { agentCommissionDue, commissionableGgr } from "@/lib/platformFinancials";
+import { agentPeriodGgr, agentPeriodSales, type GgrPeriodKind } from "@/lib/agentPeriodGgr";
 import { playerDisplayId } from "@/lib/playerId";
 import { AdminCustomerSupportModal } from "@/components/admin/AdminCustomerSupportModal";
+import { AgentProfitOverview } from "@/components/agent/AgentProfitOverview";
+import { useAgentCommissionBook } from "@/lib/hooks/useAgentCommissionBook";
 import { Button, Card, EmptyState, Select, StatCard, TableShell, Td, Th } from "@/components/ui";
 
 type PeriodKey = "today" | "week" | "month";
@@ -134,15 +138,26 @@ export function AgentAccountBook() {
       setCustomerWallets({});
       return;
     }
-    // Subscribe to wallets collection once; filter to our customers client-side.
-    return onSnapshot(collection(db, "wallets"), (snap) => {
-      const ids = new Set(customers.map((c) => c.uid));
+    let cancelled = false;
+    const ids = customers.map((c) => c.uid);
+    void (async () => {
       const map: Record<string, Wallet> = {};
-      for (const d of snap.docs) {
-        if (ids.has(d.id)) map[d.id] = d.data() as Wallet;
+      try {
+        for (let i = 0; i < ids.length; i += 10) {
+          const chunk = ids.slice(i, i + 10);
+          const snap = await getDocs(
+            query(collection(db, "wallets"), where(documentId(), "in", chunk)),
+          );
+          for (const d of snap.docs) map[d.id] = d.data() as Wallet;
+        }
+        if (!cancelled) setCustomerWallets(map);
+      } catch {
+        if (!cancelled) setCustomerWallets({});
       }
-      setCustomerWallets(map);
-    });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [customers]);
 
   useEffect(() => {
@@ -255,13 +270,25 @@ export function AgentAccountBook() {
   );
   const waveNet = Math.round((waveIn - waveOut) * 100) / 100;
 
-  const periodGgr = commissions ? sumAgentGgr(commissions) : null;
-  const periodCommission = commissions ? sumAgentCommissions(commissions) : null;
-
-  const lifetimeGgr = Math.max(
-    0,
-    (profile?.stats?.totalBets ?? 0) - (profile?.stats?.totalWins ?? 0),
+  const periodGgrCredited = commissions ? sumAgentGgr(commissions) : 0;
+  const periodCommissionCredited = commissions ? sumAgentCommissions(commissions) : null;
+  const { book: liveBook } = useAgentCommissionBook(agentId);
+  const lifetimeDeposits = Math.max(
+    liveBook?.deposits ?? 0,
+    profile?.stats?.customerDeposits ?? 0
   );
+  const lifetimeGgr =
+    liveBook?.commissionableGgr ??
+    Math.max(
+      0,
+      lifetimeDeposits -
+        (profile?.stats?.customerWithdrawals ?? 0) -
+        (profile?.stats?.customerCashHeld ?? 0)
+    );
+  const liveKind: GgrPeriodKind = period;
+  const liveGgr = agentPeriodGgr(liveKind, lifetimeGgr, profile?.stats, periodGgrCredited);
+  const liveSales = agentPeriodSales(liveKind, lifetimeDeposits, profile?.stats);
+  const liveShare = agentCommissionDue(liveGgr, 0.05);
 
   return (
     <div className="space-y-6">
@@ -270,7 +297,7 @@ export function AgentAccountBook() {
           <h2 className="text-lg font-semibold text-white">Agent account book</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-400">
             Clear books for your shop: <span className="text-amber-200">cash desk</span> (physical
-            money), <span className="text-sky-300">Wave</span> (mobile money), sales (GGR), and
+            money), <span className="text-sky-300">Wave</span> (mobile money), GGR profit, and
             commission wallet. Pick a period — figures update together.
           </p>
         </div>
@@ -291,6 +318,14 @@ export function AgentAccountBook() {
           </Button>
         </div>
       </div>
+
+      <AgentProfitOverview
+        agentId={agentId}
+        commissionEarned={profile?.stats?.commissionEarned ?? 0}
+        commissionWallet={wallet?.balance ?? 0}
+        storedDeposits={profile?.stats?.customerDeposits ?? 0}
+        anchors={profile?.stats}
+      />
 
       <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{bounds.label}</p>
 
@@ -354,22 +389,29 @@ export function AgentAccountBook() {
 
         <Card className="p-4">
           <p className="text-[11px] font-bold uppercase tracking-wider text-violet-300/90">
-            3 · Sales (GGR)
+            3 · GGR profit
           </p>
           <p className="mt-2 text-2xl font-bold tabular-nums text-white">
-            {periodGgr != null ? formatXof(periodGgr) : "…"}
+            {formatXof(liveGgr)}
           </p>
-          <p className="mt-1 text-xs text-slate-500">Customer bets − wins this period</p>
+          <p className="mt-1 text-xs text-slate-500">
+            House profit this period from your customers. Moves as they play. New month starts at
+            zero.
+          </p>
           <dl className="mt-3 space-y-1 border-t border-white/10 pt-3 text-sm">
             <div className="flex justify-between gap-2">
-              <dt className="text-slate-400">Commission accrued</dt>
-              <dd className="font-semibold tabular-nums text-emerald-300">
-                {periodCommission != null ? formatXof(periodCommission) : "…"}
-              </dd>
+              <dt className="text-slate-400">Sales this period</dt>
+              <dd className="font-semibold tabular-nums text-white">{formatXof(liveSales)}</dd>
             </div>
             <div className="flex justify-between gap-2">
-              <dt className="text-slate-400">Lifetime sales</dt>
-              <dd className="tabular-nums text-slate-300">{formatXof(lifetimeGgr)}</dd>
+              <dt className="text-slate-400">Your 5% this period</dt>
+              <dd className="font-semibold tabular-nums text-emerald-300">{formatXof(liveShare)}</dd>
+            </div>
+            <div className="flex justify-between gap-2">
+              <dt className="text-slate-400">Already credited</dt>
+              <dd className="tabular-nums text-slate-300">
+                {periodCommissionCredited != null ? formatXof(periodCommissionCredited) : "…"}
+              </dd>
             </div>
           </dl>
         </Card>
@@ -429,8 +471,9 @@ export function AgentAccountBook() {
             (not physical cash).
           </li>
           <li>
-            <span className="text-violet-300">Sales / GGR</span> — play volume profit on your
-            customers; commission accrues from this.
+            <span className="text-violet-300">GGR profit</span> — money BETESE kept from your
+            customers this period (deposits − withdrawals − cash still in wallets). Your 5% is of
+            this period&apos;s profit. A new month starts sales and GGR at zero.
           </li>
           <li>
             <span className="text-emerald-300">Commission wallet</span> — your digital earnings
@@ -508,7 +551,7 @@ export function AgentAccountBook() {
           <div>
             <h3 className="font-semibold text-white">Customers account book</h3>
             <p className="text-xs text-slate-500">
-              Lifetime deposits, played, win/loss, and current balance for each of your customers
+              Lifetime deposits, GGR profit, and current wallet for each of your customers
             </p>
           </div>
           <Link
@@ -530,8 +573,8 @@ export function AgentAccountBook() {
                 <Th>Player ID</Th>
                 <Th>Name</Th>
                 <Th className="text-right">Deposits</Th>
-                <Th className="text-right">Played</Th>
-                <Th className="text-right">Win/Loss</Th>
+                <Th className="text-right">Withdrawals</Th>
+                <Th className="text-right">GGR profit</Th>
                 <Th className="text-right">Balance</Th>
                 <Th>Account</Th>
               </tr>
@@ -540,6 +583,8 @@ export function AgentAccountBook() {
               {customers.map((c) => {
                 const stats = accountTotalsFromStats(c.stats);
                 const bal = customerWallets[c.uid]?.balance;
+                const cashHeld = bal ?? Number(c.stats?.walletCash ?? 0);
+                const ggr = commissionableGgr(stats.totalDeposits, stats.totalWithdrawals, cashHeld);
                 return (
                   <tr key={c.uid}>
                     <Td className="font-mono text-sm text-emerald-300">{playerDisplayId(c)}</Td>
@@ -548,21 +593,13 @@ export function AgentAccountBook() {
                       {formatXof(stats.totalDeposits)}
                     </Td>
                     <Td className="text-right tabular-nums text-slate-300">
-                      {formatXof(stats.totalBets)}
+                      {formatXof(stats.totalWithdrawals)}
                     </Td>
-                    <Td
-                      className={`text-right tabular-nums font-semibold ${
-                        stats.winLoss > 0
-                          ? "text-emerald-300"
-                          : stats.winLoss < 0
-                            ? "text-rose-300"
-                            : "text-slate-400"
-                      }`}
-                    >
-                      {formatXof(stats.winLoss)}
+                    <Td className="text-right tabular-nums font-semibold text-white">
+                      {formatXof(ggr)}
                     </Td>
                     <Td className="text-right tabular-nums font-semibold">
-                      {bal === undefined ? "—" : formatXof(bal)}
+                      {bal === undefined && c.stats?.walletCash == null ? "—" : formatXof(cashHeld)}
                     </Td>
                     <Td>
                       <Button

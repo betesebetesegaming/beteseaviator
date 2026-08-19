@@ -38,6 +38,15 @@ export interface ProfileData {
     customerWithdrawals?: number;
     customerCashHeld?: number;
     commissionedGgr?: number;
+    ggrDayKey?: string;
+    ggrDayBaseline?: number;
+    ggrDayDepositBaseline?: number;
+    ggrWeekKey?: string;
+    ggrWeekBaseline?: number;
+    ggrWeekDepositBaseline?: number;
+    ggrMonthKey?: string;
+    ggrMonthBaseline?: number;
+    ggrMonthDepositBaseline?: number;
     walletCash?: number;
     totalDeposits?: number;
     totalWithdrawals?: number;
@@ -227,6 +236,44 @@ export function commissionableGgr(deposits: number, withdrawals: number, cashHel
 
 export function todayIso(d = new Date()): string {
   return d.toISOString().slice(0, 10);
+}
+
+/** Monday of the UTC week containing `date` (YYYY-MM-DD). */
+export function mondayIso(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const dt = new Date(Date.UTC(y || 1970, (m || 1) - 1, d || 1));
+  const day = dt.getUTCDay();
+  const diff = day === 0 ? 6 : day - 1;
+  dt.setUTCDate(dt.getUTCDate() - diff);
+  return dt.toISOString().slice(0, 10);
+}
+
+/** Frozen period baselines so live day/week/month GGR does not carry last period. */
+export function ggrPeriodAnchorUpdates(
+  today: string,
+  currentGgr: number,
+  currentDeposits: number,
+  live: NonNullable<ProfileData["stats"]>
+): Record<string, string | number> {
+  const monthKey = today.slice(0, 7);
+  const weekKey = mondayIso(today);
+  const updates: Record<string, string | number> = {};
+  if (live.ggrDayKey !== today) {
+    updates.ggrDayKey = today;
+    updates.ggrDayBaseline = currentGgr;
+    updates.ggrDayDepositBaseline = currentDeposits;
+  }
+  if (live.ggrWeekKey !== weekKey) {
+    updates.ggrWeekKey = weekKey;
+    updates.ggrWeekBaseline = currentGgr;
+    updates.ggrWeekDepositBaseline = currentDeposits;
+  }
+  if (live.ggrMonthKey !== monthKey) {
+    updates.ggrMonthKey = monthKey;
+    updates.ggrMonthBaseline = currentGgr;
+    updates.ggrMonthDepositBaseline = currentDeposits;
+  }
+  return updates;
 }
 
 export function txnReference(): string {

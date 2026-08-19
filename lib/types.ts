@@ -35,6 +35,19 @@ export interface AgentStats {
   customerCashHeld?: number;
   /** Peak commissionable GGR already paid at the agent 5% rate. */
   commissionedGgr?: number;
+  /** Calendar day (YYYY-MM-DD) the day GGR baseline was frozen. */
+  ggrDayKey?: string;
+  /** Lifetime GGR at the start of ggrDayKey — today's live GGR is current minus this. */
+  ggrDayBaseline?: number;
+  ggrDayDepositBaseline?: number;
+  /** Monday (YYYY-MM-DD) the week GGR baseline was frozen. */
+  ggrWeekKey?: string;
+  ggrWeekBaseline?: number;
+  ggrWeekDepositBaseline?: number;
+  /** YYYY-MM the month GGR baseline was frozen. New month starts sales and GGR at 0. */
+  ggrMonthKey?: string;
+  ggrMonthBaseline?: number;
+  ggrMonthDepositBaseline?: number;
   /** Player cash wallet snapshot (players only). */
   walletCash?: number;
   /** Lifetime deposits credited to this user (players + own agent wallet). */

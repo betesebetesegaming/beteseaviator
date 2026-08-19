@@ -184,8 +184,11 @@ export default function AdminSettingsPage() {
       <Card className="mb-5">
         <h2 className="mb-4 font-semibold">Agent commission (share of GGR)</h2>
         <p className="mb-4 text-sm text-slate-400">
-          Agents earn this percentage of profit (bets minus wins) from players who registered via
-          their marketing link. Only admins can create agent accounts.
+          Agents earn this percentage of this month&apos;s GGR profit from players on their
+          marketing link. Profit is deposits minus withdrawals minus cash still in those wallets —
+          not recycled bets. It changes as customers play. Today and this week show 5% of that
+          period&apos;s profit (not extra stacked payments). A new month starts sales and GGR at
+          zero. Type 5 for 5%. Only admins can create agent accounts.
         </p>
         <Input
           label="Agent commission (%)"

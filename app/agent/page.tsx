@@ -1,12 +1,11 @@
 "use client";
 
-import { Users, Banknote, TrendingUp, Award, WalletCards, Activity } from "lucide-react";
+import { Users, Activity } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { formatXof } from "@/lib/format";
-import { commissionableGgr, agentCommissionDue } from "@/lib/platformFinancials";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { AgentQuickStart } from "@/components/agent/AgentQuickStart";
+import { AgentProfitOverview } from "@/components/agent/AgentProfitOverview";
 import { AgentTodayCustomerOpens } from "@/components/staff/DailyCustomerOpens";
 import { AgentPeriodStats } from "@/components/staff/AgentPeriodStats";
 import { Card, StatCard } from "@/components/ui";
@@ -14,20 +13,14 @@ import { Card, StatCard } from "@/components/ui";
 export default function AgentDashboard() {
   const { profile, wallet } = useAuth();
   const stats = profile?.stats ?? {};
-  const ggr = commissionableGgr(
-    stats.customerDeposits ?? 0,
-    stats.customerWithdrawals ?? 0,
-    stats.customerCashHeld ?? 0
-  );
-  const share = agentCommissionDue(ggr, 0.05);
 
   return (
     <div>
       <h1 className="mb-1 text-xl font-bold">Welcome back, {profile?.name}</h1>
       <p className="mb-6 text-sm text-slate-400">
-        Use your QR code below to bring new customers. You earn 5% of GGR profit from every
-        customer on your link — first deposit and later top-ups both count. That 5% adds up
-        every day, week, and month. Recycled winnings are not extra profit.
+        Use your QR code below to bring new customers. Profit is money BETESE kept from players on
+        your link this month — first deposit and later top-ups both count. You earn 5% of that
+        month&apos;s profit. A new month starts at zero. Recycled winnings are not extra profit.
       </p>
 
       {profile?.agentSlug ? (
@@ -41,6 +34,16 @@ export default function AgentDashboard() {
           link is created automatically from your username.
         </Card>
       )}
+
+      <div className="mb-6">
+        <AgentProfitOverview
+          agentId={profile?.uid}
+          commissionEarned={stats.commissionEarned ?? 0}
+          commissionWallet={wallet?.balance ?? 0}
+          storedDeposits={stats.customerDeposits ?? 0}
+          anchors={stats}
+        />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <AgentTodayCustomerOpens />
@@ -57,36 +60,6 @@ export default function AgentDashboard() {
           value={stats.customerCount ?? 0}
           hint="players from your link"
           icon={<Users size={20} />}
-        />
-        <StatCard
-          label="Customer Deposits"
-          value={formatXof(stats.customerDeposits ?? 0)}
-          hint="all top-ups — not commission"
-          icon={<Banknote size={20} />}
-        />
-        <StatCard
-          label="GGR profit"
-          value={formatXof(ggr)}
-          hint="deposits − withdrawals − cash still in wallets"
-          icon={<TrendingUp size={20} />}
-        />
-        <StatCard
-          label="Your 5%"
-          value={formatXof(share)}
-          hint="lifetime share of that profit"
-          icon={<Award size={20} />}
-        />
-        <StatCard
-          label="Commission Earned"
-          value={formatXof(stats.commissionEarned ?? 0)}
-          hint="already credited from daily 5%"
-          icon={<Award size={20} />}
-        />
-        <StatCard
-          label="Commission Due"
-          value={formatXof(wallet?.balance ?? 0)}
-          hint="available to withdraw now"
-          icon={<WalletCards size={20} />}
         />
       </div>
 

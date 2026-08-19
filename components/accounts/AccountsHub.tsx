@@ -47,11 +47,11 @@ const ADMIN_TAB_HELP: Record<(typeof ADMIN_TABS)[number]["id"], string> = {
 };
 
 const AGENT_TAB_HELP: Record<(typeof AGENT_TABS)[number]["id"], string> = {
-  book: "Your customers’ deposits and withdrawals in one book.",
+  book: "Your customers’ deposits, withdrawals, and GGR profit in one book.",
   cashdesk: "Cash you took or paid at the shop today.",
   modempay: "Wave / mobile money for your customers only.",
-  commissions: "What you earn from your customers’ play.",
-  sales: "How much your shop deposited, played, and earned.",
+  commissions: "Your 5% of GGR profit from customers on your link.",
+  sales: "This month's live GGR, deposits, and week/month 5%. A new month starts at zero.",
   transactions: "Your wallet, your customers, and your cash-desk moves.",
 };
 

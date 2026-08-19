@@ -12,6 +12,7 @@ import {
   walletRead,
   walletWrite,
   commissionableGgr,
+  ggrPeriodAnchorUpdates,
   type ProfileData,
 } from "./helpers";
 
@@ -50,8 +51,11 @@ async function walletCashByUid(uids: string[]): Promise<Map<string, number>> {
  * customers: all deposits − withdrawals − cash still in those wallets).
  *
  * First deposit and later top-ups both count. Recycled winnings do not.
- * Daily rows sum to the week and month 5% totals. High-water mark so a
- * re-run never double-pays.
+ * Live GGR moves as customers play. Day / week / month each show that
+ * period's profit (a new month starts sales and GGR at 0). Daily credits
+ * are 5% of new profit; week and month 5% are the same rate on that
+ * period's GGR — not extra stacked payments. High-water mark so a re-run
+ * never double-pays.
  */
 export async function processCommissionsForDate(date: string): Promise<{
   created: number;
@@ -111,33 +115,54 @@ export async function processCommissionsForDate(date: string): Promise<{
 
     const currentGgr = commissionableGgr(book.deposits, book.withdrawals, book.cashHeld);
     const commissionId = `${agentId}_book_${date}`;
+    const calendarToday = todayIso();
 
     try {
       const paid = await db.runTransaction(async (tx) => {
         const ref = db.doc(`commissions/${commissionId}`);
         const existing = await tx.get(ref);
-        if (existing.exists) return 0;
-
         const agentSnap = await tx.get(db.doc(`users/${agentId}`));
         const live = (agentSnap.data() as ProfileData | undefined)?.stats ?? {};
+        const anchors = ggrPeriodAnchorUpdates(calendarToday, currentGgr, book.deposits, live);
+        const bookStats = {
+          customerDeposits: round2(Math.max(Number(live.customerDeposits ?? 0), book.deposits)),
+          customerWithdrawals: book.withdrawals,
+          customerCashHeld: book.cashHeld,
+        };
+
+        const writeStats = (extra: Record<string, unknown>) => {
+          tx.set(
+            db.doc(`users/${agentId}`),
+            { stats: { ...bookStats, ...anchors, ...extra } },
+            { merge: true }
+          );
+        };
+
+        if (existing.exists) {
+          if (Object.keys(anchors).length > 0) writeStats({});
+          return 0;
+        }
+
         const peakRaw = live.commissionedGgr;
         const peakKnown = peakRaw !== undefined && peakRaw !== null && Number.isFinite(Number(peakRaw));
         const peak = peakKnown ? round2(Number(peakRaw)) : currentGgr;
 
         if (!peakKnown) {
-          tx.set(
-            db.doc(`users/${agentId}`),
-            { stats: { commissionedGgr: currentGgr } },
-            { merge: true }
-          );
+          writeStats({ commissionedGgr: currentGgr });
           return 0;
         }
 
         const increment = round2(Math.max(0, currentGgr - peak));
-        if (increment <= 0) return 0;
+        if (increment <= 0) {
+          writeStats({ commissionedGgr: peak });
+          return 0;
+        }
 
         const commissionAmount = round2(increment * rate);
-        if (commissionAmount <= 0) return 0;
+        if (commissionAmount <= 0) {
+          writeStats({ commissionedGgr: peak });
+          return 0;
+        }
 
         const wallet = await walletRead(tx, agentId);
         tx.set(ref, {
@@ -167,21 +192,10 @@ export async function processCommissionsForDate(date: string): Promise<{
           },
           ignoreFrozen: true,
         });
-        tx.set(
-          db.doc(`users/${agentId}`),
-          {
-            stats: {
-              commissionEarned: FieldValue.increment(commissionAmount),
-              commissionedGgr: round2(peak + increment),
-              customerDeposits: round2(
-                Math.max(Number(live.customerDeposits ?? 0), book.deposits)
-              ),
-              customerWithdrawals: book.withdrawals,
-              customerCashHeld: book.cashHeld,
-            },
-          },
-          { merge: true }
-        );
+        writeStats({
+          commissionEarned: FieldValue.increment(commissionAmount),
+          commissionedGgr: round2(peak + increment),
+        });
         return commissionAmount;
       });
       if (paid > 0) {

@@ -22,6 +22,9 @@ import { collection, doc, onSnapshot, orderBy, query, where } from "firebase/fir
 import { db } from "@/lib/firestore";
 import type { AgentDailyStats, Commission } from "@/lib/types";
 import { AgentPeriodStats } from "@/components/staff/AgentPeriodStats";
+import { AgentProfitOverview } from "@/components/agent/AgentProfitOverview";
+import { useAgentCommissionBook } from "@/lib/hooks/useAgentCommissionBook";
+import { agentPeriodGgr } from "@/lib/agentPeriodGgr";
 import { Card, StatCard } from "@/components/ui";
 
 function useAgentCommissionsRange(agentId: string | undefined, from: string, to: string) {
@@ -74,7 +77,12 @@ export function AgentSalesSummary() {
     });
   }, [agentId, today]);
 
-  const lifetimeGgr = Math.max(0, (stats.totalBets ?? 0) - (stats.totalWins ?? 0));
+  const { book } = useAgentCommissionBook(agentId);
+  const lifetimeGgr = book?.commissionableGgr ?? 0;
+  const weekCredited = weekCommissions ? sumAgentGgr(weekCommissions) : 0;
+  const monthCredited = monthCommissions ? sumAgentGgr(monthCommissions) : 0;
+  const weekGgr = agentPeriodGgr("week", lifetimeGgr, stats, weekCredited);
+  const monthGgr = agentPeriodGgr("month", lifetimeGgr, stats, monthCredited);
 
   const weekDeposits = useMemo(
     () =>
@@ -149,19 +157,24 @@ export function AgentSalesSummary() {
     [withdrawals, customerIds, month]
   );
 
-  const weekGgr = weekCommissions ? sumAgentGgr(weekCommissions) : null;
-  const monthGgr = monthCommissions ? sumAgentGgr(monthCommissions) : null;
-
   return (
     <div className="space-y-6">
       <p className="text-sm text-slate-400">
-        Sales detail (GGR, Wave day stats). For the full professional statement — cash desk balance,
-        Wave, sales, and commission wallet — open{" "}
+        Profit from your customers, Wave day stats, and week/month credits. For the full statement —
+        cash desk, Wave, profit, and commission wallet — open{" "}
         <Link href="/admin/accounts?tab=book" className="font-medium text-amber-300 hover:underline">
           Account book
         </Link>
         .
       </p>
+
+      <AgentProfitOverview
+        agentId={agentId}
+        commissionEarned={stats.commissionEarned ?? 0}
+        commissionWallet={wallet?.balance ?? 0}
+        storedDeposits={stats.customerDeposits ?? 0}
+        anchors={stats}
+      />
 
       {(Number(cashToday?.cashDeposits ?? 0) > 0 || Number(cashToday?.cashDepositCount ?? 0) > 0) ? (
         <Card className="border-amber-500/40 bg-amber-500/10 p-5">
@@ -191,7 +204,7 @@ export function AgentSalesSummary() {
       <AgentPeriodStats />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Lifetime sales (GGR)" value={formatXof(lifetimeGgr)} hint="all time from your customers" />
+        <StatCard label="This month GGR profit" value={formatXof(monthGgr)} hint="resets next month · deposits − withdrawals − wallet cash" />
         <StatCard label="Commission in wallet" value={formatXof(wallet?.balance ?? 0)} hint="available now" />
         <StatCard
           label="Cash deposits today"
@@ -229,8 +242,8 @@ export function AgentSalesSummary() {
           <p className="mb-4 text-xs text-slate-500">{week.label}</p>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-400">Sales (GGR)</span>
-              <span className="font-semibold">{weekGgr != null ? formatXof(weekGgr) : "…"}</span>
+              <span className="text-slate-400">Live GGR profit</span>
+              <span className="font-semibold">{formatXof(weekGgr)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Your commission</span>
@@ -253,8 +266,8 @@ export function AgentSalesSummary() {
           <p className="mb-4 text-xs text-slate-500">{month.label}</p>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-400">Sales (GGR)</span>
-              <span className="font-semibold">{monthGgr != null ? formatXof(monthGgr) : "…"}</span>
+              <span className="text-slate-400">Live GGR profit</span>
+              <span className="font-semibold">{formatXof(monthGgr)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Your commission</span>

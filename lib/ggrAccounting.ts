@@ -36,6 +36,20 @@ export function weekRangeIso(now = new Date()): PeriodRange {
   return { from, to: end, label: `${from} → ${end}` };
 }
 
+/** Calendar keys for agent GGR: today, Monday-start week, YYYY-MM month (UTC / Dakar). */
+export function currentGgrPeriodKeys(now = new Date()): {
+  day: string;
+  week: string;
+  month: string;
+} {
+  const day = isoDate(now);
+  return {
+    day,
+    week: weekRangeIso(now).from,
+    month: monthRangeIso(now).from.slice(0, 7),
+  };
+}
+
 /** First day of current UTC month through today. */
 export function monthRangeIso(now = new Date()): PeriodRange {
   const end = isoDate(now);

@@ -213,12 +213,18 @@ export function EmptyState({ message }: { message: string }) {
 export function Th({
   children,
   className = "",
+  colSpan,
+  rowSpan,
 }: {
   children: ReactNode;
   className?: string;
+  colSpan?: number;
+  rowSpan?: number;
 }) {
   return (
     <th
+      colSpan={colSpan}
+      rowSpan={rowSpan}
       className={`px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 ${className}`}
     >
       {children}

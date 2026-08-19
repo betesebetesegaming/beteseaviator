@@ -94,8 +94,8 @@ export default function AgentWalletPage() {
     <div className="mx-auto max-w-4xl">
       <h1 className="mb-1 text-xl font-bold">My Commission Wallet</h1>
       <p className="mb-6 text-sm text-slate-400">
-        Funded by your commissions and transfers. Withdraw any time — payouts are released by
-        BETESE.
+        Your 5% of this month&apos;s GGR profit is credited here as customers play. Withdraw any
+        time — payouts are released by BETESE.
       </p>
 
       <div className="grid gap-5 md:grid-cols-[1fr_1.4fr]">
