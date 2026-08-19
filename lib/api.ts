@@ -360,7 +360,7 @@ export const adminGetPlayerAccountSummary = call<
 
 export const adminBackfillPlayerAccountStats = call<
   Record<string, never>,
-  { ok: true; usersUpdated: number; transactionsScanned: number }
+  { ok: true; usersUpdated: number; agentsUpdated?: number; transactionsScanned: number }
 >("adminBackfillPlayerAccountStats");
 
 export const adminSetGameStatus = call<

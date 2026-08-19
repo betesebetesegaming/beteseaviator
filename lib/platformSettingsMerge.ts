@@ -1,4 +1,5 @@
 import { mergeBonusSettings } from "@/lib/bonuses";
+import { normalizeCommissionRate } from "@/lib/commissionRate";
 import { MIN_DEPOSIT_GMD } from "@/lib/depositLimits";
 import { stripPlatformSecrets } from "@/lib/publicPlatformSettings";
 import { DEFAULT_SETTINGS, type PlatformSettings } from "@/lib/types";
@@ -14,8 +15,22 @@ export function mergePlatformSettings(data: Partial<PlatformSettings> | null | u
     providers: { ...DEFAULT_SETTINGS.providers, ...(d.providers ?? {}) },
     bonuses: mergeBonusSettings(d.bonuses),
     apiProviderName: d.apiProviderName ?? DEFAULT_SETTINGS.apiProviderName,
-    apiProviderRate: d.apiProviderRate ?? DEFAULT_SETTINGS.apiProviderRate,
-    agentRate: d.agentRate ?? d.subAgentRate ?? DEFAULT_SETTINGS.agentRate,
+    apiProviderRate: normalizeCommissionRate(
+      d.apiProviderRate,
+      DEFAULT_SETTINGS.apiProviderRate
+    ),
+    agentRate: normalizeCommissionRate(
+      d.agentRate ?? d.subAgentRate,
+      DEFAULT_SETTINGS.agentRate
+    ),
+    subAgentRate: normalizeCommissionRate(
+      d.subAgentRate ?? d.agentRate,
+      DEFAULT_SETTINGS.subAgentRate
+    ),
+    superAgentRate: normalizeCommissionRate(
+      d.superAgentRate,
+      DEFAULT_SETTINGS.superAgentRate
+    ),
     depositPlaythroughRate: d.depositPlaythroughRate ?? DEFAULT_SETTINGS.depositPlaythroughRate,
     earlyWithdrawalFeeRate: d.earlyWithdrawalFeeRate ?? DEFAULT_SETTINGS.earlyWithdrawalFeeRate,
     bonusWagerMultiplier: d.bonusWagerMultiplier ?? DEFAULT_SETTINGS.bonusWagerMultiplier,

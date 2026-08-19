@@ -10,6 +10,7 @@ export const rtdb = admin.database();
 export const auth = admin.auth();
 export const FieldValue = admin.firestore.FieldValue;
 
+import { normalizeCommissionRate } from "./commissionRate";
 import { roleAllowed, type Role } from "./roles";
 
 export type { Role };
@@ -34,6 +35,10 @@ export interface ProfileData {
   stats?: {
     customerCount?: number;
     customerDeposits?: number;
+    customerWithdrawals?: number;
+    customerCashHeld?: number;
+    commissionedGgr?: number;
+    walletCash?: number;
     totalDeposits?: number;
     totalWithdrawals?: number;
     totalBets?: number;
@@ -211,6 +216,15 @@ export function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/** Net cash BETESE kept from a customer book. First + later deposits count; recycled wins do not. */
+export function commissionableGgr(deposits: number, withdrawals: number, cashHeld: number): number {
+  const n =
+    (Number(deposits) || 0) -
+    (Number(withdrawals) || 0) -
+    Math.max(0, Number(cashHeld) || 0);
+  return round2(Math.max(0, n));
+}
+
 export function todayIso(d = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
@@ -245,6 +259,22 @@ export async function getSettings(): Promise<Settings> {
     ...DEFAULT_SETTINGS,
     ...platformRest,
     minDeposit: MIN_DEPOSIT_GMD,
+    agentRate: normalizeCommissionRate(
+      data.agentRate ?? data.subAgentRate,
+      DEFAULT_SETTINGS.agentRate
+    ),
+    subAgentRate: normalizeCommissionRate(
+      data.subAgentRate ?? data.agentRate,
+      DEFAULT_SETTINGS.subAgentRate
+    ),
+    superAgentRate: normalizeCommissionRate(
+      data.superAgentRate,
+      DEFAULT_SETTINGS.superAgentRate
+    ),
+    apiProviderRate: normalizeCommissionRate(
+      data.apiProviderRate,
+      DEFAULT_SETTINGS.apiProviderRate
+    ),
     providers: { ...DEFAULT_SETTINGS.providers, ...(data.providers ?? {}) },
     bonusGamesLabel:
       typeof data.bonusGamesLabel === "string" && data.bonusGamesLabel.trim()
@@ -449,6 +479,11 @@ export function walletWrite(
   });
 
   bumpPlayerAccountStats(tx, args.uid, args.type, amount);
+  tx.set(
+    db.doc(`users/${args.uid}`),
+    { "stats.walletCash": round2(wallet.balance) },
+    { merge: true }
+  );
 
   wallet.exists = true;
   return wallet.balance;
@@ -541,6 +576,18 @@ export function recordCustomersOpened(
   }
 }
 
+/** Cash stake of a bet — bonus chips are not BETESE profit and must not count as GGR. */
+export function betCashStake(
+  amount: number,
+  meta?: { fromCash?: unknown } | null
+): number {
+  const abs = round2(Math.abs(Number(amount) || 0));
+  if (abs <= 0) return 0;
+  const fromCash = Number(meta?.fromCash);
+  if (Number.isFinite(fromCash) && fromCash >= 0) return round2(Math.min(fromCash, abs));
+  return abs;
+}
+
 /** Increment an agent's dashboard stats (inside a transaction). */
 export function bumpAgentStats(
   tx: FirebaseFirestore.Transaction,
@@ -580,5 +627,31 @@ export function bumpAgentGgr(
       },
       { merge: true }
     );
+  }
+}
+
+/**
+ * Attribute real-money play to every agent on the player. `cashBets` must be
+ * the cash portion of the stake (not bonus). Wins are cash credits.
+ */
+export function creditAgentCustomerPlay(
+  tx: FirebaseFirestore.Transaction,
+  ancestors: string[],
+  playerId: string,
+  date: string,
+  fields: { cashBets?: number; wins?: number }
+): void {
+  const cashBets = round2(fields.cashBets ?? 0);
+  const wins = round2(fields.wins ?? 0);
+  if (cashBets === 0 && wins === 0) return;
+  bumpAgentGgr(tx, ancestors, playerId, date, {
+    ...(cashBets !== 0 ? { bets: cashBets } : {}),
+    ...(wins !== 0 ? { wins } : {}),
+  });
+  for (const agentId of ancestors) {
+    const stats: Record<string, number> = {};
+    if (cashBets !== 0) stats.totalBets = cashBets;
+    if (wins !== 0) stats.totalWins = wins;
+    bumpAgentStats(tx, agentId, stats);
   }
 }

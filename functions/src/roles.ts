@@ -1,3 +1,4 @@
+import { normalizeCommissionRate } from "./commissionRate";
 import type { Settings } from "./helpers";
 
 /** Canonical roles — legacy super_agent/sub_agent still accepted in Firestore. */
@@ -19,6 +20,5 @@ export function roleAllowed(profileRole: string, allowed: Role[]): boolean {
 
 export function agentCommissionRate(settings: Settings): number {
   const ext = settings as Settings & { agentRate?: number };
-  const rate = Number(ext.agentRate ?? ext.subAgentRate ?? 0.05);
-  return Number.isFinite(rate) && rate > 0 ? rate : 0;
+  return normalizeCommissionRate(ext.agentRate ?? ext.subAgentRate, 0.05);
 }

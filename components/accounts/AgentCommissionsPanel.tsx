@@ -59,8 +59,8 @@ export function AgentCommissionsPanel({ adminView }: { adminView: boolean }) {
     <div className="space-y-4">
       <p className="text-sm text-slate-400">
         {adminView
-          ? "All agent commission credits — GGR share from their customers' play."
-          : "Your commission history from customer GGR."}
+          ? "5% of commissionable GGR profit from each agent’s linked customers (first + later deposits). Daily rows add up to the week and month."
+          : "Your 5% of GGR profit from customers on your link. Daily credits add up for the week and month."}
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard label="GGR in list" value={formatXof(totals.ggr)} />

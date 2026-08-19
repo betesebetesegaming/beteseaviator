@@ -30,7 +30,8 @@ import {
   AdminDailyCustomerOpens,
   AgentTodayCustomerOpens,
 } from "@/components/staff/DailyCustomerOpens";
-import { apiProviderCommissionDue, ggrFromTotals } from "@/lib/platformFinancials";
+import { commissionableGgr, apiProviderCommissionDue, ggrFromTotals } from "@/lib/platformFinancials";
+import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
 import { DEFAULT_SETTINGS, type PlatformSettings } from "@/lib/types";
 import { Button, Card, StatCard } from "@/components/ui";
 
@@ -49,7 +50,11 @@ export function StaffDashboard() {
   const { profile, wallet } = useAuth();
   const isAdmin = profile?.role === "admin";
   const stats = profile?.stats ?? {};
-  const agentGgr = (stats.totalBets ?? 0) - (stats.totalWins ?? 0);
+  const agentGgr = commissionableGgr(
+    stats.customerDeposits ?? 0,
+    stats.customerWithdrawals ?? 0,
+    stats.customerCashHeld ?? 0
+  );
 
   const [platformStats, setPlatformStats] = useState<PlatformStats>({});
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
@@ -63,8 +68,7 @@ export function StaffDashboard() {
     });
     const unsubSettings = onSnapshot(doc(db, "settings", "platform"), (snap) => {
       if (snap.exists()) {
-        const data = snap.data() as PlatformSettings;
-        setSettings({ ...DEFAULT_SETTINGS, ...data });
+        setSettings(mergePlatformSettings(snap.data() as Partial<PlatformSettings>));
       }
     });
     const pendingQ = query(
@@ -250,7 +254,7 @@ export function StaffDashboard() {
         </Link>
         <StatCard label="My Customers" value={stats.customerCount ?? 0} icon={<Users size={20} />} />
         <StatCard label="Customer Deposits" value={formatXof(stats.customerDeposits ?? 0)} icon={<Banknote size={20} />} />
-        <StatCard label="Sales (GGR)" value={formatXof(Math.max(0, agentGgr))} icon={<TrendingUp size={20} />} />
+        <StatCard label="GGR profit" value={formatXof(Math.max(0, agentGgr))} hint="deposits − withdrawals − wallet cash" icon={<TrendingUp size={20} />} />
         <StatCard label="Commission Due" value={formatXof(wallet?.balance ?? 0)} icon={<WalletCards size={20} />} />
         <StatCard label="Commission Earned" value={formatXof(stats.commissionEarned ?? 0)} icon={<Award size={20} />} />
       </div>

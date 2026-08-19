@@ -51,11 +51,11 @@ export function AgentPeriodStats() {
         <p className="mt-1 text-xs text-slate-500">{week.label}</p>
         <div className="mt-3 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Your customers&apos; GGR</span>
+            <span className="text-slate-400">GGR profit</span>
             <span className="font-semibold tabular-nums text-white">{formatXof(weekGgr)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Commission earned</span>
+            <span className="text-slate-400">Your 5%</span>
             <span className="font-semibold tabular-nums text-emerald-300">{formatXof(weekCommission)}</span>
           </div>
         </div>
@@ -65,11 +65,11 @@ export function AgentPeriodStats() {
         <p className="mt-1 text-xs text-slate-500">{month.label}</p>
         <div className="mt-3 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Your customers&apos; GGR</span>
+            <span className="text-slate-400">GGR profit</span>
             <span className="font-semibold tabular-nums text-white">{formatXof(monthGgr)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Commission earned</span>
+            <span className="text-slate-400">Your 5%</span>
             <span className="font-semibold tabular-nums text-emerald-300">{formatXof(monthCommission)}</span>
           </div>
         </div>

@@ -15,9 +15,11 @@ import {
   staffLoginKey,
   resolveStaffAuthEmail,
   MIN_DEPOSIT_GMD,
+  betCashStake,
   type ProfileData,
   type Role,
 } from "./helpers";
+import { parseCommissionRate } from "./commissionRate";
 import { isAgentRole } from "./roles";
 import { claimSlug, createPlayerAccount, ensureAgentLoginDocs } from "./agent";
 import { assertValidPassword } from "./passwordPolicy";
@@ -371,11 +373,28 @@ export const adminSaveSettings = onCall(async (req) => {
   await requireRole(req, ["admin"]);
   const data = req.data ?? {};
   const clean: Record<string, unknown> = {};
-  const numericKeys = [
+  const commissionRateKeys = [
     "agentRate",
     "subAgentRate",
     "superAgentRate",
     "apiProviderRate",
+  ] as const;
+  for (const k of commissionRateKeys) {
+    if (data[k] !== undefined) {
+      const rate = parseCommissionRate(data[k]);
+      if (rate === null) {
+        throw new HttpsError(
+          "invalid-argument",
+          `${k} must be between 0% and 100% (type 5 for 5%, or 0.05).`
+        );
+      }
+      clean[k] = rate;
+    }
+  }
+  if (clean.agentRate !== undefined && clean.subAgentRate === undefined) {
+    clean.subAgentRate = clean.agentRate;
+  }
+  const numericKeys = [
     "minBet",
     "maxBet",
     "minDeposit",
@@ -394,18 +413,6 @@ export const adminSaveSettings = onCall(async (req) => {
       clean[k] = k === "minDeposit" ? MIN_DEPOSIT_GMD : v;
     }
   }
-  if (
-    (clean.agentRate as number | undefined) !== undefined &&
-    (clean.agentRate as number) > 1
-  ) {
-    throw new HttpsError("invalid-argument", "Agent rate is a fraction, e.g. 0.05 = 5%.");
-  }
-  if ((clean.subAgentRate as number) > 1 || (clean.superAgentRate as number) > 1) {
-    throw new HttpsError("invalid-argument", "Rates are fractions, e.g. 0.05 = 5%.");
-  }
-  if ((clean.apiProviderRate as number | undefined) !== undefined && (clean.apiProviderRate as number) > 1) {
-    throw new HttpsError("invalid-argument", "API provider rate must be a fraction, e.g. 0.15 = 15%.");
-  }
   if ((clean.depositPlaythroughRate as number | undefined) !== undefined && (clean.depositPlaythroughRate as number) > 1) {
     throw new HttpsError("invalid-argument", "Deposit play-through rate must be a fraction, e.g. 0.8 = 80%.");
   }
@@ -414,13 +421,6 @@ export const adminSaveSettings = onCall(async (req) => {
   }
   if ((clean.minDeposit as number | undefined) !== undefined && (clean.minDeposit as number) < MIN_DEPOSIT_GMD) {
     throw new HttpsError("invalid-argument", `Minimum deposit is GMD ${MIN_DEPOSIT_GMD}.`);
-  }
-  if (data.apiProviderRate !== undefined) {
-    const rate = Number(data.apiProviderRate);
-    if (!Number.isFinite(rate) || rate < 0 || rate > 1) {
-      throw new HttpsError("invalid-argument", "API provider rate must be between 0 and 1.");
-    }
-    clean.apiProviderRate = rate;
   }
   if (data.apiProviderName !== undefined) {
     clean.apiProviderName = String(data.apiProviderName).trim().slice(0, 80) || "API Provider";
@@ -1176,6 +1176,12 @@ type AccountTotals = {
   totalWins: number;
 };
 
+function neverReduce(existing: unknown, next: number): number {
+  const prev = Number(existing);
+  const kept = Number.isFinite(prev) && prev > 0 ? prev : 0;
+  return round2(Math.max(kept, next));
+}
+
 function emptyAccountTotals(): AccountTotals {
   return { totalDeposits: 0, totalWithdrawals: 0, totalBets: 0, totalWins: 0 };
 }
@@ -1335,8 +1341,9 @@ export const adminGetPlayerAccountSummary = onCall(async (req) => {
 
 /**
  * Rebuild every user's account-book stats from the transactions ledger (admin repair).
- * Overwrites stats.totalDeposits / totalWithdrawals / totalBets / totalWins.
- * Preserves other agent stats fields (customerCount, commissionEarned, etc.).
+ * Overwrites play counters only. Never writes parentId / ancestors (agent links).
+ * Never reduces a player's totalDeposits or an agent's customerDeposits
+ * (first deposit and later top-ups stay).
  */
 export const adminBackfillPlayerAccountStats = onCall(
   {
@@ -1347,6 +1354,7 @@ export const adminBackfillPlayerAccountStats = onCall(
     await requireRole(req, ["admin"]);
 
     const byUser = new Map<string, AccountTotals>();
+    const playerCashBets = new Map<string, number>();
     const snap = await db.collection("transactions").get();
     for (const doc of snap.docs) {
       const data = doc.data();
@@ -1357,12 +1365,31 @@ export const adminBackfillPlayerAccountStats = onCall(
         totals = emptyAccountTotals();
         byUser.set(uid, totals);
       }
-      accumulateAccountTx(totals, String(data.type || ""), Number(data.amount) || 0);
+      const type = String(data.type || "");
+      const amount = Number(data.amount) || 0;
+      accumulateAccountTx(totals, type, amount);
+      if (type === "bet") {
+        const meta =
+          data.meta && typeof data.meta === "object"
+            ? (data.meta as { fromCash?: unknown })
+            : null;
+        const cash = betCashStake(amount, meta);
+        playerCashBets.set(uid, round2((playerCashBets.get(uid) ?? 0) + cash));
+      }
     }
 
     // Only players: agent totalBets/totalWins are customer GGR aggregates.
     const playersSnap = await db.collection("users").where("role", "==", "player").get();
     const playerIds = new Set(playersSnap.docs.map((d) => d.id));
+    const existingPlayerStats = new Map<string, ProfileData["stats"]>();
+    for (const d of playersSnap.docs) {
+      existingPlayerStats.set(d.id, (d.data() as ProfileData).stats);
+    }
+    const walletSnap = await db.collection("wallets").get();
+    const walletCash = new Map<string, number>();
+    for (const w of walletSnap.docs) {
+      walletCash.set(w.id, round2(Number(w.data()?.balance ?? 0)));
+    }
 
     let updated = 0;
     const entries = [...byUser.entries()].filter(([uid]) => playerIds.has(uid));
@@ -1371,14 +1398,16 @@ export const adminBackfillPlayerAccountStats = onCall(
       const batch = db.batch();
       const slice = entries.slice(i, i + chunkSize);
       for (const [uid, totals] of slice) {
+        const prev = existingPlayerStats.get(uid);
         batch.set(
           db.doc(`users/${uid}`),
           {
             stats: {
-              totalDeposits: totals.totalDeposits,
+              totalDeposits: neverReduce(prev?.totalDeposits, totals.totalDeposits),
               totalWithdrawals: totals.totalWithdrawals,
               totalBets: totals.totalBets,
               totalWins: totals.totalWins,
+              walletCash: walletCash.get(uid) ?? 0,
             },
           },
           { merge: true }
@@ -1388,21 +1417,20 @@ export const adminBackfillPlayerAccountStats = onCall(
       await batch.commit();
     }
 
-    // Players with no ledger rows still get zeros so the UI is consistent.
+    // Players with no ledger rows: keep deposit totals and agent links; only refresh cash.
     let zeroed = 0;
     const missing = playersSnap.docs.filter((d) => !byUser.has(d.id));
     for (let i = 0; i < missing.length; i += chunkSize) {
       const batch = db.batch();
       const slice = missing.slice(i, i + chunkSize);
       for (const doc of slice) {
+        const prev = existingPlayerStats.get(doc.id);
         batch.set(
           db.doc(`users/${doc.id}`),
           {
             stats: {
-              totalDeposits: 0,
-              totalWithdrawals: 0,
-              totalBets: 0,
-              totalWins: 0,
+              totalDeposits: neverReduce(prev?.totalDeposits, 0),
+              walletCash: walletCash.get(doc.id) ?? 0,
             },
           },
           { merge: true }
@@ -1412,15 +1440,90 @@ export const adminBackfillPlayerAccountStats = onCall(
       await batch.commit();
     }
 
+    // Agent book: all deposits − withdrawals − cash still in player wallets.
+    const agentsSnap = await db
+      .collection("users")
+      .where("role", "in", ["agent", "super_agent", "sub_agent"])
+      .get();
+    type AgentGgrTotals = {
+      totalBets: number;
+      totalWins: number;
+      customerDeposits: number;
+      customerWithdrawals: number;
+      customerCashHeld: number;
+    };
+    const byAgent = new Map<string, AgentGgrTotals>();
+    for (const agentDoc of agentsSnap.docs) {
+      byAgent.set(agentDoc.id, {
+        totalBets: 0,
+        totalWins: 0,
+        customerDeposits: 0,
+        customerWithdrawals: 0,
+        customerCashHeld: 0,
+      });
+    }
+    for (const playerDoc of playersSnap.docs) {
+      const player = playerDoc.data() as ProfileData;
+      const totals = byUser.get(playerDoc.id) ?? emptyAccountTotals();
+      const cashBets = playerCashBets.get(playerDoc.id) ?? 0;
+      const cashHeld = walletCash.get(playerDoc.id) ?? 0;
+      const ancestorIds: string[] = [];
+      const seen = new Set<string>();
+      const addAncestor = (id: string | null | undefined) => {
+        const v = String(id || "").trim();
+        if (!v || seen.has(v) || !byAgent.has(v)) return;
+        seen.add(v);
+        ancestorIds.push(v);
+      };
+      if (Array.isArray(player.ancestors)) {
+        for (const id of player.ancestors) addAncestor(id);
+      }
+      addAncestor(player.parentId);
+      for (const agentId of ancestorIds) {
+        const row = byAgent.get(agentId)!;
+        row.totalBets = round2(row.totalBets + cashBets);
+        row.totalWins = round2(row.totalWins + totals.totalWins);
+        row.customerDeposits = round2(row.customerDeposits + totals.totalDeposits);
+        row.customerWithdrawals = round2(row.customerWithdrawals + totals.totalWithdrawals);
+        row.customerCashHeld = round2(row.customerCashHeld + cashHeld);
+      }
+    }
+    let agentsUpdated = 0;
+    const agentEntries = [...byAgent.entries()];
+    for (let i = 0; i < agentEntries.length; i += chunkSize) {
+      const batch = db.batch();
+      const slice = agentEntries.slice(i, i + chunkSize);
+      for (const [uid, totals] of slice) {
+        const existing = agentsSnap.docs.find((d) => d.id === uid)?.data() as ProfileData | undefined;
+        batch.set(
+          db.doc(`users/${uid}`),
+          {
+            stats: {
+              totalBets: totals.totalBets,
+              totalWins: totals.totalWins,
+              customerDeposits: neverReduce(existing?.stats?.customerDeposits, totals.customerDeposits),
+              customerWithdrawals: totals.customerWithdrawals,
+              customerCashHeld: totals.customerCashHeld,
+            },
+          },
+          { merge: true }
+        );
+        agentsUpdated += 1;
+      }
+      await batch.commit();
+    }
+
     logger.info("adminBackfillPlayerAccountStats", {
       users: updated,
       zeroed,
+      agentsUpdated,
       transactions: snap.size,
     });
 
     return {
       ok: true as const,
       usersUpdated: updated + zeroed,
+      agentsUpdated,
       transactionsScanned: snap.size,
     };
   }

@@ -11,14 +11,47 @@ import {
   todayIso,
   walletRead,
   walletWrite,
+  commissionableGgr,
   type ProfileData,
 } from "./helpers";
 
+function agentIdsForPlayer(player: ProfileData): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const add = (id: string | null | undefined) => {
+    const v = String(id || "").trim();
+    if (!v || seen.has(v)) return;
+    seen.add(v);
+    ids.push(v);
+  };
+  if (Array.isArray(player.ancestors)) {
+    for (const id of player.ancestors) add(id);
+  }
+  add(player.parentId);
+  return ids;
+}
+
+async function walletCashByUid(uids: string[]): Promise<Map<string, number>> {
+  const cash = new Map<string, number>();
+  const chunkSize = 80;
+  for (let i = 0; i < uids.length; i += chunkSize) {
+    const refs = uids.slice(i, i + chunkSize).map((id) => db.doc(`wallets/${id}`));
+    if (refs.length === 0) continue;
+    const snaps = await db.getAll(...refs);
+    for (const snap of snaps) {
+      cash.set(snap.id, round2(Number(snap.data()?.balance ?? 0)));
+    }
+  }
+  return cash;
+}
+
 /**
- * Credits one day's GGR commissions to every agent. Idempotent: the
- * commission doc ID is deterministic (agent_player_date) and each row is
- * created inside a transaction that skips if it already exists, so re-running
- * a day can NEVER double-pay.
+ * Pay each agent 5% of commissionable GGR (net cash BETESE kept from their
+ * customers: all deposits − withdrawals − cash still in those wallets).
+ *
+ * First deposit and later top-ups both count. Recycled winnings do not.
+ * Daily rows sum to the week and month 5% totals. High-water mark so a
+ * re-run never double-pays.
  */
 export async function processCommissionsForDate(date: string): Promise<{
   created: number;
@@ -26,62 +59,93 @@ export async function processCommissionsForDate(date: string): Promise<{
   total: number;
 }> {
   const settings = await getSettings();
-  const rows = await db.collection("agentDailyGgr").where("date", "==", date).get();
+  const rate = agentCommissionRate(settings);
+  if (rate <= 0) {
+    return { created: 0, skipped: 0, total: 0 };
+  }
+
+  const [playersSnap, agentsSnap] = await Promise.all([
+    db.collection("users").where("role", "==", "player").get(),
+    db.collection("users").where("role", "in", ["agent", "super_agent", "sub_agent"]).get(),
+  ]);
+
+  const agentStatus = new Map<string, ProfileData>();
+  for (const doc of agentsSnap.docs) {
+    agentStatus.set(doc.id, doc.data() as ProfileData);
+  }
+
+  const playerUids = playersSnap.docs.map((d) => d.id);
+  const cashByPlayer = await walletCashByUid(playerUids);
+
+  type Book = { deposits: number; withdrawals: number; cashHeld: number };
+  const books = new Map<string, Book>();
+  for (const agentId of agentStatus.keys()) {
+    books.set(agentId, { deposits: 0, withdrawals: 0, cashHeld: 0 });
+  }
+
+  for (const doc of playersSnap.docs) {
+    const player = doc.data() as ProfileData;
+    const stats = player.stats ?? {};
+    const deposits = Number(stats.totalDeposits ?? 0);
+    const withdrawals = Number(stats.totalWithdrawals ?? 0);
+    const cashHeld = cashByPlayer.get(doc.id) ?? Number(stats.walletCash ?? 0);
+    for (const agentId of agentIdsForPlayer(player)) {
+      const book = books.get(agentId);
+      if (!book) continue;
+      book.deposits = round2(book.deposits + deposits);
+      book.withdrawals = round2(book.withdrawals + withdrawals);
+      book.cashHeld = round2(book.cashHeld + Math.max(0, cashHeld));
+    }
+  }
 
   let created = 0;
   let skipped = 0;
   let total = 0;
 
-  for (const row of rows.docs) {
-    const { agentId, playerId, bets, wins } = row.data() as {
-      agentId: string;
-      playerId: string;
-      bets?: number;
-      wins?: number;
-    };
-    const ggr = round2((bets ?? 0) - (wins ?? 0));
-    if (ggr <= 0) {
-      skipped++;
-      continue; // no profit, no commission
-    }
-
-    const agentSnap = await db.doc(`users/${agentId}`).get();
-    if (!agentSnap.exists) {
-      skipped++;
-      continue;
-    }
-    const agent = agentSnap.data() as ProfileData;
-    if (agent.status !== "active") {
-      skipped++;
-      continue;
-    }
-    const rate = agentCommissionRate(settings);
-    if (rate <= 0) {
+  for (const [agentId, book] of books) {
+    const agent = agentStatus.get(agentId);
+    if (!agent || agent.status !== "active") {
       skipped++;
       continue;
     }
 
-    const playerSnap = await db.doc(`users/${playerId}`).get();
-    const playerName = playerSnap.exists ? (playerSnap.data()!.name as string) : null;
-    const commissionAmount = round2(ggr * rate);
-    const commissionId = `${agentId}_${playerId}_${date}`;
+    const currentGgr = commissionableGgr(book.deposits, book.withdrawals, book.cashHeld);
+    const commissionId = `${agentId}_book_${date}`;
 
     try {
-      // The transaction body may retry on contention, so it must stay free of
-      // side effects on the summary counters. It returns whether it created the
-      // row; we tally outside, after it commits exactly once.
-      const didCreate = await db.runTransaction(async (tx) => {
+      const paid = await db.runTransaction(async (tx) => {
         const ref = db.doc(`commissions/${commissionId}`);
         const existing = await tx.get(ref);
-        if (existing.exists) return false; // already paid — idempotent skip
+        if (existing.exists) return 0;
+
+        const agentSnap = await tx.get(db.doc(`users/${agentId}`));
+        const live = (agentSnap.data() as ProfileData | undefined)?.stats ?? {};
+        const peakRaw = live.commissionedGgr;
+        const peakKnown = peakRaw !== undefined && peakRaw !== null && Number.isFinite(Number(peakRaw));
+        const peak = peakKnown ? round2(Number(peakRaw)) : currentGgr;
+
+        if (!peakKnown) {
+          tx.set(
+            db.doc(`users/${agentId}`),
+            { stats: { commissionedGgr: currentGgr } },
+            { merge: true }
+          );
+          return 0;
+        }
+
+        const increment = round2(Math.max(0, currentGgr - peak));
+        if (increment <= 0) return 0;
+
+        const commissionAmount = round2(increment * rate);
+        if (commissionAmount <= 0) return 0;
 
         const wallet = await walletRead(tx, agentId);
         tx.set(ref, {
           agentId,
           agentName: agent.name,
-          playerId,
-          playerName,
-          ggrAmount: ggr,
+          playerId: "network",
+          playerName: "All linked customers",
+          ggrAmount: increment,
           commissionRate: rate,
           commissionAmount,
           periodDate: date,
@@ -92,20 +156,37 @@ export async function processCommissionsForDate(date: string): Promise<{
           uid: agentId,
           amount: commissionAmount,
           type: "commission",
-          description: `Commission ${date} (${(rate * 100).toFixed(1)}% of GGR)`,
-          meta: { playerId, playerName, date, ggr },
+          description: `Commission ${date} (${(rate * 100).toFixed(1)}% of GGR profit)`,
+          meta: {
+            date,
+            increment,
+            currentGgr,
+            deposits: book.deposits,
+            withdrawals: book.withdrawals,
+            cashHeld: book.cashHeld,
+          },
           ignoreFrozen: true,
         });
         tx.set(
           db.doc(`users/${agentId}`),
-          { stats: { commissionEarned: FieldValue.increment(commissionAmount) } },
+          {
+            stats: {
+              commissionEarned: FieldValue.increment(commissionAmount),
+              commissionedGgr: round2(peak + increment),
+              customerDeposits: round2(
+                Math.max(Number(live.customerDeposits ?? 0), book.deposits)
+              ),
+              customerWithdrawals: book.withdrawals,
+              customerCashHeld: book.cashHeld,
+            },
+          },
           { merge: true }
         );
-        return true;
+        return commissionAmount;
       });
-      if (didCreate) {
+      if (paid > 0) {
         created++;
-        total += commissionAmount;
+        total = round2(total + paid);
       } else {
         skipped++;
       }
@@ -114,7 +195,7 @@ export async function processCommissionsForDate(date: string): Promise<{
     }
   }
 
-  logger.info("processCommissions summary", { date, created, skipped, total });
+  logger.info("processCommissions summary", { date, created, skipped, total, rate });
   return { created, skipped, total };
 }
 

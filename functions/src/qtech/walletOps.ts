@@ -9,8 +9,7 @@ import {
   walletWrite,
   bumpDailyStats,
   bumpPlatformStats,
-  bumpAgentGgr,
-  bumpAgentStats,
+  creditAgentCustomerPlay,
   todayIso,
 } from "../helpers";
 import { applyBetWagering } from "../wagering";
@@ -39,6 +38,8 @@ export type StoredQTechTxn = {
   payloadKey: string;
   betId?: string | null;
   roundId?: string | null;
+  fromCash?: number;
+  fromBonus?: number;
   createdAt: FirebaseFirestore.FieldValue;
 };
 
@@ -222,10 +223,13 @@ export async function processWithdrawal(
       throw qtechError("INSUFFICIENT_FUNDS", 400);
     }
 
+    let fromCash = 0;
+    let fromBonus = 0;
     if (amount > 0) {
       await onReferralFirstBet(tx, playerId, settings);
 
-      const fromBonus = Math.min(wallet.bonusBalance, amount);
+      fromBonus = Math.min(wallet.bonusBalance, amount);
+      fromCash = round2(amount - fromBonus);
       walletWrite(tx, wallet, {
         uid: playerId,
         amount: -amount,
@@ -244,10 +248,7 @@ export async function processWithdrawal(
       const date = todayIso();
       bumpPlatformStats(tx, { totalBets: amount });
       bumpDailyStats(tx, date, { bets: amount });
-      bumpAgentGgr(tx, ancestors, playerId, date, { bets: amount });
-      for (const agentId of ancestors) {
-        bumpAgentStats(tx, agentId, { totalBets: amount });
-      }
+      creditAgentCustomerPlay(tx, ancestors, playerId, date, { cashBets: fromCash });
       const qtechGameId = String(body.gameId ?? "").trim();
       if (qtechGameId) {
         const { qtechGameDocId } = await import("../gameCatalog");
@@ -277,6 +278,8 @@ export async function processWithdrawal(
       balance: balanceAfter,
       currency,
       payloadKey: key,
+      fromCash,
+      fromBonus,
       createdAt: FieldValue.serverTimestamp(),
     } satisfies StoredQTechTxn);
   });
@@ -358,10 +361,7 @@ export async function processDeposit(
       const date = todayIso();
       bumpPlatformStats(tx, { totalWins: amount });
       bumpDailyStats(tx, date, { wins: amount });
-      bumpAgentGgr(tx, ancestors, playerId, date, { wins: amount });
-      for (const agentId of ancestors) {
-        bumpAgentStats(tx, agentId, { totalWins: amount });
-      }
+      creditAgentCustomerPlay(tx, ancestors, playerId, date, { wins: amount });
     }
 
     balanceAfter = playableBalance(wallet);
@@ -427,6 +427,7 @@ export async function processRollback(
     }
 
     const wallet = await walletRead(tx, playerId);
+    const userSnap = await tx.get(db.doc(`users/${playerId}`));
     if (amount > 0) {
       walletWrite(tx, wallet, {
         uid: playerId,
@@ -441,6 +442,16 @@ export async function processRollback(
         },
         ignoreFrozen: true,
       });
+      const storedCash = Number(withdrawal.fromCash);
+      const reverseCash =
+        Number.isFinite(storedCash) && storedCash >= 0 ? storedCash : amount;
+      if (reverseCash > 0) {
+        const ancestors = (userSnap.data()?.ancestors as string[]) || [];
+        const created = withdrawal.createdAt as { toDate?: () => Date } | undefined;
+        const date =
+          created && typeof created.toDate === "function" ? todayIso(created.toDate()) : todayIso();
+        creditAgentCustomerPlay(tx, ancestors, playerId, date, { cashBets: -reverseCash });
+      }
     }
     balanceAfter = playableBalance(wallet);
     tx.set(db.doc(`qtechTransactions/${txnId}`), {

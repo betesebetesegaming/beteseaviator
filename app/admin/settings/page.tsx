@@ -12,6 +12,11 @@ import {
   type PaymentProvider,
   type PlatformSettings,
 } from "@/lib/types";
+import {
+  commissionRateToPercent,
+  parseCommissionRate,
+  percentToCommissionRate,
+} from "@/lib/commissionRate";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
 import { formatXof } from "@/lib/format";
 import { Button, Card, Input } from "@/components/ui";
@@ -39,11 +44,30 @@ export default function AdminSettingsPage() {
     };
   }
 
+  function percentField(key: "agentRate" | "apiProviderRate") {
+    const fallback = key === "agentRate" ? DEFAULT_SETTINGS.agentRate : DEFAULT_SETTINGS.apiProviderRate;
+    return {
+      value: String(commissionRateToPercent(settings[key], fallback ?? 0)),
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value;
+        if (raw === "" || raw === "-") {
+          setSettings({ ...settings, [key]: 0 });
+          return;
+        }
+        const pct = Number(raw);
+        if (!Number.isFinite(pct) || pct < 0 || pct > 100) return;
+        setSettings({ ...settings, [key]: percentToCommissionRate(pct) });
+      },
+    };
+  }
+
   async function save() {
-    if (settings.agentRate !== undefined && (settings.agentRate < 0 || settings.agentRate > 1))
-      return toast.error("Agent rate must be between 0 and 1 (e.g. 0.05 = 5%).");
-    if (settings.apiProviderRate < 0 || settings.apiProviderRate > 1)
-      return toast.error("API provider rate must be between 0 and 1 (e.g. 0.15 = 15%).");
+    const agentRate = parseCommissionRate(settings.agentRate);
+    const apiProviderRate = parseCommissionRate(settings.apiProviderRate);
+    if (agentRate === null)
+      return toast.error("Agent commission must be between 0% and 100% (type 5 for 5%).");
+    if (apiProviderRate === null)
+      return toast.error("API provider commission must be between 0% and 100% (type 12 for 12%).");
     if ((settings.depositPlaythroughRate ?? 1) < 0 || (settings.depositPlaythroughRate ?? 1) > 1)
       return toast.error("Deposit turnover must be between 0 and 1 (e.g. 1 = 100%).");
     if ((settings.earlyWithdrawalFeeRate ?? 0.2) < 0 || (settings.earlyWithdrawalFeeRate ?? 0.2) > 1)
@@ -52,7 +76,12 @@ export default function AdminSettingsPage() {
       return toast.error("Bonus wager multiplier must be at least 1.");
     setBusy(true);
     try {
-      await adminSaveSettings({ ...settings });
+      await adminSaveSettings({
+        ...settings,
+        agentRate,
+        subAgentRate: agentRate,
+        apiProviderRate,
+      });
       toast.success("Settings saved — they apply immediately, no redeploy needed.");
     } catch (e) {
       toast.error(errorMessage(e));
@@ -94,7 +123,7 @@ export default function AdminSettingsPage() {
     try {
       const res = await adminBackfillPlayerAccountStats({});
       toast.success(
-        `Customer account books rebuilt — ${res.usersUpdated} players from ${res.transactionsScanned} ledger rows.`
+        `Account books rebuilt — ${res.usersUpdated} players and ${res.agentsUpdated ?? 0} agents from ${res.transactionsScanned} ledger rows.`
       );
     } catch (e) {
       toast.error(errorMessage(e));
@@ -132,7 +161,7 @@ export default function AdminSettingsPage() {
         <h2 className="mb-4 font-semibold">API provider commission (share of GGR)</h2>
         <p className="mb-4 text-sm text-slate-400">
           Set the game provider name (QTech) and what percent of total GGR (bets minus wins) you owe
-          them. The Accounts page shows week/month amounts due.
+          them. Type 12 for 12%. The Accounts page shows week/month amounts due.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
@@ -141,11 +170,13 @@ export default function AdminSettingsPage() {
             onChange={(e) => setSettings({ ...settings, apiProviderName: e.target.value })}
           />
           <Input
-            label="GGR commission rate (0.15 = 15%)"
+            label="GGR commission (%)"
             type="number"
-            step="0.01"
-            value={String(settings.apiProviderRate ?? 0)}
-            onChange={(e) => setSettings({ ...settings, apiProviderRate: Number(e.target.value) })}
+            min={0}
+            max={100}
+            step="0.1"
+            inputMode="decimal"
+            {...percentField("apiProviderRate")}
           />
         </div>
       </Card>
@@ -157,11 +188,15 @@ export default function AdminSettingsPage() {
           their marketing link. Only admins can create agent accounts.
         </p>
         <Input
-          label="Agent rate (0.05 = 5%)"
+          label="Agent commission (%)"
           type="number"
-          step="0.01"
-          {...num("agentRate")}
+          min={0}
+          max={100}
+          step="0.1"
+          inputMode="decimal"
+          {...percentField("agentRate")}
         />
+        <p className="mt-2 text-xs text-slate-500">Type 5 for 5%. Agents earn this share of GGR from their players.</p>
       </Card>
 
       <Card className="mb-5">

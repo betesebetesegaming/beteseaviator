@@ -29,6 +29,14 @@ export interface AgentStats {
   customerCount?: number;
   subAgentCount?: number;
   customerDeposits?: number;
+  /** Lifetime withdrawals by this agent's customers. */
+  customerWithdrawals?: number;
+  /** Sum of linked players' cash wallet balances. */
+  customerCashHeld?: number;
+  /** Peak commissionable GGR already paid at the agent 5% rate. */
+  commissionedGgr?: number;
+  /** Player cash wallet snapshot (players only). */
+  walletCash?: number;
   /** Lifetime deposits credited to this user (players + own agent wallet). */
   totalDeposits?: number;
   /** Lifetime withdrawals debited from this user. */
@@ -343,11 +351,11 @@ export interface QTechSettings {
 }
 
 export interface PlatformSettings {
-  /** Agent commission share of GGR (e.g. 0.05 = 5%). */
+  /** Agent commission share of GGR (0.05 = 5%). Admin form accepts 5 or 0.05. */
   agentRate?: number;
   subAgentRate: number; // legacy
   superAgentRate: number; // legacy
-  /** API / game provider share of GGR (e.g. 0.15 = 15%). */
+  /** API / game provider share of GGR (0.15 = 15%). Admin form accepts 15 or 0.15. */
   apiProviderRate: number;
   apiProviderName: string;
   minBet: number;
