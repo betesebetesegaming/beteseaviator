@@ -285,7 +285,7 @@ export function AgentAccountBook() {
         (profile?.stats?.customerWithdrawals ?? 0) -
         (profile?.stats?.customerCashHeld ?? 0)
     );
-  const liveKind: GgrPeriodKind = period;
+  const liveKind: GgrPeriodKind = period === "today" ? "day" : period;
   const liveGgr = agentPeriodGgr(liveKind, lifetimeGgr, profile?.stats, periodGgrCredited);
   const liveSales = agentPeriodSales(liveKind, lifetimeDeposits, profile?.stats);
   const liveShare = agentCommissionDue(liveGgr, 0.05);
