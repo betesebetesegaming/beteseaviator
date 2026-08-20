@@ -29,6 +29,10 @@ import {
   AdminDailyCustomerOpens,
   AgentTodayCustomerOpens,
 } from "@/components/staff/DailyCustomerOpens";
+import {
+  AdminTodayDepositsStat,
+  AgentTodayDepositsStat,
+} from "@/components/accounts/TodayDepositsPanel";
 import { apiProviderCommissionDue, ggrFromTotals } from "@/lib/platformFinancials";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
 import { DEFAULT_SETTINGS, type PlatformSettings } from "@/lib/types";
@@ -134,6 +138,7 @@ export function StaffDashboard() {
             value={formatXof(financials.totalDeposits)}
             icon={<Banknote size={20} />}
           />
+          <AdminTodayDepositsStat />
           <StatCard
             label="Total Withdrawals"
             value={formatXof(financials.totalWithdrawals)}
@@ -197,9 +202,9 @@ export function StaffDashboard() {
           <Card className="p-4">
             <h2 className="mb-2 font-semibold">Accounts &amp; GGR</h2>
             <p className="mb-4 text-sm text-slate-400">Week/month GGR, QTech due, and agent commissions.</p>
-            <Link href="/admin/accounts">
+            <Link href="/admin/accounts?tab=today">
               <Button variant="secondary" className="w-full">
-                Open accounts
+                Today’s deposits
               </Button>
             </Link>
           </Card>
@@ -249,6 +254,7 @@ export function StaffDashboard() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <AgentTodayCustomerOpens />
+        <AgentTodayDepositsStat />
         <Link href="/admin/operations">
           <StatCard
             label="Operations hub"
@@ -272,9 +278,9 @@ export function StaffDashboard() {
         <Card className="p-4">
           <h2 className="mb-2 font-semibold">Accounts &amp; profit</h2>
           <p className="mb-4 text-sm text-slate-400">Your GGR profit, customer payments, and commissions.</p>
-          <Link href="/admin/accounts">
+          <Link href="/admin/accounts?tab=today">
             <Button variant="secondary" className="w-full">
-              Open accounts
+              Today’s deposits
             </Button>
           </Link>
         </Card>

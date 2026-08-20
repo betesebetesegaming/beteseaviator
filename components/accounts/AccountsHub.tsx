@@ -11,6 +11,7 @@ import { AdminAgentsCashBook } from "@/components/accounts/AdminAgentsCashBook";
 import { AgentAccountBook } from "@/components/accounts/AgentAccountBook";
 import { AgentSalesSummary } from "@/components/accounts/AgentSalesSummary";
 import { ModemPayLedger } from "@/components/accounts/ModemPayLedger";
+import { TodayDepositsPanel } from "@/components/accounts/TodayDepositsPanel";
 import { LedgerTransactionsPanel } from "@/components/accounts/LedgerTransactionsPanel";
 import { AgentCommissionsPanel } from "@/components/accounts/AgentCommissionsPanel";
 import { AgentCashDeskBook } from "@/components/accounts/AgentCashDeskBook";
@@ -18,6 +19,7 @@ import { AgentServeAnyCustomer } from "@/components/agent/AgentCashDesk";
 import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 
 const ADMIN_TABS = [
+  { id: "today", label: "Today’s deposits" },
   { id: "monthly", label: "Month by month" },
   { id: "agentcash", label: "Agent books" },
   { id: "book", label: "Money book" },
@@ -28,6 +30,7 @@ const ADMIN_TABS = [
 ] as const;
 
 const AGENT_TABS = [
+  { id: "today", label: "Today’s deposits" },
   { id: "book", label: "Account book" },
   { id: "cashdesk", label: "Cash daybook" },
   { id: "modempay", label: "Wave ledger" },
@@ -37,6 +40,7 @@ const AGENT_TABS = [
 ] as const;
 
 const ADMIN_TAB_HELP: Record<(typeof ADMIN_TABS)[number]["id"], string> = {
+  today: "Only today’s customer deposits — Wave and shop cash. The list starts empty each midnight.",
   monthly: "House profit by month. Wave = phone money. Shop cash = physical cash at the desk only.",
   agentcash: "Shop cash each agent collected today. This is physical money they must remit.",
   book: "Every customer deposit and withdrawal. Choose an agent to open that agent’s money book.",
@@ -47,6 +51,7 @@ const ADMIN_TAB_HELP: Record<(typeof ADMIN_TABS)[number]["id"], string> = {
 };
 
 const AGENT_TAB_HELP: Record<(typeof AGENT_TABS)[number]["id"], string> = {
+  today: "Only today’s deposits from your customers — Wave and cash at your shop.",
   book: "Your customers’ deposits, withdrawals, and GGR profit in one book.",
   cashdesk: "Cash you took or paid at the shop today.",
   modempay: "Wave / mobile money for your customers only.",
@@ -59,7 +64,7 @@ type AdminTab = (typeof ADMIN_TABS)[number]["id"];
 type AgentTab = (typeof AGENT_TABS)[number]["id"];
 
 function normalizeTab(raw: string | null, isAdmin: boolean): string {
-  if (!raw) return isAdmin ? "monthly" : "book";
+  if (!raw) return "today";
   // Old deep-links
   if (raw === "deposits" || raw === "withdrawals") return "modempay";
   if (!isAdmin && raw === "sales") return raw; // still valid as Sales detail
@@ -74,8 +79,8 @@ export function AccountsHub() {
   const [tab, setTab] = useState<string>(initial);
   const { customerIds, customerNames } = useAgentCustomerIds(isAdmin ? undefined : profile?.uid);
 
-  const adminTab = ADMIN_TABS.some((t) => t.id === tab) ? (tab as AdminTab) : "monthly";
-  const agentTab = AGENT_TABS.some((t) => t.id === tab) ? (tab as AgentTab) : "book";
+  const adminTab = ADMIN_TABS.some((t) => t.id === tab) ? (tab as AdminTab) : "today";
+  const agentTab = AGENT_TABS.some((t) => t.id === tab) ? (tab as AgentTab) : "today";
 
   const scopeLabel = useMemo(
     () => (isAdmin ? "All platform customers" : "Your customers only"),
@@ -142,6 +147,15 @@ export function AccountsHub() {
 
       {isAdmin ? (
         <>
+          {adminTab === "today" && (
+            <ClientErrorBoundary label="Today’s deposits">
+              <TodayDepositsPanel
+                customerIds={null}
+                scopeLabel={scopeLabel}
+                restrictToNetwork={false}
+              />
+            </ClientErrorBoundary>
+          )}
           {adminTab === "monthly" && (
             <ClientErrorBoundary label="Month by month accounts">
               <AdminMonthlyAccounts />
@@ -171,6 +185,16 @@ export function AccountsHub() {
       ) : (
         <>
           <AgentServeAnyCustomer cashOpsEnabled={!!profile?.cashOpsEnabled} />
+          {agentTab === "today" && (
+            <ClientErrorBoundary label="Today’s deposits">
+              <TodayDepositsPanel
+                customerIds={customerIds}
+                customerNames={customerNames}
+                scopeLabel={scopeLabel}
+                restrictToNetwork
+              />
+            </ClientErrorBoundary>
+          )}
           {agentTab === "book" && (
             <ClientErrorBoundary label="Agent account book">
               <AgentAccountBook />
