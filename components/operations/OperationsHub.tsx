@@ -14,6 +14,8 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { getOperationsHub, type OperationsHubResponse, errorMessage } from "@/lib/api";
 import { formatDate, formatXof } from "@/lib/format";
+import { presenceAgo } from "@/lib/presence";
+import { useLivePresence } from "@/lib/hooks/useLivePresence";
 import { formatPlayerId } from "@/lib/playerId";
 import { isOtcCashMeta, transactionChannel, transactionChannelLabel } from "@/lib/transactionChannel";
 import type { Role, TransactionType } from "@/lib/types";
@@ -50,6 +52,7 @@ export function OperationsHub() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [agentFilter, setAgentFilter] = useState<string | null>(initialAgent);
+  const presence = useLivePresence(isAdmin);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -74,9 +77,10 @@ export function OperationsHub() {
   useEffect(() => {
     setLoading(true);
     void load();
-    const id = window.setInterval(() => void load(), 60_000);
-    return () => clearInterval(id);
-  }, [load]);
+    const ms = tab === "live" ? 15_000 : 60_000;
+    const id = window.setInterval(() => void load(), ms);
+    return () => window.clearInterval(id);
+  }, [load, tab]);
 
   const filteredTx = useMemo(() => {
     if (!data) return [];
@@ -103,14 +107,25 @@ export function OperationsHub() {
   }, [data, search, channelFilter]);
 
   const filteredLive = useMemo(() => {
-    if (!data) return [];
     const q = search.trim().toLowerCase();
-    const online = data.live.filter((r) => r.online);
-    if (!q) return online;
-    return online.filter(
+    const source =
+      isAdmin && !presence.error
+        ? presence.online.map((r) => ({
+            uid: r.uid,
+            name: r.name,
+            role: r.role,
+            page: r.page,
+            lastSeen: r.lastSeen,
+            online: r.online,
+          }))
+        : data
+          ? data.live.filter((r) => r.online)
+          : [];
+    if (!q) return source;
+    return source.filter(
       (r) => r.name.toLowerCase().includes(q) || r.uid.toLowerCase().includes(q)
     );
-  }, [data, search]);
+  }, [data, search, isAdmin, presence.error, presence.online]);
 
   const filteredNetwork = useMemo(() => {
     if (!data) return [];
@@ -217,7 +232,10 @@ export function OperationsHub() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="p-4">
               <p className="text-xs uppercase text-slate-500">Live now</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-300">{data?.liveOnline ?? "—"}</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-300">
+                {isAdmin && !presence.error ? presence.onlineCount : (data?.liveOnline ?? "—")}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">app open in the last 10 minutes</p>
             </Card>
             <Card className="p-4">
               <p className="text-xs uppercase text-slate-500">People in scope</p>
@@ -419,7 +437,9 @@ export function OperationsHub() {
               placeholder="Name…"
             />
           </label>
-          {loading ? (
+          {isAdmin && presence.loading ? (
+            <EmptyState message="Loading live users…" />
+          ) : !isAdmin && loading ? (
             <EmptyState message="Loading live users…" />
           ) : filteredLive.length === 0 ? (
             <EmptyState
@@ -453,7 +473,16 @@ export function OperationsHub() {
                     </Td>
                     <Td className="font-mono text-xs text-slate-400">{r.page}</Td>
                     <Td className="text-xs text-slate-400">
-                      {r.lastSeen ? formatDate(new Date(r.lastSeen)) : "—"}
+                      {r.lastSeen ? (
+                        <>
+                          {presenceAgo(r.lastSeen)}
+                          <span className="mt-0.5 block text-[10px] text-slate-500">
+                            {formatDate(new Date(r.lastSeen))}
+                          </span>
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </Td>
                   </tr>
                 ))}

@@ -10,6 +10,22 @@ export const rtdb = admin.database();
 export const auth = admin.auth();
 export const FieldValue = admin.firestore.FieldValue;
 
+/** Drop presence nodes that have not heartbeated for 20 minutes. */
+export async function sweepStalePresence(now = Date.now()): Promise<number> {
+  const staleMs = 20 * 60 * 1000;
+  const snap = await rtdb.ref("presence").get();
+  const val = snap.val() as Record<string, { lastSeen?: unknown }> | null;
+  if (!val) return 0;
+  const updates: Record<string, null> = {};
+  for (const [uid, data] of Object.entries(val)) {
+    const lastSeen = Number(data?.lastSeen ?? 0);
+    if (!lastSeen || now - lastSeen > staleMs) updates[uid] = null;
+  }
+  const count = Object.keys(updates).length;
+  if (count > 0) await rtdb.ref("presence").update(updates);
+  return count;
+}
+
 import { normalizeCommissionRate } from "./commissionRate";
 import { roleAllowed, type Role } from "./roles";
 

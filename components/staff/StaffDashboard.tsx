@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
-import { onValue, ref } from "firebase/database";
 import {
   Users,
   UserCog,
@@ -16,8 +15,9 @@ import {
   Percent,
 } from "lucide-react";
 import { db } from "@/lib/firestore";
-import { rtdb } from "@/lib/rtdb";
 import { useAuth } from "@/lib/auth-context";
+import { getOperationsHub } from "@/lib/api";
+import { useLivePresence } from "@/lib/hooks/useLivePresence";
 import { formatXof } from "@/lib/format";
 import { roleLabel } from "@/lib/staff-nav";
 import { isAgentRole } from "@/lib/roles";
@@ -47,17 +47,16 @@ interface PlatformStats {
   totalWithdrawals?: number;
 }
 
-const ONLINE_MS = 3 * 60 * 1000;
-
 export function StaffDashboard() {
   const { profile, wallet } = useAuth();
   const isAdmin = profile?.role === "admin";
   const stats = profile?.stats ?? {};
+  const presence = useLivePresence(isAdmin);
+  const [hubLive, setHubLive] = useState<number | null>(null);
 
   const [platformStats, setPlatformStats] = useState<PlatformStats>({});
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
-  const [onlineCount, setOnlineCount] = useState(0);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -74,24 +73,35 @@ export function StaffDashboard() {
       where("status", "in", ["Pending", "Processing"])
     );
     const unsubPending = onSnapshot(pendingQ, (snap) => setPendingWithdrawals(snap.size));
-    const unsubPresence = onValue(ref(rtdb, "presence"), (snap) => {
-      const val = snap.val() as Record<string, { lastSeen?: number }> | null;
-      if (!val) {
-        setOnlineCount(0);
-        return;
-      }
-      const now = Date.now();
-      setOnlineCount(
-        Object.values(val).filter((r) => now - Number(r.lastSeen ?? 0) <= ONLINE_MS).length
-      );
-    });
     return () => {
       unsubStats();
       unsubSettings();
       unsubPending();
-      unsubPresence();
     };
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin || !presence.error) {
+      setHubLive(null);
+      return;
+    }
+    let cancelled = false;
+    const tick = () => {
+      void getOperationsHub({ limit: 1 })
+        .then((res) => {
+          if (!cancelled) setHubLive(res.liveOnline);
+        })
+        .catch(() => undefined);
+    };
+    tick();
+    const id = window.setInterval(tick, 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [isAdmin, presence.error]);
+
+  const onlineCount = presence.error ? (hubLive ?? 0) : presence.onlineCount;
 
   const financials = useMemo(() => {
     const totalBets = platformStats.totalBets ?? 0;
@@ -125,7 +135,12 @@ export function StaffDashboard() {
           <StatCard label="Total Customers" value={platformStats.customerCount ?? 0} icon={<Users size={20} />} />
           <StatCard label="Total Agents" value={platformStats.agentCount ?? 0} icon={<UserCog size={20} />} />
           <Link href="/admin/operations?tab=live">
-            <StatCard label="Live now" value={onlineCount} hint="operations hub" icon={<Radio size={20} />} />
+            <StatCard
+              label="Live now"
+              value={onlineCount}
+              hint="players with the app open · last 10 min"
+              icon={<Radio size={20} />}
+            />
           </Link>
           <StatCard
             label="Total GGR"

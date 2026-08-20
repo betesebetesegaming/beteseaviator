@@ -15,6 +15,7 @@ import {
   bumpDailyStats,
   bumpPlatformStats,
   creditAgentCustomerPlay,
+  sweepStalePresence,
 } from "./helpers";
 import { applyBetWagering } from "./wagering";
 import { onReferralFirstBet } from "./referrals";
@@ -474,8 +475,13 @@ export const pokeRound = onCall(async (req) => {
   return { status: round.status, roundId: round.roundId };
 });
 
-/** Minute heartbeat: keeps rounds moving when idle and sweeps stragglers. */
+/** Minute heartbeat: keeps rounds moving when idle, sweeps stragglers, and drops stale Live users. */
 export const gameTick = onSchedule("every 1 minutes", async () => {
+  try {
+    await sweepStalePresence();
+  } catch (e) {
+    logger.error("presence sweep failed", e);
+  }
   const games = await db.collection("games").where("status", "==", "active").where("engine", "==", "native").get();
   for (const g of games.docs) {
     try {

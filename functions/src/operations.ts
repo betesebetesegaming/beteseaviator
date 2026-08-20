@@ -10,7 +10,8 @@ import {
 } from "./helpers";
 import { formatPlayerId } from "./playerIds";
 
-const ONLINE_MS = 3 * 60 * 1000;
+/** Keep in sync with lib/presence.ts PRESENCE_ONLINE_MS (phone sleep / in-game). */
+const ONLINE_MS = 10 * 60 * 1000;
 const AGENT_ROLES = ["agent", "super_agent", "sub_agent"] as const;
 
 type NetworkMember = {

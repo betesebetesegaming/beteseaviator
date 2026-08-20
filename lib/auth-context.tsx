@@ -11,9 +11,11 @@ import {
   type ReactNode,
 } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import { ref, remove } from "firebase/database";
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, initAnalytics } from "./firebase";
 import { db } from "./firestore";
+import { rtdb } from "./rtdb";
 import { loginPathFor } from "./staff-routes";
 import { hardRedirect } from "./hardRedirect";
 import { isAgentRole } from "@/lib/roles";
@@ -197,13 +199,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     explicitSignOutRef.current = true;
     const redirect = loginPathFor(profile?.role) || "/s";
+    const uid = fbUser?.uid;
+    if (uid) {
+      await remove(ref(rtdb, `presence/${uid}`)).catch(() => undefined);
+    }
     try {
       await signOut(auth);
     } catch {
       /* redirect anyway */
     }
     hardRedirect(redirect);
-  }, [profile?.role]);
+  }, [profile?.role, fbUser?.uid]);
 
   const sessionPending = !sessionResolved;
   const profilePending = !!fbUser && !profileReady;

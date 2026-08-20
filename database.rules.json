@@ -45,6 +45,7 @@
       "linkIndex": { ".read": false, ".write": false }
     },
     "presence": {
+      ".read": "auth != null && auth.token.role == 'admin'",
       "$uid": {
         ".read": "auth != null && auth.token.role == 'admin'",
         ".write": "auth != null && auth.uid == $uid"
