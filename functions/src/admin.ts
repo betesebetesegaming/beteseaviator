@@ -405,6 +405,7 @@ export const adminSaveSettings = onCall(async (req) => {
     "depositPlaythroughRate",
     "earlyWithdrawalFeeRate",
     "bonusWagerMultiplier",
+    "firstDepositQualifyGmd",
   ] as const;
   for (const k of numericKeys) {
     if (data[k] !== undefined) {

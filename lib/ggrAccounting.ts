@@ -58,6 +58,28 @@ export function monthRangeIso(now = new Date()): PeriodRange {
   return { from, to: end, label: monthName };
 }
 
+/** Full calendar month (UTC), including future days of the current month. */
+export function calendarMonthRangeIso(yyyyMm: string): PeriodRange {
+  const [y, m] = yyyyMm.split("-").map(Number);
+  const year = y || 1970;
+  const month = m || 1;
+  const key = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+  const from = `${key}-01`;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const to = `${key}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to, label: monthLabelFromKey(key) };
+}
+
+/** Newest-first YYYY-MM keys, including the current month. */
+export function recentMonthKeys(count = 12, now = new Date()): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    keys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`);
+  }
+  return keys;
+}
+
 /** First day of the month `monthsBack` months ago through today (UTC). */
 export function monthsBackRangeIso(monthsBack: number, now = new Date()): PeriodRange {
   const end = isoDate(now);

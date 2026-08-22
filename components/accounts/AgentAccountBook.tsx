@@ -13,6 +13,10 @@ import {
   filterModemPayWithdrawals,
   sumModemPayAmount,
 } from "@/lib/modemPayAccounting";
+import {
+  continueDepositsInRange,
+  firstDepositsInRange,
+} from "@/lib/agentDepositSales";
 import { monthRangeIso, sumAgentCommissions, sumAgentGgr, weekRangeIso } from "@/lib/ggrAccounting";
 import { formatDate, formatXof, todayIso } from "@/lib/format";
 import { isOtcCashMeta } from "@/lib/transactionChannel";
@@ -21,7 +25,7 @@ import { db } from "@/lib/firestore";
 import type { AgentDailyStats, Commission, UserProfile, Wallet } from "@/lib/types";
 import { accountTotalsFromStats } from "@/lib/playerAccount";
 import { agentCommissionDue, commissionableGgr } from "@/lib/platformFinancials";
-import { agentPeriodGgr, agentPeriodSales, type GgrPeriodKind } from "@/lib/agentPeriodGgr";
+import { agentPeriodGgr, type GgrPeriodKind } from "@/lib/agentPeriodGgr";
 import { playerDisplayId } from "@/lib/playerId";
 import { AdminCustomerSupportModal } from "@/components/admin/AdminCustomerSupportModal";
 import { AgentProfitOverview } from "@/components/agent/AgentProfitOverview";
@@ -287,7 +291,25 @@ export function AgentAccountBook() {
     );
   const liveKind: GgrPeriodKind = period === "today" ? "day" : period;
   const liveGgr = agentPeriodGgr(liveKind, lifetimeGgr, profile?.stats, periodGgrCredited);
-  const liveSales = agentPeriodSales(liveKind, lifetimeDeposits, profile?.stats);
+  const playerAgents = useMemo(() => {
+    const map = new Map<string, string[]>();
+    if (!agentId || !customerIds) return map;
+    for (const id of customerIds) map.set(id, [agentId]);
+    return map;
+  }, [agentId, customerIds]);
+  const periodFirst = useMemo(() => {
+    if (!agentId) return { amount: 0, count: 0 };
+    return (
+      firstDepositsInRange(deposits, playerAgents, bounds.from, bounds.to).get(agentId) ?? {
+        amount: 0,
+        count: 0,
+      }
+    );
+  }, [agentId, deposits, playerAgents, bounds.from, bounds.to]);
+  const periodContinue = useMemo(() => {
+    if (!agentId) return 0;
+    return continueDepositsInRange(deposits, playerAgents, bounds.from, bounds.to).get(agentId) ?? 0;
+  }, [agentId, deposits, playerAgents, bounds.from, bounds.to]);
   const liveShare = agentCommissionDue(liveGgr, 0.05);
 
   return (
@@ -296,9 +318,9 @@ export function AgentAccountBook() {
         <div>
           <h2 className="text-lg font-semibold text-white">Agent account book</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-400">
-            Clear books for your shop: <span className="text-amber-200">cash desk</span> (physical
-            money), <span className="text-sky-300">Wave</span> (mobile money), GGR profit, and
-            commission wallet. Pick a period — figures update together.
+            Clear books: <span className="text-amber-100">first deposits</span> (target / pay),{" "}
+            <span className="text-amber-200">cash desk</span>, <span className="text-sky-300">Wave</span>,
+            GGR profit (5% of profit on continue play), and commission wallet.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -328,6 +350,31 @@ export function AgentAccountBook() {
       />
 
       <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{bounds.label}</p>
+
+      <Card className="border-amber-500/35 bg-amber-500/10 p-4">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-amber-200/90">
+          First deposits this period (target / pay)
+        </p>
+        <p className="mt-2 text-2xl font-bold tabular-nums text-amber-50">
+          {formatXof(periodFirst.amount)}
+        </p>
+        <p className="mt-1 text-xs text-amber-200/70">
+          {periodFirst.count} {periodFirst.count === 1 ? "person" : "people"} made a first deposit.
+          This is what they brought in. Continue deposits only pay 5% of GGR profit.
+        </p>
+        <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+          <div className="flex justify-between gap-2">
+            <dt className="text-slate-400">Continue deposits (top-ups)</dt>
+            <dd className="font-semibold tabular-nums text-slate-300">{formatXof(periodContinue)}</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-slate-400">Wave + cash in period</dt>
+            <dd className="tabular-nums text-slate-400">
+              {formatXof(Math.round((waveIn + cashSummary.cashIn) * 100) / 100)}
+            </dd>
+          </div>
+        </dl>
+      </Card>
 
       {/* Statement header — four books */}
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
@@ -400,8 +447,10 @@ export function AgentAccountBook() {
           </p>
           <dl className="mt-3 space-y-1 border-t border-white/10 pt-3 text-sm">
             <div className="flex justify-between gap-2">
-              <dt className="text-slate-400">Sales this period</dt>
-              <dd className="font-semibold tabular-nums text-white">{formatXof(liveSales)}</dd>
+              <dt className="text-slate-400">First deposits (target)</dt>
+              <dd className="font-semibold tabular-nums text-amber-100">
+                {formatXof(periodFirst.amount)}
+              </dd>
             </div>
             <div className="flex justify-between gap-2">
               <dt className="text-slate-400">Your 5% this period</dt>

@@ -116,6 +116,7 @@ function ensureMinDepositMigration(stored: unknown): void {
 
 export const DEFAULT_SETTINGS = {
   agentRate: 0.05,
+  firstDepositQualifyGmd: 40_000,
   subAgentRate: 0.05,
   superAgentRate: 0.03,
   apiProviderRate: 0.15,

@@ -366,6 +366,8 @@ export interface QTechSettings {
 export interface PlatformSettings {
   /** Agent commission share of GGR (0.05 = 5%). Admin form accepts 5 or 0.05. */
   agentRate?: number;
+  /** First-deposit total a marketer must reach to qualify for BETESE acquisition pay. */
+  firstDepositQualifyGmd?: number;
   subAgentRate: number; // legacy
   superAgentRate: number; // legacy
   /** API / game provider share of GGR (0.15 = 15%). Admin form accepts 15 or 0.15. */
@@ -430,6 +432,7 @@ export { MIN_DEPOSIT_GMD } from "./depositLimits";
 
 export const DEFAULT_SETTINGS: PlatformSettings = {
   agentRate: 0.05,
+  firstDepositQualifyGmd: 40_000,
   subAgentRate: 0.05,
   superAgentRate: 0.03,
   apiProviderRate: 0.15,

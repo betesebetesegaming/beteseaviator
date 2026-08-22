@@ -203,6 +203,27 @@ export default function AdminSettingsPage() {
       </Card>
 
       <Card className="mb-5">
+        <h2 className="mb-4 font-semibold">First-deposit qualify (BETESE pay)</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          A marketer only qualifies for first-deposit money from BETESE when their customers&apos;
+          first-time deposits reach this total. Below it we still show signup count and first-deposit
+          amount. Continue deposits are not in this total — those only pay 5% of GGR if there is
+          profit.
+        </p>
+        <Input
+          label="Qualify at (GMD first deposits)"
+          type="number"
+          min={0}
+          step="100"
+          inputMode="decimal"
+          value={String(settings.firstDepositQualifyGmd ?? 40000)}
+          onChange={(e) =>
+            setSettings({ ...settings, firstDepositQualifyGmd: Number(e.target.value) })
+          }
+        />
+      </Card>
+
+      <Card className="mb-5">
         <h2 className="mb-4 font-semibold">Player friend referral (not agents)</h2>
         <p className="mb-4 text-sm text-slate-400">
           Players share /r/CODE with friends. Each qualified friend earns GMD 10 in the player&apos;s

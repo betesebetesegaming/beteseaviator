@@ -58,8 +58,9 @@ export function AgentPeriodStats() {
     <div className="space-y-2">
       <p className="text-xs text-slate-500">
         Today, week, and month each have their own GGR. Your 5% is of that period&apos;s profit —
-        not three extra payments on the same money. Live figures move as customers play. The
-        month&apos;s 5% is final at month end; next month starts at zero. Already in your wallet:{" "}
+        not of the deposits you brought in, and not three extra payments on the same money. Live
+        figures move as customers play. The month&apos;s 5% is final at month end; next month starts
+        at zero. Already in your wallet:{" "}
         {formatXof(sumAgentCommissions(weekRows))} this week, {formatXof(sumAgentCommissions(monthRows))}{" "}
         this month.
       </p>

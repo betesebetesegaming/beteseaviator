@@ -245,9 +245,9 @@ export function StaffDashboard() {
         </p>
         <h1 className="text-xl font-bold">Welcome back, {profile.name}</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Share your marketing link — customers who register through it are yours. Profit below is
-          money BETESE kept from those players this month. You earn 5% of that month&apos;s profit.
-          Today and this week show the same 5% on that period only. Next month starts at zero.
+          Share your marketing link. First deposits (the customer's first payment) count toward
+          40,000 GMD to qualify for BETESE first-deposit pay. If they keep depositing, you earn 5%
+          of GGR profit from play — only if there is profit.
         </p>
       </div>
 
@@ -292,7 +292,7 @@ export function StaffDashboard() {
         </Card>
         <Card className="p-4">
           <h2 className="mb-2 font-semibold">Accounts &amp; profit</h2>
-          <p className="mb-4 text-sm text-slate-400">Your GGR profit, customer payments, and commissions.</p>
+          <p className="mb-4 text-sm text-slate-400">Your sales (deposits), GGR profit, and commissions.</p>
           <Link href="/admin/accounts?tab=today">
             <Button variant="secondary" className="w-full">
               Today’s deposits

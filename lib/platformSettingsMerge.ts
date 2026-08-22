@@ -23,6 +23,10 @@ export function mergePlatformSettings(data: Partial<PlatformSettings> | null | u
       d.agentRate ?? d.subAgentRate,
       DEFAULT_SETTINGS.agentRate
     ),
+    firstDepositQualifyGmd:
+      Number.isFinite(Number(d.firstDepositQualifyGmd)) && Number(d.firstDepositQualifyGmd) >= 0
+        ? Number(d.firstDepositQualifyGmd)
+        : DEFAULT_SETTINGS.firstDepositQualifyGmd,
     subAgentRate: normalizeCommissionRate(
       d.subAgentRate ?? d.agentRate,
       DEFAULT_SETTINGS.subAgentRate
