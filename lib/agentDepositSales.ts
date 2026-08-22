@@ -65,8 +65,10 @@ function bumpFirst(sales: FirstDepositSales, amount: number, isoDate: string, ra
 }
 
 /**
- * Each customer's earliest successful Wave payment is the first deposit.
+ * Each customer's earliest successful payment is the first deposit.
  * Later payments by the same person are continue/top-up deposits.
+ * Pass the full ledger (Firestore), not Wave RTDB alone — a missing early
+ * Wave row makes a later top-up look like a first deposit.
  */
 export function splitFirstAndContinue(rows: RtdbDepositRecord[]): {
   first: RtdbDepositRecord[];

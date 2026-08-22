@@ -139,8 +139,8 @@ export function AgentProfitOverview({
           </div>
         </dl>
         <p className="mt-3 text-xs text-slate-500">
-          Continue deposits this month (after first): {formatXof(continueSales.month)}. Those only
-          pay {pct}% of GGR if there is profit.
+          All deposits on this link (first + continue): {formatXof(deposits)}. Continue this month:{" "}
+          {formatXof(continueSales.month)}. Continue only pays {pct}% of GGR if there is profit.
         </p>
       </Card>
 

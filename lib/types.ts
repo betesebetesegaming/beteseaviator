@@ -29,6 +29,9 @@ export interface AgentStats {
   customerCount?: number;
   subAgentCount?: number;
   customerDeposits?: number;
+  /** Lifetime first payments after signup (qualify bar). Not all deposits. */
+  firstDeposits?: number;
+  firstDepositCount?: number;
   /** Lifetime withdrawals by this agent's customers. */
   customerWithdrawals?: number;
   /** Sum of linked players' cash wallet balances. */

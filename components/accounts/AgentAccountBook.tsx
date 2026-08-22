@@ -5,6 +5,7 @@ import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAgentCustomerIds } from "@/lib/hooks/useAgentCustomerIds";
+import { useLedgerDeposits } from "@/lib/hooks/useLedgerDeposits";
 import { getOperationsHub, type OperationsHubResponse, errorMessage } from "@/lib/api";
 import { subscribeDeposits, subscribeWithdrawals } from "@/lib/payments/rtdbClient";
 import type { RtdbDepositRecord, RtdbWithdrawalRecord } from "@/lib/payments/rtdbRecords";
@@ -96,6 +97,7 @@ export function AgentAccountBook() {
   const { profile, wallet } = useAuth();
   const agentId = profile?.uid;
   const { customerIds } = useAgentCustomerIds(agentId);
+  const { deposits: ledgerDeposits } = useLedgerDeposits({ customerIds });
   const [period, setPeriod] = useState<PeriodKey>("today");
   const bounds = useMemo(() => periodBounds(period), [period]);
   const today = useMemo(() => todayIso(), []);
@@ -300,16 +302,16 @@ export function AgentAccountBook() {
   const periodFirst = useMemo(() => {
     if (!agentId) return { amount: 0, count: 0 };
     return (
-      firstDepositsInRange(deposits, playerAgents, bounds.from, bounds.to).get(agentId) ?? {
+      firstDepositsInRange(ledgerDeposits ?? [], playerAgents, bounds.from, bounds.to).get(agentId) ?? {
         amount: 0,
         count: 0,
       }
     );
-  }, [agentId, deposits, playerAgents, bounds.from, bounds.to]);
+  }, [agentId, ledgerDeposits, playerAgents, bounds.from, bounds.to]);
   const periodContinue = useMemo(() => {
     if (!agentId) return 0;
-    return continueDepositsInRange(deposits, playerAgents, bounds.from, bounds.to).get(agentId) ?? 0;
-  }, [agentId, deposits, playerAgents, bounds.from, bounds.to]);
+    return continueDepositsInRange(ledgerDeposits ?? [], playerAgents, bounds.from, bounds.to).get(agentId) ?? 0;
+  }, [agentId, ledgerDeposits, playerAgents, bounds.from, bounds.to]);
   const liveShare = agentCommissionDue(liveGgr, 0.05);
 
   return (

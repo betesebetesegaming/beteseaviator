@@ -24,8 +24,7 @@ import {
   recentMonthKeys,
   weekRangeIso,
 } from "@/lib/ggrAccounting";
-import { subscribeDeposits } from "@/lib/payments/rtdbClient";
-import type { RtdbDepositRecord } from "@/lib/payments/rtdbRecords";
+import { useLedgerDeposits } from "@/lib/hooks/useLedgerDeposits";
 import {
   addPlayerToAgentBook,
   agentCommissionDue,
@@ -94,7 +93,7 @@ export function AdminDailyCustomerOpens() {
   const [opensByAgent, setOpensByAgent] = useState<Map<string, number> | null>(null);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [commissions, setCommissions] = useState<Commission[] | null>(null);
-  const [waveDeposits, setWaveDeposits] = useState<RtdbDepositRecord[] | null>(null);
+  const { deposits: ledgerDeposits } = useLedgerDeposits({ all: true });
 
   const selectedMonth = useMemo(() => calendarMonthRangeIso(monthKey), [monthKey]);
   const isLive = periodKind === "live";
@@ -137,10 +136,6 @@ export function AdminDailyCustomerOpens() {
       unsubSettings();
     };
   }, [today]);
-
-  useEffect(() => {
-    return subscribeDeposits(undefined, setWaveDeposits, { maxRows: 0 });
-  }, []);
 
   useEffect(() => {
     const statsQuery = query(
@@ -228,32 +223,32 @@ export function AdminDailyCustomerOpens() {
   );
 
   const liveFirstByAgent = useMemo(
-    () => firstDepositsFromWave(waveDeposits ?? [], playerAgents, salesRanges),
-    [waveDeposits, playerAgents, salesRanges]
+    () => firstDepositsFromWave(ledgerDeposits ?? [], playerAgents, salesRanges),
+    [ledgerDeposits, playerAgents, salesRanges]
   );
 
   const liveContinueByAgent = useMemo(
-    () => continueDepositsFromWave(waveDeposits ?? [], playerAgents, salesRanges),
-    [waveDeposits, playerAgents, salesRanges]
+    () => continueDepositsFromWave(ledgerDeposits ?? [], playerAgents, salesRanges),
+    [ledgerDeposits, playerAgents, salesRanges]
   );
 
   const uniqueMonthFirst = useMemo(
-    () => sumFirstMonth(firstDepositsFromWave(waveDeposits ?? [], parentOnlyAgents, salesRanges)),
-    [waveDeposits, parentOnlyAgents, salesRanges]
+    () => sumFirstMonth(firstDepositsFromWave(ledgerDeposits ?? [], parentOnlyAgents, salesRanges)),
+    [ledgerDeposits, parentOnlyAgents, salesRanges]
   );
 
   const periodFirstByAgent = useMemo(
-    () => firstDepositsInRange(waveDeposits ?? [], playerAgents, periodFrom, periodTo),
-    [waveDeposits, playerAgents, periodFrom, periodTo]
+    () => firstDepositsInRange(ledgerDeposits ?? [], playerAgents, periodFrom, periodTo),
+    [ledgerDeposits, playerAgents, periodFrom, periodTo]
   );
 
   const periodContinueByAgent = useMemo(
-    () => continueDepositsInRange(waveDeposits ?? [], playerAgents, periodFrom, periodTo),
-    [waveDeposits, playerAgents, periodFrom, periodTo]
+    () => continueDepositsInRange(ledgerDeposits ?? [], playerAgents, periodFrom, periodTo),
+    [ledgerDeposits, playerAgents, periodFrom, periodTo]
   );
 
   const uniquePeriodFirst = useMemo(() => {
-    const map = firstDepositsInRange(waveDeposits ?? [], parentOnlyAgents, periodFrom, periodTo);
+    const map = firstDepositsInRange(ledgerDeposits ?? [], parentOnlyAgents, periodFrom, periodTo);
     let amount = 0;
     let count = 0;
     for (const row of map.values()) {
@@ -261,7 +256,7 @@ export function AdminDailyCustomerOpens() {
       count += row.count;
     }
     return { amount: Math.round(amount * 100) / 100, count };
-  }, [waveDeposits, parentOnlyAgents, periodFrom, periodTo]);
+  }, [ledgerDeposits, parentOnlyAgents, periodFrom, periodTo]);
 
   const agentTotalToday = useMemo(
     () => rows?.reduce((sum, r) => sum + r.customersOpened, 0) ?? 0,
@@ -314,7 +309,7 @@ export function AdminDailyCustomerOpens() {
     };
   }, [periodLedger, uniquePeriodFirst, agentTotalToday]);
 
-  if (platformToday === null || rows === null || players === null || waveDeposits === null) {
+  if (platformToday === null || rows === null || players === null || ledgerDeposits === null) {
     return (
       <Card className="flex items-center justify-center p-8">
         <Spinner />
@@ -445,6 +440,9 @@ export function AdminDailyCustomerOpens() {
             <thead>
               <tr>
                 <Th rowSpan={2}>Marketer</Th>
+                <Th rowSpan={2} className="text-right">
+                  All deposits
+                </Th>
                 <Th colSpan={4} className="text-center text-amber-200/90">
                   First deposits (target / pay)
                 </Th>
@@ -502,6 +500,9 @@ export function AdminDailyCustomerOpens() {
                   return (
                     <tr key={r.uid}>
                       <Td className="font-medium">{r.name}</Td>
+                      <Td className="text-right tabular-nums text-slate-200">
+                        {formatXof(deposits)}
+                      </Td>
                       <Td className="text-right tabular-nums text-amber-100">
                         {formatXof(first.day)}
                       </Td>
@@ -545,6 +546,7 @@ export function AdminDailyCustomerOpens() {
             <thead>
               <tr>
                 <Th>Marketer</Th>
+                <Th className="text-right">All deposits</Th>
                 <Th className="text-right text-amber-200/90">First deposits</Th>
                 <Th className="text-right">People</Th>
                 <Th className="text-right">Qualify</Th>
@@ -570,9 +572,16 @@ export function AdminDailyCustomerOpens() {
                   const first = periodFirstByAgent.get(r.uid) ?? { amount: 0, count: 0 };
                   const cont = periodContinueByAgent.get(r.uid) ?? 0;
                   const q = firstDepositQualify(first.amount, qualifyAt);
+                  const allDeposits = Math.max(
+                    booksByAgent.get(r.uid)?.deposits ?? 0,
+                    agent?.stats?.customerDeposits ?? 0
+                  );
                   return (
                     <tr key={r.uid}>
                       <Td className="font-medium">{r.name}</Td>
+                      <Td className="text-right tabular-nums text-slate-200">
+                        {formatXof(allDeposits)}
+                      </Td>
                       <Td className="text-right tabular-nums font-semibold text-amber-50">
                         {formatXof(first.amount)}
                       </Td>
