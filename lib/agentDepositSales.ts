@@ -204,6 +204,58 @@ export function getSales(
   return map.get(agentId) ?? emptyDepositSales();
 }
 
+/** Player-book deposits used for GGR. Do not mix this with ledger first+continue. */
+export function ggrBookDeposits(bookDeposits = 0, storedDeposits = 0): number {
+  return round2(Math.max(Number(bookDeposits) || 0, Number(storedDeposits) || 0));
+}
+
+/**
+ * Same figures as the backoffice agent row (Deposited / Play / Wins / GGR).
+ * Live player book is used when it is ahead of stored agent stats.
+ */
+export function agentOfficeFigures(args: {
+  bookDeposits?: number;
+  storedDeposits?: number;
+  bookStakes?: number;
+  storedBets?: number;
+  bookWins?: number;
+  storedWins?: number;
+}): {
+  deposits: number;
+  played: number;
+  wins: number;
+  playGgr: number;
+} {
+  const deposits = round2(Math.max(Number(args.bookDeposits) || 0, Number(args.storedDeposits) || 0));
+  const played = round2(Math.max(Number(args.bookStakes) || 0, Number(args.storedBets) || 0));
+  const wins = round2(Math.max(Number(args.bookWins) || 0, Number(args.storedWins) || 0));
+  return {
+    deposits,
+    played,
+    wins,
+    playGgr: round2(Math.max(0, played - wins)),
+  };
+}
+
+/**
+ * All money deposited on the marketer link (first payment + later top-ups).
+ * Admin backend and the marketer's own account must show this same figure.
+ */
+export function allLinkDeposits(args: {
+  firstLifetime: number;
+  continueLifetime: number;
+  bookDeposits?: number;
+  storedDeposits?: number;
+}): number {
+  return round2(
+    Math.max(
+      Number(args.bookDeposits) || 0,
+      Number(args.storedDeposits) || 0,
+      (Number(args.firstLifetime) || 0) + (Number(args.continueLifetime) || 0)
+    )
+  );
+}
+
 /** Unique first-deposit total (each customer counted on their owning agent only). */
 export function sumFirstMonth(map: Map<string, FirstDepositSales>): {
   amount: number;

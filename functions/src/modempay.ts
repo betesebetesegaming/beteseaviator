@@ -712,6 +712,46 @@ export function retrieveTransaction(id: string) {
   return modemFetch({ method: 'GET', path: `/v1/transactions/${encodeURIComponent(id)}` });
 }
 
+export function listTransactions(query?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  timeframe?: number;
+}) {
+  const limit = query?.limit;
+  return modemFetch({
+    method: 'GET',
+    path: '/v1/transactions',
+    query: {
+      limit,
+      per_page: limit,
+      offset: query?.offset,
+      search: query?.search,
+      timeframe: query?.timeframe,
+    },
+  });
+}
+
+export function listTransfers(query?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  timeframe?: number;
+}) {
+  const limit = query?.limit;
+  return modemFetch({
+    method: 'GET',
+    path: '/v1/transfers',
+    query: {
+      limit,
+      per_page: limit,
+      offset: query?.offset,
+      search: query?.search,
+      timeframe: query?.timeframe,
+    },
+  });
+}
+
 /** Fetch a payment intent status from ModemPay (used to reconcile stuck Pending deposits). */
 export function retrievePaymentIntent(id: string) {
   return modemFetch({ method: 'GET', path: `/v1/payments/${encodeURIComponent(id)}` });

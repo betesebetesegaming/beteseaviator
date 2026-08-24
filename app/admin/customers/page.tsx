@@ -262,7 +262,7 @@ export default function AgentPlayersPage() {
                   </Td>
                   <Td className="font-medium">{p.name}</Td>
                   <Td className="tabular-nums">{p.phone ?? "—"}</Td>
-                  <Td className="text-right tabular-nums text-slate-300">
+                  <Td className="text-right tabular-nums font-bold text-white">
                     {formatXof(stats.totalDeposits)}
                   </Td>
                   <Td className="text-right tabular-nums text-slate-300">

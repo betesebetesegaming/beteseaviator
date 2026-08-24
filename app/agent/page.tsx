@@ -18,9 +18,9 @@ export default function AgentDashboard() {
     <div>
       <h1 className="mb-1 text-xl font-bold">Welcome back, {profile?.name}</h1>
       <p className="mb-6 text-sm text-slate-400">
-        Use your QR code below to bring new customers. Profit is money BETESE kept from players on
-        your link this month — first deposit and later top-ups both count. You earn 5% of that
-        month&apos;s profit. A new month starts at zero. Recycled winnings are not extra profit.
+        Use your QR code below to bring new customers. Deposits, played, wins, and profit on your
+        account match the BETESE backoffice. You earn 5% of this month&apos;s profit. A new month
+        starts that 5% at zero.
       </p>
 
       {profile?.agentSlug ? (

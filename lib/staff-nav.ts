@@ -16,6 +16,7 @@ import {
   Gift,
   Calculator,
   Brain,
+  Smartphone,
 } from "lucide-react";
 import type { Role } from "@/lib/types";
 import { isAgentRole, roleLabel as sharedRoleLabel } from "@/lib/roles";
@@ -132,6 +133,13 @@ export const STAFF_NAV: StaffNavItem[] = [
     pinned: true,
   },
   {
+    href: "/admin/modempay",
+    label: "ModemPay",
+    icon: Smartphone,
+    roles: ["admin"],
+    pinned: true,
+  },
+  {
     href: "/admin/reports",
     label: "Reports",
     icon: BarChart3,
@@ -157,6 +165,7 @@ export const ADMIN_ONLY_PREFIXES = [
   "/admin/qtech",
   "/admin/reports",
   "/admin/settings",
+  "/admin/modempay",
 ];
 
 export function navForRole(role: Role | undefined): StaffNavItem[] {

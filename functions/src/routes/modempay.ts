@@ -9,6 +9,8 @@ import {
   createRefund,
   retrieveBalances,
   retrieveTransaction,
+  listTransactions,
+  listTransfers,
   retrievePaymentIntent,
   verifyWebhookSignature,
   isModemPayMethod,
@@ -1018,6 +1020,266 @@ export async function transactionHandler(req: Request, res: Response): Promise<v
     }
     res.json({ ok: true, transaction: result.data });
   } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+function extractTransactionList(raw: unknown): { rows: Record<string, unknown>[]; total: number | null } {
+  if (Array.isArray(raw)) return { rows: raw as Record<string, unknown>[], total: raw.length };
+  const root = asRecord(raw);
+  if (!root) return { rows: [], total: null };
+  const meta = asRecord(root.meta);
+  const totalFromMeta = Number(meta?.total ?? meta?.count);
+  const data = root.data;
+  if (Array.isArray(data)) {
+    return {
+      rows: data as Record<string, unknown>[],
+      total: Number.isFinite(totalFromMeta) ? totalFromMeta : data.length,
+    };
+  }
+  const nested = asRecord(data);
+  if (nested && Array.isArray(nested.data)) {
+    const nestedMeta = asRecord(nested.meta);
+    const nestedTotal = Number(nestedMeta?.total ?? nestedMeta?.count ?? totalFromMeta);
+    return {
+      rows: nested.data as Record<string, unknown>[],
+      total: Number.isFinite(nestedTotal) ? nestedTotal : nested.data.length,
+    };
+  }
+  return { rows: [], total: Number.isFinite(totalFromMeta) ? totalFromMeta : null };
+}
+
+function strField(row: Record<string, unknown>, ...keys: string[]): string {
+  for (const k of keys) {
+    const v = row[k];
+    if (v != null && String(v).trim()) return String(v).trim();
+  }
+  return '';
+}
+
+function isoTime(row: Record<string, unknown>, ...keys: string[]): string {
+  for (const k of keys) {
+    const v = row[k];
+    if (v == null || v === '') continue;
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      const ms = v < 1e12 ? v * 1000 : v;
+      return new Date(ms).toISOString();
+    }
+    const s = String(v).trim();
+    if (!s) continue;
+    const parsed = Date.parse(s);
+    if (Number.isFinite(parsed)) return new Date(parsed).toISOString();
+    const naive = s.includes('T') ? s : s.replace(' ', 'T');
+    const withZ = /[zZ]|[+-]\d{2}:?\d{2}$/.test(naive) ? naive : `${naive}Z`;
+    const parsedZ = Date.parse(withZ);
+    if (Number.isFinite(parsedZ)) return new Date(parsedZ).toISOString();
+  }
+  return '';
+}
+
+function rowDirection(type: string, amount: number): 'in' | 'out' {
+  const t = type.toLowerCase();
+  if (['transfer', 'payout', 'withdrawal', 'withdraw'].includes(t)) return 'out';
+  if (t === 'refund' || t === 'chargeback') return 'out';
+  if (amount < 0) return 'out';
+  return 'in';
+}
+
+function normalizeLiveRow(row: Record<string, unknown>, fallbackType?: string) {
+  const type = strField(row, 'type') || fallbackType || 'payment';
+  const amountRaw = Number(row.amount);
+  const amount = Number.isFinite(amountRaw) ? amountRaw : 0;
+  return {
+    id: strField(row, 'id'),
+    amount: Math.abs(amount),
+    currency: strField(row, 'currency') || 'GMD',
+    status: strField(row, 'status') || 'pending',
+    type,
+    direction: rowDirection(type, amount),
+    source: strField(row, 'source') || (fallbackType === 'transfer' ? 'payout' : 'online'),
+    reference: strField(
+      row,
+      'transaction_reference',
+      'transfer_reference',
+      'reference',
+      'external_ref',
+      'external_reference',
+    ),
+    paymentMethod: strField(row, 'payment_method', 'method', 'network'),
+    paymentAccount: strField(row, 'payment_account', 'account_number', 'customer_phone'),
+    customerName: strField(row, 'customer_name', 'customerName', 'beneficiary_name', 'beneficiaryName'),
+    customerPhone: strField(row, 'customer_phone', 'customerPhone'),
+    customerEmail: strField(row, 'customer_email', 'customerEmail'),
+    createdAt: isoTime(row, 'createdAt', 'created_at', 'updatedAt', 'updated_at'),
+    paymentIntentId: strField(row, 'payment_intent_id'),
+  };
+}
+
+type LiveRow = ReturnType<typeof normalizeLiveRow>;
+
+function dedupeLiveRows(rows: LiveRow[]): LiveRow[] {
+  const byId = new Map<string, LiveRow>();
+  const byRef = new Map<string, LiveRow>();
+  const out: LiveRow[] = [];
+  for (const row of rows) {
+    const idKey = row.id;
+    const refKey =
+      row.reference && row.createdAt
+        ? `${row.reference}|${row.amount}|${row.createdAt.slice(0, 16)}`
+        : '';
+    if (idKey && byId.has(idKey)) continue;
+    if (refKey && byRef.has(refKey)) continue;
+    if (idKey) byId.set(idKey, row);
+    if (refKey) byRef.set(refKey, row);
+    out.push(row);
+  }
+  return out;
+}
+
+const LIVE_PAGE_SIZE = 100;
+const LIVE_MAX_PAGES = 12;
+
+async function collectModemPayPages(
+  listFn: (query: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+    timeframe?: number;
+  }) => Promise<{ ok: boolean; status: number; data: unknown }>,
+  opts: { search?: string; timeframe?: number; maxPages: number },
+): Promise<{
+  rows: Record<string, unknown>[];
+  total: number | null;
+  truncated: boolean;
+  available: boolean;
+  firstError?: { status: number; data: unknown };
+}> {
+  const rows: Record<string, unknown>[] = [];
+  let total: number | null = null;
+  let truncated = false;
+  for (let page = 0; page < opts.maxPages; page++) {
+    const result = await listFn({
+      limit: LIVE_PAGE_SIZE,
+      offset: page * LIVE_PAGE_SIZE,
+      search: opts.search,
+      timeframe: opts.timeframe,
+    });
+    if (!result.ok) {
+      if (page === 0) {
+        return {
+          rows: [],
+          total: null,
+          truncated: false,
+          available: false,
+          firstError: { status: result.status, data: result.data },
+        };
+      }
+      break;
+    }
+    const extracted = extractTransactionList(result.data);
+    if (extracted.total != null) total = extracted.total;
+    rows.push(...extracted.rows);
+    if (extracted.rows.length < LIVE_PAGE_SIZE) {
+      truncated = false;
+      break;
+    }
+    if (extracted.total != null && rows.length >= extracted.total) {
+      truncated = false;
+      break;
+    }
+    if (page === opts.maxPages - 1) truncated = true;
+  }
+  return { rows, total, truncated, available: true };
+}
+
+/**
+ * GET /api/modempay-transactions
+ * Live list from ModemPay (payments in + payouts out — same merchant feed as their dashboard).
+ */
+export async function listTransactionsHandler(req: Request, res: Response): Promise<void> {
+  const limitRaw = Number(req.query.limit);
+  const offsetRaw = Number(req.query.offset);
+  const timeframeRaw = Number(req.query.timeframe);
+  const search = String(req.query.search || '').trim().slice(0, 80);
+  const all =
+    req.query.all === '1' ||
+    String(req.query.all || '').toLowerCase() === 'true' ||
+    String(req.query.all || '') === '';
+  const limit = Number.isFinite(limitRaw) ? Math.min(100, Math.max(1, Math.round(limitRaw))) : 50;
+  const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.round(offsetRaw)) : 0;
+  const timeframe =
+    Number.isFinite(timeframeRaw) && timeframeRaw > 0
+      ? Math.min(1_051_200, Math.max(1, Math.round(timeframeRaw)))
+      : undefined;
+  const queryOpts = { search: search || undefined, timeframe };
+
+  try {
+    if (!all) {
+      const result = await listTransactions({
+        limit,
+        offset,
+        ...queryOpts,
+      });
+      if (!result.ok) {
+        res.status(result.status || 502).json({
+          error: modemPayErrorMessage(result.data, 'Could not list ModemPay transactions'),
+          details: result.data,
+        });
+        return;
+      }
+      const extracted = extractTransactionList(result.data);
+      const transactions = extracted.rows.map((row) => normalizeLiveRow(row));
+      res.json({
+        ok: true,
+        transactions,
+        total: extracted.total,
+        limit,
+        offset,
+        truncated: extracted.rows.length >= limit && (extracted.total == null || extracted.total > offset + extracted.rows.length),
+        transfersAvailable: false,
+        fetchedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const [payments, payouts] = await Promise.all([
+      collectModemPayPages(listTransactions, { ...queryOpts, maxPages: LIVE_MAX_PAGES }),
+      collectModemPayPages(listTransfers, { ...queryOpts, maxPages: LIVE_MAX_PAGES }),
+    ]);
+
+    if (!payments.available && payments.firstError) {
+      res.status(payments.firstError.status || 502).json({
+        error: modemPayErrorMessage(payments.firstError.data, 'Could not list ModemPay transactions'),
+        details: payments.firstError.data,
+      });
+      return;
+    }
+
+    const paymentRows = payments.rows.map((row) => normalizeLiveRow(row, 'payment'));
+    const transferRows = payouts.available
+      ? payouts.rows.map((row) => normalizeLiveRow(row, 'transfer'))
+      : [];
+    const transactions = dedupeLiveRows([...paymentRows, ...transferRows]).sort((a, b) =>
+      (b.createdAt || '').localeCompare(a.createdAt || ''),
+    );
+    const listed = Math.max(payments.total ?? 0, paymentRows.length) + (payouts.available ? (payouts.total ?? transferRows.length) : 0);
+
+    res.json({
+      ok: true,
+      transactions,
+      total: listed || transactions.length,
+      limit: LIVE_PAGE_SIZE,
+      offset: 0,
+      truncated: payments.truncated || payouts.truncated,
+      transfersAvailable: payouts.available,
+      fetchedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error('List ModemPay transactions error', err);
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 }

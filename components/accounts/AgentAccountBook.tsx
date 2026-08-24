@@ -5,7 +5,6 @@ import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAgentCustomerIds } from "@/lib/hooks/useAgentCustomerIds";
-import { useLedgerDeposits } from "@/lib/hooks/useLedgerDeposits";
 import { getOperationsHub, type OperationsHubResponse, errorMessage } from "@/lib/api";
 import { subscribeDeposits, subscribeWithdrawals } from "@/lib/payments/rtdbClient";
 import type { RtdbDepositRecord, RtdbWithdrawalRecord } from "@/lib/payments/rtdbRecords";
@@ -14,10 +13,7 @@ import {
   filterModemPayWithdrawals,
   sumModemPayAmount,
 } from "@/lib/modemPayAccounting";
-import {
-  continueDepositsInRange,
-  firstDepositsInRange,
-} from "@/lib/agentDepositSales";
+import { agentOfficeFigures, ggrBookDeposits } from "@/lib/agentDepositSales";
 import { monthRangeIso, sumAgentCommissions, sumAgentGgr, weekRangeIso } from "@/lib/ggrAccounting";
 import { formatDate, formatXof, todayIso } from "@/lib/format";
 import { isOtcCashMeta } from "@/lib/transactionChannel";
@@ -97,7 +93,6 @@ export function AgentAccountBook() {
   const { profile, wallet } = useAuth();
   const agentId = profile?.uid;
   const { customerIds } = useAgentCustomerIds(agentId);
-  const { deposits: ledgerDeposits } = useLedgerDeposits({ customerIds });
   const [period, setPeriod] = useState<PeriodKey>("today");
   const bounds = useMemo(() => periodBounds(period), [period]);
   const today = useMemo(() => todayIso(), []);
@@ -279,7 +274,7 @@ export function AgentAccountBook() {
   const periodGgrCredited = commissions ? sumAgentGgr(commissions) : 0;
   const periodCommissionCredited = commissions ? sumAgentCommissions(commissions) : null;
   const { book: liveBook } = useAgentCommissionBook(agentId);
-  const lifetimeDeposits = Math.max(
+  const lifetimeDeposits = ggrBookDeposits(
     liveBook?.deposits ?? 0,
     profile?.stats?.customerDeposits ?? 0
   );
@@ -293,25 +288,14 @@ export function AgentAccountBook() {
     );
   const liveKind: GgrPeriodKind = period === "today" ? "day" : period;
   const liveGgr = agentPeriodGgr(liveKind, lifetimeGgr, profile?.stats, periodGgrCredited);
-  const playerAgents = useMemo(() => {
-    const map = new Map<string, string[]>();
-    if (!agentId || !customerIds) return map;
-    for (const id of customerIds) map.set(id, [agentId]);
-    return map;
-  }, [agentId, customerIds]);
-  const periodFirst = useMemo(() => {
-    if (!agentId) return { amount: 0, count: 0 };
-    return (
-      firstDepositsInRange(ledgerDeposits ?? [], playerAgents, bounds.from, bounds.to).get(agentId) ?? {
-        amount: 0,
-        count: 0,
-      }
-    );
-  }, [agentId, ledgerDeposits, playerAgents, bounds.from, bounds.to]);
-  const periodContinue = useMemo(() => {
-    if (!agentId) return 0;
-    return continueDepositsInRange(ledgerDeposits ?? [], playerAgents, bounds.from, bounds.to).get(agentId) ?? 0;
-  }, [agentId, ledgerDeposits, playerAgents, bounds.from, bounds.to]);
+  const office = agentOfficeFigures({
+    bookDeposits: liveBook?.deposits,
+    storedDeposits: profile?.stats?.customerDeposits,
+    bookStakes: liveBook?.stakes,
+    storedBets: profile?.stats?.totalBets,
+    bookWins: liveBook?.wins,
+    storedWins: profile?.stats?.totalWins,
+  });
   const liveShare = agentCommissionDue(liveGgr, 0.05);
 
   return (
@@ -320,9 +304,9 @@ export function AgentAccountBook() {
         <div>
           <h2 className="text-lg font-semibold text-white">Agent account book</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-400">
-            Clear books: <span className="text-amber-100">first deposits</span> (target / pay),{" "}
+            Clear books: <span className="text-amber-100">deposits</span> (same as backoffice),{" "}
             <span className="text-amber-200">cash desk</span>, <span className="text-sky-300">Wave</span>,
-            GGR profit (5% of profit on continue play), and commission wallet.
+            GGR profit, and commission wallet.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -352,31 +336,6 @@ export function AgentAccountBook() {
       />
 
       <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{bounds.label}</p>
-
-      <Card className="border-amber-500/35 bg-amber-500/10 p-4">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-amber-200/90">
-          First deposits this period (target / pay)
-        </p>
-        <p className="mt-2 text-2xl font-bold tabular-nums text-amber-50">
-          {formatXof(periodFirst.amount)}
-        </p>
-        <p className="mt-1 text-xs text-amber-200/70">
-          {periodFirst.count} {periodFirst.count === 1 ? "person" : "people"} made a first deposit.
-          This is what they brought in. Continue deposits only pay 5% of GGR profit.
-        </p>
-        <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-          <div className="flex justify-between gap-2">
-            <dt className="text-slate-400">Continue deposits (top-ups)</dt>
-            <dd className="font-semibold tabular-nums text-slate-300">{formatXof(periodContinue)}</dd>
-          </div>
-          <div className="flex justify-between gap-2">
-            <dt className="text-slate-400">Wave + cash in period</dt>
-            <dd className="tabular-nums text-slate-400">
-              {formatXof(Math.round((waveIn + cashSummary.cashIn) * 100) / 100)}
-            </dd>
-          </div>
-        </dl>
-      </Card>
 
       {/* Statement header — four books */}
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
@@ -438,21 +397,18 @@ export function AgentAccountBook() {
 
         <Card className="p-4">
           <p className="text-[11px] font-bold uppercase tracking-wider text-violet-300/90">
-            3 · GGR profit
+            3 · Profit / GGR
           </p>
           <p className="mt-2 text-2xl font-bold tabular-nums text-white">
-            {formatXof(liveGgr)}
+            {formatXof(office.playGgr)}
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            House profit this period from your customers. Moves as they play. New month starts at
-            zero.
+            Same lifetime profit as the backoffice (played − wins). Your 5% below is this period only.
           </p>
           <dl className="mt-3 space-y-1 border-t border-white/10 pt-3 text-sm">
             <div className="flex justify-between gap-2">
-              <dt className="text-slate-400">First deposits (target)</dt>
-              <dd className="font-semibold tabular-nums text-amber-100">
-                {formatXof(periodFirst.amount)}
-              </dd>
+              <dt className="text-slate-400">Deposits (book)</dt>
+              <dd className="font-bold tabular-nums text-white">{formatXof(office.deposits)}</dd>
             </div>
             <div className="flex justify-between gap-2">
               <dt className="text-slate-400">Your 5% this period</dt>
@@ -522,9 +478,8 @@ export function AgentAccountBook() {
             (not physical cash).
           </li>
           <li>
-            <span className="text-violet-300">GGR profit</span> — money BETESE kept from your
-            customers this period (deposits − withdrawals − cash still in wallets). Your 5% is of
-            this period&apos;s profit. A new month starts sales and GGR at zero.
+            <span className="text-violet-300">Profit / GGR</span> — played minus wins. Same figure as
+            the BETESE backoffice. Your 5% is of this period&apos;s profit only.
           </li>
           <li>
             <span className="text-emerald-300">Commission wallet</span> — your digital earnings
@@ -602,7 +557,7 @@ export function AgentAccountBook() {
           <div>
             <h3 className="font-semibold text-white">Customers account book</h3>
             <p className="text-xs text-slate-500">
-              Lifetime deposits, GGR profit, and current wallet for each of your customers
+              Deposits in bold — money each customer put in. Then withdrawals, GGR profit, and current wallet.
             </p>
           </div>
           <Link
@@ -640,7 +595,7 @@ export function AgentAccountBook() {
                   <tr key={c.uid}>
                     <Td className="font-mono text-sm text-emerald-300">{playerDisplayId(c)}</Td>
                     <Td className="font-medium text-white">{c.name}</Td>
-                    <Td className="text-right tabular-nums text-slate-300">
+                    <Td className="text-right tabular-nums font-bold text-white">
                       {formatXof(stats.totalDeposits)}
                     </Td>
                     <Td className="text-right tabular-nums text-slate-300">

@@ -41,12 +41,19 @@ export function StaffLoginForm() {
       await user.getIdToken(true);
       const session = await withTimeout(
         resolveStaffSession({}),
-        8000,
+        12000,
         "Staff profile sync timed out",
       );
       await user.getIdToken(true);
       toast.success("Welcome back!");
-      hardRedirect(homeFor(session.role));
+      const dest = homeFor(session.role);
+      hardRedirect(dest);
+      const retry = () => {
+        if (document.visibilityState === "hidden") return;
+        hardRedirect(dest);
+      };
+      window.addEventListener("pageshow", retry, { once: true });
+      document.addEventListener("visibilitychange", retry, { once: true });
     } catch (e) {
       const msg = errorMessage(e);
       if (msg.toLowerCase().includes("invalid credential") || msg.includes("auth/")) {
@@ -81,6 +88,7 @@ export function StaffLoginForm() {
       </Button>
       <p className="rounded-lg border border-white/10 bg-slate-950/50 px-3 py-2 text-center text-xs text-slate-400">
         Need an agent account? Contact BETESE admin — only admin can create staff logins.
+        If Google warns that a password was in a leak, tap Close — then the dashboard opens.
       </p>
     </form>
   );

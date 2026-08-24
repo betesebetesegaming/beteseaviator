@@ -245,9 +245,8 @@ export function StaffDashboard() {
         </p>
         <h1 className="text-xl font-bold">Welcome back, {profile.name}</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Share your marketing link. First deposits (the customer's first payment) count toward
-          40,000 GMD to qualify for BETESE first-deposit pay. If they keep depositing, you earn 5%
-          of GGR profit from play — only if there is profit.
+          Share your marketing link. Deposits, played, wins, and profit/GGR on your account are the
+          same figures BETESE staff see. You earn 5% of this month&apos;s GGR profit.
         </p>
       </div>
 

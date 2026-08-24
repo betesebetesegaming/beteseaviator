@@ -5,6 +5,7 @@ import { collection, onSnapshot, orderBy, query, where } from "firebase/firestor
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firestore";
 import { formatXof } from "@/lib/format";
+import { ggrBookDeposits } from "@/lib/agentDepositSales";
 import { agentPeriodGgr } from "@/lib/agentPeriodGgr";
 import { monthRangeIso, sumAgentCommissions, sumAgentGgr, weekRangeIso } from "@/lib/ggrAccounting";
 import { agentCommissionDue, commissionableGgr } from "@/lib/platformFinancials";
@@ -43,7 +44,7 @@ export function AgentPeriodStats() {
 
   if (!agentId || weekRows === null || monthRows === null) return null;
 
-  const deposits = Math.max(book?.deposits ?? 0, profile?.stats?.customerDeposits ?? 0);
+  const deposits = ggrBookDeposits(book?.deposits ?? 0, profile?.stats?.customerDeposits ?? 0);
   const currentGgr = commissionableGgr(
     deposits,
     book?.withdrawals ?? 0,
@@ -57,10 +58,9 @@ export function AgentPeriodStats() {
   return (
     <div className="space-y-2">
       <p className="text-xs text-slate-500">
-        Today, week, and month each have their own GGR. Your 5% is of that period&apos;s profit —
-        not of the deposits you brought in, and not three extra payments on the same money. Live
-        figures move as customers play. The month&apos;s 5% is final at month end; next month starts
-        at zero. Already in your wallet:{" "}
+        Today, week, and month each have their own GGR for your 5%. That is this period only — not a
+        second deposit total. Lifetime deposits and profit on your book stay the same as backoffice.
+        Already in your wallet:{" "}
         {formatXof(sumAgentCommissions(weekRows))} this week, {formatXof(sumAgentCommissions(monthRows))}{" "}
         this month.
       </p>

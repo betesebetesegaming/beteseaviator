@@ -8,14 +8,9 @@ import { useAuth } from "@/lib/auth-context";
 import { todayIso, formatXof } from "@/lib/format";
 import { agentPeriodGgr } from "@/lib/agentPeriodGgr";
 import {
-  continueDepositsFromWave,
-  continueDepositsInRange,
+  agentOfficeFigures,
   firstDepositQualify,
-  firstDepositsFromWave,
-  firstDepositsInRange,
-  getFirstSales,
-  getSales,
-  sumFirstMonth,
+  ggrBookDeposits,
 } from "@/lib/agentDepositSales";
 import {
   calendarMonthRangeIso,
@@ -24,7 +19,6 @@ import {
   recentMonthKeys,
   weekRangeIso,
 } from "@/lib/ggrAccounting";
-import { useLedgerDeposits } from "@/lib/hooks/useLedgerDeposits";
 import {
   addPlayerToAgentBook,
   agentCommissionDue,
@@ -93,7 +87,6 @@ export function AdminDailyCustomerOpens() {
   const [opensByAgent, setOpensByAgent] = useState<Map<string, number> | null>(null);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [commissions, setCommissions] = useState<Commission[] | null>(null);
-  const { deposits: ledgerDeposits } = useLedgerDeposits({ all: true });
 
   const selectedMonth = useMemo(() => calendarMonthRangeIso(monthKey), [monthKey]);
   const isLive = periodKind === "live";
@@ -195,68 +188,25 @@ export function AdminDailyCustomerOpens() {
     return map;
   }, [agents, players]);
 
-  const playerAgents = useMemo(() => {
-    const map = new Map<string, string[]>();
-    if (!agents || !players) return map;
-    for (const p of players) {
-      const ids: string[] = [];
-      for (const a of agents) {
-        if (playerLinkedToAgent(p, a.uid)) ids.push(a.uid);
-      }
-      if (ids.length) map.set(p.uid, ids);
+  const officeByAgent = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof agentOfficeFigures>>();
+    if (!agents) return map;
+    for (const a of agents) {
+      const book = booksByAgent.get(a.uid);
+      map.set(
+        a.uid,
+        agentOfficeFigures({
+          bookDeposits: book?.deposits,
+          storedDeposits: a.stats?.customerDeposits,
+          bookStakes: book?.stakes,
+          storedBets: a.stats?.totalBets,
+          bookWins: book?.wins,
+          storedWins: a.stats?.totalWins,
+        })
+      );
     }
     return map;
-  }, [agents, players]);
-
-  const parentOnlyAgents = useMemo(() => {
-    const map = new Map<string, string[]>();
-    if (!players) return map;
-    for (const p of players) {
-      if (p.parentId) map.set(p.uid, [p.parentId]);
-    }
-    return map;
-  }, [players]);
-
-  const salesRanges = useMemo(
-    () => ({ today, weekFrom: week.from, monthFrom: month.from }),
-    [today, week.from, month.from]
-  );
-
-  const liveFirstByAgent = useMemo(
-    () => firstDepositsFromWave(ledgerDeposits ?? [], playerAgents, salesRanges),
-    [ledgerDeposits, playerAgents, salesRanges]
-  );
-
-  const liveContinueByAgent = useMemo(
-    () => continueDepositsFromWave(ledgerDeposits ?? [], playerAgents, salesRanges),
-    [ledgerDeposits, playerAgents, salesRanges]
-  );
-
-  const uniqueMonthFirst = useMemo(
-    () => sumFirstMonth(firstDepositsFromWave(ledgerDeposits ?? [], parentOnlyAgents, salesRanges)),
-    [ledgerDeposits, parentOnlyAgents, salesRanges]
-  );
-
-  const periodFirstByAgent = useMemo(
-    () => firstDepositsInRange(ledgerDeposits ?? [], playerAgents, periodFrom, periodTo),
-    [ledgerDeposits, playerAgents, periodFrom, periodTo]
-  );
-
-  const periodContinueByAgent = useMemo(
-    () => continueDepositsInRange(ledgerDeposits ?? [], playerAgents, periodFrom, periodTo),
-    [ledgerDeposits, playerAgents, periodFrom, periodTo]
-  );
-
-  const uniquePeriodFirst = useMemo(() => {
-    const map = firstDepositsInRange(ledgerDeposits ?? [], parentOnlyAgents, periodFrom, periodTo);
-    let amount = 0;
-    let count = 0;
-    for (const row of map.values()) {
-      amount += row.amount;
-      count += row.count;
-    }
-    return { amount: Math.round(amount * 100) / 100, count };
-  }, [ledgerDeposits, parentOnlyAgents, periodFrom, periodTo]);
+  }, [agents, booksByAgent]);
 
   const agentTotalToday = useMemo(
     () => rows?.reduce((sum, r) => sum + r.customersOpened, 0) ?? 0,
@@ -293,6 +243,12 @@ export function AdminDailyCustomerOpens() {
     return map;
   }, [commissions]);
 
+  const bookDepositsTotal = useMemo(() => {
+    let amount = 0;
+    for (const row of officeByAgent.values()) amount += row.deposits;
+    return Math.round(amount * 100) / 100;
+  }, [officeByAgent]);
+
   const periodTotals = useMemo(() => {
     let ggr = 0;
     let commission = 0;
@@ -303,13 +259,12 @@ export function AdminDailyCustomerOpens() {
     return {
       ggr: Math.round(ggr * 100) / 100,
       commission: Math.round(commission * 100) / 100,
-      first: uniquePeriodFirst.amount,
-      firstPeople: uniquePeriodFirst.count,
+      deposits: bookDepositsTotal,
       opens: agentTotalToday,
     };
-  }, [periodLedger, uniquePeriodFirst, agentTotalToday]);
+  }, [periodLedger, bookDepositsTotal, agentTotalToday]);
 
-  if (platformToday === null || rows === null || players === null || ledgerDeposits === null) {
+  if (platformToday === null || rows === null || players === null) {
     return (
       <Card className="flex items-center justify-center p-8">
         <Spinner />
@@ -326,9 +281,9 @@ export function AdminDailyCustomerOpens() {
       {isLive ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            label="First deposits this month"
-            value={formatXof(uniqueMonthFirst.amount)}
-            hint={`${uniqueMonthFirst.count} people · qualify at ${formatXof(qualifyAt)}`}
+            label="Marketer deposits"
+            value={formatXof(bookDepositsTotal)}
+            hint={`same book they see · qualify at ${formatXof(qualifyAt)}`}
             icon={<Banknote size={20} />}
           />
           <StatCard
@@ -351,9 +306,9 @@ export function AdminDailyCustomerOpens() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            label={`First deposits · ${periodLabel}`}
-            value={formatXof(periodTotals.first)}
-            hint={`${periodTotals.firstPeople} people · qualify at ${formatXof(qualifyAt)}`}
+            label={`Deposits · ${periodLabel}`}
+            value={formatXof(periodTotals.deposits)}
+            hint={`marketer books · qualify at ${formatXof(qualifyAt)}`}
             icon={<Banknote size={20} />}
           />
           <StatCard
@@ -381,13 +336,13 @@ export function AdminDailyCustomerOpens() {
             <div>
               <h2 className="font-semibold">
                 {isLive
-                  ? "Marketer first deposits (target) and GGR pay"
+                  ? "Marketer account books (same figures they see)"
                   : `Agent records · ${periodLabel}`}
               </h2>
               <p className="text-sm text-slate-400">
                 {isLive
-                  ? `First deposit = the customer's first payment after signup. We watch signup count and that first-deposit total. BETESE first-deposit pay only if they reach ${formatXof(qualifyAt)} first deposits. Continue top-ups are separate: ${pct}% of GGR profit only if there is profit.`
-                  : `Closed period (${periodFrom} → ${periodTo}). First deposits in that window vs ${formatXof(qualifyAt)} qualify bar. GGR ${pct}% is profit pay from play.`}
+                  ? `Deposits, played, wins, and profit/GGR match each marketer's own account and the operations book. Qualify at ${formatXof(qualifyAt)} deposits. ${pct}% is of this month's GGR profit only.`
+                  : `Closed period (${periodFrom} → ${periodTo}). Deposits are the same lifetime book. Period GGR ${pct}% is profit credited in that window.`}
               </p>
             </div>
             <div className="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:items-end lg:w-auto">
@@ -439,53 +394,36 @@ export function AdminDailyCustomerOpens() {
           <TableShell>
             <thead>
               <tr>
-                <Th rowSpan={2}>Marketer</Th>
-                <Th rowSpan={2} className="text-right">
-                  All deposits
-                </Th>
-                <Th colSpan={4} className="text-center text-amber-200/90">
-                  First deposits (target / pay)
-                </Th>
-                <Th rowSpan={2} className="text-right text-amber-200/90">
-                  Qualify {formatXof(qualifyAt)}
-                </Th>
-                <Th rowSpan={2} className="text-right">
-                  Continue this month
-                </Th>
-                <Th colSpan={2} className="text-center">
-                  GGR profit pay
-                </Th>
-                <Th rowSpan={2} className="text-right">
-                  Customers
-                </Th>
-              </tr>
-              <tr>
-                <Th className="text-right">Today</Th>
-                <Th className="text-right">Week</Th>
-                <Th className="text-right">Month</Th>
-                <Th className="text-right">People / lifetime</Th>
-                <Th className="text-right">GGR</Th>
+                <Th>Marketer</Th>
+                <Th className="text-right">Deposits</Th>
+                <Th className="text-right">Played</Th>
+                <Th className="text-right">Wins</Th>
+                <Th className="text-right">Profit / GGR</Th>
+                <Th className="text-right text-amber-200/90">Qualify {formatXof(qualifyAt)}</Th>
+                <Th className="text-right">Month GGR</Th>
                 <Th className="text-right">{pct}% of GGR</Th>
+                <Th className="text-right">Customers</Th>
               </tr>
             </thead>
             <tbody>
               {[...rows]
                 .sort((a, b) => {
-                  const sa = getFirstSales(liveFirstByAgent, a.uid).month;
-                  const sb = getFirstSales(liveFirstByAgent, b.uid).month;
+                  const sa = officeByAgent.get(a.uid)?.deposits ?? 0;
+                  const sb = officeByAgent.get(b.uid)?.deposits ?? 0;
                   return sb - sa || a.name.localeCompare(b.name);
                 })
                 .map((r) => {
                   const agent = agents!.find((a) => a.uid === r.uid);
                   const lifetime = agent?.stats?.customerCount ?? 0;
                   const book = booksByAgent.get(r.uid);
-                  const deposits = Math.max(
+                  const office = officeByAgent.get(r.uid) ?? agentOfficeFigures({});
+                  const bookDeposits = ggrBookDeposits(
                     book?.deposits ?? 0,
                     agent?.stats?.customerDeposits ?? 0
                   );
                   const withdrawals = book?.withdrawals ?? 0;
                   const cashHeld = book?.cashHeld ?? agent?.stats?.customerCashHeld ?? 0;
-                  const lifetimeGgr = commissionableGgr(deposits, withdrawals, cashHeld);
+                  const lifetimeGgr = commissionableGgr(bookDeposits, withdrawals, cashHeld);
                   const credited = creditedByAgent.get(r.uid);
                   const monthGgr = agentPeriodGgr(
                     "month",
@@ -493,41 +431,34 @@ export function AdminDailyCustomerOpens() {
                     agent?.stats,
                     credited?.month ?? 0
                   );
-                  const first = getFirstSales(liveFirstByAgent, r.uid);
-                  const cont = getSales(liveContinueByAgent, r.uid);
                   const rate = settings.agentRate ?? 0.05;
-                  const q = firstDepositQualify(first.lifetime, qualifyAt);
+                  const q = firstDepositQualify(office.deposits, qualifyAt);
                   return (
                     <tr key={r.uid}>
                       <Td className="font-medium">{r.name}</Td>
-                      <Td className="text-right tabular-nums text-slate-200">
-                        {formatXof(deposits)}
+                      <Td className="text-right tabular-nums font-bold text-white">
+                        {formatXof(office.deposits)}
                       </Td>
-                      <Td className="text-right tabular-nums text-amber-100">
-                        {formatXof(first.day)}
+                      <Td className="text-right tabular-nums font-bold text-white">
+                        {formatXof(office.played)}
                       </Td>
-                      <Td className="text-right tabular-nums text-amber-100">
-                        {formatXof(first.week)}
+                      <Td className="text-right tabular-nums font-bold text-white">
+                        {formatXof(office.wins)}
                       </Td>
-                      <Td className="text-right tabular-nums font-semibold text-amber-50">
-                        {formatXof(first.month)}
-                        <span className="ml-1 text-[11px] font-normal text-slate-500">
-                          ({first.monthCount})
-                        </span>
-                      </Td>
-                      <Td className="text-right tabular-nums text-slate-300">
-                        {formatXof(first.lifetime)}
-                        <span className="ml-1 text-[11px] text-slate-500">
-                          ({first.lifetimeCount})
-                        </span>
+                      <Td className="text-right tabular-nums font-bold text-violet-200">
+                        {formatXof(office.playGgr)}
                       </Td>
                       <Td
                         className={`text-right text-xs font-semibold ${q.qualified ? "text-emerald-300" : "text-amber-200"}`}
                       >
-                        {q.qualified ? "Yes" : `No · ${formatXof(q.remaining)} to go`}
-                      </Td>
-                      <Td className="text-right tabular-nums text-slate-400">
-                        {formatXof(cont.month)}
+                        {q.qualified ? (
+                          "Yes"
+                        ) : (
+                          <>
+                            No · <span className="font-bold text-white">{formatXof(q.remaining)}</span>{" "}
+                            to go
+                          </>
+                        )}
                       </Td>
                       <Td className="text-right tabular-nums text-slate-300">
                         {formatXof(monthGgr)}
@@ -546,11 +477,11 @@ export function AdminDailyCustomerOpens() {
             <thead>
               <tr>
                 <Th>Marketer</Th>
-                <Th className="text-right">All deposits</Th>
-                <Th className="text-right text-amber-200/90">First deposits</Th>
-                <Th className="text-right">People</Th>
+                <Th className="text-right">Deposits</Th>
+                <Th className="text-right">Played</Th>
+                <Th className="text-right">Wins</Th>
+                <Th className="text-right">Profit / GGR</Th>
                 <Th className="text-right">Qualify</Th>
-                <Th className="text-right">Continue deposits</Th>
                 <Th className="text-right">Period GGR</Th>
                 <Th className="text-right">{pct}% of GGR</Th>
                 <Th className="text-right">Customers</Th>
@@ -559,8 +490,8 @@ export function AdminDailyCustomerOpens() {
             <tbody>
               {[...rows]
                 .sort((a, b) => {
-                  const sa = periodFirstByAgent.get(a.uid)?.amount ?? 0;
-                  const sb = periodFirstByAgent.get(b.uid)?.amount ?? 0;
+                  const sa = officeByAgent.get(a.uid)?.deposits ?? 0;
+                  const sb = officeByAgent.get(b.uid)?.deposits ?? 0;
                   return sb - sa || a.name.localeCompare(b.name);
                 })
                 .map((r) => {
@@ -569,29 +500,35 @@ export function AdminDailyCustomerOpens() {
                   const ledger = periodLedger.get(r.uid);
                   const ggr = ledger?.ggr ?? 0;
                   const commission = ledger?.commission ?? 0;
-                  const first = periodFirstByAgent.get(r.uid) ?? { amount: 0, count: 0 };
-                  const cont = periodContinueByAgent.get(r.uid) ?? 0;
-                  const q = firstDepositQualify(first.amount, qualifyAt);
-                  const allDeposits = Math.max(
-                    booksByAgent.get(r.uid)?.deposits ?? 0,
-                    agent?.stats?.customerDeposits ?? 0
-                  );
+                  const office = officeByAgent.get(r.uid) ?? agentOfficeFigures({});
+                  const q = firstDepositQualify(office.deposits, qualifyAt);
                   return (
                     <tr key={r.uid}>
                       <Td className="font-medium">{r.name}</Td>
-                      <Td className="text-right tabular-nums text-slate-200">
-                        {formatXof(allDeposits)}
+                      <Td className="text-right tabular-nums font-bold text-white">
+                        {formatXof(office.deposits)}
                       </Td>
-                      <Td className="text-right tabular-nums font-semibold text-amber-50">
-                        {formatXof(first.amount)}
+                      <Td className="text-right tabular-nums font-bold text-white">
+                        {formatXof(office.played)}
                       </Td>
-                      <Td className="text-right tabular-nums text-amber-100">{first.count}</Td>
+                      <Td className="text-right tabular-nums font-bold text-white">
+                        {formatXof(office.wins)}
+                      </Td>
+                      <Td className="text-right tabular-nums font-bold text-violet-200">
+                        {formatXof(office.playGgr)}
+                      </Td>
                       <Td
                         className={`text-right text-xs font-semibold ${q.qualified ? "text-emerald-300" : "text-amber-200"}`}
                       >
-                        {q.qualified ? "Yes" : `No · ${formatXof(q.remaining)} to go`}
+                        {q.qualified ? (
+                          "Yes"
+                        ) : (
+                          <>
+                            No · <span className="font-bold text-white">{formatXof(q.remaining)}</span>{" "}
+                            to go
+                          </>
+                        )}
                       </Td>
-                      <Td className="text-right tabular-nums text-slate-400">{formatXof(cont)}</Td>
                       <Td className="text-right tabular-nums text-slate-300">{formatXof(ggr)}</Td>
                       <Td className="text-right tabular-nums text-emerald-300">
                         {formatXof(commission)}

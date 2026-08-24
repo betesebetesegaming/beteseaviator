@@ -8,7 +8,8 @@ import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { agentRequestSmartBonus, errorMessage } from "@/lib/api";
 import { formatXof } from "@/lib/format";
-import { agentCommissionDue, commissionableGgr } from "@/lib/platformFinancials";
+import { agentOfficeFigures } from "@/lib/agentDepositSales";
+import { agentCommissionDue } from "@/lib/platformFinancials";
 import { useAgentCommissionBook } from "@/lib/hooks/useAgentCommissionBook";
 import { formatPlayerId } from "@/lib/playerId";
 import { isLiveOffer, offerStatusMeta, tierMeta } from "@/lib/smartBonus";
@@ -28,12 +29,16 @@ const SEGMENTS: { tier: HealthTier | "all"; label: string }[] = [
 export function MarketerRetentionPanel() {
   const { fbUser, profile } = useAuth();
   const { book } = useAgentCommissionBook(fbUser?.uid);
-  const deposits = Math.max(book?.deposits ?? 0, profile?.stats?.customerDeposits ?? 0);
-  const profit = commissionableGgr(
-    deposits,
-    book?.withdrawals ?? 0,
-    book?.cashHeld ?? 0
-  );
+  const office = agentOfficeFigures({
+    bookDeposits: book?.deposits,
+    storedDeposits: profile?.stats?.customerDeposits,
+    bookStakes: book?.stakes,
+    storedBets: profile?.stats?.totalBets,
+    bookWins: book?.wins,
+    storedWins: profile?.stats?.totalWins,
+  });
+  const deposits = office.deposits;
+  const profit = office.playGgr;
   const share = agentCommissionDue(profit, 0.05);
   const [health, setHealth] = useState<PlayerHealth[] | null>(null);
   const [offers, setOffers] = useState<Record<string, SmartBonusOffer>>({});

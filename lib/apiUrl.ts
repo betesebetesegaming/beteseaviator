@@ -17,6 +17,7 @@ const MODEMPAY_PATHS = new Set([
   "/modempay-refund",
   "/modempay-balances",
   "/modempay-reconcile-deposit",
+  "/modempay-transactions",
 ]);
 
 const CALLABLE_ALIASES: Record<string, string> = {

@@ -365,14 +365,16 @@ export function OperationsHub() {
                   <tr key={a.uid}>
                     <Td className="font-medium text-white">{a.name}</Td>
                     <Td className="font-mono text-xs text-sky-300">{a.agentSlug ?? "—"}</Td>
-                    <Td className="text-right tabular-nums">{formatXof(a.customerDeposits)}</Td>
+                    <Td className="text-right tabular-nums font-bold text-white">
+                      {formatXof(a.customerDeposits)}
+                    </Td>
                     <Td className="text-right tabular-nums text-slate-300">{formatXof(a.totalBets)}</Td>
                     <Td className="text-right tabular-nums text-emerald-300">
                       {formatXof(a.walletBalance ?? 0)}
                     </Td>
                     <Td className="text-right tabular-nums font-semibold text-violet-200">
                       {formatXof(a.ggr)}
-                      <span className="block text-[10px] font-normal text-slate-500">
+                      <span className="block text-[10px] font-bold text-white">
                         wins {formatXof(a.totalWins)}
                       </span>
                     </Td>

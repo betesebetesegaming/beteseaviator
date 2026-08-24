@@ -269,7 +269,7 @@ export default function AdminWalletsPage() {
                   <Td>
                     <Badge value={r.role} />
                   </Td>
-                  <Td className="text-right tabular-nums text-slate-300">
+                  <Td className="text-right tabular-nums font-bold text-white">
                     {formatXof(stats.totalDeposits)}
                   </Td>
                   <Td className="text-right tabular-nums text-slate-300">

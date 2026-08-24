@@ -11,6 +11,7 @@ import { AdminAgentsCashBook } from "@/components/accounts/AdminAgentsCashBook";
 import { AgentAccountBook } from "@/components/accounts/AgentAccountBook";
 import { AgentSalesSummary } from "@/components/accounts/AgentSalesSummary";
 import { ModemPayLedger } from "@/components/accounts/ModemPayLedger";
+import { ModemPayLiveMirror } from "@/components/accounts/ModemPayLiveMirror";
 import { TodayDepositsPanel } from "@/components/accounts/TodayDepositsPanel";
 import { LedgerTransactionsPanel } from "@/components/accounts/LedgerTransactionsPanel";
 import { AgentCommissionsPanel } from "@/components/accounts/AgentCommissionsPanel";
@@ -24,6 +25,7 @@ const ADMIN_TABS = [
   { id: "agentcash", label: "Agent books" },
   { id: "book", label: "Money book" },
   { id: "modempay", label: "Wave ledger" },
+  { id: "modempaylive", label: "ModemPay live" },
   { id: "summary", label: "This week / month" },
   { id: "transactions", label: "Full ledger" },
   { id: "agents", label: "Commissions" },
@@ -45,6 +47,8 @@ const ADMIN_TAB_HELP: Record<(typeof ADMIN_TABS)[number]["id"], string> = {
   agentcash: "Shop cash each agent collected today. This is physical money they must remit.",
   book: "Every customer deposit and withdrawal. Choose an agent to open that agent’s money book.",
   modempay: "Wave / mobile money only (ModemPay). Not cash at the shop.",
+  modempaylive:
+    "Same live ModemPay merchant feed as Admin → ModemPay — deposits and withdrawals, MP- references, Gambia times.",
   summary: "This week and this month in one view.",
   transactions: "Everything: deposits, withdrawals, bets, wins, and bonuses.",
   agents: "Commission BETESE owes each agent — not player wallet money.",
@@ -52,11 +56,11 @@ const ADMIN_TAB_HELP: Record<(typeof ADMIN_TABS)[number]["id"], string> = {
 
 const AGENT_TAB_HELP: Record<(typeof AGENT_TABS)[number]["id"], string> = {
   today: "Only today’s deposits from your customers — Wave and cash at your shop.",
-  book: "Your first deposits (target/pay), cash desk, Wave, GGR profit, and commission in one book.",
+  book: "Your deposits, cash desk, Wave, GGR profit, and commission — same figures as BETESE backoffice.",
   cashdesk: "Cash you took or paid at the shop today.",
   modempay: "Wave / mobile money for your customers only.",
-  commissions: "Your 5% of GGR profit from play on your link — not 5% of continue deposits.",
-  sales: "First deposits (target) plus this month's GGR 5%. A new month starts at zero.",
+  commissions: "Your 5% of this month's GGR profit — same month figure as the backoffice.",
+  sales: "Your deposit book plus this month's GGR 5%. A new month starts that 5% at zero.",
   transactions: "Your wallet, your customers, and your cash-desk moves.",
 };
 
@@ -169,6 +173,11 @@ export function AccountsHub() {
           {adminTab === "modempay" && (
             <ClientErrorBoundary label="Wave ledger">
               <ModemPayLedger customerIds={null} scopeLabel={scopeLabel} />
+            </ClientErrorBoundary>
+          )}
+          {adminTab === "modempaylive" && (
+            <ClientErrorBoundary label="ModemPay live">
+              <ModemPayLiveMirror />
             </ClientErrorBoundary>
           )}
           {adminTab === "book" && (

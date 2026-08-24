@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { auth } from "@/lib/firebase";
 import { resolveStaffSession } from "@/lib/api";
 import { profileMatchesUser, useAuth, homeFor } from "@/lib/auth-context";
-import { hardRedirect, withTimeout } from "@/lib/hardRedirect";
+import { clearHardRedirectGuard, hardRedirect, withTimeout } from "@/lib/hardRedirect";
 import type { Role } from "@/lib/types";
+import { StaffOpenStuck } from "@/components/auth/StaffOpenStuck";
 import { Spinner } from "./ui";
 
-const STAFF_BOOTSTRAP_MS = 8000;
+const STAFF_BOOTSTRAP_MS = 12000;
+const STUCK_MS = 12000;
 
 /**
  * Client route guard: waits for auth hydration, sends guests to staff login,
@@ -23,9 +25,10 @@ export function RoleGuard({
   children: ReactNode;
   loginPath: string;
 }) {
-  const { fbUser, profile, loading, profileReady } = useAuth();
+  const { fbUser, profile, loading, profileReady, logout } = useAuth();
   const bootstrappingRef = useRef(false);
   const redirectedRef = useRef(false);
+  const [stuck, setStuck] = useState(false);
 
   const profileMatchesUserFlag = profileMatchesUser(profile, fbUser);
   const permitted =
@@ -33,6 +36,22 @@ export function RoleGuard({
     !!profile &&
     allow.includes(profile.role) &&
     profile.status === "active";
+
+  useEffect(() => {
+    if (permitted) {
+      clearHardRedirectGuard();
+      setStuck(false);
+    }
+  }, [permitted]);
+
+  useEffect(() => {
+    if (loading || !profileReady || permitted || !fbUser) {
+      setStuck(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setStuck(true), STUCK_MS);
+    return () => window.clearTimeout(timer);
+  }, [loading, profileReady, permitted, fbUser]);
 
   useEffect(() => {
     if (loading || !profileReady) return;
@@ -65,10 +84,14 @@ export function RoleGuard({
     bootstrappingRef.current = true;
 
     void withTimeout(resolveStaffSession({}), STAFF_BOOTSTRAP_MS, "Staff profile sync timed out")
-      .then(async () => {
+      .then(async (session) => {
         await auth.currentUser?.getIdToken(true);
         bootstrappingRef.current = false;
-        hardRedirect(window.location.pathname + window.location.search);
+        if (session.status !== "active") {
+          go("/suspended");
+          return;
+        }
+        hardRedirect(homeFor(session.role));
       })
       .catch(() => {
         bootstrappingRef.current = false;
@@ -84,6 +107,20 @@ export function RoleGuard({
     allow,
     loginPath,
   ]);
+
+  if (stuck && fbUser && !permitted) {
+    return (
+      <StaffOpenStuck
+        onRetry={() => {
+          setStuck(false);
+          redirectedRef.current = false;
+          bootstrappingRef.current = false;
+          window.location.reload();
+        }}
+        onSignOut={() => void logout()}
+      />
+    );
+  }
 
   if (loading || !profileReady) return <Spinner label="Loading…" />;
   if (!fbUser) return <Spinner label="Redirecting…" />;

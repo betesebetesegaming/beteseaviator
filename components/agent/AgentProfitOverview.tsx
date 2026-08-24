@@ -6,16 +6,15 @@ import { collection, doc, onSnapshot, orderBy, query, where } from "firebase/fir
 import { db } from "@/lib/firestore";
 import { formatXof } from "@/lib/format";
 import { agentPeriodGgr } from "@/lib/agentPeriodGgr";
-import { firstDepositQualify } from "@/lib/agentDepositSales";
+import { agentOfficeFigures, firstDepositQualify, ggrBookDeposits } from "@/lib/agentDepositSales";
 import { monthRangeIso, weekRangeIso } from "@/lib/ggrAccounting";
 import { agentCommissionDue, commissionableGgr } from "@/lib/platformFinancials";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
 import { useAgentCommissionBook } from "@/lib/hooks/useAgentCommissionBook";
-import { useAgentDepositSales } from "@/lib/hooks/useAgentDepositSales";
 import { DEFAULT_SETTINGS, type AgentStats, type Commission, type PlatformSettings } from "@/lib/types";
 import { Card, Spinner, StatCard } from "@/components/ui";
 
-/** First-deposit target (what we pay for bringing customers in) plus 5% of GGR on play. */
+/** Same deposit / play / GGR book the backoffice shows for this marketer. */
 export function AgentProfitOverview({
   agentId,
   commissionEarned,
@@ -32,7 +31,6 @@ export function AgentProfitOverview({
   rate?: number;
 }) {
   const { book, customerCount } = useAgentCommissionBook(agentId);
-  const { first, continueSales, ready: salesReady } = useAgentDepositSales(agentId);
   const month = useMemo(() => monthRangeIso(), []);
   const week = useMemo(() => weekRangeIso(), []);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
@@ -71,36 +69,43 @@ export function AgentProfitOverview({
   }, [agentId, month.from, week.from]);
 
   if (!agentId) return null;
-  if (!book || !salesReady) {
+  if (!book) {
     return (
       <Card className="flex items-center justify-center p-8">
-        <Spinner label="Loading your first deposits..." />
+        <Spinner label="Loading your account book..." />
       </Card>
     );
   }
 
-  const deposits = Math.max(book.deposits, storedDeposits ?? 0, first.lifetime + continueSales.lifetime);
+  const bookDeposits = ggrBookDeposits(book.deposits, storedDeposits ?? 0);
+  const office = agentOfficeFigures({
+    bookDeposits: book.deposits,
+    storedDeposits: storedDeposits ?? 0,
+    bookStakes: book.stakes,
+    storedBets: anchors?.totalBets ?? 0,
+    bookWins: book.wins,
+    storedWins: anchors?.totalWins ?? 0,
+  });
   const withdrawals = book.withdrawals;
   const cashHeld = book.cashHeld;
-  const lifetimeGgr = commissionableGgr(deposits, withdrawals, cashHeld);
+  const lifetimeGgr = commissionableGgr(bookDeposits, withdrawals, cashHeld);
   const dayGgr = agentPeriodGgr("day", lifetimeGgr, anchors, credited.day);
   const weekGgr = agentPeriodGgr("week", lifetimeGgr, anchors, credited.week);
   const monthGgr = agentPeriodGgr("month", lifetimeGgr, anchors, credited.month);
   const monthShare = agentCommissionDue(monthGgr, rate);
   const pct = Math.round(rate * 100);
-  const q = firstDepositQualify(first.lifetime, settings.firstDepositQualifyGmd ?? 40_000);
+  const q = firstDepositQualify(office.deposits, settings.firstDepositQualifyGmd ?? 40_000);
 
   return (
     <div className="space-y-4">
       <Card className="border-amber-500/30 bg-amber-500/10 p-5">
         <p className="text-xs font-bold uppercase tracking-widest text-amber-200">
-          First deposits (signup money we watch)
+          Deposits (same as BETESE backoffice)
         </p>
-        <p className="mt-2 text-3xl font-bold tabular-nums text-white">{formatXof(first.lifetime)}</p>
+        <p className="mt-2 text-3xl font-bold tabular-nums text-white">{formatXof(office.deposits)}</p>
         <p className="mt-1 text-sm text-slate-300">
-          {first.lifetimeCount} {first.lifetimeCount === 1 ? "person" : "people"} made a first
-          deposit on your link. BETESE first-deposit pay only if this total reaches{" "}
-          {formatXof(q.threshold)}. This month: {formatXof(first.month)} ({first.monthCount}).
+          Money customers put in on your link — the same deposit total staff see for your account.
+          BETESE first-deposit pay only if this reaches {formatXof(q.threshold)}.
         </p>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-950/50">
           <div
@@ -111,49 +116,52 @@ export function AgentProfitOverview({
         <p className={`mt-2 text-sm font-semibold ${q.qualified ? "text-emerald-300" : "text-amber-200"}`}>
           {q.qualified
             ? `Qualified for BETESE first-deposit pay (${formatXof(q.have)} / ${formatXof(q.threshold)})`
-            : `Not qualified yet — ${formatXof(q.remaining)} more first deposits to reach ${formatXof(q.threshold)}`}
+            : (
+                <>
+                  Not qualified yet —{" "}
+                  <span className="font-bold text-white">{formatXof(q.remaining)}</span> more deposits
+                  to reach {formatXof(q.threshold)}
+                </>
+              )}
         </p>
-        <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
-          <div className="rounded-lg bg-slate-950/40 px-3 py-2">
-            <dt className="text-[11px] uppercase tracking-wide text-slate-500">Today</dt>
-            <dd className="font-semibold tabular-nums text-white">
-              {formatXof(first.day)}
-              <span className="ml-1 text-[11px] font-normal text-slate-500">({first.dayCount})</span>
-            </dd>
+        <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-5">
+          <div className="rounded-lg border border-white/15 bg-slate-950/50 px-3 py-3">
+            <dt className="text-[11px] font-bold uppercase tracking-wide text-amber-200/80">Deposits</dt>
+            <dd className="mt-1 text-2xl font-bold tabular-nums text-white">{formatXof(office.deposits)}</dd>
           </div>
-          <div className="rounded-lg bg-slate-950/40 px-3 py-2">
-            <dt className="text-[11px] uppercase tracking-wide text-slate-500">This week</dt>
-            <dd className="font-semibold tabular-nums text-white">
-              {formatXof(first.week)}
-              <span className="ml-1 text-[11px] font-normal text-slate-500">({first.weekCount})</span>
-            </dd>
+          <div className="rounded-lg bg-slate-950/40 px-3 py-3">
+            <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Played</dt>
+            <dd className="mt-1 text-xl font-bold tabular-nums text-white">{formatXof(office.played)}</dd>
           </div>
-          <div className="rounded-lg bg-slate-950/40 px-3 py-2">
-            <dt className="text-[11px] uppercase tracking-wide text-slate-500">This month</dt>
-            <dd className="font-semibold tabular-nums text-white">
-              {formatXof(first.month)}
-              <span className="ml-1 text-[11px] font-normal text-slate-500">
-                ({first.monthCount})
-              </span>
+          <div className="rounded-lg bg-slate-950/40 px-3 py-3">
+            <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Wins</dt>
+            <dd className="mt-1 text-xl font-bold tabular-nums text-white">{formatXof(office.wins)}</dd>
+          </div>
+          <div className="rounded-lg bg-slate-950/40 px-3 py-3">
+            <dt className="text-[11px] font-bold uppercase tracking-wide text-violet-300/90">
+              Profit / GGR
+            </dt>
+            <dd className="mt-1 text-xl font-bold tabular-nums text-white">{formatXof(office.playGgr)}</dd>
+          </div>
+          <div className="rounded-lg bg-slate-950/40 px-3 py-3">
+            <dt className="text-[11px] font-bold uppercase tracking-wide text-emerald-300/90">Wallet</dt>
+            <dd className="mt-1 text-xl font-bold tabular-nums text-white">
+              {formatXof(commissionWallet ?? 0)}
             </dd>
           </div>
         </dl>
-        <p className="mt-3 text-xs text-slate-500">
-          All deposits on this link (first + continue): {formatXof(deposits)}. Continue this month:{" "}
-          {formatXof(continueSales.month)}. Continue only pays {pct}% of GGR if there is profit.
-        </p>
       </Card>
 
       <Card className="border-emerald-500/30 bg-emerald-500/10 p-5">
         <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
-          Continue play — {pct}% of GGR profit
+          This month — {pct}% of GGR profit
         </p>
         <p className="mt-2 text-3xl font-bold tabular-nums text-white">{formatXof(monthGgr)}</p>
         <p className="mt-1 text-sm text-slate-300">
-          House profit after customers on your link played (including money from first deposits and
-          top-ups). Your {pct}% is of this profit only — not of continue deposits.
+          This month only (resets next month). Separate from lifetime Profit / GGR above. Your {pct}%
+          is of this month&apos;s profit.
         </p>
-        <p className="mt-4 text-lg font-semibold text-emerald-300">
+        <p className="mt-4 text-lg font-bold text-emerald-300">
           Your {pct}% of this month = {formatXof(monthShare)}
         </p>
         <p className="mt-1 text-xs text-slate-500">
@@ -177,7 +185,7 @@ export function AgentProfitOverview({
         <StatCard
           label={`${pct}% of GGR (month)`}
           value={formatXof(monthShare)}
-          hint="profit share, not first-deposit pay"
+          hint="this month only"
           icon={<Award size={20} />}
         />
         <StatCard

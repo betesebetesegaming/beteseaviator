@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { StaffLoginForm } from "@/components/auth/StaffLoginForm";
 import { StaffLoginShell } from "@/components/auth/StaffLoginShell";
+import { StaffOpenStuck } from "@/components/auth/StaffOpenStuck";
 import { Button, Spinner } from "@/components/ui";
 import { resolveStaffSession } from "@/lib/api";
 import { auth } from "@/lib/firebase";
@@ -10,12 +11,14 @@ import { homeFor, profileMatchesUser, useAuth } from "@/lib/auth-context";
 import { hardRedirect, withTimeout } from "@/lib/hardRedirect";
 import { isStaffRole } from "@/lib/staff-routes";
 
-const STAFF_SESSION_MS = 8000;
+const STAFF_SESSION_MS = 12000;
+const STUCK_MS = 12000;
 
 /** Lightweight staff sign-in (admin + agents) — kept outside /admin layout for faster load. */
 export function StaffLoginPage() {
   const { fbUser, profile, profileReady, logout } = useAuth();
   const [openingDashboard, setOpeningDashboard] = useState(false);
+  const [stuck, setStuck] = useState(false);
   const syncAttemptedRef = useRef(false);
 
   const settledProfile = profileMatchesUser(profile, fbUser) ? profile : null;
@@ -30,6 +33,27 @@ export function StaffLoginPage() {
     setOpeningDashboard(true);
     hardRedirect(homeFor(settledProfile.role));
   }, [activeStaff, profileReady, settledProfile]);
+
+  useEffect(() => {
+    if (!openingDashboard || stuck) return;
+    const timer = window.setTimeout(() => setStuck(true), STUCK_MS);
+    return () => window.clearTimeout(timer);
+  }, [openingDashboard, stuck]);
+
+  useEffect(() => {
+    if (!openingDashboard) return;
+    const retry = () => {
+      if (document.visibilityState === "hidden") return;
+      if (!settledProfile || !isStaffRole(settledProfile.role)) return;
+      hardRedirect(homeFor(settledProfile.role));
+    };
+    window.addEventListener("pageshow", retry);
+    document.addEventListener("visibilitychange", retry);
+    return () => {
+      window.removeEventListener("pageshow", retry);
+      document.removeEventListener("visibilitychange", retry);
+    };
+  }, [openingDashboard, settledProfile]);
 
   useEffect(() => {
     if (!fbUser || !profileReady || settledProfile || playerSession) return;
@@ -47,6 +71,18 @@ export function StaffLoginPage() {
         setOpeningDashboard(false);
       });
   }, [fbUser, profileReady, settledProfile, playerSession]);
+
+  if (stuck) {
+    return (
+      <StaffOpenStuck
+        onRetry={() => {
+          setStuck(false);
+          window.location.reload();
+        }}
+        onSignOut={() => void logout()}
+      />
+    );
+  }
 
   if (openingDashboard) {
     return (

@@ -12,6 +12,7 @@ import {
   refundHandler,
   balancesHandler,
   transactionHandler,
+  listTransactionsHandler,
   webhookHandler,
   reconcileDepositHandler,
 } from "./routes/modempay";
@@ -48,6 +49,7 @@ app.post("/card-payment", playerAuth, (req, res) => void cardPaymentHandler(req,
 app.post("/modempay-payout", playerAuth, (req, res) => void payoutHandler(req, res));
 app.post("/modempay-refund", adminAuth, (req, res) => void refundHandler(req, res));
 app.get("/modempay-balances", adminAuth, (req, res) => void balancesHandler(req, res));
+app.get("/modempay-transactions", adminAuth, (req, res) => void listTransactionsHandler(req, res));
 app.get("/modempay-transactions/:id", adminAuth, (req, res) => void transactionHandler(req, res));
 app.post("/modempay-reconcile-deposit", playerAuth, (req, res) => void reconcileDepositHandler(req, res));
 
@@ -56,7 +58,7 @@ export const modempayApi = onRequest(
     region: "us-central1",
     // Keep one warm instance — cold starts from Gambia were timing out as "Load failed".
     memory: "512MiB",
-    timeoutSeconds: 60,
+    timeoutSeconds: 120,
     minInstances: 1,
     maxInstances: 10,
     cpu: 1,

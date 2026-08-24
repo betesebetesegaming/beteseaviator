@@ -153,7 +153,7 @@ export function AdminAgentsCashBook() {
                 <tr key={a.uid} className={a.net > 0 ? "bg-amber-500/5" : undefined}>
                   <Td className="font-medium text-white">{a.name}</Td>
                   <Td className="font-mono text-xs text-sky-300">{a.agentSlug ?? "—"}</Td>
-                  <Td className="text-right tabular-nums">{formatXof(a.customerDeposits)}</Td>
+                  <Td className="text-right tabular-nums font-bold text-white">{formatXof(a.customerDeposits)}</Td>
                   <Td className="text-right tabular-nums text-slate-300">{formatXof(a.totalBets)}</Td>
                   <Td className="text-right tabular-nums text-emerald-300">
                     {formatXof(a.walletBalance ?? 0)}

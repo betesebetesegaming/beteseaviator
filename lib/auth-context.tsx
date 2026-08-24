@@ -53,8 +53,15 @@ export { loginPathFor } from "./staff-routes";
 const AUTH_RESTORE_MS = 500;
 /** Never block guest session restore longer than this. */
 const AUTH_MAX_WAIT_MS = 1800;
-/** Staff routes may wait a bit longer for the profile doc before giving up. */
+/** Staff routes may wait longer for the profile doc on slow mobile networks. */
 const PROFILE_MAX_WAIT_MS = 3000;
+const STAFF_PROFILE_MAX_WAIT_MS = 12000;
+
+function isStaffPath(): boolean {
+  if (typeof window === "undefined") return false;
+  const p = window.location.pathname;
+  return p === "/s" || p.startsWith("/admin") || p.startsWith("/agent");
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [fbUser, setFbUser] = useState<User | null>(null);
@@ -85,7 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setProfileForceReady(false);
-    const profileTimer = setTimeout(() => setProfileForceReady(true), PROFILE_MAX_WAIT_MS);
+    const wait = isStaffPath() ? STAFF_PROFILE_MAX_WAIT_MS : PROFILE_MAX_WAIT_MS;
+    const profileTimer = setTimeout(() => setProfileForceReady(true), wait);
     return () => clearTimeout(profileTimer);
   }, [fbUser?.uid]);
 
@@ -149,7 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileReady(true);
       })
       .catch(() => {
-        if (!cancelled) setProfileReady(true);
+        /* Keep waiting for onSnapshot or the staff/profile force timer — a failed
+           first read on mobile must not mark the session ready with no profile. */
       });
 
     const unsubProfile = onSnapshot(
