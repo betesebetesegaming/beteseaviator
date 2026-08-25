@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
-import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { Search } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { adminSetAgentCashOps, adminSetUserStatus, adminSyncAgentLogins, errorMessage } from "@/lib/api";
@@ -13,7 +13,7 @@ import { staffSignInId } from "@/lib/staffAccount";
 import { AdminResetPasswordModal } from "@/components/admin/AdminResetPasswordModal";
 import { CreateAgentFlow } from "@/components/admin/CreateAgentFlow";
 import { formatDate } from "@/lib/format";
-import { isAgentRole, roleLabel as sharedRoleLabel } from "@/lib/roles";
+import { AGENT_ROLES, isAgentRole, roleLabel as sharedRoleLabel } from "@/lib/roles";
 import type { UserProfile } from "@/lib/types";
 import {
   Badge,
@@ -26,6 +26,10 @@ import {
   Th,
 } from "@/components/ui";
 
+function agentLabel(u: UserProfile): string {
+  return (u.name || staffSignInId(u) || u.agentSlug || "").trim() || u.uid;
+}
+
 function AdminAgentsContent() {
   const searchParams = useSearchParams();
   const autoCreate = searchParams.get("create") === "1";
@@ -36,21 +40,27 @@ function AdminAgentsContent() {
   const [resetPasswordUser, setResetPasswordUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(500));
+    // Load every marketer by role. Do not take the newest 500 users and
+    // filter — that hides older agents under recent customer signups, and
+    // orderBy(createdAt) also drops accounts that never got a createdAt.
+    const q = query(collection(db, "users"), where("role", "in", AGENT_ROLES));
     return onSnapshot(q, (snap) => {
-      // uid must win over any uid field stored inside the document
-      setUsers(snap.docs.map((d) => ({ ...d.data(), uid: d.id }) as UserProfile));
+      setUsers(
+        snap.docs
+          .map((d) => ({ ...d.data(), uid: d.id }) as UserProfile)
+          .filter((u) => isAgentRole(u.role))
+          .sort((a, b) => agentLabel(a).localeCompare(agentLabel(b), undefined, { sensitivity: "base" }))
+      );
     });
   }, []);
 
   const agents = useMemo(() => {
     if (!users) return null;
-    const list = users.filter((u) => isAgentRole(u.role));
     const s = search.trim().toLowerCase();
-    if (!s) return list;
-    return list.filter(
+    if (!s) return users;
+    return users.filter(
       (u) =>
-        u.name?.toLowerCase().includes(s) ||
+        agentLabel(u).toLowerCase().includes(s) ||
         u.agentSlug?.toLowerCase().includes(s) ||
         staffSignInId(u)?.toLowerCase().includes(s)
     );
@@ -98,9 +108,11 @@ function AdminAgentsContent() {
     <div>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold">Agents</h1>
+          <h1 className="text-xl font-bold">
+            Agents{users ? ` (${users.length})` : ""}
+          </h1>
           <p className="text-sm text-slate-400">
-            Admin creates every agent&apos;s first staff account here. Agents sign in at{" "}
+            Every marketer account. Admin creates each staff login here. Agents sign in at{" "}
             <Link href="/s" className="text-emerald-400 hover:underline">
               /s
             </Link>{" "}
@@ -173,7 +185,7 @@ function AdminAgentsContent() {
           <tbody>
             {agents.map((u) => (
               <tr key={u.uid}>
-                <Td className="font-medium">{u.name}</Td>
+                <Td className="font-medium">{agentLabel(u)}</Td>
                 <Td>
                   <Badge value={sharedRoleLabel(u.role)} />
                 </Td>

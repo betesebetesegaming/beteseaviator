@@ -8,7 +8,9 @@ export function isStaffRole(role: string | undefined | null): boolean {
   return role === "admin" || isAgentRole(role);
 }
 
-export const STAFF_ROLES: Role[] = ["admin", "agent", "super_agent", "sub_agent"];
+export const AGENT_ROLES: Role[] = ["agent", "super_agent", "sub_agent"];
+
+export const STAFF_ROLES: Role[] = ["admin", ...AGENT_ROLES];
 
 export function roleLabel(role: Role | string): string {
   if (isAgentRole(role)) return "Agent Marketer";
