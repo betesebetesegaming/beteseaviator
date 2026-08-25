@@ -672,6 +672,42 @@ export function agentIdsForPlayer(player: {
   return ids;
 }
 
+function isSuccessfulRtdbDeposit(row: {
+  status?: string;
+  verification_status?: string;
+}): boolean {
+  const status = String(row.status || "").toLowerCase();
+  const verification = String(row.verification_status || "").toLowerCase();
+  return status === "completed" || verification === "verified";
+}
+
+/**
+ * Lifetime successful Wave/ModemPay deposits per customer.
+ * Use MAX with the wallet ledger so the same payment is not counted twice.
+ */
+export async function rtdbSuccessfulDepositsByCustomer(): Promise<Map<string, number>> {
+  const snap = await rtdb.ref("payments/deposits").get();
+  const map = new Map<string, number>();
+  const val = snap.val() as Record<
+    string,
+    {
+      customer_id?: string;
+      amount?: number;
+      status?: string;
+      verification_status?: string;
+    }
+  > | null;
+  if (!val) return map;
+  for (const row of Object.values(val)) {
+    if (!isSuccessfulRtdbDeposit(row)) continue;
+    const uid = String(row.customer_id || "").trim();
+    const amt = Math.abs(Number(row.amount) || 0);
+    if (!uid || amt <= 0) continue;
+    map.set(uid, round2((map.get(uid) ?? 0) + amt));
+  }
+  return map;
+}
+
 /** Increment an agent's dashboard stats (inside a transaction). */
 export function bumpAgentStats(
   tx: FirebaseFirestore.Transaction,

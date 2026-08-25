@@ -2,7 +2,6 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { agentCommissionRate } from "./roles";
-import { rtdbSuccessfulDepositsByCustomer } from "./paymentsRtdb";
 import {
   db,
   FieldValue,
@@ -15,6 +14,7 @@ import {
   commissionableGgr,
   ggrPeriodAnchorUpdates,
   agentIdsForPlayer,
+  rtdbSuccessfulDepositsByCustomer,
   type ProfileData,
 } from "./helpers";
 

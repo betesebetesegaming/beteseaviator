@@ -16,6 +16,7 @@ import {
   resolveStaffAuthEmail,
   MIN_DEPOSIT_GMD,
   betCashStake,
+  rtdbSuccessfulDepositsByCustomer,
   type ProfileData,
   type Role,
 } from "./helpers";
@@ -23,7 +24,6 @@ import { parseCommissionRate } from "./commissionRate";
 import { isAgentRole } from "./roles";
 import { claimSlug, createPlayerAccount, ensureAgentLoginDocs } from "./agent";
 import { assertValidPassword } from "./passwordPolicy";
-import { rtdbSuccessfulDepositsByCustomer } from "./paymentsRtdb";
 
 /** Route outbound QTech API calls through Cloud NAT static IP (QTech IP whitelist). */
 const QTECH_OUTBOUND = {
