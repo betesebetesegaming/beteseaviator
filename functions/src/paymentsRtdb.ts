@@ -150,6 +150,46 @@ export async function patchWithdrawalOnRtdb(
   await rtdbRef().update(updates);
 }
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function isSuccessfulRtdbDeposit(row: {
+  status?: string;
+  verification_status?: string;
+}): boolean {
+  const status = String(row.status || "").toLowerCase();
+  const verification = String(row.verification_status || "").toLowerCase();
+  return status === "completed" || verification === "verified";
+}
+
+/**
+ * Lifetime successful Wave/ModemPay deposits per customer.
+ * Use MAX with the wallet ledger so the same payment is not counted twice.
+ */
+export async function rtdbSuccessfulDepositsByCustomer(): Promise<Map<string, number>> {
+  const snap = await rtdbRef().child("payments/deposits").get();
+  const map = new Map<string, number>();
+  const val = snap.val() as Record<
+    string,
+    {
+      customer_id?: string;
+      amount?: number;
+      status?: string;
+      verification_status?: string;
+    }
+  > | null;
+  if (!val) return map;
+  for (const row of Object.values(val)) {
+    if (!isSuccessfulRtdbDeposit(row)) continue;
+    const uid = String(row.customer_id || "").trim();
+    const amt = Math.abs(Number(row.amount) || 0);
+    if (!uid || amt <= 0) continue;
+    map.set(uid, round2((map.get(uid) ?? 0) + amt));
+  }
+  return map;
+}
+
 /** RTDB rejects undefined values — strip them before any update(). */
 function rtdbSafeRecord<T extends Record<string, unknown>>(record: T): T {
   const clean = {} as T;

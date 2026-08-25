@@ -74,13 +74,31 @@ export function emptyAgentCommissionBook(): AgentCommissionBook {
   return { deposits: 0, withdrawals: 0, cashHeld: 0, stakes: 0, wins: 0, commissionableGgr: 0 };
 }
 
+/** Owning marketer plus every ancestor — never miss parentId-only customers. */
+export function agentIdsForPlayer(
+  player: { parentId?: string | null; ancestors?: string[] | null }
+): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const add = (id: string | null | undefined) => {
+    const v = String(id || "").trim();
+    if (!v || seen.has(v)) return;
+    seen.add(v);
+    ids.push(v);
+  };
+  if (Array.isArray(player.ancestors)) {
+    for (const id of player.ancestors) add(id);
+  }
+  add(player.parentId);
+  return ids;
+}
+
 export function playerLinkedToAgent(
   player: { parentId?: string | null; ancestors?: string[] | null },
   agentId: string
 ): boolean {
   if (!agentId) return false;
-  if (player.parentId === agentId) return true;
-  return Array.isArray(player.ancestors) && player.ancestors.includes(agentId);
+  return agentIdsForPlayer(player).includes(agentId);
 }
 
 export function addPlayerToAgentBook(

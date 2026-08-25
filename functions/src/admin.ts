@@ -23,6 +23,7 @@ import { parseCommissionRate } from "./commissionRate";
 import { isAgentRole } from "./roles";
 import { claimSlug, createPlayerAccount, ensureAgentLoginDocs } from "./agent";
 import { assertValidPassword } from "./passwordPolicy";
+import { rtdbSuccessfulDepositsByCustomer } from "./paymentsRtdb";
 
 /** Route outbound QTech API calls through Cloud NAT static IP (QTech IP whitelist). */
 const QTECH_OUTBOUND = {
@@ -1379,6 +1380,8 @@ export const adminBackfillPlayerAccountStats = onCall(
       }
     }
 
+    const rtdbByCustomer = await rtdbSuccessfulDepositsByCustomer();
+
     // Only players: agent totalBets/totalWins are customer GGR aggregates.
     const playersSnap = await db.collection("users").where("role", "==", "player").get();
     const playerIds = new Set(playersSnap.docs.map((d) => d.id));
@@ -1484,7 +1487,10 @@ export const adminBackfillPlayerAccountStats = onCall(
         const row = byAgent.get(agentId)!;
         row.totalBets = round2(row.totalBets + cashBets);
         row.totalWins = round2(row.totalWins + totals.totalWins);
-        row.customerDeposits = round2(row.customerDeposits + totals.totalDeposits);
+        row.customerDeposits = round2(
+          row.customerDeposits +
+            Math.max(totals.totalDeposits, rtdbByCustomer.get(playerDoc.id) ?? 0)
+        );
         row.customerWithdrawals = round2(row.customerWithdrawals + totals.totalWithdrawals);
         row.customerCashHeld = round2(row.customerCashHeld + cashHeld);
       }

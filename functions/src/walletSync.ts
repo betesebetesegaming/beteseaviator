@@ -3,7 +3,17 @@
  * `users.wallet_balance` (same field betesepmu uses).
  */
 import { applyDepositBonuses } from "./bonuses";
-import { bumpDailyStats, bumpPlatformStats, db, getSettings, todayIso, walletRead, walletWrite } from "./helpers";
+import {
+  agentIdsForPlayer,
+  bumpDailyStats,
+  bumpPlatformStats,
+  creditAgentCustomerDeposits,
+  db,
+  getSettings,
+  todayIso,
+  walletRead,
+  walletWrite,
+} from "./helpers";
 import { recordDepositPlaythrough } from "./wagering";
 import { onReferralDeposit } from "./referrals";
 import { maybeActivateSmartBonus } from "./smartBonus";
@@ -54,6 +64,8 @@ export async function syncAviatorWalletCredit(
       description: `Deposit via ModemPay (${externalRef})`,
       meta: { externalRef, source: "modempay" },
     });
+
+    creditAgentCustomerDeposits(tx, agentIdsForPlayer(userSnap.data() ?? {}), amount);
 
     recordDepositPlaythrough(tx, uid, wallet, amount);
 

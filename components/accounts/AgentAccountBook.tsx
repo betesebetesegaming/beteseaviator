@@ -5,6 +5,7 @@ import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAgentCustomerIds } from "@/lib/hooks/useAgentCustomerIds";
+import { useAgentLinkedPlayers } from "@/lib/hooks/useAgentLinkedPlayers";
 import { getOperationsHub, type OperationsHubResponse, errorMessage } from "@/lib/api";
 import { subscribeDeposits, subscribeWithdrawals } from "@/lib/payments/rtdbClient";
 import type { RtdbDepositRecord, RtdbWithdrawalRecord } from "@/lib/payments/rtdbRecords";
@@ -13,7 +14,7 @@ import {
   filterModemPayWithdrawals,
   sumModemPayAmount,
 } from "@/lib/modemPayAccounting";
-import { agentOfficeFigures, ggrBookDeposits } from "@/lib/agentDepositSales";
+import { agentOfficeFigures, allLinkDeposits, ggrBookDeposits, successfulDepositsByAgent } from "@/lib/agentDepositSales";
 import { monthRangeIso, sumAgentCommissions, sumAgentGgr, weekRangeIso } from "@/lib/ggrAccounting";
 import { formatDate, formatXof, todayIso } from "@/lib/format";
 import { isOtcCashMeta } from "@/lib/transactionChannel";
@@ -93,6 +94,7 @@ export function AgentAccountBook() {
   const { profile, wallet } = useAuth();
   const agentId = profile?.uid;
   const { customerIds } = useAgentCustomerIds(agentId);
+  const linkedPlayers = useAgentLinkedPlayers(agentId);
   const [period, setPeriod] = useState<PeriodKey>("today");
   const bounds = useMemo(() => periodBounds(period), [period]);
   const today = useMemo(() => todayIso(), []);
@@ -122,17 +124,10 @@ export function AgentAccountBook() {
       setCustomers(null);
       return;
     }
-    const q = query(
-      collection(db, "users"),
-      where("role", "==", "player"),
-      where("ancestors", "array-contains", agentId),
-    );
-    return onSnapshot(q, (snap) => {
-      const rows = snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as UserProfile);
-      rows.sort((a, b) => a.name.localeCompare(b.name));
-      setCustomers(rows);
-    });
-  }, [agentId]);
+    if (!linkedPlayers) return;
+    const rows = [...linkedPlayers].sort((a, b) => a.name.localeCompare(b.name));
+    setCustomers(rows);
+  }, [agentId, linkedPlayers]);
 
   useEffect(() => {
     if (!customers || customers.length === 0) {
@@ -162,7 +157,7 @@ export function AgentAccountBook() {
   }, [customers]);
 
   useEffect(() => {
-    const unsubD = subscribeDeposits(undefined, setDeposits);
+    const unsubD = subscribeDeposits(undefined, setDeposits, { maxRows: 0 });
     const unsubW = subscribeWithdrawals(undefined, setWithdrawals);
     return () => {
       unsubD();
@@ -274,6 +269,19 @@ export function AgentAccountBook() {
   const periodGgrCredited = commissions ? sumAgentGgr(commissions) : 0;
   const periodCommissionCredited = commissions ? sumAgentCommissions(commissions) : null;
   const { book: liveBook } = useAgentCommissionBook(agentId);
+  const playerAgents = useMemo(() => {
+    const map = new Map<string, string[]>();
+    if (!agentId || !customerIds) return map;
+    for (const id of customerIds) map.set(id, [agentId]);
+    return map;
+  }, [agentId, customerIds]);
+  const waveLifetime =
+    agentId ? successfulDepositsByAgent(deposits, playerAgents).get(agentId) ?? 0 : 0;
+  const linkDeposits = allLinkDeposits({
+    waveLifetime,
+    bookDeposits: liveBook?.deposits,
+    storedDeposits: profile?.stats?.customerDeposits,
+  });
   const lifetimeDeposits = ggrBookDeposits(
     liveBook?.deposits ?? 0,
     profile?.stats?.customerDeposits ?? 0
@@ -289,8 +297,8 @@ export function AgentAccountBook() {
   const liveKind: GgrPeriodKind = period === "today" ? "day" : period;
   const liveGgr = agentPeriodGgr(liveKind, lifetimeGgr, profile?.stats, periodGgrCredited);
   const office = agentOfficeFigures({
-    bookDeposits: liveBook?.deposits,
-    storedDeposits: profile?.stats?.customerDeposits,
+    bookDeposits: linkDeposits,
+    storedDeposits: linkDeposits,
     bookStakes: liveBook?.stakes,
     storedBets: profile?.stats?.totalBets,
     bookWins: liveBook?.wins,

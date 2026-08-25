@@ -66,7 +66,7 @@ export {
   adminSaveQTechSettings,
   adminRunQTechCwTest,
 } from "./admin";
-export { processCommissions, adminRunCommissions } from "./commissions";
+export { processCommissions, adminRunCommissions, reconcileMarketerDepositBooks } from "./commissions";
 export {
   runSmartBonusAnalysis,
   adminRunSmartBonusAnalysis,

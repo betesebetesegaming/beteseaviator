@@ -10,6 +10,8 @@ export interface UserProfile {
   phone: string | null; // normalized digits
   role: Role;
   parentId: string | null; // owning agent uid (players)
+  /** Agent uids this player is credited to (parent + upline). */
+  ancestors?: string[] | null;
   agentSlug: string | null; // agent username, referral code, subdomain
   staffLoginId?: string | null; // admin username login id
   /** Sequential office ID — display as BTE-00001. */

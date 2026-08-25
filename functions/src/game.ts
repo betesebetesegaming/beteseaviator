@@ -15,6 +15,7 @@ import {
   bumpDailyStats,
   bumpPlatformStats,
   creditAgentCustomerPlay,
+  agentIdsForPlayer,
   sweepStalePresence,
 } from "./helpers";
 import { applyBetWagering } from "./wagering";
@@ -379,6 +380,7 @@ export const placeBet = onCall(async (req) => {
       meta: { gameId, roundId: round.roundId, sessionId: sessionRef.id },
     });
     applyBetWagering(tx, uid, wallet, betAmount, fromBonus, settings);
+    const linkedAgents = agentIdsForPlayer(profile);
     tx.set(sessionRef, {
       playerId: uid,
       gameId,
@@ -389,12 +391,12 @@ export const placeBet = onCall(async (req) => {
       status: "active",
       roundId: round.roundId,
       provablyFairHash: round.hash,
-      ancestors: profile.ancestors ?? [],
+      ancestors: linkedAgents,
       createdAt: FieldValue.serverTimestamp(),
     });
     bumpDailyStats(tx, date, { bets: betAmount, sessions: 1 });
     bumpPlatformStats(tx, { totalBets: betAmount });
-    creditAgentCustomerPlay(tx, profile.ancestors ?? [], uid, date, { cashBets: fromCash });
+    creditAgentCustomerPlay(tx, linkedAgents, uid, date, { cashBets: fromCash });
   });
 
   return { sessionId: sessionRef.id, roundId: round.roundId, hash: round.hash };

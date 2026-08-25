@@ -123,7 +123,7 @@ export default function AdminSettingsPage() {
     try {
       const res = await adminBackfillPlayerAccountStats({});
       toast.success(
-        `Account books rebuilt — ${res.usersUpdated} players and ${res.agentsUpdated ?? 0} agents from ${res.transactionsScanned} ledger rows.`
+        `Account books rebuilt — ${res.usersUpdated} players and ${res.agentsUpdated ?? 0} agents. Deposits were never reduced.`
       );
     } catch (e) {
       toast.error(errorMessage(e));
@@ -443,7 +443,7 @@ export default function AdminSettingsPage() {
       >
         {rebuildingCustomers
           ? "Rebuilding customer books…"
-          : "Rebuild customer account books (deposits / played / win-loss)"}
+          : "Rebuild customer account books (Wave + wallet deposits, never reduced)"}
       </Button>
     </div>
   );

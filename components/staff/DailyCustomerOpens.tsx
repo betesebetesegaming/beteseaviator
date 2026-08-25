@@ -9,8 +9,10 @@ import { todayIso, formatXof } from "@/lib/format";
 import { agentPeriodGgr } from "@/lib/agentPeriodGgr";
 import {
   agentOfficeFigures,
+  allLinkDeposits,
   firstDepositQualify,
   ggrBookDeposits,
+  successfulDepositsByAgent,
 } from "@/lib/agentDepositSales";
 import {
   calendarMonthRangeIso,
@@ -22,13 +24,16 @@ import {
 import {
   addPlayerToAgentBook,
   agentCommissionDue,
+  agentIdsForPlayer,
   commissionableGgr,
   emptyAgentCommissionBook,
   finalizeAgentBook,
-  playerLinkedToAgent,
   type AgentCommissionBook,
 } from "@/lib/platformFinancials";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
+import { useLedgerDeposits } from "@/lib/hooks/useLedgerDeposits";
+import { subscribeDeposits } from "@/lib/payments/rtdbClient";
+import type { RtdbDepositRecord } from "@/lib/payments/rtdbRecords";
 import {
   DEFAULT_SETTINGS,
   type AgentDailyStats,
@@ -87,6 +92,11 @@ export function AdminDailyCustomerOpens() {
   const [opensByAgent, setOpensByAgent] = useState<Map<string, number> | null>(null);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [commissions, setCommissions] = useState<Commission[] | null>(null);
+  const [waveDeposits, setWaveDeposits] = useState<RtdbDepositRecord[]>([]);
+  const [periodPlay, setPeriodPlay] = useState<Map<string, { played: number; wins: number }>>(
+    () => new Map()
+  );
+  const { deposits: ledgerDeposits } = useLedgerDeposits({ all: true });
 
   const selectedMonth = useMemo(() => calendarMonthRangeIso(monthKey), [monthKey]);
   const isLive = periodKind === "live";
@@ -131,6 +141,10 @@ export function AdminDailyCustomerOpens() {
   }, [today]);
 
   useEffect(() => {
+    return subscribeDeposits(undefined, setWaveDeposits, { maxRows: 0 });
+  }, []);
+
+  useEffect(() => {
     const statsQuery = query(
       collection(db, "agentDailyStats"),
       where("date", ">=", isLive ? month.from : periodFrom),
@@ -163,6 +177,41 @@ export function AdminDailyCustomerOpens() {
     });
   }, [periodFrom, periodTo]);
 
+  useEffect(() => {
+    if (isLive) {
+      setPeriodPlay(new Map());
+      return;
+    }
+    const q = query(
+      collection(db, "agentDailyGgr"),
+      where("date", ">=", periodFrom),
+      where("date", "<=", periodTo)
+    );
+    return onSnapshot(
+      q,
+      (snap) => {
+        const map = new Map<string, { played: number; wins: number }>();
+        for (const d of snap.docs) {
+          const row = d.data() as { agentId?: string; bets?: number; wins?: number };
+          const id = String(row.agentId || "");
+          if (!id) continue;
+          const cur = map.get(id) ?? { played: 0, wins: 0 };
+          cur.played += Number(row.bets ?? 0);
+          cur.wins += Number(row.wins ?? 0);
+          map.set(id, cur);
+        }
+        for (const [id, row] of map) {
+          map.set(id, {
+            played: Math.round(row.played * 100) / 100,
+            wins: Math.round(row.wins * 100) / 100,
+          });
+        }
+        setPeriodPlay(map);
+      },
+      () => setPeriodPlay(new Map())
+    );
+  }, [isLive, periodFrom, periodTo]);
+
   const rows = useMemo<AgentOpenRow[] | null>(() => {
     if (!agents || !opensByAgent) return null;
     return agents
@@ -176,37 +225,107 @@ export function AdminDailyCustomerOpens() {
 
   const booksByAgent = useMemo(() => {
     const map = new Map<string, AgentCommissionBook>();
-    if (!agents || !players) return map;
-    for (const a of agents) map.set(a.uid, emptyAgentCommissionBook());
+    const counts = new Map<string, number>();
+    if (!agents || !players) return { books: map, counts };
+    for (const a of agents) {
+      map.set(a.uid, emptyAgentCommissionBook());
+      counts.set(a.uid, 0);
+    }
     for (const p of players) {
-      for (const a of agents) {
-        if (!playerLinkedToAgent(p, a.uid)) continue;
-        addPlayerToAgentBook(map.get(a.uid)!, p.stats);
+      for (const agentId of agentIdsForPlayer(p)) {
+        const book = map.get(agentId);
+        if (!book) continue;
+        addPlayerToAgentBook(book, p.stats);
+        counts.set(agentId, (counts.get(agentId) ?? 0) + 1);
       }
     }
     for (const [id, book] of map) map.set(id, finalizeAgentBook(book));
-    return map;
+    return { books: map, counts };
   }, [agents, players]);
+
+  const playerAgents = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const p of players ?? []) {
+      const ids = agentIdsForPlayer(p);
+      if (ids.length > 0) map.set(p.uid, ids);
+    }
+    return map;
+  }, [players]);
+
+  const ledgerByAgent = useMemo(
+    () => successfulDepositsByAgent(ledgerDeposits ?? [], playerAgents),
+    [ledgerDeposits, playerAgents]
+  );
+  const waveByAgent = useMemo(
+    () => successfulDepositsByAgent(waveDeposits, playerAgents),
+    [waveDeposits, playerAgents]
+  );
+  const periodLedgerByAgent = useMemo(
+    () => successfulDepositsByAgent(ledgerDeposits ?? [], playerAgents, periodFrom, periodTo),
+    [ledgerDeposits, playerAgents, periodFrom, periodTo]
+  );
+  const periodWaveByAgent = useMemo(
+    () => successfulDepositsByAgent(waveDeposits, playerAgents, periodFrom, periodTo),
+    [waveDeposits, playerAgents, periodFrom, periodTo]
+  );
 
   const officeByAgent = useMemo(() => {
     const map = new Map<string, ReturnType<typeof agentOfficeFigures>>();
     if (!agents) return map;
     for (const a of agents) {
-      const book = booksByAgent.get(a.uid);
+      const book = booksByAgent.books.get(a.uid);
+      const lifetimeDeposits = allLinkDeposits({
+        ledgerLifetime: ledgerByAgent.get(a.uid) ?? 0,
+        waveLifetime: waveByAgent.get(a.uid) ?? 0,
+        bookDeposits: book?.deposits,
+        storedDeposits: a.stats?.customerDeposits,
+      });
+      const periodDeposits = allLinkDeposits({
+        ledgerLifetime: periodLedgerByAgent.get(a.uid) ?? 0,
+        waveLifetime: periodWaveByAgent.get(a.uid) ?? 0,
+      });
+      const play = periodPlay.get(a.uid);
       map.set(
         a.uid,
         agentOfficeFigures({
-          bookDeposits: book?.deposits,
-          storedDeposits: a.stats?.customerDeposits,
-          bookStakes: book?.stakes,
-          storedBets: a.stats?.totalBets,
-          bookWins: book?.wins,
-          storedWins: a.stats?.totalWins,
+          bookDeposits: isLive ? lifetimeDeposits : periodDeposits,
+          storedDeposits: isLive ? lifetimeDeposits : periodDeposits,
+          bookStakes: isLive ? book?.stakes : play?.played,
+          storedBets: isLive ? a.stats?.totalBets : play?.played,
+          bookWins: isLive ? book?.wins : play?.wins,
+          storedWins: isLive ? a.stats?.totalWins : play?.wins,
         })
       );
     }
     return map;
-  }, [agents, booksByAgent]);
+  }, [
+    agents,
+    booksByAgent,
+    ledgerByAgent,
+    waveByAgent,
+    periodLedgerByAgent,
+    periodWaveByAgent,
+    periodPlay,
+    isLive,
+  ]);
+
+  const lifetimeDepositsByAgent = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!agents) return map;
+    for (const a of agents) {
+      const book = booksByAgent.books.get(a.uid);
+      map.set(
+        a.uid,
+        allLinkDeposits({
+          ledgerLifetime: ledgerByAgent.get(a.uid) ?? 0,
+          waveLifetime: waveByAgent.get(a.uid) ?? 0,
+          bookDeposits: book?.deposits,
+          storedDeposits: a.stats?.customerDeposits,
+        })
+      );
+    }
+    return map;
+  }, [agents, booksByAgent, ledgerByAgent, waveByAgent]);
 
   const agentTotalToday = useMemo(
     () => rows?.reduce((sum, r) => sum + r.customersOpened, 0) ?? 0,
@@ -264,7 +383,7 @@ export function AdminDailyCustomerOpens() {
     };
   }, [periodLedger, bookDepositsTotal, agentTotalToday]);
 
-  if (platformToday === null || rows === null || players === null) {
+  if (platformToday === null || rows === null || players === null || ledgerDeposits === null) {
     return (
       <Card className="flex items-center justify-center p-8">
         <Spinner />
@@ -283,7 +402,7 @@ export function AdminDailyCustomerOpens() {
           <StatCard
             label="Marketer deposits"
             value={formatXof(bookDepositsTotal)}
-            hint={`same book they see · qualify at ${formatXof(qualifyAt)}`}
+            hint={`every payment on their links · qualify at ${formatXof(qualifyAt)}`}
             icon={<Banknote size={20} />}
           />
           <StatCard
@@ -308,7 +427,7 @@ export function AdminDailyCustomerOpens() {
           <StatCard
             label={`Deposits · ${periodLabel}`}
             value={formatXof(periodTotals.deposits)}
-            hint={`marketer books · qualify at ${formatXof(qualifyAt)}`}
+            hint={`payments in this window · qualify at ${formatXof(qualifyAt)}`}
             icon={<Banknote size={20} />}
           />
           <StatCard
@@ -341,8 +460,8 @@ export function AdminDailyCustomerOpens() {
               </h2>
               <p className="text-sm text-slate-400">
                 {isLive
-                  ? `Deposits, played, wins, and profit/GGR match each marketer's own account and the operations book. Qualify at ${formatXof(qualifyAt)} deposits. ${pct}% is of this month's GGR profit only.`
-                  : `Closed period (${periodFrom} → ${periodTo}). Deposits are the same lifetime book. Period GGR ${pct}% is profit credited in that window.`}
+                  ? `Deposits count every Wave and wallet payment on each marketer's link. Played, wins, and profit update as customers play. Qualify at ${formatXof(qualifyAt)} deposits. ${pct}% is of this month's GGR profit only.`
+                  : `This window only (${periodFrom} → ${periodTo}) — deposits, played, and wins change with the period. Qualify still uses lifetime deposits. Period GGR ${pct}% is profit credited in that window.`}
               </p>
             </div>
             <div className="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:items-end lg:w-auto">
@@ -414,9 +533,11 @@ export function AdminDailyCustomerOpens() {
                 })
                 .map((r) => {
                   const agent = agents!.find((a) => a.uid === r.uid);
-                  const lifetime = agent?.stats?.customerCount ?? 0;
-                  const book = booksByAgent.get(r.uid);
+                  const linked = booksByAgent.counts.get(r.uid) ?? 0;
+                  const lifetime = Math.max(agent?.stats?.customerCount ?? 0, linked);
+                  const book = booksByAgent.books.get(r.uid);
                   const office = officeByAgent.get(r.uid) ?? agentOfficeFigures({});
+                  const lifetimeDeposits = lifetimeDepositsByAgent.get(r.uid) ?? office.deposits;
                   const bookDeposits = ggrBookDeposits(
                     book?.deposits ?? 0,
                     agent?.stats?.customerDeposits ?? 0
@@ -432,7 +553,7 @@ export function AdminDailyCustomerOpens() {
                     credited?.month ?? 0
                   );
                   const rate = settings.agentRate ?? 0.05;
-                  const q = firstDepositQualify(office.deposits, qualifyAt);
+                  const q = firstDepositQualify(lifetimeDeposits, qualifyAt);
                   return (
                     <tr key={r.uid}>
                       <Td className="font-medium">{r.name}</Td>
@@ -496,12 +617,16 @@ export function AdminDailyCustomerOpens() {
                 })
                 .map((r) => {
                   const agent = agents!.find((a) => a.uid === r.uid);
-                  const lifetime = agent?.stats?.customerCount ?? 0;
+                  const linked = booksByAgent.counts.get(r.uid) ?? 0;
+                  const lifetime = Math.max(agent?.stats?.customerCount ?? 0, linked);
                   const ledger = periodLedger.get(r.uid);
                   const ggr = ledger?.ggr ?? 0;
                   const commission = ledger?.commission ?? 0;
                   const office = officeByAgent.get(r.uid) ?? agentOfficeFigures({});
-                  const q = firstDepositQualify(office.deposits, qualifyAt);
+                  const q = firstDepositQualify(
+                    lifetimeDepositsByAgent.get(r.uid) ?? office.deposits,
+                    qualifyAt
+                  );
                   return (
                     <tr key={r.uid}>
                       <Td className="font-medium">{r.name}</Td>

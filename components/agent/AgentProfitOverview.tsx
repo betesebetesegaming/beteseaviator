@@ -6,7 +6,13 @@ import { collection, doc, onSnapshot, orderBy, query, where } from "firebase/fir
 import { db } from "@/lib/firestore";
 import { formatXof } from "@/lib/format";
 import { agentPeriodGgr } from "@/lib/agentPeriodGgr";
-import { agentOfficeFigures, firstDepositQualify, ggrBookDeposits } from "@/lib/agentDepositSales";
+import {
+  allLinkDeposits,
+  agentOfficeFigures,
+  firstDepositQualify,
+  ggrBookDeposits,
+} from "@/lib/agentDepositSales";
+import { useAgentDepositSales } from "@/lib/hooks/useAgentDepositSales";
 import { monthRangeIso, weekRangeIso } from "@/lib/ggrAccounting";
 import { agentCommissionDue, commissionableGgr } from "@/lib/platformFinancials";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
@@ -31,6 +37,7 @@ export function AgentProfitOverview({
   rate?: number;
 }) {
   const { book, customerCount } = useAgentCommissionBook(agentId);
+  const { linkDeposits } = useAgentDepositSales(agentId);
   const month = useMemo(() => monthRangeIso(), []);
   const week = useMemo(() => weekRangeIso(), []);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
@@ -77,10 +84,15 @@ export function AgentProfitOverview({
     );
   }
 
-  const bookDeposits = ggrBookDeposits(book.deposits, storedDeposits ?? 0);
-  const office = agentOfficeFigures({
+  const deposits = allLinkDeposits({
+    ledgerLifetime: linkDeposits,
     bookDeposits: book.deposits,
     storedDeposits: storedDeposits ?? 0,
+  });
+  const bookDeposits = ggrBookDeposits(book.deposits, storedDeposits ?? 0);
+  const office = agentOfficeFigures({
+    bookDeposits: deposits,
+    storedDeposits: deposits,
     bookStakes: book.stakes,
     storedBets: anchors?.totalBets ?? 0,
     bookWins: book.wins,
@@ -104,7 +116,7 @@ export function AgentProfitOverview({
         </p>
         <p className="mt-2 text-3xl font-bold tabular-nums text-white">{formatXof(office.deposits)}</p>
         <p className="mt-1 text-sm text-slate-300">
-          Money customers put in on your link — the same deposit total staff see for your account.
+          Money customers put in on your link — Wave and wallet, the same total staff see.
           BETESE first-deposit pay only if this reaches {formatXof(q.threshold)}.
         </p>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-950/50">

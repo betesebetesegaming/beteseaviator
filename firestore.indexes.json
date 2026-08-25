@@ -182,13 +182,13 @@
       ]
     },
     {
-      "collectionGroup": "agentDailyStats",
+      "collectionGroup": "agentDailyGgr",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "date", "order": "ASCENDING" },
         { "fieldPath": "agentId", "order": "ASCENDING" }
       ]
-    }
+    },
   ],
   "fieldOverrides": []
 }

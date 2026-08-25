@@ -10,6 +10,7 @@ import {
   bumpDailyStats,
   bumpPlatformStats,
   creditAgentCustomerPlay,
+  agentIdsForPlayer,
   todayIso,
 } from "../helpers";
 import { applyBetWagering } from "../wagering";
@@ -244,11 +245,11 @@ export async function processWithdrawal(
       });
       applyBetWagering(tx, playerId, wallet, amount, fromBonus, settings);
 
-      const ancestors = (userSnap.data()?.ancestors as string[]) || [];
+      const linkedAgents = agentIdsForPlayer(userSnap.data() ?? {});
       const date = todayIso();
       bumpPlatformStats(tx, { totalBets: amount });
       bumpDailyStats(tx, date, { bets: amount });
-      creditAgentCustomerPlay(tx, ancestors, playerId, date, { cashBets: fromCash });
+      creditAgentCustomerPlay(tx, linkedAgents, playerId, date, { cashBets: fromCash });
       const qtechGameId = String(body.gameId ?? "").trim();
       if (qtechGameId) {
         const { qtechGameDocId } = await import("../gameCatalog");
@@ -357,11 +358,11 @@ export async function processDeposit(
         },
       });
 
-      const ancestors = (userSnap.data()?.ancestors as string[]) || [];
+      const linkedAgents = agentIdsForPlayer(userSnap.data() ?? {});
       const date = todayIso();
       bumpPlatformStats(tx, { totalWins: amount });
       bumpDailyStats(tx, date, { wins: amount });
-      creditAgentCustomerPlay(tx, ancestors, playerId, date, { wins: amount });
+      creditAgentCustomerPlay(tx, linkedAgents, playerId, date, { wins: amount });
     }
 
     balanceAfter = playableBalance(wallet);
@@ -446,11 +447,11 @@ export async function processRollback(
       const reverseCash =
         Number.isFinite(storedCash) && storedCash >= 0 ? storedCash : amount;
       if (reverseCash > 0) {
-        const ancestors = (userSnap.data()?.ancestors as string[]) || [];
+        const linkedAgents = agentIdsForPlayer(userSnap.data() ?? {});
         const created = withdrawal.createdAt as { toDate?: () => Date } | undefined;
         const date =
           created && typeof created.toDate === "function" ? todayIso(created.toDate()) : todayIso();
-        creditAgentCustomerPlay(tx, ancestors, playerId, date, { cashBets: -reverseCash });
+        creditAgentCustomerPlay(tx, linkedAgents, playerId, date, { cashBets: -reverseCash });
       }
     }
     balanceAfter = playableBalance(wallet);

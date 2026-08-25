@@ -652,6 +652,26 @@ export function betCashStake(
   return abs;
 }
 
+/** Owning marketer plus every ancestor — never miss parentId-only customers. */
+export function agentIdsForPlayer(player: {
+  parentId?: string | null;
+  ancestors?: string[] | null;
+}): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const add = (id: string | null | undefined) => {
+    const v = String(id || "").trim();
+    if (!v || seen.has(v)) return;
+    seen.add(v);
+    ids.push(v);
+  };
+  if (Array.isArray(player.ancestors)) {
+    for (const id of player.ancestors) add(id);
+  }
+  add(player.parentId);
+  return ids;
+}
+
 /** Increment an agent's dashboard stats (inside a transaction). */
 export function bumpAgentStats(
   tx: FirebaseFirestore.Transaction,
@@ -664,6 +684,24 @@ export function bumpAgentStats(
   }
   if (Object.keys(updates).length > 0) {
     tx.update(db.doc(`users/${agentId}`), updates);
+  }
+}
+
+/** Credit a customer deposit onto every marketer on the player's link. */
+export function creditAgentCustomerDeposits(
+  tx: FirebaseFirestore.Transaction,
+  agentIds: string[],
+  amount: number
+): void {
+  const amt = round2(Math.abs(Number(amount) || 0));
+  if (amt <= 0) return;
+  for (const agentId of agentIds) {
+    if (!agentId) continue;
+    tx.set(
+      db.doc(`users/${agentId}`),
+      { stats: { customerDeposits: FieldValue.increment(amt) } },
+      { merge: true }
+    );
   }
 }
 

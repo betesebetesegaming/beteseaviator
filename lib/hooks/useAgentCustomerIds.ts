@@ -1,36 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { db } from "@/lib/firestore";
+import { useMemo } from "react";
+import { useAgentLinkedPlayers } from "@/lib/hooks/useAgentLinkedPlayers";
 
-/** Player UIDs attached to an agent (ancestors contains agent). */
+/** Player UIDs attached to an agent (ancestors or parentId). */
 export function useAgentCustomerIds(agentId: string | undefined) {
-  const [customerIds, setCustomerIds] = useState<Set<string> | null>(null);
-  const [customerNames, setCustomerNames] = useState<Map<string, string>>(new Map());
+  const players = useAgentLinkedPlayers(agentId);
 
-  useEffect(() => {
-    if (!agentId) {
-      setCustomerIds(null);
-      setCustomerNames(new Map());
-      return;
-    }
-    const q = query(
-      collection(db, "users"),
-      where("role", "==", "player"),
-      where("ancestors", "array-contains", agentId)
-    );
-    return onSnapshot(q, (snap) => {
-      const ids = new Set<string>();
-      const names = new Map<string, string>();
-      for (const doc of snap.docs) {
-        ids.add(doc.id);
-        names.set(doc.id, String(doc.data().name || "Customer"));
-      }
-      setCustomerIds(ids);
-      setCustomerNames(names);
-    });
-  }, [agentId]);
+  const customerIds = useMemo(() => {
+    if (!players) return null;
+    return new Set(players.map((p) => p.uid));
+  }, [players]);
+
+  const customerNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const p of players ?? []) names.set(p.uid, String(p.name || "Customer"));
+    return names;
+  }, [players]);
 
   return { customerIds, customerNames };
 }

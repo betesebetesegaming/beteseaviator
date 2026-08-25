@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  collection,
-  documentId,
-  getDocs,
-  onSnapshot,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, documentId, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firestore";
 import {
   addPlayerToAgentBook,
@@ -16,6 +9,7 @@ import {
   finalizeAgentBook,
   type AgentCommissionBook,
 } from "@/lib/platformFinancials";
+import { useAgentLinkedPlayers } from "@/lib/hooks/useAgentLinkedPlayers";
 
 /** Live cash for linked players. Falls back to stats.walletCash when a wallet doc is missing. */
 async function liveWalletCashByPlayer(playerIds: string[]): Promise<Map<string, number> | null> {
@@ -39,6 +33,7 @@ async function liveWalletCashByPlayer(playerIds: string[]): Promise<Map<string, 
 
 /** Live commission book for one marketer from players on their link. */
 export function useAgentCommissionBook(agentId: string | undefined) {
+  const players = useAgentLinkedPlayers(agentId);
   const [book, setBook] = useState<AgentCommissionBook | null>(null);
   const [customerCount, setCustomerCount] = useState(0);
 
@@ -48,48 +43,34 @@ export function useAgentCommissionBook(agentId: string | undefined) {
       setCustomerCount(0);
       return;
     }
+    if (!players) {
+      setBook(null);
+      return;
+    }
     let cancelled = false;
-    let gen = 0;
-    const q = query(
-      collection(db, "users"),
-      where("role", "==", "player"),
-      where("ancestors", "array-contains", agentId)
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const thisGen = ++gen;
-        const acc = emptyAgentCommissionBook();
-        const ids: string[] = [];
-        for (const d of snap.docs) {
-          ids.push(d.id);
-          addPlayerToAgentBook(acc, d.data().stats);
+    const acc = emptyAgentCommissionBook();
+    const ids: string[] = [];
+    for (const p of players) {
+      ids.push(p.uid);
+      addPlayerToAgentBook(acc, p.stats);
+    }
+    void liveWalletCashByPlayer(ids).then((liveMap) => {
+      if (cancelled) return;
+      if (liveMap) {
+        acc.cashHeld = 0;
+        for (const p of players) {
+          const live = liveMap.get(p.uid);
+          acc.cashHeld +=
+            live != null ? live : Math.max(0, Number(p.stats?.walletCash ?? 0));
         }
-        void liveWalletCashByPlayer(ids).then((liveMap) => {
-          if (cancelled || thisGen !== gen) return;
-          if (liveMap) {
-            acc.cashHeld = 0;
-            for (const d of snap.docs) {
-              const live = liveMap.get(d.id);
-              acc.cashHeld +=
-                live != null ? live : Math.max(0, Number(d.data()?.stats?.walletCash ?? 0));
-            }
-          }
-          setCustomerCount(snap.size);
-          setBook(finalizeAgentBook(acc));
-        });
-      },
-      () => {
-        if (cancelled) return;
-        setCustomerCount(0);
-        setBook(finalizeAgentBook(emptyAgentCommissionBook()));
       }
-    );
+      setCustomerCount(players.length);
+      setBook(finalizeAgentBook(acc));
+    });
     return () => {
       cancelled = true;
-      unsub();
     };
-  }, [agentId]);
+  }, [agentId, players]);
 
   return { book, customerCount };
 }

@@ -204,6 +204,31 @@ export function getSales(
   return map.get(agentId) ?? emptyDepositSales();
 }
 
+/** Successful deposits on each marketer link (Wave and/or ledger). */
+export function successfulDepositsByAgent(
+  rows: RtdbDepositRecord[],
+  playerAgents: Map<string, string[]>,
+  from?: string,
+  to?: string
+): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    if (!isSuccessfulDeposit(row) || !row.customer_id) continue;
+    if (from && to) {
+      const iso = paymentIsoDate(row.timestamp);
+      if (!iso || iso < from || iso > to) continue;
+    }
+    const agents = playerAgents.get(row.customer_id);
+    if (!agents || agents.length === 0) continue;
+    const amt = Math.abs(Number(row.amount) || 0);
+    if (amt <= 0) continue;
+    for (const agentId of agents) {
+      map.set(agentId, round2((map.get(agentId) ?? 0) + amt));
+    }
+  }
+  return map;
+}
+
 /** Player-book deposits used for GGR. Do not mix this with ledger first+continue. */
 export function ggrBookDeposits(bookDeposits = 0, storedDeposits = 0): number {
   return round2(Math.max(Number(bookDeposits) || 0, Number(storedDeposits) || 0));
@@ -240,10 +265,13 @@ export function agentOfficeFigures(args: {
 /**
  * All money deposited on the marketer link (first payment + later top-ups).
  * Admin backend and the marketer's own account must show this same figure.
+ * Sources are MAX'd so Wave and the wallet ledger are not added twice.
  */
 export function allLinkDeposits(args: {
-  firstLifetime: number;
-  continueLifetime: number;
+  firstLifetime?: number;
+  continueLifetime?: number;
+  ledgerLifetime?: number;
+  waveLifetime?: number;
   bookDeposits?: number;
   storedDeposits?: number;
 }): number {
@@ -251,6 +279,8 @@ export function allLinkDeposits(args: {
     Math.max(
       Number(args.bookDeposits) || 0,
       Number(args.storedDeposits) || 0,
+      Number(args.ledgerLifetime) || 0,
+      Number(args.waveLifetime) || 0,
       (Number(args.firstLifetime) || 0) + (Number(args.continueLifetime) || 0)
     )
   );
