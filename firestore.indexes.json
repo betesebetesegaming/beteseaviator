@@ -188,7 +188,7 @@
         { "fieldPath": "date", "order": "ASCENDING" },
         { "fieldPath": "agentId", "order": "ASCENDING" }
       ]
-    },
+    }
   ],
   "fieldOverrides": []
 }
