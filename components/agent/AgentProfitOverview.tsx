@@ -37,7 +37,7 @@ export function AgentProfitOverview({
   rate?: number;
 }) {
   const { book, customerCount } = useAgentCommissionBook(agentId);
-  const { linkDeposits } = useAgentDepositSales(agentId);
+  const { linkDeposits, first } = useAgentDepositSales(agentId);
   const month = useMemo(() => monthRangeIso(), []);
   const week = useMemo(() => weekRangeIso(), []);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
@@ -106,7 +106,8 @@ export function AgentProfitOverview({
   const monthGgr = agentPeriodGgr("month", lifetimeGgr, anchors, credited.month);
   const monthShare = agentCommissionDue(monthGgr, rate);
   const pct = Math.round(rate * 100);
-  const q = firstDepositQualify(office.deposits, settings.firstDepositQualifyGmd ?? 40_000);
+  const firstHave = Math.max(first.lifetime, Number(anchors?.firstDeposits ?? 0));
+  const q = firstDepositQualify(firstHave, settings.firstDepositQualifyGmd ?? 40_000);
 
   return (
     <div className="space-y-4">
@@ -117,7 +118,8 @@ export function AgentProfitOverview({
         <p className="mt-2 text-3xl font-bold tabular-nums text-white">{formatXof(office.deposits)}</p>
         <p className="mt-1 text-sm text-slate-300">
           Money customers put in on your link — Wave and wallet, the same total staff see.
-          BETESE first-deposit pay only if this reaches {formatXof(q.threshold)}.
+          First-deposit pay uses each customer&apos;s first payment only. Qualify at{" "}
+          {formatXof(q.threshold)}.
         </p>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-950/50">
           <div
@@ -127,19 +129,25 @@ export function AgentProfitOverview({
         </div>
         <p className={`mt-2 text-sm font-semibold ${q.qualified ? "text-emerald-300" : "text-amber-200"}`}>
           {q.qualified
-            ? `Qualified for BETESE first-deposit pay (${formatXof(q.have)} / ${formatXof(q.threshold)})`
+            ? `Qualified for BETESE first-deposit pay (${formatXof(q.have)} / ${formatXof(q.threshold)} · ${first.lifetimeCount || anchors?.firstDepositCount || 0} first payments)`
             : (
                 <>
                   Not qualified yet —{" "}
-                  <span className="font-bold text-white">{formatXof(q.remaining)}</span> more deposits
-                  to reach {formatXof(q.threshold)}
+                  <span className="font-bold text-white">{formatXof(q.remaining)}</span> more first
+                  deposits to reach {formatXof(q.threshold)}
                 </>
               )}
         </p>
-        <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-5">
+        <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-6">
           <div className="rounded-lg border border-white/15 bg-slate-950/50 px-3 py-3">
             <dt className="text-[11px] font-bold uppercase tracking-wide text-amber-200/80">Deposits</dt>
             <dd className="mt-1 text-2xl font-bold tabular-nums text-white">{formatXof(office.deposits)}</dd>
+          </div>
+          <div className="rounded-lg border border-amber-400/30 bg-slate-950/50 px-3 py-3">
+            <dt className="text-[11px] font-bold uppercase tracking-wide text-amber-200/80">
+              First deposits
+            </dt>
+            <dd className="mt-1 text-2xl font-bold tabular-nums text-white">{formatXof(firstHave)}</dd>
           </div>
           <div className="rounded-lg bg-slate-950/40 px-3 py-3">
             <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Played</dt>

@@ -14,7 +14,7 @@ import {
   commissionableGgr,
   ggrPeriodAnchorUpdates,
   agentIdsForPlayer,
-  rtdbSuccessfulDepositsByCustomer,
+  customerPaymentFacts,
   type ProfileData,
 } from "./helpers";
 
@@ -67,7 +67,7 @@ export async function processCommissionsForDate(date: string): Promise<{
   const playerUids = playersSnap.docs.map((d) => d.id);
   const cashByPlayer = await walletCashByUid(playerUids);
 
-  const rtdbByCustomer = await rtdbSuccessfulDepositsByCustomer();
+  const facts = await customerPaymentFacts();
 
   type Book = { deposits: number; withdrawals: number; cashHeld: number; salesDeposits: number };
   const books = new Map<string, Book>();
@@ -81,7 +81,7 @@ export async function processCommissionsForDate(date: string): Promise<{
     const deposits = Number(stats.totalDeposits ?? 0);
     const withdrawals = Number(stats.totalWithdrawals ?? 0);
     const cashHeld = cashByPlayer.get(doc.id) ?? Number(stats.walletCash ?? 0);
-    const salesDeposits = round2(Math.max(deposits, rtdbByCustomer.get(doc.id) ?? 0));
+    const salesDeposits = round2(Math.max(deposits, facts.get(doc.id)?.lifetime ?? 0));
     for (const agentId of agentIdsForPlayer(player)) {
       const book = books.get(agentId);
       if (!book) continue;
@@ -210,49 +210,75 @@ export async function processCommissionsForDate(date: string): Promise<{
 }
 
 /**
- * Lift stored marketer deposit books to Wave + wallet work.
- * Never reduces a copied total.
+ * Lift stored marketer books from every Wave + wallet transaction.
+ * All-deposits never go down. First deposits are set to the true first payment
+ * per customer (earliest successful row).
  */
-export async function healMarketerSalesBooks(): Promise<{ agentsUpdated: number }> {
-  const [playersSnap, agentsSnap, rtdbByCustomer] = await Promise.all([
+export async function healMarketerSalesBooks(): Promise<{
+  agentsUpdated: number;
+  firstDepositsUpdated: number;
+}> {
+  const [playersSnap, agentsSnap, facts] = await Promise.all([
     db.collection("users").where("role", "==", "player").get(),
     db.collection("users").where("role", "in", ["agent", "super_agent", "sub_agent"]).get(),
-    rtdbSuccessfulDepositsByCustomer(),
+    customerPaymentFacts(),
   ]);
   const sales = new Map<string, number>();
+  const firstAmt = new Map<string, number>();
+  const firstCount = new Map<string, number>();
   const existingDeposits = new Map<string, number>();
   for (const d of agentsSnap.docs) {
     sales.set(d.id, 0);
+    firstAmt.set(d.id, 0);
+    firstCount.set(d.id, 0);
     existingDeposits.set(d.id, Number((d.data() as ProfileData).stats?.customerDeposits ?? 0));
   }
   for (const doc of playersSnap.docs) {
     const player = doc.data() as ProfileData;
+    const fact = facts.get(doc.id);
     const credited = round2(
-      Math.max(Number(player.stats?.totalDeposits ?? 0), rtdbByCustomer.get(doc.id) ?? 0)
+      Math.max(Number(player.stats?.totalDeposits ?? 0), fact?.lifetime ?? 0)
     );
-    if (credited <= 0) continue;
+    const first = round2(fact?.firstAmount ?? 0);
     for (const agentId of agentIdsForPlayer(player)) {
       if (!sales.has(agentId)) continue;
-      sales.set(agentId, round2((sales.get(agentId) ?? 0) + credited));
+      if (credited > 0) sales.set(agentId, round2((sales.get(agentId) ?? 0) + credited));
+      if (first > 0) {
+        firstAmt.set(agentId, round2((firstAmt.get(agentId) ?? 0) + first));
+        firstCount.set(agentId, (firstCount.get(agentId) ?? 0) + 1);
+      }
     }
   }
   let agentsUpdated = 0;
-  const entries = [...sales.entries()];
+  let firstDepositsUpdated = 0;
+  const entries = [...sales.keys()];
   const chunkSize = 400;
   for (let i = 0; i < entries.length; i += chunkSize) {
     const batch = db.batch();
     let writes = 0;
-    for (const [agentId, amount] of entries.slice(i, i + chunkSize)) {
-      const next = round2(Math.max(existingDeposits.get(agentId) ?? 0, amount));
-      if (next <= (existingDeposits.get(agentId) ?? 0) + 1e-9) continue;
-      batch.set(db.doc(`users/${agentId}`), { stats: { customerDeposits: next } }, { merge: true });
+    for (const agentId of entries.slice(i, i + chunkSize)) {
+      const nextSales = round2(Math.max(existingDeposits.get(agentId) ?? 0, sales.get(agentId) ?? 0));
+      const nextFirst = round2(firstAmt.get(agentId) ?? 0);
+      const nextCount = firstCount.get(agentId) ?? 0;
+      batch.set(
+        db.doc(`users/${agentId}`),
+        {
+          stats: {
+            customerDeposits: nextSales,
+            firstDeposits: nextFirst,
+            firstDepositCount: nextCount,
+          },
+        },
+        { merge: true }
+      );
       writes += 1;
       agentsUpdated += 1;
+      firstDepositsUpdated += 1;
     }
     if (writes > 0) await batch.commit();
   }
-  logger.info("healMarketerSalesBooks", { agentsUpdated });
-  return { agentsUpdated };
+  logger.info("healMarketerSalesBooks", { agentsUpdated, firstDepositsUpdated });
+  return { agentsUpdated, firstDepositsUpdated };
 }
 
 /** Daily at 01:00 (Dakar time): pay yesterday's commissions. */
@@ -268,7 +294,7 @@ export const processCommissions = onSchedule(
 
 /** Keep copied deposit totals complete during the day. */
 export const reconcileMarketerDepositBooks = onSchedule(
-  { schedule: "10 */4 * * *", timeZone: "Africa/Dakar", timeoutSeconds: 300, memory: "512MiB" },
+  { schedule: "10 */4 * * *", timeZone: "Africa/Dakar", timeoutSeconds: 540, memory: "512MiB" },
   async () => {
     await healMarketerSalesBooks();
   }

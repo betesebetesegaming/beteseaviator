@@ -49,8 +49,9 @@ export function useAgentDepositSales(agentId: string | undefined): {
     const playerAgents = new Map<string, string[]>();
     for (const id of customerIds) playerAgents.set(id, [agentId]);
     const ranges = { today, weekFrom: week.from, monthFrom: month.from };
-    const firstMap = firstDepositsFromWave(deposits ?? [], playerAgents, ranges);
-    const continueMap = continueDepositsFromWave(deposits ?? [], playerAgents, ranges);
+    const merged = [...(deposits ?? []), ...wave];
+    const firstMap = firstDepositsFromWave(merged, playerAgents, ranges);
+    const continueMap = continueDepositsFromWave(merged, playerAgents, ranges);
     const first = getFirstSales(firstMap, agentId);
     const continueSales = getSales(continueMap, agentId);
     const ledgerLifetime = successfulDepositsByAgent(deposits ?? [], playerAgents).get(agentId) ?? 0;

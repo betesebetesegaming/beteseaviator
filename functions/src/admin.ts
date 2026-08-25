@@ -16,7 +16,7 @@ import {
   resolveStaffAuthEmail,
   MIN_DEPOSIT_GMD,
   betCashStake,
-  rtdbSuccessfulDepositsByCustomer,
+  customerPaymentFacts,
   type ProfileData,
   type Role,
 } from "./helpers";
@@ -1380,7 +1380,7 @@ export const adminBackfillPlayerAccountStats = onCall(
       }
     }
 
-    const rtdbByCustomer = await rtdbSuccessfulDepositsByCustomer();
+    const paymentFacts = await customerPaymentFacts();
 
     // Only players: agent totalBets/totalWins are customer GGR aggregates.
     const playersSnap = await db.collection("users").where("role", "==", "player").get();
@@ -1453,6 +1453,8 @@ export const adminBackfillPlayerAccountStats = onCall(
       totalBets: number;
       totalWins: number;
       customerDeposits: number;
+      firstDeposits: number;
+      firstDepositCount: number;
       customerWithdrawals: number;
       customerCashHeld: number;
     };
@@ -1462,6 +1464,8 @@ export const adminBackfillPlayerAccountStats = onCall(
         totalBets: 0,
         totalWins: 0,
         customerDeposits: 0,
+        firstDeposits: 0,
+        firstDepositCount: 0,
         customerWithdrawals: 0,
         customerCashHeld: 0,
       });
@@ -1471,6 +1475,9 @@ export const adminBackfillPlayerAccountStats = onCall(
       const totals = byUser.get(playerDoc.id) ?? emptyAccountTotals();
       const cashBets = playerCashBets.get(playerDoc.id) ?? 0;
       const cashHeld = walletCash.get(playerDoc.id) ?? 0;
+      const fact = paymentFacts.get(playerDoc.id);
+      const salesDeposits = round2(Math.max(totals.totalDeposits, fact?.lifetime ?? 0));
+      const firstAmount = round2(fact?.firstAmount ?? 0);
       const ancestorIds: string[] = [];
       const seen = new Set<string>();
       const addAncestor = (id: string | null | undefined) => {
@@ -1487,10 +1494,11 @@ export const adminBackfillPlayerAccountStats = onCall(
         const row = byAgent.get(agentId)!;
         row.totalBets = round2(row.totalBets + cashBets);
         row.totalWins = round2(row.totalWins + totals.totalWins);
-        row.customerDeposits = round2(
-          row.customerDeposits +
-            Math.max(totals.totalDeposits, rtdbByCustomer.get(playerDoc.id) ?? 0)
-        );
+        row.customerDeposits = round2(row.customerDeposits + salesDeposits);
+        if (firstAmount > 0) {
+          row.firstDeposits = round2(row.firstDeposits + firstAmount);
+          row.firstDepositCount += 1;
+        }
         row.customerWithdrawals = round2(row.customerWithdrawals + totals.totalWithdrawals);
         row.customerCashHeld = round2(row.customerCashHeld + cashHeld);
       }
@@ -1509,6 +1517,8 @@ export const adminBackfillPlayerAccountStats = onCall(
               totalBets: totals.totalBets,
               totalWins: totals.totalWins,
               customerDeposits: neverReduce(existing?.stats?.customerDeposits, totals.customerDeposits),
+              firstDeposits: totals.firstDeposits,
+              firstDepositCount: totals.firstDepositCount,
               customerWithdrawals: totals.customerWithdrawals,
               customerCashHeld: totals.customerCashHeld,
             },

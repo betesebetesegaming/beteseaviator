@@ -182,6 +182,7 @@ async function settleDepositPaid(requestId: string, source: string): Promise<voi
     const userRef = db.doc(`users/${r.userId}`);
     const userSnap = await tx.get(userRef);
     const agentIds = agentIdsForPlayer(userSnap.data() ?? {});
+    const isFirst = Number(userSnap.data()?.stats?.totalDeposits ?? 0) <= 0;
     const wallet = await walletRead(tx, r.userId);
 
     await onReferralDeposit(tx, r.userId, r.amount, settings);
@@ -211,7 +212,7 @@ async function settleDepositPaid(requestId: string, source: string): Promise<voi
     tx.update(ref, { status: "paid", settledAt: FieldValue.serverTimestamp() });
     bumpDailyStats(tx, todayIso(), { deposits: r.amount });
     bumpPlatformStats(tx, { totalDeposits: r.amount });
-    creditAgentCustomerDeposits(tx, agentIds, r.amount);
+    creditAgentCustomerDeposits(tx, agentIds, r.amount, { isFirst });
     creditedUserId = String(r.userId);
     creditedAmount = Number(r.amount);
   });

@@ -203,13 +203,14 @@ export default function AdminSettingsPage() {
       </Card>
 
       <Card className="mb-5">
-        <h2 className="mb-4 font-semibold">Deposit qualify (BETESE pay)</h2>
+        <h2 className="mb-4 font-semibold">First-deposit qualify (BETESE pay)</h2>
         <p className="mb-4 text-sm text-slate-400">
-          A marketer qualifies for BETESE deposit pay when the deposit total on their account book
-          (the same figure they see, and staff see) reaches this amount.
+          A marketer qualifies when the sum of each customer&apos;s first payment on their link
+          (not later top-ups) reaches this amount. Staff and marketers see the same first-deposit
+          total.
         </p>
         <Input
-          label="Qualify at (GMD deposits)"
+          label="Qualify at (GMD first deposits)"
           type="number"
           min={0}
           step="100"

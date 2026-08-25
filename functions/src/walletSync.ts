@@ -44,6 +44,7 @@ export async function syncAviatorWalletCredit(
     const userRef = db.doc(`users/${uid}`);
     const userSnap = await tx.get(userRef);
     const wallet = await walletRead(tx, uid);
+    const isFirst = Number(userSnap.data()?.stats?.totalDeposits ?? 0) <= 0;
 
     // Referral reads must finish before any wallet writes (Firestore transaction rule).
     await onReferralDeposit(tx, uid, amount, settings);
@@ -65,7 +66,7 @@ export async function syncAviatorWalletCredit(
       meta: { externalRef, source: "modempay" },
     });
 
-    creditAgentCustomerDeposits(tx, agentIdsForPlayer(userSnap.data() ?? {}), amount);
+    creditAgentCustomerDeposits(tx, agentIdsForPlayer(userSnap.data() ?? {}), amount, { isFirst });
 
     recordDepositPlaythrough(tx, uid, wallet, amount);
 

@@ -10,6 +10,7 @@ import { agentPeriodGgr } from "@/lib/agentPeriodGgr";
 import {
   agentOfficeFigures,
   allLinkDeposits,
+  firstDepositsFromWave,
   firstDepositQualify,
   ggrBookDeposits,
   successfulDepositsByAgent,
@@ -268,6 +269,11 @@ export function AdminDailyCustomerOpens() {
     () => successfulDepositsByAgent(waveDeposits, playerAgents, periodFrom, periodTo),
     [waveDeposits, playerAgents, periodFrom, periodTo]
   );
+  const firstByAgent = useMemo(() => {
+    const merged = [...(ledgerDeposits ?? []), ...waveDeposits];
+    const ranges = { today, weekFrom: week.from, monthFrom: month.from };
+    return firstDepositsFromWave(merged, playerAgents, ranges);
+  }, [ledgerDeposits, waveDeposits, playerAgents, today, week.from, month.from]);
 
   const officeByAgent = useMemo(() => {
     const map = new Map<string, ReturnType<typeof agentOfficeFigures>>();
@@ -308,24 +314,6 @@ export function AdminDailyCustomerOpens() {
     periodPlay,
     isLive,
   ]);
-
-  const lifetimeDepositsByAgent = useMemo(() => {
-    const map = new Map<string, number>();
-    if (!agents) return map;
-    for (const a of agents) {
-      const book = booksByAgent.books.get(a.uid);
-      map.set(
-        a.uid,
-        allLinkDeposits({
-          ledgerLifetime: ledgerByAgent.get(a.uid) ?? 0,
-          waveLifetime: waveByAgent.get(a.uid) ?? 0,
-          bookDeposits: book?.deposits,
-          storedDeposits: a.stats?.customerDeposits,
-        })
-      );
-    }
-    return map;
-  }, [agents, booksByAgent, ledgerByAgent, waveByAgent]);
 
   const agentTotalToday = useMemo(
     () => rows?.reduce((sum, r) => sum + r.customersOpened, 0) ?? 0,
@@ -402,7 +390,7 @@ export function AdminDailyCustomerOpens() {
           <StatCard
             label="Marketer deposits"
             value={formatXof(bookDepositsTotal)}
-            hint={`every payment on their links · qualify at ${formatXof(qualifyAt)}`}
+            hint={`every payment on their links · first deposits qualify at ${formatXof(qualifyAt)}`}
             icon={<Banknote size={20} />}
           />
           <StatCard
@@ -460,8 +448,8 @@ export function AdminDailyCustomerOpens() {
               </h2>
               <p className="text-sm text-slate-400">
                 {isLive
-                  ? `Deposits count every Wave and wallet payment on each marketer's link. Played, wins, and profit update as customers play. Qualify at ${formatXof(qualifyAt)} deposits. ${pct}% is of this month's GGR profit only.`
-                  : `This window only (${periodFrom} → ${periodTo}) — deposits, played, and wins change with the period. Qualify still uses lifetime deposits. Period GGR ${pct}% is profit credited in that window.`}
+                  ? `Deposits count every Wave and wallet payment. First deposits (each customer's first payment) qualify at ${formatXof(qualifyAt)}. ${pct}% is of this month's GGR profit only.`
+                  : `This window only (${periodFrom} → ${periodTo}) — deposits, played, and wins change with the period. Qualify uses lifetime first deposits (each customer's first payment). Period GGR ${pct}% is profit credited in that window.`}
               </p>
             </div>
             <div className="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:items-end lg:w-auto">
@@ -515,6 +503,7 @@ export function AdminDailyCustomerOpens() {
               <tr>
                 <Th>Marketer</Th>
                 <Th className="text-right">Deposits</Th>
+                <Th className="text-right">First deposits</Th>
                 <Th className="text-right">Played</Th>
                 <Th className="text-right">Wins</Th>
                 <Th className="text-right">Profit / GGR</Th>
@@ -537,7 +526,6 @@ export function AdminDailyCustomerOpens() {
                   const lifetime = Math.max(agent?.stats?.customerCount ?? 0, linked);
                   const book = booksByAgent.books.get(r.uid);
                   const office = officeByAgent.get(r.uid) ?? agentOfficeFigures({});
-                  const lifetimeDeposits = lifetimeDepositsByAgent.get(r.uid) ?? office.deposits;
                   const bookDeposits = ggrBookDeposits(
                     book?.deposits ?? 0,
                     agent?.stats?.customerDeposits ?? 0
@@ -553,12 +541,23 @@ export function AdminDailyCustomerOpens() {
                     credited?.month ?? 0
                   );
                   const rate = settings.agentRate ?? 0.05;
-                  const q = firstDepositQualify(lifetimeDeposits, qualifyAt);
+                  const liveFirst = firstByAgent.get(r.uid)?.lifetime ?? 0;
+                  const firstDeposits = Math.max(liveFirst, Number(agent?.stats?.firstDeposits ?? 0));
+                  const q = firstDepositQualify(firstDeposits, qualifyAt);
                   return (
                     <tr key={r.uid}>
                       <Td className="font-medium">{r.name}</Td>
                       <Td className="text-right tabular-nums font-bold text-white">
                         {formatXof(office.deposits)}
+                      </Td>
+                      <Td className="text-right tabular-nums font-bold text-amber-100">
+                        {formatXof(firstDeposits)}
+                        <span className="block text-[10px] font-normal text-slate-500">
+                          {firstByAgent.get(r.uid)?.lifetimeCount ??
+                            agent?.stats?.firstDepositCount ??
+                            0}{" "}
+                          customers
+                        </span>
                       </Td>
                       <Td className="text-right tabular-nums font-bold text-white">
                         {formatXof(office.played)}
@@ -599,6 +598,7 @@ export function AdminDailyCustomerOpens() {
               <tr>
                 <Th>Marketer</Th>
                 <Th className="text-right">Deposits</Th>
+                <Th className="text-right">First deposits</Th>
                 <Th className="text-right">Played</Th>
                 <Th className="text-right">Wins</Th>
                 <Th className="text-right">Profit / GGR</Th>
@@ -623,15 +623,17 @@ export function AdminDailyCustomerOpens() {
                   const ggr = ledger?.ggr ?? 0;
                   const commission = ledger?.commission ?? 0;
                   const office = officeByAgent.get(r.uid) ?? agentOfficeFigures({});
-                  const q = firstDepositQualify(
-                    lifetimeDepositsByAgent.get(r.uid) ?? office.deposits,
-                    qualifyAt
-                  );
+                  const liveFirst = firstByAgent.get(r.uid)?.lifetime ?? 0;
+                  const firstDeposits = Math.max(liveFirst, Number(agent?.stats?.firstDeposits ?? 0));
+                  const q = firstDepositQualify(firstDeposits, qualifyAt);
                   return (
                     <tr key={r.uid}>
                       <Td className="font-medium">{r.name}</Td>
                       <Td className="text-right tabular-nums font-bold text-white">
                         {formatXof(office.deposits)}
+                      </Td>
+                      <Td className="text-right tabular-nums font-bold text-amber-100">
+                        {formatXof(firstDeposits)}
                       </Td>
                       <Td className="text-right tabular-nums font-bold text-white">
                         {formatXof(office.played)}

@@ -84,7 +84,9 @@ export function splitFirstAndContinue(rows: RtdbDepositRecord[]): {
   const first: RtdbDepositRecord[] = [];
   const continueRows: RtdbDepositRecord[] = [];
   for (const list of byCustomer.values()) {
-    list.sort((a, b) => String(a.timestamp || "").localeCompare(String(b.timestamp || "")));
+    list.sort((a, b) =>
+      String(a.timestamp || "9999-12-31").localeCompare(String(b.timestamp || "9999-12-31"))
+    );
     const head = list[0];
     if (!head) continue;
     first.push(head);

@@ -241,7 +241,8 @@ export const agentDepositToCustomer = onCall(async (req) => {
 
     bumpDailyStats(tx, todayIso(depositAt), { deposits: amount });
     bumpPlatformStats(tx, { totalDeposits: amount });
-    creditAgentCustomerDeposits(tx, agentIdsForPlayer(customer), amount);
+    const isFirst = Number(userSnap.data()?.stats?.totalDeposits ?? 0) <= 0;
+    creditAgentCustomerDeposits(tx, agentIdsForPlayer(customer), amount, { isFirst });
   });
 
   await consumeOtpVerifiedForPhone(customerPhone).catch(() => undefined);

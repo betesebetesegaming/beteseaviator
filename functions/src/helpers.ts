@@ -51,6 +51,8 @@ export interface ProfileData {
   stats?: {
     customerCount?: number;
     customerDeposits?: number;
+    firstDeposits?: number;
+    firstDepositCount?: number;
     customerWithdrawals?: number;
     customerCashHeld?: number;
     commissionedGgr?: number;
@@ -708,6 +710,109 @@ export async function rtdbSuccessfulDepositsByCustomer(): Promise<Map<string, nu
   return map;
 }
 
+export type CustomerPaymentFacts = {
+  lifetime: number;
+  firstAmount: number;
+};
+
+function pushPayment(
+  map: Map<string, { amount: number; ts: string }[]>,
+  uid: string,
+  amount: number,
+  ts: string
+): void {
+  const amt = round2(Math.abs(Number(amount) || 0));
+  if (!uid || amt <= 0) return;
+  const list = map.get(uid) ?? [];
+  list.push({ amount: amt, ts: ts || "9999-12-31" });
+  map.set(uid, list);
+}
+
+function sumHits(hits: { amount: number }[] | undefined): number {
+  let n = 0;
+  for (const h of hits ?? []) n += h.amount;
+  return round2(n);
+}
+
+function isoFromUnknown(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value && "toDate" in value) {
+    try {
+      return (value as FirebaseFirestore.Timestamp).toDate().toISOString();
+    } catch {
+      return "";
+    }
+  }
+  if (typeof value === "object" && value && "seconds" in value) {
+    const seconds = Number((value as { seconds: number }).seconds);
+    if (Number.isFinite(seconds)) return new Date(seconds * 1000).toISOString();
+  }
+  return "";
+}
+
+function isRepairDeposit(data: FirebaseFirestore.DocumentData): boolean {
+  const source = String((data.meta as { source?: string } | undefined)?.source || "").toLowerCase();
+  if (source === "wallet_repair" || source === "qtech_repair") return true;
+  return String(data.description || "").toLowerCase().includes("wallet repair");
+}
+
+/**
+ * Per-customer lifetime deposits (max of Wave vs wallet ledger) and the true
+ * first payment (earliest successful row across both). One first per customer.
+ */
+export async function customerPaymentFacts(): Promise<Map<string, CustomerPaymentFacts>> {
+  const [rtdbSnap, txSnap] = await Promise.all([
+    rtdb.ref("payments/deposits").get(),
+    db.collection("transactions").where("type", "==", "deposit").get(),
+  ]);
+  const wave = new Map<string, { amount: number; ts: string }[]>();
+  const ledger = new Map<string, { amount: number; ts: string }[]>();
+
+  const rtdbVal = rtdbSnap.val() as Record<
+    string,
+    {
+      customer_id?: string;
+      amount?: number;
+      status?: string;
+      verification_status?: string;
+      timestamp?: string;
+    }
+  > | null;
+  if (rtdbVal) {
+    for (const row of Object.values(rtdbVal)) {
+      if (!isSuccessfulRtdbDeposit(row)) continue;
+      pushPayment(
+        wave,
+        String(row.customer_id || "").trim(),
+        Number(row.amount) || 0,
+        String(row.timestamp || "")
+      );
+    }
+  }
+  for (const doc of txSnap.docs) {
+    const data = doc.data();
+    if (String(data.status || "completed").toLowerCase() === "failed") continue;
+    if (isRepairDeposit(data)) continue;
+    const uid = String(data.userId || "").trim();
+    pushPayment(ledger, uid, Number(data.amount) || 0, isoFromUnknown(data.createdAt));
+  }
+
+  const out = new Map<string, CustomerPaymentFacts>();
+  const uids = new Set([...wave.keys(), ...ledger.keys()]);
+  for (const uid of uids) {
+    const merged = [...(wave.get(uid) ?? []), ...(ledger.get(uid) ?? [])].sort((a, b) =>
+      a.ts.localeCompare(b.ts)
+    );
+    const firstAmount = merged[0]?.amount ?? 0;
+    out.set(uid, {
+      lifetime: round2(Math.max(sumHits(wave.get(uid)), sumHits(ledger.get(uid)))),
+      firstAmount: round2(firstAmount),
+    });
+  }
+  return out;
+}
+
 /** Increment an agent's dashboard stats (inside a transaction). */
 export function bumpAgentStats(
   tx: FirebaseFirestore.Transaction,
@@ -727,17 +832,21 @@ export function bumpAgentStats(
 export function creditAgentCustomerDeposits(
   tx: FirebaseFirestore.Transaction,
   agentIds: string[],
-  amount: number
+  amount: number,
+  opts?: { isFirst?: boolean }
 ): void {
   const amt = round2(Math.abs(Number(amount) || 0));
   if (amt <= 0) return;
   for (const agentId of agentIds) {
     if (!agentId) continue;
-    tx.set(
-      db.doc(`users/${agentId}`),
-      { stats: { customerDeposits: FieldValue.increment(amt) } },
-      { merge: true }
-    );
+    const stats: Record<string, unknown> = {
+      customerDeposits: FieldValue.increment(amt),
+    };
+    if (opts?.isFirst) {
+      stats.firstDeposits = FieldValue.increment(amt);
+      stats.firstDepositCount = FieldValue.increment(1);
+    }
+    tx.set(db.doc(`users/${agentId}`), { stats }, { merge: true });
   }
 }
 

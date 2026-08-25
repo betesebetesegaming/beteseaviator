@@ -171,7 +171,8 @@ async function doCashDeposit(opts: {
     const date = todayIso(depositAt);
     // Attribute cash desk credit to the acting agent (walk-ins included) + tree.
     const attributed = [...new Set([actorUid, ...agentIdsForPlayer(customer)])];
-    creditAgentCustomerDeposits(tx, attributed, amount);
+    const isFirst = Number(userSnap.data()?.stats?.totalDeposits ?? 0) <= 0;
+    creditAgentCustomerDeposits(tx, attributed, amount, { isFirst });
     tx.set(
       db.doc(`agentDailyStats/${actorUid}_${date}`),
       {
