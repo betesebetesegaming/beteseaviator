@@ -383,15 +383,14 @@ app.get("/bootstrap/list-cw-players", async (req, res) => {
 app.get("/bootstrap/diagnose-player", async (req, res) => {
   if (!requireBootstrapKey(req, res)) return;
   try {
-    const { auth, db, normalizePhone, phoneToEmail } = await import("./helpers");
+    const { auth, db, normalizePhone, phoneToEmail, findUidByPhone } = await import("./helpers");
     const phone = normalizePhone(String(req.query.phone ?? ""));
     if (!phone) {
       res.status(400).json({ error: "invalid_phone" });
       return;
     }
     const expectedEmail = phoneToEmail(phone);
-    const phoneSnap = await db.doc(`phones/${phone}`).get();
-    const userFromPhone = phoneSnap.exists ? String(phoneSnap.data()?.uid ?? "") : null;
+    const userFromPhone = (await findUidByPhone(phone)) || null;
     let authByUid: Record<string, unknown> | null = null;
     let authByEmail: Record<string, unknown> | null = null;
     if (userFromPhone) {
@@ -426,7 +425,7 @@ app.get("/bootstrap/diagnose-player", async (req, res) => {
 app.get("/bootstrap/repair-player-login", async (req, res) => {
   if (!requireBootstrapKey(req, res)) return;
   try {
-    const { auth, db, normalizePhone, phoneToEmail } = await import("./helpers");
+    const { auth, db, normalizePhone, phoneToEmail, findUidByPhone, ensurePhoneAliases } = await import("./helpers");
     const { validatePassword } = await import("./passwordPolicy");
     const phone = normalizePhone(String(req.query.phone ?? ""));
     const password = String(req.query.password ?? "");
@@ -441,12 +440,11 @@ app.get("/bootstrap/repair-player-login", async (req, res) => {
     }
 
     const authEmail = phoneToEmail(phone);
-    const phoneSnap = await db.doc(`phones/${phone}`).get();
-    if (!phoneSnap.exists) {
+    const profileUid = await findUidByPhone(phone);
+    if (!profileUid) {
       res.status(404).json({ error: "phone_not_registered" });
       return;
     }
-    const profileUid = String(phoneSnap.data()?.uid ?? "");
 
     let emailOwnerUid: string | null = null;
     try {
@@ -501,7 +499,7 @@ app.get("/bootstrap/repair-player-login", async (req, res) => {
     actions.push("password_updated");
     await auth.setCustomUserClaims(profileUid, { role: "player" });
 
-    await db.doc(`phones/${phone}`).set({ uid: profileUid }, { merge: true });
+    await ensurePhoneAliases(profileUid, phone);
 
     res.status(200).json({
       ok: true,
@@ -523,7 +521,7 @@ app.get("/bootstrap/repair-player-login", async (req, res) => {
 app.get("/bootstrap/reset-player-password", async (req, res) => {
   if (!requireBootstrapKey(req, res)) return;
   try {
-    const { auth, db, normalizePhone, phoneToEmail } = await import("./helpers");
+    const { auth, db, normalizePhone, phoneToEmail, findUidByPhone } = await import("./helpers");
     const { validatePassword } = await import("./passwordPolicy");
     const phone = normalizePhone(String(req.query.phone ?? ""));
     const password = String(req.query.password ?? "");
@@ -536,12 +534,11 @@ app.get("/bootstrap/reset-player-password", async (req, res) => {
       res.status(400).json({ error: "password_invalid", message: pwCheck.message });
       return;
     }
-    const phoneSnap = await db.doc(`phones/${phone}`).get();
-    if (!phoneSnap.exists) {
+    const uid = await findUidByPhone(phone);
+    if (!uid) {
       res.status(404).json({ error: "phone_not_registered" });
       return;
     }
-    const uid = String(phoneSnap.data()?.uid ?? "");
     const authEmail = phoneToEmail(phone);
     const userSnap = await db.doc(`users/${uid}`).get();
     const name = userSnap.exists ? String(userSnap.data()?.name ?? "") : "";
@@ -592,17 +589,16 @@ app.get("/bootstrap/reset-player-password", async (req, res) => {
 app.get("/bootstrap/diagnose-wallet", async (req, res) => {
   if (!requireBootstrapKey(req, res)) return;
   try {
-    const { db, normalizePhone } = await import("./helpers");
+    const { db, normalizePhone, findUidByPhone } = await import("./helpers");
     const { computeLegitimateWallet, summarizePlayerLedger } = await import("./qtech/walletRepair");
     const phone = normalizePhone(String(req.query.phone ?? req.query.uid ?? ""));
     let uid = String(req.query.uid ?? "").trim();
     if (phone) {
-      const phoneSnap = await db.doc(`phones/${phone}`).get();
-      if (!phoneSnap.exists) {
+      uid = await findUidByPhone(phone);
+      if (!uid) {
         res.status(404).json({ error: "phone_not_found" });
         return;
       }
-      uid = String(phoneSnap.data()?.uid ?? "");
     }
     if (!uid) {
       res.status(400).json({ error: "phone_or_uid_required" });
@@ -641,17 +637,16 @@ app.get("/bootstrap/diagnose-wallet", async (req, res) => {
 app.get("/bootstrap/repair-wallet", async (req, res) => {
   if (!requireBootstrapKey(req, res)) return;
   try {
-    const { db, normalizePhone } = await import("./helpers");
+    const { db, normalizePhone, findUidByPhone } = await import("./helpers");
     const { computeLegitimateWallet, repairWalletFromLedger } = await import("./qtech/walletRepair");
     const phone = normalizePhone(String(req.query.phone ?? ""));
     let uid = String(req.query.uid ?? "").trim();
     if (phone) {
-      const phoneSnap = await db.doc(`phones/${phone}`).get();
-      if (!phoneSnap.exists) {
+      uid = await findUidByPhone(phone);
+      if (!uid) {
         res.status(404).json({ error: "phone_not_found" });
         return;
       }
-      uid = String(phoneSnap.data()?.uid ?? "");
     }
     if (!uid) {
       res.status(400).json({ error: "phone_or_uid_required" });

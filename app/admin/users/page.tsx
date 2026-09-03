@@ -353,7 +353,7 @@ function AdminUsersContent() {
       {!filtered || (lookingUp && filtered.length === 0) ? (
         <Spinner />
       ) : filtered.length === 0 ? (
-        <EmptyState message="No users match. Try the 7-digit phone or Player ID (e.g. BTE-00009)." />
+        <EmptyState message="No users match. Try the phone number or Player ID (e.g. BTE-00009)." />
       ) : (
         <TableShell>
           <thead>

@@ -8,5 +8,7 @@ export {
   normalizePhoneE164,
   normalizePhoneLocal,
   phoneToEmail,
+  phoneAuthEmails,
+  phoneStorageKeys,
   type PhoneCountry,
 } from "./phone";

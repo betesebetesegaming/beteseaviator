@@ -7,6 +7,9 @@ import {
   FieldValue,
   normalizePhone,
   phoneToEmail,
+  writePhoneIndex,
+  phoneStorageKeys,
+  findUidByPhone,
   requireAuth,
   requireRole,
   resolveStaffAuthEmail,
@@ -91,12 +94,13 @@ export const completeRegistration = onCall(async (req) => {
   try {
     await db.runTransaction(async (tx) => {
       const userRef = db.doc(`users/${uid}`);
-      const phoneRef = db.doc(`phones/${phone}`);
       const inviteRef = db.doc(`referralInvites/${uid}`);
-      const [userSnap, phoneSnap, inviteSnap] = await Promise.all([
+      const phoneKeys = phoneStorageKeys(phone);
+      const phoneRefs = phoneKeys.map((key) => db.doc(`phones/${key}`));
+      const [userSnap, inviteSnap, ...indexSnaps] = await Promise.all([
         tx.get(userRef),
-        tx.get(phoneRef),
         playerReferrerUid && pref ? tx.get(inviteRef) : Promise.resolve(null),
+        ...phoneRefs.map((ref) => tx.get(ref)),
       ]);
 
       if (userSnap.exists) {
@@ -105,13 +109,18 @@ export const completeRegistration = onCall(async (req) => {
           referralCode?: string;
           playerNumber?: number;
         };
-        if (existing.phone === phone) {
+        const existingCanonical = normalizePhone(String(existing.phone ?? ""));
+        if (existing.phone === phone || existingCanonical === phone) {
           assignedPlayerNumber = Number(existing.playerNumber ?? 0);
           if (!existing.referralCode) {
             const code = await pickPlayerReferralCode(tx, uid, name);
             writePlayerReferralCode(tx, uid, name, code);
             tx.set(userRef, { referralCode: code }, { merge: true });
           }
+          if (existingCanonical !== phone || existing.phone !== phone) {
+            tx.set(userRef, { phone }, { merge: true });
+          }
+          writePhoneIndex(tx, uid, phone);
           return;
         }
         throw new HttpsError(
@@ -120,8 +129,10 @@ export const completeRegistration = onCall(async (req) => {
         );
       }
 
-      if (phoneSnap.exists && phoneSnap.data()!.uid !== uid) {
-        throw new HttpsError("already-exists", "This phone number is already registered.");
+      for (const snap of indexSnaps) {
+        if (snap && snap.exists && snap.data()?.uid !== uid) {
+          throw new HttpsError("already-exists", "This phone number is already registered.");
+        }
       }
 
       const referralCode = await pickPlayerReferralCode(tx, uid, name);
@@ -150,7 +161,7 @@ export const completeRegistration = onCall(async (req) => {
         frozen: false,
         updatedAt: FieldValue.serverTimestamp(),
       });
-      tx.set(phoneRef, { uid });
+      writePhoneIndex(tx, uid, phone);
       tx.set(db.doc("stats/platform"), { customerCount: FieldValue.increment(1) }, { merge: true });
       recordCustomersOpened(tx, todayIso(), ancestors);
       for (const agentId of ancestors) {
@@ -275,12 +286,10 @@ export const resetPlayerPassword = onCall({ invoker: "public" }, async (req) => 
 
   await requireOtpVerifiedForPhone(phone);
 
-  const phoneSnap = await db.doc(`phones/${phone}`).get();
-  if (!phoneSnap.exists) {
+  const uid = await findUidByPhone(phone);
+  if (!uid) {
     throw new HttpsError("not-found", "No account found for this phone number.");
   }
-  const uid = String(phoneSnap.data()?.uid ?? "");
-  if (!uid) throw new HttpsError("not-found", "Phone record is missing a linked user.");
 
   const userSnap = await db.doc(`users/${uid}`).get();
   if (!userSnap.exists) {
@@ -327,12 +336,10 @@ export const resetPlayerPasswordWithOtp = onCall({ invoker: "public" }, async (r
     throw new HttpsError("internal", msg || "Could not verify SMS code.");
   }
 
-  const phoneSnap = await db.doc(`phones/${phone}`).get();
-  if (!phoneSnap.exists) {
+  const uid = await findUidByPhone(phone);
+  if (!uid) {
     throw new HttpsError("not-found", "No account found for this phone number.");
   }
-  const uid = String(phoneSnap.data()?.uid ?? "");
-  if (!uid) throw new HttpsError("not-found", "Phone record is missing a linked user.");
 
   const userSnap = await db.doc(`users/${uid}`).get();
   if (!userSnap.exists) {
@@ -657,7 +664,7 @@ export const seedPlatform = onCall(async (req) => {
       batch.set(db.doc(`staffLogins/${opts.staffLoginId}`), { uid, role: opts.role });
     }
     if (opts.phone) {
-      batch.set(db.doc(`phones/${opts.phone}`), { uid });
+      writePhoneIndex(batch, uid, normalizePhone(opts.phone) || opts.phone);
     }
     await batch.commit();
     return uid;

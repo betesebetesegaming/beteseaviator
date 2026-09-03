@@ -4,6 +4,7 @@ import http from "node:http";
 import https from "node:https";
 import { logger } from "firebase-functions";
 import { db } from "../helpers";
+import { toOtpMsisdn } from "../phone";
 
 /**
  * Africell SMS OTP HTTP handlers (sendOtp / verifyOtp).
@@ -148,13 +149,9 @@ function parseAfricellSmsResponse(
   };
 }
 
-/** Gambian Africell numbers only — 7 local digits or 220-prefixed msisdn. */
+/** Gambian mobiles — 7-digit (legacy) or 9-digit, with or without 220. */
 function normalizeMsisdn(raw: string): string | null {
-  const digits = String(raw || "").replace(/\D/g, "");
-  if (!digits) return null;
-  if (digits.startsWith("220") && digits.length >= 10) return digits;
-  if (digits.length === 7) return `220${digits}`;
-  return null;
+  return toOtpMsisdn(raw);
 }
 
 function hashOtp(code: string, phone: string, salt: string): string {
@@ -386,7 +383,7 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
   }
   const msisdn = normalizeMsisdn(phoneInput);
   if (!msisdn) {
-    res.status(400).json({ error: "Invalid Gambian mobile number. Use 7 digits (e.g. 7701234)." });
+    res.status(400).json({ error: "Invalid Gambian mobile number. Use 7 or 9 digits (e.g. 7793854 or 877793854)." });
     return;
   }
 
@@ -488,7 +485,7 @@ export async function verifySmsOtp(phoneInput: string, code: string): Promise<st
   }
   const msisdn = normalizeMsisdn(trimmedPhone);
   if (!msisdn) {
-    throw new Error("Invalid Gambian mobile number. Use 7 digits (e.g. 7701234).");
+    throw new Error("Invalid Gambian mobile number. Use 7 or 9 digits (e.g. 7793854 or 877793854).");
   }
 
   const otpSalt = getOtpSalt();
@@ -546,7 +543,7 @@ export async function verifyOtpHandler(req: Request, res: Response): Promise<voi
   }
   const msisdn = normalizeMsisdn(phoneInput);
   if (!msisdn) {
-    res.status(400).json({ error: "Invalid Gambian mobile number. Use 7 digits (e.g. 7701234)." });
+    res.status(400).json({ error: "Invalid Gambian mobile number. Use 7 or 9 digits (e.g. 7793854 or 877793854)." });
     return;
   }
 

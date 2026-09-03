@@ -2,6 +2,7 @@ import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/
 import { db } from "@/lib/firestore";
 import { adminLookupUser } from "@/lib/api";
 import { normalizePhone } from "@/lib/format";
+import { phoneStorageKeys } from "@/lib/phone";
 import type { UserProfile } from "@/lib/types";
 
 function asProfile(id: string, data: Record<string, unknown>): UserProfile {
@@ -38,8 +39,13 @@ export async function lookupUsersByPhoneOrId(raw: string): Promise<UserProfile[]
   const phone = normalizePhone(cleaned);
 
   if (phone) {
-    const snap = await getDocs(query(collection(db, "users"), where("phone", "==", phone), limit(5)));
-    for (const d of snap.docs) hits.set(d.id, asProfile(d.id, d.data()));
+    const keys = phoneStorageKeys(cleaned);
+    const snaps = await Promise.all(
+      keys.map((key) => getDocs(query(collection(db, "users"), where("phone", "==", key), limit(5)))),
+    );
+    for (const snap of snaps) {
+      for (const d of snap.docs) hits.set(d.id, asProfile(d.id, d.data()));
+    }
   }
 
   const idMatch = cleaned.toUpperCase().replace(/\s/g, "").match(/^(?:BTE-?)?0*(\d+)$/);

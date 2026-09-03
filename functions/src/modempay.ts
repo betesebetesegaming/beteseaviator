@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { logger } from 'firebase-functions';
+import { normalizePhone } from './phone';
 
 /**
  * Thin Modem Pay REST client. We deliberately avoid the official `modem-pay`
@@ -150,6 +151,8 @@ export type PersistPayLinkInput = {
 };
 
 export function normalizeModemPayAccountNumber(phone: string | undefined | null): string {
+  const canonical = normalizePhone(String(phone || ''));
+  if (canonical) return canonical;
   return String(phone || '')
     .replace(/\D/g, '')
     .replace(/^220/, '');
@@ -290,8 +293,8 @@ export async function createCheckoutSession(
     );
   }
 
-  if (input.method !== 'card' && !/^\d{7}$/.test(accountNumber)) {
-    return fail(400, 'Enter a valid 7-digit Gambian mobile money number (e.g. 7701234).');
+  if (input.method !== 'card' && !/^\d{9}$/.test(accountNumber)) {
+    return fail(400, 'Enter a valid Gambian mobile money number (7 or 9 digits, e.g. 7793854 or 877793854).');
   }
 
   const webhookCallback =

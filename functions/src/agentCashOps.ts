@@ -10,7 +10,7 @@ import {
   db,
   FieldValue,
   getSettings,
-  normalizePhone,
+  findUidByPhone,
   requireRole,
   round2,
   todayIso,
@@ -64,19 +64,13 @@ async function findCustomerByIdOrPhone(
     }
   }
 
-  // Phone: normalise to the 7-digit storage key, then use the phones/{key} index.
-  const phoneKey = normalizePhone(cleaned);
-  if (phoneKey) {
-    const phoneDoc = await db.doc(`phones/${phoneKey}`).get();
-    if (phoneDoc.exists) {
-      const uid = String(phoneDoc.data()?.uid ?? "");
-      if (uid) {
-        const userSnap = await db.doc(`users/${uid}`).get();
-        if (userSnap.exists) {
-          const data = userSnap.data() as ProfileData;
-          if (data.role === "player") return { uid, ...data };
-        }
-      }
+  // Phone: 7-digit or 9-digit Gambia numbers (old numbers convert automatically).
+  const uidFromPhone = await findUidByPhone(cleaned);
+  if (uidFromPhone) {
+    const userSnap = await db.doc(`users/${uidFromPhone}`).get();
+    if (userSnap.exists) {
+      const data = userSnap.data() as ProfileData;
+      if (data.role === "player") return { uid: uidFromPhone, ...data };
     }
   }
 

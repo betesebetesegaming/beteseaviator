@@ -235,7 +235,7 @@ export default function AdminWalletsPage() {
       {!rows || (lookingUp && rows.length === 0) ? (
         <Spinner />
       ) : rows.length === 0 ? (
-        <EmptyState message="No users match. Try the 7-digit phone or Player ID." />
+        <EmptyState message="No users match. Try the phone number or Player ID." />
       ) : (
         <TableShell>
           <thead>

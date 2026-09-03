@@ -14,6 +14,8 @@ import {
   getSettings,
   normalizePhone,
   phoneToEmail,
+  writePhoneIndex,
+  phoneStorageKeys,
   requireRole,
   round2,
   todayIso,
@@ -95,9 +97,11 @@ export async function createPlayerAccount(opts: {
   if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
   assertValidPassword(opts.password);
 
-  const phoneDoc = await db.doc(`phones/${phone}`).get();
-  if (phoneDoc.exists) {
-    throw new HttpsError("already-exists", "This phone number is already registered.");
+  for (const key of phoneStorageKeys(phone)) {
+    const phoneDoc = await db.doc(`phones/${key}`).get();
+    if (phoneDoc.exists) {
+      throw new HttpsError("already-exists", "This phone number is already registered.");
+    }
   }
 
   let uid: string;
@@ -118,9 +122,11 @@ export async function createPlayerAccount(opts: {
 
   let playerNumber = 0;
   await db.runTransaction(async (tx) => {
-    const phoneRef = db.doc(`phones/${phone}`);
-    const snap = await tx.get(phoneRef);
-    if (snap.exists) throw new HttpsError("already-exists", "This phone number is already registered.");
+    const phoneRefs = phoneStorageKeys(phone).map((key) => db.doc(`phones/${key}`));
+    const snaps = await Promise.all(phoneRefs.map((ref) => tx.get(ref)));
+    if (snaps.some((snap) => snap.exists)) {
+      throw new HttpsError("already-exists", "This phone number is already registered.");
+    }
     playerNumber = await allocatePlayerNumber(tx);
     tx.set(db.doc(`users/${uid}`), {
       name: opts.name,
@@ -142,7 +148,7 @@ export async function createPlayerAccount(opts: {
       frozen: false,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(phoneRef, { uid });
+    writePhoneIndex(tx, uid, phone);
     bumpPlatformStats(tx, { customerCount: 1 });
     recordCustomersOpened(tx, todayIso(), opts.countForAgents !== false ? opts.ancestors : []);
     if (opts.countForAgents !== false) {

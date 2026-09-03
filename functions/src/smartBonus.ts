@@ -801,9 +801,10 @@ export const adminCreateSmartBonusOffer = onCall(async (req) => {
     if (!digits) {
       throw new HttpsError("invalid-argument", "Enter a phone number or player number.");
     }
-    const phoneCandidates = new Set<string>([digits]);
+    const { phoneStorageKeys } = await import("./phone");
+    const phoneCandidates = new Set<string>(phoneStorageKeys(raw));
+    phoneCandidates.add(digits);
     if (digits.startsWith("220") && digits.length >= 10) phoneCandidates.add(digits.slice(3));
-    else if (digits.length === 7) phoneCandidates.add(`220${digits}`);
 
     for (const phone of phoneCandidates) {
       const byPhone = await db.collection("users").where("phone", "==", phone).limit(1).get();

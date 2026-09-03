@@ -111,3 +111,8 @@ export { modempayApi } from "./modempayApi";
 /** QTech Common Wallet API + game launch. */
 export { qtcwApi, qtcwApiStg } from "./qtechApi";
 export { launchQTechGame, launchQTechGameDemo, adminPreviewQTechGame } from "./qtech/launch";
+
+export {
+  adminMigrateGambiaNineDigitPhones,
+  migrateGambiaNineDigitPhonesHourly,
+} from "./gambiaPhoneMigration";

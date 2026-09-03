@@ -180,8 +180,8 @@ export const DEFAULT_SETTINGS = {
     maxConcurrent: 1,
   },
   customerCare: {
-    phone: "2204176003",
-    whatsapp: "2204176003",
+    phone: "220874176003",
+    whatsapp: "220874176003",
     label: "BETESE Customer Care",
   },
   qtech: {
@@ -199,7 +199,9 @@ export const DEFAULT_SETTINGS = {
 
 export type Settings = typeof DEFAULT_SETTINGS;
 
-import { normalizePhone as toPhoneKey, phoneToEmail as phoneKeyToEmail } from "./phone";
+import { normalizePhone as toPhoneKey, phoneToEmail as phoneKeyToEmail, phoneStorageKeys } from "./phone";
+
+export { phoneStorageKeys, phoneAuthEmails, toOtpMsisdn, otpMsisdnCandidates, isGambianPhoneKey } from "./phone";
 
 export function normalizePhone(input: string): string {
   return toPhoneKey(input);
@@ -208,6 +210,49 @@ export function normalizePhone(input: string): string {
 export function phoneToEmail(phone: string): string {
   const key = toPhoneKey(phone);
   return phoneKeyToEmail(key || phone.replace(/\D/g, ""));
+}
+
+export function writePhoneIndex(
+  writer: { set: (ref: FirebaseFirestore.DocumentReference, data: FirebaseFirestore.DocumentData) => unknown },
+  uid: string,
+  canonicalPhone: string,
+): void {
+  const canonical = toPhoneKey(canonicalPhone) || canonicalPhone.replace(/\D/g, "");
+  for (const key of phoneStorageKeys(canonical)) {
+    writer.set(db.doc(`phones/${key}`), { uid, canonical });
+  }
+}
+
+export async function ensurePhoneAliases(uid: string, rawPhone: string): Promise<string> {
+  const canonical = toPhoneKey(rawPhone);
+  if (!uid || !canonical) return canonical;
+  const batch = db.batch();
+  writePhoneIndex(batch, uid, canonical);
+  await batch.commit();
+  return canonical;
+}
+
+/** Resolve a player/agent uid from 7-digit or 9-digit Gambia numbers. */
+export async function findUidByPhone(raw: string): Promise<string> {
+  const keys = phoneStorageKeys(raw);
+  if (!keys.length) return "";
+  for (const key of keys) {
+    const snap = await db.doc(`phones/${key}`).get();
+    const uid = String(snap.data()?.uid ?? "");
+    if (uid) {
+      void ensurePhoneAliases(uid, keys[0]).catch(() => undefined);
+      return uid;
+    }
+  }
+  for (const key of keys) {
+    const byPhone = await db.collection("users").where("phone", "==", key).limit(1).get();
+    if (!byPhone.empty) {
+      const uid = byPhone.docs[0].id;
+      void ensurePhoneAliases(uid, keys[0]).catch(() => undefined);
+      return uid;
+    }
+  }
+  return "";
 }
 
 /** Normalized username / name key for staff sign-in (no email required). */

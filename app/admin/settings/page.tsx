@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { doc, onSnapshot } from "firebase/firestore";
 import Link from "next/link";
 import { db } from "@/lib/firestore";
-import { adminRebuildPlatformStats, adminBackfillPlayerAccountStats, adminReleaseReferralBonuses, adminSaveSettings, errorMessage } from "@/lib/api";
+import { adminRebuildPlatformStats, adminBackfillPlayerAccountStats, adminReleaseReferralBonuses, adminSaveSettings, adminMigrateGambiaNineDigitPhones, errorMessage } from "@/lib/api";
 import {
   DEFAULT_SETTINGS,
   PROVIDER_LABELS,
@@ -27,6 +27,7 @@ export default function AdminSettingsPage() {
   const [rebuilding, setRebuilding] = useState(false);
   const [rebuildingCustomers, setRebuildingCustomers] = useState(false);
   const [releasingReferrals, setReleasingReferrals] = useState(false);
+  const [migratingPhones, setMigratingPhones] = useState(false);
 
   useEffect(() => {
     return onSnapshot(doc(db, "settings", "platform"), (snap) => {
@@ -115,6 +116,28 @@ export default function AdminSettingsPage() {
       toast.error(errorMessage(e));
     } finally {
       setRebuilding(false);
+    }
+  }
+
+  async function migrateGambiaPhones() {
+    setMigratingPhones(true);
+    try {
+      let done = false;
+      let updated = 0;
+      let aliases = 0;
+      let reset = true;
+      while (!done) {
+        const res = await adminMigrateGambiaNineDigitPhones({ limit: 400, reset });
+        reset = false;
+        updated += res.updated;
+        aliases += res.aliases;
+        done = res.done;
+      }
+      toast.success(`Gambia numbers updated. ${updated} profiles, ${aliases} phone index rows.`);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setMigratingPhones(false);
     }
   }
 
@@ -325,7 +348,7 @@ export default function AdminSettingsPage() {
       <Card className="mb-5">
         <h2 className="mb-4 font-semibold">Customer care (WhatsApp / call)</h2>
         <p className="mb-4 text-sm text-slate-400">
-          Shown on sign-up, wallet, and support screens. Use digits only with country code (e.g. 2205001234).
+          Shown on sign-up, wallet, and support screens. Use digits only with country code (e.g. 220877793854).
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
@@ -374,6 +397,17 @@ export default function AdminSettingsPage() {
             }
           />
         </div>
+      </Card>
+
+      <Card className="mb-5">
+        <h2 className="mb-2 font-semibold">Gambia 9-digit numbers</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Converts registered 7-digit mobiles automatically (Africell 87, QCell 83, Comium 86, Gamcel 89).
+          Login already accepts old or new numbers. Run this once to rewrite stored accounts.
+        </p>
+        <Button variant="secondary" disabled={migratingPhones} onClick={() => void migrateGambiaPhones()}>
+          {migratingPhones ? "Updating numbers…" : "Update all registered numbers now"}
+        </Button>
       </Card>
 
       <Card className="mb-5 border-emerald-500/20 bg-emerald-500/5">

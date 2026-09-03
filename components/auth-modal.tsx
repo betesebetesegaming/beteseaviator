@@ -27,6 +27,7 @@ import {
   phoneCountryFromKey,
   phoneKeyFromAuthEmail,
   phoneToEmail,
+  phoneAuthEmails,
 } from "@/lib/phone";
 import { probeSignupOtpGateway, type OtpGatewayStatus } from "@/lib/otpClient";
 import { OtpConfirmPanel, usePhoneOtp } from "@/components/PhoneOtpVerification";
@@ -223,7 +224,19 @@ export function AuthModal({
     const normalized = phoneCheck.normalized;
     setBusy(true);
     try {
-      await signInWithEmailAndPassword(auth, phoneToEmail(normalized), password);
+      const emails = phoneAuthEmails(normalized);
+      let signedIn = false;
+      let lastError: unknown;
+      for (const email of emails) {
+        try {
+          await signInWithEmailAndPassword(auth, email, password);
+          signedIn = true;
+          break;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      if (!signedIn) throw lastError || new Error("Invalid phone or password.");
       toast.success("Welcome back!");
       if (!profile) {
         setMode("complete");
@@ -273,7 +286,18 @@ export function AuthModal({
           throw new Error("Use 6–8 letters or numbers.");
         }
         if (code !== "auth/email-already-in-use") throw e;
-        await signInWithEmailAndPassword(auth, authEmail, password);
+        const emails = phoneAuthEmails(normalized);
+        let signedIn = false;
+        for (const email of emails) {
+          try {
+            await signInWithEmailAndPassword(auth, email, password);
+            signedIn = true;
+            break;
+          } catch {
+            /* try next alias */
+          }
+        }
+        if (!signedIn) throw e;
       }
 
       await completeRegistration(registrationPayload);

@@ -304,6 +304,11 @@ export const adminSyncAgentLogins = call<
   { ok: true; synced: number }
 >("adminSyncAgentLogins");
 
+export const adminMigrateGambiaNineDigitPhones = call<
+  { limit?: number; reset?: boolean },
+  { ok: true; scanned: number; updated: number; aliases: number; authEmails: number; done: boolean; lastId: string | null }
+>("adminMigrateGambiaNineDigitPhones");
+
 export const adminRefreshDailyDemos = call<
   Record<string, never>,
   { ok: true; date: string; accounts: unknown[] }

@@ -5,6 +5,9 @@ import {
   db,
   FieldValue,
   normalizePhone,
+  findUidByPhone,
+  phoneStorageKeys,
+  writePhoneIndex,
   requireRole,
   round2,
   todayIso,
@@ -264,12 +267,10 @@ export const adminResetPlayerPassword = onCall(async (req) => {
   if (!phone) throw new HttpsError("invalid-argument", "A valid phone number is required.");
   assertValidPassword(password);
 
-  const phoneSnap = await db.doc(`phones/${phone}`).get();
-  if (!phoneSnap.exists) {
+  const uid = await findUidByPhone(phone);
+  if (!uid) {
     throw new HttpsError("not-found", "No player account found for this phone number.");
   }
-  const uid = String(phoneSnap.data()?.uid ?? "");
-  if (!uid) throw new HttpsError("not-found", "Phone record is missing a linked user.");
 
   const authEmail = phoneToEmail(phone);
   await auth.updateUser(uid, { email: authEmail, password });
@@ -293,12 +294,14 @@ export const adminLookupUser = onCall(async (req) => {
   const phone = normalizePhone(raw);
 
   if (phone) {
-    const phoneSnap = await db.doc(`phones/${phone}`).get();
-    const phoneUid = String(phoneSnap.data()?.uid ?? "");
-    if (phoneUid) uids.add(phoneUid);
+    for (const key of phoneStorageKeys(phone)) {
+      const phoneSnap = await db.doc(`phones/${key}`).get();
+      const phoneUid = String(phoneSnap.data()?.uid ?? "");
+      if (phoneUid) uids.add(phoneUid);
 
-    const byPhone = await db.collection("users").where("phone", "==", phone).limit(5).get();
-    for (const d of byPhone.docs) uids.add(d.id);
+      const byPhone = await db.collection("users").where("phone", "==", key).limit(5).get();
+      for (const d of byPhone.docs) uids.add(d.id);
+    }
   }
 
   const idMatch = raw.toUpperCase().replace(/\s/g, "").match(/^(?:BTE-?)?0*(\d+)$/);
@@ -798,7 +801,8 @@ export const adminRefreshDailyDemos = onCall(async (req) => {
   const accounts: Record<string, unknown>[] = [];
 
   for (const demo of demoDefs) {
-    const authEmail = phoneToEmail(demo.phone);
+    const phone = normalizePhone(demo.phone) || demo.phone;
+    const authEmail = phoneToEmail(phone);
     let uid: string;
     try {
       const u = await auth.createUser({ email: authEmail, password, displayName: demo.label });
@@ -807,7 +811,7 @@ export const adminRefreshDailyDemos = onCall(async (req) => {
       await db.doc(`users/${uid}`).set({
         name: demo.label,
         email: null,
-        phone: demo.phone,
+        phone,
         role: "player",
         parentId: null,
         agentSlug: null,
@@ -816,7 +820,9 @@ export const adminRefreshDailyDemos = onCall(async (req) => {
         stats: {},
         createdAt: FieldValue.serverTimestamp(),
       });
-      await db.doc(`phones/${demo.phone}`).set({ uid });
+      const batch = db.batch();
+      writePhoneIndex(batch, uid, phone);
+      await batch.commit();
     } catch (e: unknown) {
       if ((e as { code?: string }).code !== "auth/email-already-exists") throw e;
       uid = (await auth.getUserByEmail(authEmail)).uid;
@@ -842,7 +848,7 @@ export const adminRefreshDailyDemos = onCall(async (req) => {
       id: demo.id,
       label: demo.label,
       role: "Customer",
-      login: demo.phone,
+      login: phone,
       loginHint: "Phone number at sign-in",
       balance: `${demo.balance.toLocaleString()} GMD`,
       description: `Today's demo account (${date}). Resets daily.`,
