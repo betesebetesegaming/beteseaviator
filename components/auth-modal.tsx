@@ -80,17 +80,24 @@ function CustomerPhoneFields({
         ))}
       </Select>
       {active ? (
-        <Input
-          label={`${PHONE_LABEL[phoneCountry]} · ${meta.dial}`}
-          type="tel"
-          inputMode="numeric"
-          autoComplete="tel-national"
-          maxLength={12}
-          placeholder={PHONE_PLACEHOLDER[phoneCountry]}
-          value={phone}
-          onChange={(e) => onPhoneChange(e.target.value.replace(/[^\d+\s]/g, ""))}
-          disabled={disabled}
-        />
+        <>
+          <Input
+            label={`${PHONE_LABEL[phoneCountry]} · ${meta.dial}`}
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            maxLength={phoneCountry === "GM" ? 9 : 12}
+            placeholder={PHONE_PLACEHOLDER[phoneCountry]}
+            value={phone}
+            onChange={(e) => onPhoneChange(e.target.value.replace(/[^\d+\s]/g, ""))}
+            disabled={disabled}
+          />
+          {phoneCountry === "GM" ? (
+            <p className="mt-1.5 text-[11px] leading-snug text-slate-400">
+              Put the new 2-digit code in front: Africell 87, QCell 83, Comium 86, Gamcel 89.
+            </p>
+          ) : null}
+        </>
       ) : (
         <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-100">
           {meta.label} sign-up is coming soon. Please use a Gambian mobile number for now.
@@ -467,8 +474,8 @@ export function AuthModal({
         : mode === "complete"
           ? "Confirm your name and Gambian mobile number to open your wallet."
           : mode === "register"
-            ? "Enter your name, phone and password — we'll verify your number by SMS next."
-            : "Enter your phone and password to sign in.";
+            ? "Enter your name, 9-digit phone (add 87 / 83 / 86 first) and password — we'll verify by SMS next."
+            : "Add the 2-digit prefix to your number (Africell 87, QCell 83, Comium 86), then your password.";
 
   return (
     <Modal open={open} onClose={onClose} title={modalTitle}>

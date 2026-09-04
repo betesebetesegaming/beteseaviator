@@ -8,8 +8,13 @@ export async function authFetchHeaders(
     "Content-Type": "application/json",
     ...extra,
   };
+  if (typeof auth.authStateReady === "function") {
+    await auth.authStateReady();
+  }
   const user = auth.currentUser;
-  if (!user) return headers;
+  if (!user) {
+    throw new Error("Sign in required.");
+  }
   const token = await user.getIdToken();
   headers.Authorization = `Bearer ${token}`;
   return headers;

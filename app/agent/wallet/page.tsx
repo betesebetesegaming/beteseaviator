@@ -128,7 +128,7 @@ export default function AgentWalletPage() {
               <Input
                 label="Payout phone number"
                 type="tel"
-                placeholder="e.g. 7793854 or 877793854"
+                placeholder="e.g. 877793854"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />

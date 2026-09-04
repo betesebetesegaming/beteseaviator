@@ -127,7 +127,7 @@ export default function AgentPlayersPage() {
   async function createCustomer() {
     const phone = normalizePhone(newPhone);
     if (!newName.trim()) return toast.error("Enter the customer's name.");
-    if (!phone) return toast.error("Enter a valid Gambian mobile number (7 or 9 digits).");
+    if (!phone) return toast.error("Enter a valid 9-digit Gambian mobile (add 87, 83 or 86 first).");
     const pwCheck = validatePassword(newPassword);
     if (!pwCheck.ok) return toast.error(pwCheck.message);
     setBusy(true);

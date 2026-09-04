@@ -570,7 +570,7 @@ export default function WalletPage() {
             <Input
               label="Payout phone number"
               type="tel"
-              placeholder="e.g. 7793854 or 877793854"
+              placeholder="e.g. 877793854"
               value={withdrawPhone}
               onChange={(e) => setWithdrawPhone(e.target.value)}
               disabled={!canAffordMinWithdraw}

@@ -294,7 +294,7 @@ export async function createCheckoutSession(
   }
 
   if (input.method !== 'card' && !/^\d{9}$/.test(accountNumber)) {
-    return fail(400, 'Enter a valid Gambian mobile money number (7 or 9 digits, e.g. 7793854 or 877793854).');
+    return fail(400, 'Enter a valid 9-digit Gambian mobile money number (e.g. 877793854).');
   }
 
   const webhookCallback =

@@ -17,6 +17,7 @@ const OPERATOR_PREFIX_BY_START: Record<string, string> = {
   "3": "83",
   "5": "83",
   "6": "86",
+  "8": "86",
   "9": "89",
 };
 
@@ -66,13 +67,13 @@ export function getPhoneCountryMeta(code: PhoneCountryCode): PhoneCountryMeta {
 }
 
 export const PHONE_HINT =
-  "Enter your Gambian mobile: 7 or 9 digits. Old numbers convert automatically (e.g. 7793854 → 877793854).";
+  "Add the 2-digit operator prefix, then your old number (9 digits). Africell 87, QCell 83, Comium 86, Gamcel 89 — e.g. 877793854."
 
 /** @deprecated Use PHONE_HINT */
 export const GAMBIA_PHONE_HINT = PHONE_HINT;
 
 export const PHONE_PLACEHOLDER: Record<PhoneCountry, string> = {
-  GM: "e.g. 7793854 or 877793854",
+  GM: "877793854",
 };
 
 export const PHONE_LABEL: Record<PhoneCountry, string> = {

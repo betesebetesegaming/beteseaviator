@@ -383,7 +383,7 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
   }
   const msisdn = normalizeMsisdn(phoneInput);
   if (!msisdn) {
-    res.status(400).json({ error: "Invalid Gambian mobile number. Use 7 or 9 digits (e.g. 7793854 or 877793854)." });
+    res.status(400).json({ error: "Invalid Gambian mobile. Add the 2-digit prefix (e.g. 877793854)." });
     return;
   }
 
@@ -485,7 +485,7 @@ export async function verifySmsOtp(phoneInput: string, code: string): Promise<st
   }
   const msisdn = normalizeMsisdn(trimmedPhone);
   if (!msisdn) {
-    throw new Error("Invalid Gambian mobile number. Use 7 or 9 digits (e.g. 7793854 or 877793854).");
+    throw new Error("Invalid Gambian mobile. Add the 2-digit prefix (e.g. 877793854).");
   }
 
   const otpSalt = getOtpSalt();
@@ -543,7 +543,7 @@ export async function verifyOtpHandler(req: Request, res: Response): Promise<voi
   }
   const msisdn = normalizeMsisdn(phoneInput);
   if (!msisdn) {
-    res.status(400).json({ error: "Invalid Gambian mobile number. Use 7 or 9 digits (e.g. 7793854 or 877793854)." });
+    res.status(400).json({ error: "Invalid Gambian mobile. Add the 2-digit prefix (e.g. 877793854)." });
     return;
   }
 

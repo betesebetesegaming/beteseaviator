@@ -690,7 +690,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 7793854 or 877793854"
+                  placeholder="e.g. 877793854"
                   className="w-full p-3 border-2 border-slate-300 rounded-xl text-lg font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:border-betese-green focus:ring-2 focus:ring-green-600/25 focus:outline-none"
                 />
               </div>
