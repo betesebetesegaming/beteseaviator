@@ -322,24 +322,56 @@ export type Gambia9PreviewRow = {
   reason: string;
 };
 
-export const adminGambia9Migration = call<
-  { action: "preview" | "backup" | "apply" | "rollback"; confirm?: string; backupId?: string },
-  {
-    ok: true;
-    action: string;
-    scanned?: number;
-    counts?: Record<string, number>;
-    samples?: Record<string, Gambia9PreviewRow[]>;
-    previewedAt?: string;
-    backupId?: string;
-    saved?: number;
-    updated?: number;
-    skipped?: number;
-    failed?: number;
-    failures?: { uid: string; reason: string }[];
-    restored?: number;
+export async function adminGambia9Migration(data: {
+  action: "preview" | "backup" | "apply" | "rollback";
+  confirm?: string;
+  backupId?: string;
+}): Promise<{
+  ok: true;
+  action: string;
+  scanned?: number;
+  counts?: Record<string, number>;
+  samples?: Record<string, Gambia9PreviewRow[]>;
+  previewedAt?: string;
+  backupId?: string;
+  saved?: number;
+  updated?: number;
+  skipped?: number;
+  failed?: number;
+  failures?: { uid: string; reason: string }[];
+  restored?: number;
+}> {
+  const { previewGambia9Accounts, backupGambia9Accounts, applyGambia9Accounts, rollbackGambia9Accounts } =
+    await import("./adminGambia9Client");
+  if (data.action === "preview") {
+    const res = await previewGambia9Accounts();
+    return {
+      ok: true,
+      action: "preview",
+      scanned: res.scanned,
+      counts: res.counts,
+      samples: res.samples,
+      previewedAt: new Date().toISOString(),
+    };
   }
->("adminGambia9Migration");
+  if (data.action === "backup") {
+    const res = await backupGambia9Accounts();
+    return { ok: true, action: "backup", backupId: res.backupId, saved: res.saved };
+  }
+  if (data.action === "apply") {
+    const res = await applyGambia9Accounts(data.confirm ?? "", data.backupId ?? "");
+    return {
+      ok: true,
+      action: "apply",
+      updated: res.updated,
+      skipped: res.skipped,
+      failed: res.failed,
+      failures: res.failures,
+    };
+  }
+  const res = await rollbackGambia9Accounts(data.backupId ?? "");
+  return { ok: true, action: "rollback", restored: res.restored, failed: res.failed };
+}
 
 export const adminRefreshDailyDemos = call<
   Record<string, never>,
