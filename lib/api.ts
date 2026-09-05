@@ -1,6 +1,7 @@
 import { app } from "./firebase";
 import type { Functions } from "firebase/functions";
 import type { PromoSlide } from "./games/promotions";
+import type { Gambia9PreviewRow } from "./gambia9";
 import type { PaymentProvider, Role } from "./types";
 
 let functionsInstance: Functions | null = null;
@@ -309,18 +310,7 @@ export const adminMigrateGambiaNineDigitPhones = call<
   { ok: true; scanned: number; updated: number; aliases: number; authEmails: number; done: boolean; lastId: string | null }
 >("adminMigrateGambiaNineDigitPhones");
 
-export type Gambia9PreviewRow = {
-  uid: string;
-  role: string;
-  name: string;
-  storedPhone: string;
-  oldNumber: string;
-  newNumber: string;
-  network: string;
-  status: "convert" | "already_converted" | "gamcel_unchanged" | "unsafe" | "empty";
-  alreadyConverted: boolean;
-  reason: string;
-};
+export type { Gambia9PreviewRow } from "./gambia9";
 
 export async function adminGambia9Migration(data: {
   action: "preview" | "backup" | "apply" | "rollback";

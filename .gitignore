@@ -62,6 +62,9 @@ docs/qtech/cw_qtcw_tester.cfg
 docs/qtech/__pycache__/
 **/__pycache__/
 
+# Nested leftover clone — not part of the live app
+/aviator/
+
 # Capacitor local
 .capacitor/
 .vercel

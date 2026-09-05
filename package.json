@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "next dev",
@@ -41,7 +41,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
-    "postcss-preset-env": "^11.3.2",
+    "postcss-preset-env": "^11.5.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

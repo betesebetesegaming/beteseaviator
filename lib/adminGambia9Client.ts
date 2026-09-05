@@ -8,13 +8,14 @@ import {
   query,
   startAfter,
   writeBatch,
+  type DocumentData,
   type DocumentSnapshot,
+  type Query,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firestore";
-import { classifyGambia9, type Gambia9Status } from "@/lib/gambia9";
+import { classifyGambia9, type Gambia9PreviewRow, type Gambia9Status } from "@/lib/gambia9";
 import { phoneStorageKeys } from "@/lib/phone";
-import type { Gambia9PreviewRow } from "@/lib/api";
 
 const PAGE = 200;
 const SAMPLE = 25;
@@ -46,10 +47,11 @@ async function forEachUser(
 ): Promise<number> {
   let scanned = 0;
   let cursor: DocumentSnapshot | null = null;
+  const users = collection(db, "users");
   for (;;) {
-    const q = cursor
-      ? query(collection(db, "users"), orderBy("__name__"), startAfter(cursor), limit(PAGE))
-      : query(collection(db, "users"), orderBy("__name__"), limit(PAGE));
+    const q: Query<DocumentData> = cursor
+      ? query(users, orderBy("__name__"), startAfter(cursor), limit(PAGE))
+      : query(users, orderBy("__name__"), limit(PAGE));
     const snap = await getDocs(q);
     if (snap.empty) break;
     for (const row of snap.docs) {

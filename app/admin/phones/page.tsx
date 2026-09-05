@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import toast from "react-hot-toast";
-import type { Gambia9PreviewRow } from "@/lib/api";
+import type { Gambia9PreviewRow } from "@/lib/gambia9";
 import {
   applyGambia9Accounts,
   backupGambia9Accounts,

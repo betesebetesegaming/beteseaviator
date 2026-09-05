@@ -22,6 +22,13 @@ export type Gambia9Plan = {
   reason: string;
 };
 
+export type Gambia9PreviewRow = Gambia9Plan & {
+  uid: string;
+  role: string;
+  name: string;
+  storedPhone: string;
+};
+
 const PREFIX_BY_START: Record<string, { network: Exclude<Gambia9Network, "Gamcel" | "unknown">; prefix: string }> = {
   "2": { network: "Africell", prefix: "87" },
   "4": { network: "Africell", prefix: "87" },
