@@ -138,9 +138,9 @@ export function StaffDashboard() {
           </p>
           <Link
             href="/admin/phones"
-            className="mt-3 inline-flex rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white"
+            className="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-5 py-3 text-base font-bold text-white hover:bg-emerald-500 sm:w-auto"
           >
-            Open Phone migration
+            Open Phone Migration
           </Link>
         </Card>
 

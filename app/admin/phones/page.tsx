@@ -47,6 +47,7 @@ export default function AdminPhoneMigrationPage() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [backupId, setBackupId] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [readyToConfirm, setReadyToConfirm] = useState(false);
   const [applyResult, setApplyResult] = useState<string>("");
 
   async function run(action: "preview" | "backup" | "apply" | "rollback") {
@@ -132,29 +133,50 @@ export default function AdminPhoneMigrationPage() {
       </Card>
 
       <Card className="mb-5 border-amber-500/30">
-        <h2 className="mb-2 font-semibold">3. Convert (only after you approve)</h2>
+        <h2 className="mb-2 font-semibold">3. Convert accounts</h2>
         <p className="mb-3 text-sm text-slate-400">
           Updates <code>users.phone</code> and the <code>phones/</code> lookup index only. Does not
-          touch wallets, bets, deposits, withdrawals, or player IDs. Old 7-digit login still works
-          through aliases. Type CONVERT to enable.
+          touch wallets, bets, deposits, withdrawals, or player IDs. Opening this page never
+          converts anyone. You must preview, back up, then confirm.
         </p>
-        <input
-          className="mb-3 w-full max-w-xs rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-          placeholder="Type CONVERT"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-        />
         <Button
-          disabled={busy !== null || confirm !== "CONVERT" || !backupId}
-          onClick={() => void run("apply")}
+          variant="secondary"
+          disabled={busy !== null || !preview || !backupId}
+          onClick={() => setReadyToConfirm(true)}
         >
-          {busy === "apply" ? "Converting…" : "Convert approved accounts"}
+          Convert accounts
         </Button>
-        {applyResult ? <p className="mt-2 text-sm text-emerald-300">{applyResult}</p> : null}
+        {readyToConfirm ? (
+          <div className="mt-4 space-y-3 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
+            <p className="text-sm text-amber-100">
+              Confirm conversion will change stored phones for the previewed Africell / QCell /
+              Comium 7-digit accounts only.
+            </p>
+            <input
+              className="w-full max-w-xs rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+              placeholder="Type CONVERT"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+            <Button
+              disabled={busy !== null || confirm !== "CONVERT" || !backupId}
+              onClick={() => void run("apply")}
+            >
+              {busy === "apply" ? "Converting…" : "Confirm conversion"}
+            </Button>
+          </div>
+        ) : null}
+      </Card>
+
+      <Card className="mb-5">
+        <h2 className="mb-2 font-semibold">4. Conversion results</h2>
+        <p className="text-sm text-slate-400">
+          {applyResult || "No conversion has been run on this visit."}
+        </p>
       </Card>
 
       <Card>
-        <h2 className="mb-2 font-semibold">4. Rollback</h2>
+        <h2 className="mb-2 font-semibold">5. Rollback / undo</h2>
         <p className="mb-3 text-sm text-slate-400">Restores phones and auth emails from the last backup ID.</p>
         <Button variant="secondary" disabled={busy !== null || !backupId} onClick={() => void run("rollback")}>
           {busy === "rollback" ? "Restoring…" : "Rollback last backup"}
