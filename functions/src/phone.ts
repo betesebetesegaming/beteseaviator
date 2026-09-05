@@ -14,7 +14,7 @@ export const GAMBIA_LEGACY_LOCAL_LENGTH = 7;
  *   Africell (7, 2, 4) → 87    e.g. 7793854 → 877793854
  *   QCell    (3, 5)    → 83
  *   Comium   (6, 8)    → 86
- *   Gamcel   (9)       → 89
+ *   Gamcel   (9)       stays 7 digits (Gambia9 / PURA phase 1)
  */
 const OPERATOR_PREFIX_BY_START: Record<string, string> = {
   "2": "87",
@@ -24,7 +24,6 @@ const OPERATOR_PREFIX_BY_START: Record<string, string> = {
   "5": "83",
   "6": "86",
   "8": "86",
-  "9": "89",
 };
 
 const NEW_OPERATOR_PREFIXES = new Set(["87", "83", "86", "89"]);

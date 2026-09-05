@@ -400,13 +400,14 @@ export default function AdminSettingsPage() {
       </Card>
 
       <Card className="mb-5">
-        <h2 className="mb-2 font-semibold">Gambia 9-digit numbers</h2>
+        <h2 className="mb-2 font-semibold">Gambia 9-digit numbers (Gambia9 / PURA)</h2>
         <p className="mb-4 text-sm text-slate-400">
-          Converts registered 7-digit mobiles automatically (Africell 87, QCell 83, Comium 86, Gamcel 89).
-          Login already accepts old or new numbers. Run this once to rewrite stored accounts.
+          Same official conversion as the Gambia9 app: Africell 87 + old 7 digits, QCell 83, Comium 86.
+          Gamcel stays 7 digits. Login and Wave then recognise both the old and new number. Run this to
+          rewrite every stored account.
         </p>
         <Button variant="secondary" disabled={migratingPhones} onClick={() => void migrateGambiaPhones()}>
-          {migratingPhones ? "Updating numbers…" : "Update all registered numbers now"}
+          {migratingPhones ? "Updating numbers…" : "Convert all accounts like Gambia9"}
         </Button>
       </Card>
 

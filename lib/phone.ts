@@ -1,4 +1,4 @@
-/** BETESE Gambian mobiles: +220 + 9 local digits. Old 7-digit numbers convert automatically. */
+/** BETESE Gambian mobiles — same PURA / Gambia9 rules: 87 Africell, 83 QCell, 86 Comium. */
 
 /** Active sign-up / login country */
 export type PhoneCountry = "GM";
@@ -18,7 +18,6 @@ const OPERATOR_PREFIX_BY_START: Record<string, string> = {
   "5": "83",
   "6": "86",
   "8": "86",
-  "9": "89",
 };
 
 const NEW_OPERATOR_PREFIXES = new Set(["87", "83", "86", "89"]);
