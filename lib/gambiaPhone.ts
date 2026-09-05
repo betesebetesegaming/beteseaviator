@@ -16,6 +16,7 @@ export {
   normalizePhone,
   normalizePhoneE164,
   normalizePhoneLocal,
+  sanitizePhoneInput,
   phoneToEmail,
   phoneAuthEmails,
   phoneStorageKeys,

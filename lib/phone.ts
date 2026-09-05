@@ -40,7 +40,7 @@ export const PHONE_COUNTRY_OPTIONS: PhoneCountryMeta[] = [
     dial: "+220",
     active: true,
     localLength: GAMBIA_LOCAL_LENGTH,
-    placeholder: "877793854",
+    placeholder: "7793854 or 877793854",
   },
   {
     code: "GH",
@@ -67,13 +67,13 @@ export function getPhoneCountryMeta(code: PhoneCountryCode): PhoneCountryMeta {
 }
 
 export const PHONE_HINT =
-  "Add the 2-digit operator prefix, then your old number (9 digits). Africell 87, QCell 83, Comium 86, Gamcel 89 — e.g. 877793854."
+  "Use your old 7-digit number or the new 9-digit number. Africell 87, QCell 83, Comium 86 — e.g. 7793854 or 877793854. Gamcel stays 7 digits.";
 
 /** @deprecated Use PHONE_HINT */
 export const GAMBIA_PHONE_HINT = PHONE_HINT;
 
 export const PHONE_PLACEHOLDER: Record<PhoneCountry, string> = {
-  GM: "877793854",
+  GM: "7793854 or 877793854",
 };
 
 export const PHONE_LABEL: Record<PhoneCountry, string> = {
@@ -94,16 +94,18 @@ export function toCanonicalGambiaLocal(localDigits: string): string | null {
   const d = stripLeadingZeros(String(localDigits || "").replace(/\D/g, ""));
   if (!d) return null;
 
+  // New 9-digit numbers: 87/83/86 (phase 1) or 89 if someone prefixed Gamcel.
+  // Do not require the last 7 digits to match the old first-digit map — post-cutover
+  // numbers can use any suffix, and a wrong prefix still aliases to the old 7 digits.
   if (d.length === GAMBIA_LOCAL_LENGTH) {
     const prefix = d.slice(0, 2);
-    const rest = d.slice(2);
-    if (!NEW_OPERATOR_PREFIXES.has(prefix) || rest.length !== GAMBIA_LEGACY_LOCAL_LENGTH) return null;
-    const expected = operatorPrefixForLegacyStart(rest[0] ?? "");
-    if (expected !== prefix) return null;
+    if (!NEW_OPERATOR_PREFIXES.has(prefix)) return null;
     return d;
   }
 
   if (d.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
+    // Gamcel is still 7 digits in this phase.
+    if (d.startsWith("9")) return d;
     const prefix = operatorPrefixForLegacyStart(d[0] ?? "");
     if (!prefix) return null;
     return `${prefix}${d}`;
@@ -126,10 +128,20 @@ function extractLocalDigits(input: string): string | null {
   if (!raw) return null;
   let digits = raw.replace(/\D/g, "");
   if (!digits) return null;
-  if (digits.startsWith(GAMBIA_COUNTRY_CODE)) {
-    return stripLeadingZeros(digits.slice(GAMBIA_COUNTRY_CODE.length));
+  digits = stripLeadingZeros(digits);
+  if (digits.startsWith(GAMBIA_COUNTRY_CODE) && digits.length > GAMBIA_COUNTRY_CODE.length) {
+    const rest = stripLeadingZeros(digits.slice(GAMBIA_COUNTRY_CODE.length));
+    if (rest.length === GAMBIA_LOCAL_LENGTH || rest.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
+      return rest;
+    }
+    return rest || null;
   }
-  return stripLeadingZeros(digits);
+  return digits || null;
+}
+
+/** Digits-only input for login/sign-up (allows 7, 9, or 220 + number). */
+export function sanitizePhoneInput(value: string): string {
+  return String(value || "").replace(/\D/g, "").slice(0, 12);
 }
 
 /** Parse and validate a Gambian mobile number (7-digit old or 9-digit new). */
@@ -152,14 +164,29 @@ export function normalizePhone(input: string, preferredCountry: PhoneCountry = "
 }
 
 export function phoneStorageKeys(input: string): string[] {
+  const keys: string[] = [];
+  const add = (value?: string | null) => {
+    const digits = String(value || "").replace(/\D/g, "");
+    if (digits && !keys.includes(digits)) keys.push(digits);
+  };
+
   const canonical = normalizePhone(input);
-  if (!canonical) {
-    const digits = String(input || "").replace(/\D/g, "");
-    return digits ? [digits] : [];
+  const raw = String(input || "").replace(/\D/g, "");
+  const legacy = canonical ? legacyGambiaLocal(canonical) : null;
+
+  // Try the original 7-digit auth key first — most existing accounts still use it.
+  add(legacy);
+  add(canonical);
+  if (canonical) {
+    add(`${GAMBIA_COUNTRY_CODE}${canonical}`);
+    if (legacy) add(`${GAMBIA_COUNTRY_CODE}${legacy}`);
+    if (canonical.length === GAMBIA_LEGACY_LOCAL_LENGTH && canonical.startsWith("9")) {
+      add(`89${canonical}`);
+      add(`${GAMBIA_COUNTRY_CODE}89${canonical}`);
+    }
   }
-  const keys = [canonical];
-  const legacy = legacyGambiaLocal(canonical);
-  if (legacy && legacy !== canonical) keys.push(legacy);
+  add(raw);
+  if (raw.startsWith(GAMBIA_COUNTRY_CODE)) add(raw.slice(GAMBIA_COUNTRY_CODE.length));
   return keys;
 }
 

@@ -28,6 +28,7 @@ import {
   phoneKeyFromAuthEmail,
   phoneToEmail,
   phoneAuthEmails,
+  sanitizePhoneInput,
 } from "@/lib/phone";
 import { probeSignupOtpGateway, type OtpGatewayStatus } from "@/lib/otpClient";
 import { OtpConfirmPanel, usePhoneOtp } from "@/components/PhoneOtpVerification";
@@ -86,15 +87,22 @@ function CustomerPhoneFields({
             type="tel"
             inputMode="numeric"
             autoComplete="tel-national"
-            maxLength={phoneCountry === "GM" ? 9 : 12}
+            maxLength={12}
             placeholder={PHONE_PLACEHOLDER[phoneCountry]}
             value={phone}
-            onChange={(e) => onPhoneChange(e.target.value.replace(/[^\d+\s]/g, ""))}
+            onChange={(e) =>
+              onPhoneChange(
+                phoneCountry === "GM"
+                  ? sanitizePhoneInput(e.target.value)
+                  : e.target.value.replace(/[^\d+\s]/g, ""),
+              )
+            }
             disabled={disabled}
           />
           {phoneCountry === "GM" ? (
             <p className="mt-1.5 text-[11px] leading-snug text-slate-400">
-              Put the new 2-digit code in front: Africell 87, QCell 83, Comium 86, Gamcel 89.
+              Old 7-digit and new 9-digit numbers both work. Africell add 87, QCell 83, Comium 86.
+              Gamcel stays 7 digits.
             </p>
           ) : null}
         </>
@@ -474,8 +482,8 @@ export function AuthModal({
         : mode === "complete"
           ? "Confirm your name and Gambian mobile number to open your wallet."
           : mode === "register"
-            ? "Enter your name, 9-digit phone (add 87 / 83 / 86 first) and password — we'll verify by SMS next."
-            : "Add the 2-digit prefix to your number (Africell 87, QCell 83, Comium 86), then your password.";
+            ? "Enter your name, phone (7-digit or new 9-digit) and password — we'll verify by SMS next."
+            : "Enter your phone (old 7-digit or new 9-digit) and password to sign in.";
 
   return (
     <Modal open={open} onClose={onClose} title={modalTitle}>

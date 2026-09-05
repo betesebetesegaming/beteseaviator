@@ -37,21 +37,19 @@ export function operatorPrefixForLegacyStart(digit: string): string | null {
   return OPERATOR_PREFIX_BY_START[digit] ?? null;
 }
 
-/** Expand a 7-digit local number, or validate an already-9-digit number. */
+/** Expand a 7-digit local number, or accept an already-9-digit number. */
 export function toCanonicalGambiaLocal(localDigits: string): string | null {
   const d = stripLeadingZeros(String(localDigits || "").replace(/\D/g, ""));
   if (!d) return null;
 
   if (d.length === GAMBIA_LOCAL_LENGTH) {
     const prefix = d.slice(0, 2);
-    const rest = d.slice(2);
-    if (!NEW_OPERATOR_PREFIXES.has(prefix) || rest.length !== GAMBIA_LEGACY_LOCAL_LENGTH) return null;
-    const expected = operatorPrefixForLegacyStart(rest[0] ?? "");
-    if (expected !== prefix) return null;
+    if (!NEW_OPERATOR_PREFIXES.has(prefix)) return null;
     return d;
   }
 
   if (d.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
+    if (d.startsWith("9")) return d;
     const prefix = operatorPrefixForLegacyStart(d[0] ?? "");
     if (!prefix) return null;
     return `${prefix}${d}`;
@@ -75,11 +73,15 @@ function extractLocalDigits(input: string): string | null {
   if (!raw) return null;
   let digits = raw.replace(/\D/g, "");
   if (!digits) return null;
-
-  if (digits.startsWith(GAMBIA_COUNTRY_CODE)) {
-    return stripLeadingZeros(digits.slice(GAMBIA_COUNTRY_CODE.length));
+  digits = stripLeadingZeros(digits);
+  if (digits.startsWith(GAMBIA_COUNTRY_CODE) && digits.length > GAMBIA_COUNTRY_CODE.length) {
+    const rest = stripLeadingZeros(digits.slice(GAMBIA_COUNTRY_CODE.length));
+    if (rest.length === GAMBIA_LOCAL_LENGTH || rest.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
+      return rest;
+    }
+    return rest || null;
   }
-  return stripLeadingZeros(digits);
+  return digits || null;
 }
 
 export function normalizePhoneLocal(
@@ -105,14 +107,28 @@ export function normalizePhone(input: string, preferredCountry: PhoneCountry = "
  * (new 9-digit key first, then legacy 7-digit).
  */
 export function phoneStorageKeys(input: string): string[] {
+  const keys: string[] = [];
+  const add = (value?: string | null) => {
+    const digits = String(value || "").replace(/\D/g, "");
+    if (digits && !keys.includes(digits)) keys.push(digits);
+  };
+
   const canonical = normalizePhone(input);
-  if (!canonical) {
-    const digits = String(input || "").replace(/\D/g, "");
-    return digits ? [digits] : [];
+  const raw = String(input || "").replace(/\D/g, "");
+  const legacy = canonical ? legacyGambiaLocal(canonical) : null;
+
+  add(legacy);
+  add(canonical);
+  if (canonical) {
+    add(`${GAMBIA_COUNTRY_CODE}${canonical}`);
+    if (legacy) add(`${GAMBIA_COUNTRY_CODE}${legacy}`);
+    if (canonical.length === GAMBIA_LEGACY_LOCAL_LENGTH && canonical.startsWith("9")) {
+      add(`89${canonical}`);
+      add(`${GAMBIA_COUNTRY_CODE}89${canonical}`);
+    }
   }
-  const keys = [canonical];
-  const legacy = legacyGambiaLocal(canonical);
-  if (legacy && legacy !== canonical) keys.push(legacy);
+  add(raw);
+  if (raw.startsWith(GAMBIA_COUNTRY_CODE)) add(raw.slice(GAMBIA_COUNTRY_CODE.length));
   return keys;
 }
 
