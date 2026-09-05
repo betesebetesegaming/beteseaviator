@@ -41,6 +41,13 @@ export function apiUrl(path: string): string {
     return `${base}/modempayApi/modempay-transactions/${encodeURIComponent(txMatch[1])}`;
   }
 
+  if (p === "/modempay-checkout") {
+    if (typeof window !== "undefined" && /^https?:/.test(window.location.origin)) {
+      return `${window.location.origin}/api/modempay-checkout`;
+    }
+    return `${base}/modempayApi${p}`;
+  }
+
   if (MODEMPAY_PATHS.has(p)) {
     return `${base}/modempayApi${p}`;
   }
