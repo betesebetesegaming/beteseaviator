@@ -17,6 +17,7 @@ import {
   Calculator,
   Brain,
   Smartphone,
+  PhoneForwarded,
 } from "lucide-react";
 import type { Role } from "@/lib/types";
 import { isAgentRole, roleLabel as sharedRoleLabel } from "@/lib/roles";
@@ -148,8 +149,9 @@ export const STAFF_NAV: StaffNavItem[] = [
   {
     href: "/admin/phones",
     label: "Phone migration",
-    icon: Smartphone,
+    icon: PhoneForwarded,
     roles: ["admin"],
+    pinned: true,
   },
   {
     href: "/admin/settings",

@@ -131,6 +131,19 @@ export function StaffDashboard() {
           </p>
         </div>
 
+        <Card className="border-emerald-500/30 bg-emerald-500/10">
+          <p className="text-sm font-semibold text-emerald-200">Gambia9 phone numbers</p>
+          <p className="mt-1 text-sm text-slate-300">
+            Preview and convert old 7-digit numbers to 9 digits. Nothing is changed until you approve.
+          </p>
+          <Link
+            href="/admin/phones"
+            className="mt-3 inline-flex rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white"
+          >
+            Open Phone migration
+          </Link>
+        </Card>
+
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard label="Total Customers" value={platformStats.customerCount ?? 0} icon={<Users size={20} />} />
           <StatCard label="Total Agents" value={platformStats.agentCount ?? 0} icon={<UserCog size={20} />} />
