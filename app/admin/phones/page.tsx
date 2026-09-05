@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { adminGambia9Migration, errorMessage, type Gambia9PreviewRow } from "@/lib/api";
+import type { Gambia9PreviewRow } from "@/lib/api";
+import {
+  applyGambia9Accounts,
+  backupGambia9Accounts,
+  previewGambia9Accounts,
+  rollbackGambia9Accounts,
+} from "@/lib/adminGambia9Client";
 import { Button, Card } from "@/components/ui";
 
 type Preview = {
@@ -48,37 +54,54 @@ export default function AdminPhoneMigrationPage() {
   const [backupId, setBackupId] = useState("");
   const [confirm, setConfirm] = useState("");
   const [readyToConfirm, setReadyToConfirm] = useState(false);
-  const [applyResult, setApplyResult] = useState<string>("");
+  const [applyResult, setApplyResult] = useState("");
 
-  async function run(action: "preview" | "backup" | "apply" | "rollback") {
-    setBusy(action);
-    setApplyResult("");
+  async function runPreview() {
+    setBusy("preview");
     try {
-      const res = await adminGambia9Migration({
-        action,
-        confirm: action === "apply" ? confirm : undefined,
-        backupId: action === "apply" || action === "rollback" ? backupId : undefined,
-      });
-      if (action === "preview") {
-        setPreview({
-          scanned: Number(res.scanned ?? 0),
-          counts: res.counts ?? {},
-          samples: res.samples ?? {},
-        });
-        toast.success(`Preview ready — ${res.scanned ?? 0} accounts scanned. Nothing was changed.`);
-      } else if (action === "backup") {
-        setBackupId(String(res.backupId ?? ""));
-        toast.success(`Backup saved (${res.saved ?? 0} phones). ID: ${res.backupId}`);
-      } else if (action === "apply") {
-        setApplyResult(
-          `Updated ${res.updated ?? 0}. Skipped ${res.skipped ?? 0}. Failed ${res.failed ?? 0}.`,
-        );
-        toast.success(`Conversion finished. Updated ${res.updated ?? 0}.`);
-      } else {
-        toast.success(`Rollback restored ${res.restored ?? 0} numbers.`);
-      }
+      const res = await previewGambia9Accounts();
+      setPreview({ scanned: res.scanned, counts: res.counts, samples: res.samples });
+      toast.success(`Preview ready — ${res.scanned} accounts scanned. Nothing was changed.`);
     } catch (e) {
-      toast.error(errorMessage(e));
+      toast.error(e instanceof Error ? e.message : "Preview failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function runBackup() {
+    setBusy("backup");
+    try {
+      const res = await backupGambia9Accounts();
+      setBackupId(res.backupId);
+      toast.success(`Backup saved (${res.saved} phones). A JSON file also downloaded.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Backup failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function runApply() {
+    setBusy("apply");
+    try {
+      const res = await applyGambia9Accounts(confirm, backupId);
+      setApplyResult(`Updated ${res.updated}. Skipped ${res.skipped}. Failed ${res.failed}.`);
+      toast.success(`Conversion finished. Updated ${res.updated}.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Conversion failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function runRollback() {
+    setBusy("rollback");
+    try {
+      const res = await rollbackGambia9Accounts(backupId);
+      toast.success(`Rollback restored ${res.restored} numbers.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Rollback failed.");
     } finally {
       setBusy(null);
     }
@@ -89,17 +112,16 @@ export default function AdminPhoneMigrationPage() {
       <h1 className="mb-1 text-xl font-bold">Phone Number Migration</h1>
       <p className="mb-6 text-sm text-slate-400">
         Official Gambia9 / PURA rules: Africell 87, QCell 83, Comium 86. Gamcel stays 7 digits.
-        Already-9-digit numbers are not changed. This page does not convert anyone until you type
-        CONVERT after a backup.
+        Already-9-digit numbers are not changed. Opening this page does not convert anyone.
       </p>
 
       <Card className="mb-5">
         <h2 className="mb-2 font-semibold">1. Preview (safe — no writes)</h2>
         <p className="mb-3 text-sm text-slate-400">
-          Scans every <code>users/{"{uid}"}</code> phone. Shows old number, new number, network, and
-          whether it is already converted or unsafe.
+          Reads every account phone. Shows old number, new number, network, and whether it is already
+          converted or unsafe.
         </p>
-        <Button disabled={busy !== null} onClick={() => void run("preview")}>
+        <Button disabled={busy !== null} onClick={() => void runPreview()}>
           {busy === "preview" ? "Scanning…" : "Preview all accounts"}
         </Button>
         {preview ? (
@@ -123,10 +145,9 @@ export default function AdminPhoneMigrationPage() {
       <Card className="mb-5">
         <h2 className="mb-2 font-semibold">2. Backup</h2>
         <p className="mb-3 text-sm text-slate-400">
-          Copies every stored phone (and Firebase Auth email) to{" "}
-          <code>gambia9_phone_backups</code> before any convert. Needed for rollback.
+          Downloads a JSON backup of every stored phone to this PC. Keep that file for rollback.
         </p>
-        <Button variant="secondary" disabled={busy !== null} onClick={() => void run("backup")}>
+        <Button variant="secondary" disabled={busy !== null} onClick={() => void runBackup()}>
           {busy === "backup" ? "Saving backup…" : "Create backup"}
         </Button>
         {backupId ? <p className="mt-2 text-xs text-emerald-300">Last backup ID: {backupId}</p> : null}
@@ -135,9 +156,8 @@ export default function AdminPhoneMigrationPage() {
       <Card className="mb-5 border-amber-500/30">
         <h2 className="mb-2 font-semibold">3. Convert accounts</h2>
         <p className="mb-3 text-sm text-slate-400">
-          Updates <code>users.phone</code> and the <code>phones/</code> lookup index only. Does not
-          touch wallets, bets, deposits, withdrawals, or player IDs. Opening this page never
-          converts anyone. You must preview, back up, then confirm.
+          Changes only the phone field and phone lookup. Wallets, bets, deposits, withdrawals, and
+          player IDs stay the same.
         </p>
         <Button
           variant="secondary"
@@ -149,8 +169,7 @@ export default function AdminPhoneMigrationPage() {
         {readyToConfirm ? (
           <div className="mt-4 space-y-3 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
             <p className="text-sm text-amber-100">
-              Confirm conversion will change stored phones for the previewed Africell / QCell /
-              Comium 7-digit accounts only.
+              Confirm conversion changes stored Africell / QCell / Comium 7-digit numbers only.
             </p>
             <input
               className="w-full max-w-xs rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
@@ -158,10 +177,7 @@ export default function AdminPhoneMigrationPage() {
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
             />
-            <Button
-              disabled={busy !== null || confirm !== "CONVERT" || !backupId}
-              onClick={() => void run("apply")}
-            >
+            <Button disabled={busy !== null || confirm !== "CONVERT" || !backupId} onClick={() => void runApply()}>
               {busy === "apply" ? "Converting…" : "Confirm conversion"}
             </Button>
           </div>
@@ -170,15 +186,13 @@ export default function AdminPhoneMigrationPage() {
 
       <Card className="mb-5">
         <h2 className="mb-2 font-semibold">4. Conversion results</h2>
-        <p className="text-sm text-slate-400">
-          {applyResult || "No conversion has been run on this visit."}
-        </p>
+        <p className="text-sm text-slate-400">{applyResult || "No conversion has been run on this visit."}</p>
       </Card>
 
       <Card>
         <h2 className="mb-2 font-semibold">5. Rollback / undo</h2>
-        <p className="mb-3 text-sm text-slate-400">Restores phones and auth emails from the last backup ID.</p>
-        <Button variant="secondary" disabled={busy !== null || !backupId} onClick={() => void run("rollback")}>
+        <p className="mb-3 text-sm text-slate-400">Restores phones from the backup created in this browser.</p>
+        <Button variant="secondary" disabled={busy !== null || !backupId} onClick={() => void runRollback()}>
           {busy === "rollback" ? "Restoring…" : "Rollback last backup"}
         </Button>
       </Card>

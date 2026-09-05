@@ -51,7 +51,10 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (signedIn() && uid() == userId)
         || (isAgent() && uid() in resource.data.ancestors);
-      allow write: if false;
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['phone', 'phoneMigratedAt', 'phoneMigratedFrom']);
+      allow create, delete: if false;
     }
 
     match /wallets/{userId} {
@@ -163,7 +166,14 @@ service cloud.firestore {
     }
 
     match /phones/{phone} {
-      allow read, write: if false;
+      allow read, write: if isAdmin();
+    }
+
+    match /gambia9_phone_backups/{backupId} {
+      allow read, write: if isAdmin();
+      match /accounts/{uid} {
+        allow read, write: if isAdmin();
+      }
     }
 
     /** OTP codes — Cloud Functions only (Africell SMS verification). */
