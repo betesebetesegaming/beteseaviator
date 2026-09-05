@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { logger } from 'firebase-functions';
-import { normalizePhone } from './phone';
+import { normalizePhone, toWaveAccountNumber } from './phone';
 
 /**
  * Thin Modem Pay REST client. We deliberately avoid the official `modem-pay`
@@ -150,7 +150,10 @@ export type PersistPayLinkInput = {
   externalRef: string;
 };
 
-export function normalizeModemPayAccountNumber(phone: string | undefined | null): string {
+export function normalizeModemPayAccountNumber(phone: string | undefined | null, method?: string): string {
+  if (String(method || '').toLowerCase() === 'wave') {
+    return toWaveAccountNumber(String(phone || ''));
+  }
   const canonical = normalizePhone(String(phone || ''));
   if (canonical) return canonical;
   return String(phone || '')
@@ -268,7 +271,7 @@ export async function createCheckoutSession(
     persistPayLink?: (input: PersistPayLinkInput) => Promise<void>;
   },
 ): Promise<CheckoutSessionResult> {
-  const accountNumber = normalizeModemPayAccountNumber(input.customer?.phone);
+  const accountNumber = normalizeModemPayAccountNumber(input.customer?.phone, input.method);
   const amount = Math.round(Number(input.amount) * 100) / 100;
 
   const fail = (status: number, message: string): CheckoutSessionResult => ({
@@ -293,7 +296,11 @@ export async function createCheckoutSession(
     );
   }
 
-  if (input.method !== 'card' && !/^\d{7,9}$/.test(accountNumber)) {
+  if (input.method === 'wave' && !/^\d{9}$/.test(accountNumber)) {
+    return fail(400, 'Wave needs the new 9-digit number (e.g. 877793854).');
+  }
+
+  if (input.method !== 'card' && input.method !== 'wave' && !/^\d{7,9}$/.test(accountNumber)) {
     return fail(400, 'Enter a valid Gambian mobile money number (7 or 9 digits, e.g. 7793854 or 877793854).');
   }
 
@@ -559,8 +566,10 @@ async function findOpenModemPayIntent(
   phone: string,
   amount: number,
 ): Promise<{ paymentIntentId: string; method: string | null } | null> {
-  const account = normalizeModemPayAccountNumber(phone);
-  if (!account) return null;
+  const accounts = new Set(
+    [normalizeModemPayAccountNumber(phone), toWaveAccountNumber(phone)].filter(Boolean),
+  );
+  if (!accounts.size) return null;
   const { ok, data } = await modemFetch<{ data?: Array<Record<string, unknown>> }>({
     method: 'GET',
     path: '/v1/transactions',
@@ -573,8 +582,10 @@ async function findOpenModemPayIntent(
     if (!['processing', 'pending', 'requires_payment_method', 'requires_action'].includes(st)) {
       return false;
     }
-    const p = normalizeModemPayAccountNumber(String(t.customer_phone || t.account_number || ''));
-    if (p !== account) return false;
+    const rawPhone = String(t.customer_phone || t.account_number || '');
+    const p = normalizeModemPayAccountNumber(rawPhone);
+    const waveP = toWaveAccountNumber(rawPhone);
+    if (!accounts.has(p) && !accounts.has(waveP)) return false;
     return Math.round(Number(t.amount) * 100) / 100 === target;
   });
   if (!open) return null;

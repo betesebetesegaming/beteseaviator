@@ -7,6 +7,7 @@ export {
   normalizePhone,
   normalizePhoneE164,
   normalizePhoneLocal,
+  toWaveAccountNumber,
   phoneToEmail,
   phoneAuthEmails,
   phoneStorageKeys,

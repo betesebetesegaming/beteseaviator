@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import { MIN_DEPOSIT_GMD } from "@/lib/depositLimits";
 import { PaymentSheet } from "@/components/PaymentSheet";
 import { dbDepositRequest } from "@/lib/paymentsClient";
-import { normalizeGambiaPhone, PHONE_HINT } from "@/lib/gambiaPhone";
+import { normalizeGambiaPhone, PHONE_HINT, toWaveAccountNumber, WAVE_PHONE_HINT } from "@/lib/gambiaPhone";
 import toast from "react-hot-toast";
 
 type Props = {
@@ -25,7 +25,12 @@ export function GameDepositSheet({ open, onClose }: Props) {
       externalRef: string
     ) => {
       if (!fbUser || !profile) return;
-      const normalizedPhone = normalizeGambiaPhone(phone || "");
+      const wavePhone = method === "Wave" ? toWaveAccountNumber(phone || "") : "";
+      const normalizedPhone = method === "Wave" ? (wavePhone ? `+220${wavePhone}` : null) : normalizeGambiaPhone(phone || "");
+      if (method === "Wave" && !wavePhone) {
+        toast.error(WAVE_PHONE_HINT);
+        return;
+      }
       if (!normalizedPhone) {
         toast.error(PHONE_HINT);
         return;
@@ -36,7 +41,7 @@ export function GameDepositSheet({ open, onClose }: Props) {
         customerName: profile.name,
         amount: Number(amount.toFixed(2)),
         method,
-        transactionId: normalizedPhone.replace(/^\+220/, "").replace(/\D/g, ""),
+        transactionId: method === "Wave" ? wavePhone : normalizedPhone.replace(/^\+220/, "").replace(/\D/g, ""),
         status: "Pending",
         timestamp: new Date().toISOString(),
         providerReference: externalRef,

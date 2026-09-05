@@ -69,6 +69,10 @@ export function getPhoneCountryMeta(code: PhoneCountryCode): PhoneCountryMeta {
 export const PHONE_HINT =
   "Use your old 7-digit number or the new 9-digit number. Africell 87, QCell 83, Comium 86 — e.g. 7793854 or 877793854. Gamcel stays 7 digits.";
 
+/** Wave / ModemPay deposits must use the national 9-digit mobile. */
+export const WAVE_PHONE_HINT =
+  "Wave needs the new 9-digit number (Africell 87, QCell 83, Comium 86) — e.g. 877793854.";
+
 /** @deprecated Use PHONE_HINT */
 export const GAMBIA_PHONE_HINT = PHONE_HINT;
 
@@ -161,6 +165,31 @@ export function normalizePhone(input: string, preferredCountry: PhoneCountry = "
   const parsed = normalizePhoneLocal(input, preferredCountry);
   if (!parsed) return "";
   return parsed.local;
+}
+
+/**
+ * Number sent to Wave: always 9 local digits.
+ * Old 7-digit numbers are expanded (7793854 → 877793854). Login may still use 7 digits.
+ */
+export function toWaveAccountNumber(input: string): string {
+  const canonical = normalizePhone(input);
+  if (canonical.length === GAMBIA_LOCAL_LENGTH) return canonical;
+  if (canonical.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
+    const prefix = operatorPrefixForLegacyStart(canonical[0] ?? "");
+    if (prefix) return `${prefix}${canonical}`;
+  }
+  const digits = stripLeadingZeros(String(input || "").replace(/\D/g, ""));
+  const local = digits.startsWith(GAMBIA_COUNTRY_CODE)
+    ? stripLeadingZeros(digits.slice(GAMBIA_COUNTRY_CODE.length))
+    : digits;
+  if (local.length === GAMBIA_LOCAL_LENGTH && NEW_OPERATOR_PREFIXES.has(local.slice(0, 2))) {
+    return local;
+  }
+  if (local.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
+    const prefix = operatorPrefixForLegacyStart(local[0] ?? "");
+    if (prefix) return `${prefix}${local}`;
+  }
+  return "";
 }
 
 export function phoneStorageKeys(input: string): string[] {

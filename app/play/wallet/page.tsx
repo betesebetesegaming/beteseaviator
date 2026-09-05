@@ -19,7 +19,7 @@ import { requiresMandatoryOtpPhone } from "@/lib/env/publicConfig";
 import { apiUrl } from "@/lib/apiUrl";
 import { authFetchHeaders } from "@/lib/authHeaders";
 import { generateAviatorWithdrawalRef } from "@/lib/payments/aviatorPaymentRefs";
-import { PHONE_HINT, normalizeGambiaPhone, normalizePhone } from "@/lib/gambiaPhone";
+import { PHONE_HINT, WAVE_PHONE_HINT, normalizeGambiaPhone, normalizePhone, toWaveAccountNumber } from "@/lib/gambiaPhone";
 import { dbCreateWithdrawalRequest, dbDepositRequest } from "@/lib/paymentsClient";
 import { subscribeDepositById } from "@/lib/payments/rtdbClient";
 import { startDepositReconcilePolling } from "@/lib/payments/reconcileDeposits";
@@ -179,7 +179,12 @@ export default function WalletPage() {
         toast.error("Contact customer service — your wallet is restricted.");
         return;
       }
-      const normalizedPhone = normalizeGambiaPhone(phone || "");
+      const wavePhone = method === "Wave" ? toWaveAccountNumber(phone || "") : "";
+      const normalizedPhone = method === "Wave" ? (wavePhone ? `+220${wavePhone}` : null) : normalizeGambiaPhone(phone || "");
+      if (method === "Wave" && !wavePhone) {
+        toast.error(WAVE_PHONE_HINT);
+        return;
+      }
       if (!normalizedPhone) {
         toast.error(PHONE_HINT);
         return;
@@ -190,7 +195,7 @@ export default function WalletPage() {
         customerName: profile.name,
         amount: Number(amount.toFixed(2)),
         method,
-        transactionId: normalizedPhone.replace(/^\+220/, "").replace(/\D/g, ""),
+        transactionId: method === "Wave" ? wavePhone : normalizedPhone.replace(/^\+220/, "").replace(/\D/g, ""),
         status: "Pending",
         timestamp: new Date().toISOString(),
         providerReference: externalRef,

@@ -116,7 +116,7 @@ const waveLinkMemory = new Map<
 >();
 
 function waveReuseKey(method: string, phone: string, amount: number): string {
-  return `${method}:${normalizeModemPayAccountNumber(phone)}:${amount}`;
+  return `${method}:${normalizeModemPayAccountNumber(phone, method)}:${amount}`;
 }
 
 /**
@@ -129,7 +129,7 @@ async function findStoredWalletPayLink(
   method: string,
   opts?: { allowStale?: boolean },
 ): Promise<StoredWalletPayLink | null> {
-  const account = normalizeModemPayAccountNumber(phone);
+  const account = normalizeModemPayAccountNumber(phone, method);
   if (!account || !Number.isFinite(amount)) return null;
 
   const reuseKey = waveReuseKey(method, account, amount);
@@ -243,7 +243,7 @@ async function persistWalletPayLink(input: {
   ) {
     return;
   }
-  const account = normalizeModemPayAccountNumber(input.phone);
+  const account = normalizeModemPayAccountNumber(input.phone, input.method);
   const reuseKey = waveReuseKey(input.method, account, input.amount);
   const now = new Date().toISOString();
   const link: StoredWalletPayLink = {
@@ -377,7 +377,7 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
   }
 
   try {
-    const accountNumber = normalizeModemPayAccountNumber(body.customerPhone);
+    const accountNumber = normalizeModemPayAccountNumber(body.customerPhone, provider);
     const result = await createCheckoutSession(
       {
         method: provider as ModemPayMethod,

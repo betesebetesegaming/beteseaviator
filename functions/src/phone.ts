@@ -102,6 +102,28 @@ export function normalizePhone(input: string, preferredCountry: PhoneCountry = "
   return parsed.local;
 }
 
+/** Wave deposits always use 9 local digits (old 7-digit numbers are expanded). */
+export function toWaveAccountNumber(input: string): string {
+  const canonical = normalizePhone(input);
+  if (canonical.length === GAMBIA_LOCAL_LENGTH) return canonical;
+  if (canonical.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
+    const prefix = operatorPrefixForLegacyStart(canonical[0] ?? "");
+    if (prefix) return `${prefix}${canonical}`;
+  }
+  const digits = stripLeadingZeros(String(input || "").replace(/\D/g, ""));
+  const local = digits.startsWith(GAMBIA_COUNTRY_CODE)
+    ? stripLeadingZeros(digits.slice(GAMBIA_COUNTRY_CODE.length))
+    : digits;
+  if (local.length === GAMBIA_LOCAL_LENGTH && NEW_OPERATOR_PREFIXES.has(local.slice(0, 2))) {
+    return local;
+  }
+  if (local.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
+    const prefix = operatorPrefixForLegacyStart(local[0] ?? "");
+    if (prefix) return `${prefix}${local}`;
+  }
+  return "";
+}
+
 /**
  * All Firestore `phones/{key}` documents that may exist for one number
  * (new 9-digit key first, then legacy 7-digit).

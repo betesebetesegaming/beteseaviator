@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firestore';
-import { PHONE_HINT, normalizeGambiaPhone } from "@/lib/gambiaPhone";
+import { PHONE_HINT, WAVE_PHONE_HINT, normalizeGambiaPhone, toWaveAccountNumber } from "@/lib/gambiaPhone";
 import { apiUrl } from "@/lib/apiUrl";
 import { authFetchHeaders } from "@/lib/authHeaders";
 import { depositPresetAmounts, MIN_DEPOSIT_GMD } from "@/lib/depositLimits";
@@ -426,7 +426,12 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
       setMessage({ ok: false, text: `Minimum deposit is GMD ${depositMin}.` });
       return;
     }
-    const normalizedPhone = normalizeGambiaPhone(phone);
+    const wavePhone = method === 'Wave' ? toWaveAccountNumber(phone) : "";
+    const normalizedPhone = method === 'Wave' ? (wavePhone ? `+220${wavePhone}` : null) : normalizeGambiaPhone(phone);
+    if (method === 'Wave' && !wavePhone) {
+      setMessage({ ok: false, text: WAVE_PHONE_HINT });
+      return;
+    }
     if (!normalizedPhone) {
       setMessage({ ok: false, text: PHONE_HINT });
       return;
@@ -435,7 +440,7 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     setBusy(true);
     setStage('paying');
     const externalRef = generateRef();
-    const cleanPhone = normalizedPhone.replace(/^\+220/, '').replace(/\D/g, '');
+    const cleanPhone = method === 'Wave' ? wavePhone : normalizedPhone.replace(/^\+220/, '').replace(/\D/g, '');
 
     try {
       const providerKey: 'wave' | 'aps' | 'afrimoney' | 'qmoney' | 'card' =
@@ -690,9 +695,14 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 877793854"
+                  placeholder={method === 'Wave' ? 'e.g. 877793854' : 'e.g. 7793854 or 877793854'}
                   className="w-full p-3 border-2 border-slate-300 rounded-xl text-lg font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:border-betese-green focus:ring-2 focus:ring-green-600/25 focus:outline-none"
                 />
+                {method === 'Wave' ? (
+                  <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
+                    Wave uses the new 9-digit number. Old 7-digit is converted automatically (7793854 → 877793854).
+                  </p>
+                ) : null}
               </div>
 
               {message && (
