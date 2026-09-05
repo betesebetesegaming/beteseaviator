@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { doc, onSnapshot } from "firebase/firestore";
 import Link from "next/link";
 import { db } from "@/lib/firestore";
-import { adminRebuildPlatformStats, adminBackfillPlayerAccountStats, adminReleaseReferralBonuses, adminSaveSettings, adminMigrateGambiaNineDigitPhones, errorMessage } from "@/lib/api";
+import { adminRebuildPlatformStats, adminBackfillPlayerAccountStats, adminReleaseReferralBonuses, adminSaveSettings, errorMessage } from "@/lib/api";
 import {
   DEFAULT_SETTINGS,
   PROVIDER_LABELS,
@@ -27,7 +27,6 @@ export default function AdminSettingsPage() {
   const [rebuilding, setRebuilding] = useState(false);
   const [rebuildingCustomers, setRebuildingCustomers] = useState(false);
   const [releasingReferrals, setReleasingReferrals] = useState(false);
-  const [migratingPhones, setMigratingPhones] = useState(false);
 
   useEffect(() => {
     return onSnapshot(doc(db, "settings", "platform"), (snap) => {
@@ -116,28 +115,6 @@ export default function AdminSettingsPage() {
       toast.error(errorMessage(e));
     } finally {
       setRebuilding(false);
-    }
-  }
-
-  async function migrateGambiaPhones() {
-    setMigratingPhones(true);
-    try {
-      let done = false;
-      let updated = 0;
-      let aliases = 0;
-      let reset = true;
-      while (!done) {
-        const res = await adminMigrateGambiaNineDigitPhones({ limit: 400, reset });
-        reset = false;
-        updated += res.updated;
-        aliases += res.aliases;
-        done = res.done;
-      }
-      toast.success(`Gambia numbers updated. ${updated} profiles, ${aliases} phone index rows.`);
-    } catch (e) {
-      toast.error(errorMessage(e));
-    } finally {
-      setMigratingPhones(false);
     }
   }
 
@@ -400,15 +377,17 @@ export default function AdminSettingsPage() {
       </Card>
 
       <Card className="mb-5">
-        <h2 className="mb-2 font-semibold">Gambia 9-digit numbers (Gambia9 / PURA)</h2>
+        <h2 className="mb-2 font-semibold">Gambia9 phone migration</h2>
         <p className="mb-4 text-sm text-slate-400">
-          Same official conversion as the Gambia9 app: Africell 87 + old 7 digits, QCell 83, Comium 86.
-          Gamcel stays 7 digits. Login and Wave then recognise both the old and new number. Run this to
-          rewrite every stored account.
+          Preview, backup, and convert registered numbers using the official Gambia9 rules. Customer
+          accounts are not changed until you approve conversion on that page.
         </p>
-        <Button variant="secondary" disabled={migratingPhones} onClick={() => void migrateGambiaPhones()}>
-          {migratingPhones ? "Updating numbers…" : "Convert all accounts like Gambia9"}
-        </Button>
+        <Link
+          href="/admin/phones"
+          className="inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+        >
+          Open Phone migration →
+        </Link>
       </Card>
 
       <Card className="mb-5 border-emerald-500/20 bg-emerald-500/5">

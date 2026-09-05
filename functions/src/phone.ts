@@ -1,4 +1,6 @@
-/** BETESE Gambian mobiles: +220 + 9 local digits. Old 7-digit numbers convert automatically. */
+/** BETESE Gambian mobiles — Gambia9 / PURA: 87 Africell, 83 QCell, 86 Comium; Gamcel stays 7. */
+
+import { gambia9Canonical, gambia9WaveNumber } from "./gambia9";
 
 export type PhoneCountry = "GM";
 
@@ -38,23 +40,8 @@ export function operatorPrefixForLegacyStart(digit: string): string | null {
 
 /** Expand a 7-digit local number, or accept an already-9-digit number. */
 export function toCanonicalGambiaLocal(localDigits: string): string | null {
-  const d = stripLeadingZeros(String(localDigits || "").replace(/\D/g, ""));
-  if (!d) return null;
-
-  if (d.length === GAMBIA_LOCAL_LENGTH) {
-    const prefix = d.slice(0, 2);
-    if (!NEW_OPERATOR_PREFIXES.has(prefix)) return null;
-    return d;
-  }
-
-  if (d.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
-    if (d.startsWith("9")) return d;
-    const prefix = operatorPrefixForLegacyStart(d[0] ?? "");
-    if (!prefix) return null;
-    return `${prefix}${d}`;
-  }
-
-  return null;
+  const key = gambia9Canonical(localDigits);
+  return key || null;
 }
 
 /** Old 7-digit form of a canonical 9-digit local number. */
@@ -101,26 +88,9 @@ export function normalizePhone(input: string, preferredCountry: PhoneCountry = "
   return parsed.local;
 }
 
-/** Wave deposits always use 9 local digits (old 7-digit numbers are expanded). */
+/** Wave: Gambia9 9-digit Africell / QCell / Comium only. */
 export function toWaveAccountNumber(input: string): string {
-  const canonical = normalizePhone(input);
-  if (canonical.length === GAMBIA_LOCAL_LENGTH) return canonical;
-  if (canonical.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
-    const prefix = operatorPrefixForLegacyStart(canonical[0] ?? "");
-    if (prefix) return `${prefix}${canonical}`;
-  }
-  const digits = stripLeadingZeros(String(input || "").replace(/\D/g, ""));
-  const local = digits.startsWith(GAMBIA_COUNTRY_CODE)
-    ? stripLeadingZeros(digits.slice(GAMBIA_COUNTRY_CODE.length))
-    : digits;
-  if (local.length === GAMBIA_LOCAL_LENGTH && NEW_OPERATOR_PREFIXES.has(local.slice(0, 2))) {
-    return local;
-  }
-  if (local.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
-    const prefix = operatorPrefixForLegacyStart(local[0] ?? "");
-    if (prefix) return `${prefix}${local}`;
-  }
-  return "";
+  return gambia9WaveNumber(input);
 }
 
 /**

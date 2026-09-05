@@ -146,6 +146,12 @@ export const STAFF_NAV: StaffNavItem[] = [
     roles: ["admin"],
   },
   {
+    href: "/admin/phones",
+    label: "Phone migration",
+    icon: Smartphone,
+    roles: ["admin"],
+  },
+  {
     href: "/admin/settings",
     label: "Settings",
     icon: Settings,
@@ -165,6 +171,7 @@ export const ADMIN_ONLY_PREFIXES = [
   "/admin/qtech",
   "/admin/reports",
   "/admin/settings",
+  "/admin/phones",
   "/admin/modempay",
 ];
 

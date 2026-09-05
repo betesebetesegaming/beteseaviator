@@ -1,4 +1,6 @@
-/** BETESE Gambian mobiles — same PURA / Gambia9 rules: 87 Africell, 83 QCell, 86 Comium. */
+/** BETESE Gambian mobiles — Gambia9 / PURA: 87 Africell, 83 QCell, 86 Comium; Gamcel stays 7. */
+
+import { gambia9Canonical, gambia9WaveNumber } from "./gambia9";
 
 /** Active sign-up / login country */
 export type PhoneCountry = "GM";
@@ -94,27 +96,8 @@ export function operatorPrefixForLegacyStart(digit: string): string | null {
 }
 
 export function toCanonicalGambiaLocal(localDigits: string): string | null {
-  const d = stripLeadingZeros(String(localDigits || "").replace(/\D/g, ""));
-  if (!d) return null;
-
-  // New 9-digit numbers: 87/83/86 (phase 1) or 89 if someone prefixed Gamcel.
-  // Do not require the last 7 digits to match the old first-digit map — post-cutover
-  // numbers can use any suffix, and a wrong prefix still aliases to the old 7 digits.
-  if (d.length === GAMBIA_LOCAL_LENGTH) {
-    const prefix = d.slice(0, 2);
-    if (!NEW_OPERATOR_PREFIXES.has(prefix)) return null;
-    return d;
-  }
-
-  if (d.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
-    // Gamcel is still 7 digits in this phase.
-    if (d.startsWith("9")) return d;
-    const prefix = operatorPrefixForLegacyStart(d[0] ?? "");
-    if (!prefix) return null;
-    return `${prefix}${d}`;
-  }
-
-  return null;
+  const key = gambia9Canonical(localDigits);
+  return key || null;
 }
 
 export function legacyGambiaLocal(canonicalOrLocal: string): string | null {
@@ -166,29 +149,9 @@ export function normalizePhone(input: string, preferredCountry: PhoneCountry = "
   return parsed.local;
 }
 
-/**
- * Number sent to Wave: always 9 local digits.
- * Old 7-digit numbers are expanded (7793854 → 877793854). Login may still use 7 digits.
- */
+/** Wave: Gambia9 9-digit Africell / QCell / Comium only. */
 export function toWaveAccountNumber(input: string): string {
-  const canonical = normalizePhone(input);
-  if (canonical.length === GAMBIA_LOCAL_LENGTH) return canonical;
-  if (canonical.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
-    const prefix = operatorPrefixForLegacyStart(canonical[0] ?? "");
-    if (prefix) return `${prefix}${canonical}`;
-  }
-  const digits = stripLeadingZeros(String(input || "").replace(/\D/g, ""));
-  const local = digits.startsWith(GAMBIA_COUNTRY_CODE)
-    ? stripLeadingZeros(digits.slice(GAMBIA_COUNTRY_CODE.length))
-    : digits;
-  if (local.length === GAMBIA_LOCAL_LENGTH && NEW_OPERATOR_PREFIXES.has(local.slice(0, 2))) {
-    return local;
-  }
-  if (local.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
-    const prefix = operatorPrefixForLegacyStart(local[0] ?? "");
-    if (prefix) return `${prefix}${local}`;
-  }
-  return "";
+  return gambia9WaveNumber(input);
 }
 
 export function phoneStorageKeys(input: string): string[] {

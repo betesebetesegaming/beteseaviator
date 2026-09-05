@@ -309,6 +309,38 @@ export const adminMigrateGambiaNineDigitPhones = call<
   { ok: true; scanned: number; updated: number; aliases: number; authEmails: number; done: boolean; lastId: string | null }
 >("adminMigrateGambiaNineDigitPhones");
 
+export type Gambia9PreviewRow = {
+  uid: string;
+  role: string;
+  name: string;
+  storedPhone: string;
+  oldNumber: string;
+  newNumber: string;
+  network: string;
+  status: "convert" | "already_converted" | "gamcel_unchanged" | "unsafe" | "empty";
+  alreadyConverted: boolean;
+  reason: string;
+};
+
+export const adminGambia9Migration = call<
+  { action: "preview" | "backup" | "apply" | "rollback"; confirm?: string; backupId?: string },
+  {
+    ok: true;
+    action: string;
+    scanned?: number;
+    counts?: Record<string, number>;
+    samples?: Record<string, Gambia9PreviewRow[]>;
+    previewedAt?: string;
+    backupId?: string;
+    saved?: number;
+    updated?: number;
+    skipped?: number;
+    failed?: number;
+    failures?: { uid: string; reason: string }[];
+    restored?: number;
+  }
+>("adminGambia9Migration");
+
 export const adminRefreshDailyDemos = call<
   Record<string, never>,
   { ok: true; date: string; accounts: unknown[] }

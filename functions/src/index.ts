@@ -113,6 +113,7 @@ export { qtcwApi, qtcwApiStg } from "./qtechApi";
 export { launchQTechGame, launchQTechGameDemo, adminPreviewQTechGame } from "./qtech/launch";
 
 export {
+  adminGambia9Migration,
   adminMigrateGambiaNineDigitPhones,
   migrateGambiaNineDigitPhonesHourly,
 } from "./gambiaPhoneMigration";

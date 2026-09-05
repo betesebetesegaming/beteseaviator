@@ -25,3 +25,4 @@ export {
   type ParsedPhone,
   type PhoneCountry,
 } from "./phone";
+export { classifyGambia9, gambia9Canonical, gambia9WaveNumber, type Gambia9Plan } from "./gambia9";
