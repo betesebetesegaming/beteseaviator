@@ -59,7 +59,12 @@ export default function AdminPhoneMigrationPage() {
   async function runPreview() {
     setBusy("preview");
     try {
-      const res = await previewGambia9Accounts();
+      const res = await Promise.race([
+        previewGambia9Accounts(),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => reject(new Error("Preview is taking too long. Refresh and try again.")), 90_000);
+        }),
+      ]);
       setPreview({ scanned: res.scanned, counts: res.counts, samples: res.samples });
       toast.success(`Preview ready — ${res.scanned} accounts scanned. Nothing was changed.`);
     } catch (e) {
@@ -107,13 +112,33 @@ export default function AdminPhoneMigrationPage() {
     }
   }
 
+  const nextStep = !preview ? "preview" : !backupId ? "backup" : "review";
+
   return (
     <div className="mx-auto max-w-4xl">
       <h1 className="mb-1 text-xl font-bold">Phone Number Migration</h1>
-      <p className="mb-6 text-sm text-slate-400">
+      <p className="mb-3 text-sm text-slate-400">
         Official Gambia9 / PURA rules: Africell 87, QCell 83, Comium 86. Gamcel stays 7 digits.
         Already-9-digit numbers are not changed. Opening this page does not convert anyone.
       </p>
+      <div className="mb-6 rounded-lg border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-100">
+        {nextStep === "preview" ? (
+          <>
+            <strong>Do this now:</strong> click the green <strong>Preview all accounts</strong> button.
+            Wait for the numbers table. That does not change any account.
+          </>
+        ) : nextStep === "backup" ? (
+          <>
+            <strong>Do this now:</strong> click the green <strong>Create backup</strong> button.
+            A file will download. Keep it. Then scroll to step 3.
+          </>
+        ) : (
+          <>
+            Preview and backup are done. Scroll to step 3 only if the numbers look correct.
+            Do not convert until you have checked the table.
+          </>
+        )}
+      </div>
 
       <Card className="mb-5">
         <h2 className="mb-2 font-semibold">1. Preview (safe — no writes)</h2>
@@ -121,7 +146,7 @@ export default function AdminPhoneMigrationPage() {
           Reads every account phone. Shows old number, new number, network, and whether it is already
           converted or unsafe.
         </p>
-        <Button disabled={busy !== null} onClick={() => void runPreview()}>
+        <Button disabled={busy === "preview"} onClick={() => void runPreview()}>
           {busy === "preview" ? "Scanning…" : "Preview all accounts"}
         </Button>
         {preview ? (
@@ -147,7 +172,7 @@ export default function AdminPhoneMigrationPage() {
         <p className="mb-3 text-sm text-slate-400">
           Downloads a JSON backup of every stored phone to this PC. Keep that file for rollback.
         </p>
-        <Button variant="secondary" disabled={busy !== null} onClick={() => void runBackup()}>
+        <Button disabled={busy === "backup"} onClick={() => void runBackup()}>
           {busy === "backup" ? "Saving backup…" : "Create backup"}
         </Button>
         {backupId ? <p className="mt-2 text-xs text-emerald-300">Last backup ID: {backupId}</p> : null}
@@ -159,9 +184,17 @@ export default function AdminPhoneMigrationPage() {
           Changes only the phone field and phone lookup. Wallets, bets, deposits, withdrawals, and
           player IDs stay the same.
         </p>
+        {!preview || !backupId ? (
+          <p className="mb-3 text-sm text-amber-200">
+            Locked until you finish step 1 (preview) and step 2 (backup). Scroll up and use the green
+            buttons first.
+          </p>
+        ) : (
+          <p className="mb-3 text-sm text-emerald-200">Preview and backup are ready. Convert is optional.</p>
+        )}
         <Button
           variant="secondary"
-          disabled={busy !== null || !preview || !backupId}
+          disabled={busy === "apply" || !preview || !backupId}
           onClick={() => setReadyToConfirm(true)}
         >
           Convert accounts
@@ -177,7 +210,7 @@ export default function AdminPhoneMigrationPage() {
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
             />
-            <Button disabled={busy !== null || confirm !== "CONVERT" || !backupId} onClick={() => void runApply()}>
+            <Button disabled={busy === "apply" || confirm !== "CONVERT" || !backupId} onClick={() => void runApply()}>
               {busy === "apply" ? "Converting…" : "Confirm conversion"}
             </Button>
           </div>
@@ -192,7 +225,7 @@ export default function AdminPhoneMigrationPage() {
       <Card>
         <h2 className="mb-2 font-semibold">5. Rollback / undo</h2>
         <p className="mb-3 text-sm text-slate-400">Restores phones from the backup created in this browser.</p>
-        <Button variant="secondary" disabled={busy !== null || !backupId} onClick={() => void runRollback()}>
+        <Button variant="secondary" disabled={busy === "rollback" || !backupId} onClick={() => void runRollback()}>
           {busy === "rollback" ? "Restoring…" : "Rollback last backup"}
         </Button>
       </Card>
