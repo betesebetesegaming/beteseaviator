@@ -37,6 +37,16 @@ app.post(
 
 app.use(express.json({ limit: "6mb" }));
 
+app.get("/health", (_req, res) => {
+  const payoutReady = Boolean((process.env.MODEMPAY_SECRET_KEY || "").trim());
+  res.status(payoutReady ? 200 : 503).json({
+    ok: payoutReady,
+    service: "modempay",
+    withdrawal: payoutReady ? "ready" : "missing_secret",
+    routes: { payout: "/modempay-payout", checkout: "/modempay-checkout" },
+  });
+});
+
 const playerAuth = requireHttpAuth();
 const adminAuth = requireHttpRole(["admin"]);
 
