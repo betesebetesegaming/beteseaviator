@@ -4,7 +4,7 @@ import http from "node:http";
 import https from "node:https";
 import { logger } from "firebase-functions";
 import { db } from "../helpers";
-import { toOtpMsisdn } from "../phone";
+import { legacyGambiaLocal, toOtpMsisdn } from "../phone";
 
 /**
  * Africell SMS OTP HTTP handlers (sendOtp / verifyOtp).
@@ -311,18 +311,35 @@ export async function sendViaAfricell(msisdn: string, message: string): Promise<
  * cannot reach esme.africell.gm (common from us-central1). PMU is called with a
  * supplied `code` so it delivers `message` as-is and does not create an OTP hash.
  */
+function deliveryMsisdns(canonicalMsisdn: string): string[] {
+  const out = [canonicalMsisdn];
+  const local = canonicalMsisdn.startsWith("220") ? canonicalMsisdn.slice(3) : canonicalMsisdn;
+  const legacy = legacyGambiaLocal(local);
+  if (legacy) {
+    const legacyMsisdn = `220${legacy}`;
+    if (!out.includes(legacyMsisdn)) out.push(legacyMsisdn);
+  }
+  return out;
+}
+
 export async function sendSmsWithFallback(
   msisdn: string,
   message: string,
 ): Promise<{ messageId: string | null; via: "africell" | "pmu" }> {
-  try {
-    const { messageId } = await sendViaAfricell(msisdn, message);
-    return { messageId, via: "africell" };
-  } catch (err) {
-    const localError = err instanceof Error ? err.message : String(err);
-    const phone = msisdn.startsWith("220") && msisdn.length >= 10 ? msisdn.slice(3) : msisdn;
-    logger.warn("Local Africell SMS failed, trying PMU SMS proxy", { msisdn, msg: localError });
+  let lastError = "SMS send failed";
+  for (const dest of deliveryMsisdns(msisdn)) {
+    try {
+      const { messageId } = await sendViaAfricell(dest, message);
+      return { messageId, via: "africell" };
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      logger.warn("Local Africell SMS failed", { msisdn: dest, msg: lastError });
+    }
+  }
 
+  for (const dest of deliveryMsisdns(msisdn)) {
+    const phone = dest.startsWith("220") && dest.length >= 10 ? dest.slice(3) : dest;
+    logger.warn("Trying PMU SMS proxy", { msisdn: dest });
     const proxied = await proxyPmuOtp("sendOtp", {
       phone,
       message,
@@ -335,8 +352,9 @@ export async function sendSmsWithFallback(
         via: "pmu",
       };
     }
-    throw new Error(String(proxied.data.error || localError));
+    lastError = String(proxied.data.error || lastError);
   }
+  throw new Error(lastError);
 }
 
 function otpGatewayReady(): { ok: boolean; via?: "africell" | "pmu"; error?: string } {

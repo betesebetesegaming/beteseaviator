@@ -642,9 +642,14 @@ export async function createTransfer(input: CreateTransferInput) {
     throw new Error(`Payout network must be one of: ${MODEMPAY_PAYOUT_NETWORKS.join(', ')}`);
   }
 
-  const accountNumber = String(input.recipient.phone || '')
-    .replace(/\D/g, '')
-    .replace(/^220/, '');
+  const accountNumber = normalizeModemPayAccountNumber(input.recipient.phone, network);
+  if (!accountNumber) {
+    throw new Error(
+      network === 'wave'
+        ? 'Wave needs the new 9-digit number (Africell 87, QCell 83, Comium 86).'
+        : 'A valid Gambian mobile number is required for payout.',
+    );
+  }
 
   const payload = {
     amount: input.amount,

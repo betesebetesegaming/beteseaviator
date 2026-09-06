@@ -34,6 +34,7 @@ import {
 } from '../wagering';
 import { syncAviatorWalletCredit } from '../walletSync';
 import { consumeOtpVerifiedForPhone, requireOtpVerifiedForPhone } from '../otpVerification';
+import { legacyGambiaLocal } from '../phone';
 import {
   patchDepositOnRtdb,
   syncCheckoutToRtdb,
@@ -730,10 +731,28 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
 
   try {
     const requestRef = adminDb.collection('withdrawal_requests').doc(requestId);
-    const requestSnap = await requestRef.get();
+    let requestSnap = await requestRef.get();
     if (!requestSnap.exists) {
-      res.status(404).json({ error: 'Withdrawal request not found' });
-      return;
+      const ownerId = customerId || callerUid(req);
+      if (!ownerId || !denyUnlessCallerOwns(req, res, ownerId)) return;
+      if (!Number.isFinite(amount) || amount <= 0) {
+        res.status(400).json({ error: 'amount must be a positive number' });
+        return;
+      }
+      const now = new Date().toISOString();
+      await requestRef.set({
+        id: requestId,
+        user_id: ownerId,
+        user_name: recipientName || null,
+        amount,
+        status: 'Pending',
+        code: withdrawalCode || null,
+        requested_at: now,
+        payout_method: method === 'wave' ? 'Wave' : 'AfriMoney',
+        recipient_phone: recipientPhone || null,
+        external_ref: requestId,
+      });
+      requestSnap = await requestRef.get();
     }
     const requestData = requestSnap.data() as {
       user_id?: string;
@@ -814,7 +833,23 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const cleanPhone = recipientPhone.replace(/\D/g, '').replace(/^220/, '');
+    const cleanPhone = normalizeModemPayAccountNumber(recipientPhone, method);
+    if (!cleanPhone) {
+      await failWithdrawalWithoutHold(
+        requestId,
+        customerId,
+        method === 'wave'
+          ? 'Wave needs the new 9-digit number (Africell 87, QCell 83, Comium 86).'
+          : 'A valid Gambian mobile number is required.',
+      );
+      res.status(400).json({
+        error:
+          method === 'wave'
+            ? 'Wave needs the new 9-digit number (Africell 87, QCell 83, Comium 86).'
+            : 'A valid Gambian mobile number is required.',
+      });
+      return;
+    }
     const processedById = body.processedById || 'MODEMPAY_PAYOUT';
     const processedByName = body.processedByName || 'ModemPay Payout';
     const payoutLabel = method === 'wave' ? 'Wave' : 'AfriMoney';
@@ -895,7 +930,7 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
       processed_by_name: processedByName,
     }).catch(err => logger.warn('RTDB withdrawal processing sync failed', err));
 
-    const result = await createTransfer({
+    const transferPayload = {
       amount: payoutAmount,
       recipient: {
         name: recipientName,
@@ -909,7 +944,27 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
         withdrawal_request_id: requestId,
         ...(body.metadata || {}),
       },
-    });
+    };
+    let result = await createTransfer(transferPayload);
+    const legacyPhone = legacyGambiaLocal(cleanPhone);
+    if (
+      !result.ok &&
+      legacyPhone &&
+      legacyPhone !== cleanPhone &&
+      !/balance|insufficient/i.test(String(result.errorMessage || ''))
+    ) {
+      logger.warn('Payout rejected on 9-digit number, retrying legacy 7-digit', {
+        requestId,
+        cleanPhone,
+        legacyPhone,
+        error: result.errorMessage,
+      });
+      result = await createTransfer({
+        ...transferPayload,
+        recipient: { ...transferPayload.recipient, phone: legacyPhone },
+        externalRef: `${requestId}-7`,
+      });
+    }
 
     const transfer = result.data as Record<string, unknown>;
     const transferId = (transfer.id as string | undefined) || null;

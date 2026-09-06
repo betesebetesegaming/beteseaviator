@@ -88,7 +88,7 @@ export default function WalletPage() {
 
   const requiresWithdrawalOtp = requiresMandatoryOtpPhone(otpPhone);
   const withdrawalOtp = usePhoneOtp(otpPhone);
-  const withdrawPhoneComplete = otpPhone.length === 7;
+  const withdrawPhoneComplete = Boolean(otpPhone);
 
   useEffect(() => {
     setWithdrawOtpDismissed(false);
@@ -338,7 +338,17 @@ export default function WalletPage() {
     }
 
     const requestId = generateAviatorWithdrawalRef();
-    const cleanPhone = normalizedPhone.replace(/^\+220/, "").replace(/\D/g, "");
+    const payoutPhone =
+      withdrawMethod === "Wave"
+        ? toWaveAccountNumber(normalizedPhone)
+        : normalizePhone(normalizedPhone);
+    if (!payoutPhone) {
+      return toast.error(
+        withdrawMethod === "Wave"
+          ? WAVE_PHONE_HINT
+          : PHONE_HINT
+      );
+    }
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     setBusy(true);
@@ -352,7 +362,7 @@ export default function WalletPage() {
         code,
         requestedAt: new Date().toISOString(),
         payoutMethod: withdrawMethod,
-        recipientPhone: cleanPhone,
+        recipientPhone: payoutPhone,
       });
 
       const res = await fetch(apiUrl("/modempay-payout"), {
@@ -360,7 +370,7 @@ export default function WalletPage() {
         headers: await authFetchHeaders(),
         body: JSON.stringify({
           amount: amt,
-          recipientPhone: cleanPhone,
+          recipientPhone: payoutPhone,
           recipientName: profile.name,
           method: withdrawMethod.toLowerCase(),
           withdrawalRequestId: requestId,

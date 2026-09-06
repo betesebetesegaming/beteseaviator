@@ -1,3 +1,5 @@
+import { normalizePhone } from "../phone";
+
 /**
  * Public (browser-safe) environment variables.
  *
@@ -144,13 +146,9 @@ export function requiresMandatoryOtpPhone(phone?: string): boolean {
   return isSmsOtpSupportedPhone(phone);
 }
 
-/** Gambian (+220) numbers can receive Africell SMS OTP. */
+/** Gambian (+220) numbers can receive Africell SMS OTP (7-digit or 9-digit). */
 export function isSmsOtpSupportedPhone(phone?: string): boolean {
-  const digits = String(phone || "").replace(/\D/g, "");
-  if (!digits) return false;
-  if (digits.startsWith("220") && digits.length >= 10) return true;
-  if (digits.length === 7) return true;
-  return false;
+  return Boolean(normalizePhone(String(phone || "")));
 }
 
 /**
