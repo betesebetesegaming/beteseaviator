@@ -35,15 +35,27 @@ function phoneCheck(raw: string) {
 
 export async function GET() {
   const base = getApiBaseUrl();
-  const [otp, modempay, qtech] = await Promise.all([
+  const [otp, modempayHealth, payout, qtech] = await Promise.all([
     ping(`${base}/sendOtp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ probe: true }),
     }),
     ping(`${base}/modempayApi/health`),
+    ping(`${base}/modempayApi/modempay-payout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }),
     ping(`${base}/qtcwApi/health`),
   ]);
+  const payoutUp = payout.status === 401 || payout.ok;
+  const modempay = {
+    ok: modempayHealth.ok || payoutUp,
+    status: modempayHealth.ok ? modempayHealth.status : payout.status,
+    ms: modempayHealth.ms + payout.ms,
+    payoutAuth: payout.status,
+  };
 
   const phones = {
     africell9: phoneCheck("874571989"),
