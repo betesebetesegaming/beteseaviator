@@ -17,6 +17,7 @@ import {
   phoneToEmail,
   writePhoneIndex,
   phoneStorageKeys,
+  phoneAuthEmails,
   requireRole,
   round2,
   todayIso,
@@ -109,6 +110,17 @@ export async function createPlayerAccount(opts: {
     const phoneDoc = await db.doc(`phones/${key}`).get();
     if (phoneDoc.exists) {
       throw new HttpsError("already-exists", "This phone number is already registered.");
+    }
+  }
+  for (const email of phoneAuthEmails(phone)) {
+    try {
+      await auth.getUserByEmail(email);
+      throw new HttpsError("already-exists", "This phone number is already registered.");
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      if (code === "auth/user-not-found") continue;
+      if (e instanceof HttpsError) throw e;
+      throw e;
     }
   }
 
