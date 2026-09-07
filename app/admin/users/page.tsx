@@ -481,15 +481,17 @@ function AdminUsersContent() {
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
           {form.role === "player" ? (
-            <Input
-              label="Phone (used to sign in)"
-              type="tel"
-              inputMode="numeric"
-              placeholder="874176003 or 4176003"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            />
-            <p className="text-xs text-slate-500">{PHONE_HINT}</p>
+            <>
+              <Input
+                label="Phone (used to sign in)"
+                type="tel"
+                inputMode="numeric"
+                placeholder="874176003 or 4176003"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+              <p className="text-xs text-slate-500">{PHONE_HINT}</p>
+            </>
           ) : (
             <Input
               label="Email (optional — sign in with username or name instead)"
