@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { logger } from "firebase-functions/v2";
 import { allocatePlayerNumber, formatPlayerId } from "./playerIds";
 import { assertValidPassword } from "./passwordPolicy";
 import { isAgentRole } from "./roles";
@@ -93,8 +94,15 @@ export async function createPlayerAccount(opts: {
   ancestors: string[];
   countForAgents?: boolean;
 }): Promise<{ uid: string; playerNumber: number; playerId: string }> {
-  const phone = normalizePhone(opts.phone);
-  if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
+  const rawPhone = String(opts.phone ?? "");
+  const phone = normalizePhone(rawPhone);
+  if (!phone) {
+    logger.warn("createPlayerAccount rejected phone", {
+      raw: rawPhone,
+      digits: rawPhone.replace(/\D/g, ""),
+    });
+    throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
+  }
   assertValidPassword(opts.password);
 
   for (const key of phoneStorageKeys(phone)) {

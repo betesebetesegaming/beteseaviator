@@ -22,6 +22,7 @@ export {
   phoneToEmail,
   phoneAuthEmails,
   phoneStorageKeys,
+  phoneForCloudFunction,
   type ParsedPhone,
   type PhoneCountry,
 } from "./phone";

@@ -40,7 +40,7 @@ export const adminCreateUser = onCall(async (req) => {
   const role = String(req.data?.role ?? "") as Role;
   const name = String(req.data?.name ?? "").trim();
   const email = req.data?.email ? String(req.data.email).toLowerCase().trim() : "";
-  const phone = req.data?.phone ? normalizePhone(String(req.data.phone)) : "";
+  const phone = req.data?.phone ? String(req.data.phone) : "";
   const username = req.data?.username ? String(req.data.username).trim() : "";
   const linkMode = String(req.data?.linkMode ?? "first") === "full" ? "full" : "first";
   const password = String(req.data?.password ?? "");

@@ -38,10 +38,28 @@ export function operatorPrefixForLegacyStart(digit: string): string | null {
   return OPERATOR_PREFIX_BY_START[digit] ?? null;
 }
 
-/** Expand a 7-digit local number, or accept an already-9-digit number. */
+/**
+ * Canonical login/storage key.
+ * 9-digit national numbers are accepted as-is (Gambia9). Old 7-digit numbers
+ * get the operator prefix. Do not require the inner 7 digits to match the
+ * old first-digit map — that check rejected real post-cutover numbers.
+ */
 export function toCanonicalGambiaLocal(localDigits: string): string | null {
-  const key = gambia9Canonical(localDigits);
-  return key || null;
+  const d = stripLeadingZeros(String(localDigits || "").replace(/\D/g, ""));
+  if (!d) return null;
+
+  const official = gambia9Canonical(d);
+  if (official) return official;
+
+  if (d.length === GAMBIA_LOCAL_LENGTH && (NEW_OPERATOR_PREFIXES.has(d.slice(0, 2)) || d.startsWith("8"))) {
+    return d;
+  }
+  if (d.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
+    if (d.startsWith("9")) return d;
+    const prefix = operatorPrefixForLegacyStart(d[0] ?? "");
+    if (prefix) return `${prefix}${d}`;
+  }
+  return null;
 }
 
 /** Old 7-digit form of a canonical 9-digit local number. */

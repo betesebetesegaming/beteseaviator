@@ -2,6 +2,7 @@ import { app } from "./firebase";
 import type { Functions } from "firebase/functions";
 import type { PromoSlide } from "./games/promotions";
 import type { Gambia9PreviewRow } from "./gambia9";
+import { phoneForCloudFunction } from "./phone";
 import type { PaymentProvider, Role } from "./types";
 
 let functionsInstance: Functions | null = null;
@@ -25,9 +26,16 @@ function call<Req, Res>(name: string) {
   };
 }
 
+function withCompatiblePhone<T extends { phone?: string | null }>(data: T): T {
+  const raw = data.phone;
+  if (raw == null || raw === "") return data;
+  const phone = phoneForCloudFunction(String(raw)) || String(raw);
+  return { ...data, phone };
+}
+
 // ---------- auth / profile ----------
 
-export const completeRegistration = call<
+const completeRegistrationFn = call<
   {
     name: string;
     phone?: string;
@@ -37,11 +45,15 @@ export const completeRegistration = call<
   },
   { ok: true; role: Role; playerNumber?: number; playerId?: string }
 >("completeRegistration");
+export const completeRegistration: typeof completeRegistrationFn = (data) =>
+  completeRegistrationFn(withCompatiblePhone(data));
 
-export const agentCreateCustomer = call<
+const agentCreateCustomerFn = call<
   { name: string; phone: string; password: string },
   { uid: string; playerNumber: number; playerId: string }
 >("agentCreateCustomer");
+export const agentCreateCustomer: typeof agentCreateCustomerFn = (data) =>
+  agentCreateCustomerFn(withCompatiblePhone(data));
 
 export const adminBackfillPlayerIds = call<
   { limit?: number },
@@ -51,10 +63,12 @@ export const adminBackfillPlayerIds = call<
 export const adminLookupUser = call<{ query: string }, { uids: string[] }>("adminLookupUser");
 
 /** Reset player password after SMS OTP verification (forgot password flow). */
-export const resetPlayerPassword = call<
+const resetPlayerPasswordFn = call<
   { phone: string; password: string },
   { ok: true; phone: string; authEmail: string }
 >("resetPlayerPassword");
+export const resetPlayerPassword: typeof resetPlayerPasswordFn = (data) =>
+  resetPlayerPasswordFn(withCompatiblePhone(data));
 
 export const getPlayerReferralDashboard = call<
   Record<string, never>,
@@ -183,7 +197,7 @@ export const adminSetAgentCashOps = call<
 
 // ---------- admin ----------
 
-export const adminCreateUser = call<
+const adminCreateUserFn = call<
   {
     role: Role;
     name: string;
@@ -197,6 +211,8 @@ export const adminCreateUser = call<
   },
   { uid: string; slug?: string }
 >("adminCreateUser");
+export const adminCreateUser: typeof adminCreateUserFn = (data) =>
+  adminCreateUserFn(withCompatiblePhone(data));
 
 export const adminSetUserStatus = call<
   { uid: string; status: "active" | "suspended" },
@@ -213,10 +229,12 @@ export const adminFreezeWallet = call<
   { ok: true }
 >("adminFreezeWallet");
 
-export const adminResetPlayerPassword = call<
+const adminResetPlayerPasswordFn = call<
   { phone: string; password: string },
   { ok: true; uid: string; phone: string; authEmail: string }
 >("adminResetPlayerPassword");
+export const adminResetPlayerPassword: typeof adminResetPlayerPasswordFn = (data) =>
+  adminResetPlayerPasswordFn(withCompatiblePhone(data));
 
 export const adminSetUserPassword = call<
   { uid: string; password: string },

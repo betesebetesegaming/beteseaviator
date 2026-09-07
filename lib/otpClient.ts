@@ -1,4 +1,5 @@
 import { apiUrl } from "./apiUrl";
+import { legacyGambiaLocal, normalizePhone } from "./phone";
 
 /**
  * Africell SMS OTP client (sendOtp / verifyOtp Cloud Functions).
@@ -49,21 +50,50 @@ export async function probeSignupOtpGateway(): Promise<{ status: OtpGatewayStatu
   }
 }
 
+function otpPhoneAttempts(phone: string): string[] {
+  const canonical = normalizePhone(phone);
+  const legacy = canonical ? legacyGambiaLocal(canonical) : null;
+  const attempts: string[] = [];
+  const add = (value?: string | null) => {
+    const digits = String(value || "").replace(/\D/g, "");
+    if (digits && !attempts.includes(digits)) attempts.push(digits);
+  };
+  add(legacy);
+  add(canonical);
+  add(phone);
+  return attempts;
+}
+
+async function postOtp(
+  path: "/send-otp" | "/verify-otp",
+  body: Record<string, string>,
+): Promise<{ ok: boolean; expirySeconds?: number; error?: string }> {
+  const res = await fetch(apiUrl(path), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: String(data.error || data.detail || "Request failed.") };
+  }
+  return { ok: true, expirySeconds: Number(data.expirySeconds || 300) };
+}
+
 export async function sendSignupOtp(
   phone: string,
 ): Promise<{ ok: boolean; expirySeconds?: number; error?: string }> {
   try {
-    const res = await fetch(apiUrl("/send-otp"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const err = String(data.error || data.detail || "Failed to send verification code.");
-      return { ok: false, error: err };
+    let lastError = "Failed to send verification code.";
+    for (const candidate of otpPhoneAttempts(phone)) {
+      const result = await postOtp("/send-otp", { phone: candidate });
+      if (result.ok) return result;
+      lastError = result.error || lastError;
+      if (!/invalid|gambian|digit/i.test(lastError)) {
+        return { ok: false, error: lastError };
+      }
     }
-    return { ok: true, expirySeconds: Number(data.expirySeconds || 300) };
+    return { ok: false, error: lastError };
   } catch {
     return { ok: false, error: "Network error. Check your connection and try again." };
   }
@@ -71,16 +101,17 @@ export async function sendSignupOtp(
 
 export async function verifySignupOtp(phone: string, code: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await fetch(apiUrl("/verify-otp"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, code: code.trim() }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return { ok: false, error: String(data.error || "Invalid verification code.") };
+    let lastError = "Invalid verification code.";
+    const trimmed = code.trim();
+    for (const candidate of otpPhoneAttempts(phone)) {
+      const result = await postOtp("/verify-otp", { phone: candidate, code: trimmed });
+      if (result.ok) return { ok: true };
+      lastError = result.error || lastError;
+      if (!/invalid gambian|digit/i.test(lastError)) {
+        return { ok: false, error: lastError };
+      }
     }
-    return { ok: true };
+    return { ok: false, error: lastError };
   } catch {
     return { ok: false, error: "Network error. Check your connection and try again." };
   }

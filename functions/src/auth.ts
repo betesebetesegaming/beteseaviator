@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { logger } from "firebase-functions/v2";
 import { defineString } from "firebase-functions/params";
 import { getBootstrapKey } from "./bootstrapKey";
 import {
@@ -48,7 +49,8 @@ const WEB_API_KEY = defineString("WEB_API_KEY", { default: "" });
 export const completeRegistration = onCall(async (req) => {
   const uid = requireAuth(req);
   const name = String(req.data?.name ?? "").trim();
-  const phone = req.data?.phone ? normalizePhone(String(req.data.phone)) : "";
+  const rawPhone = req.data?.phone ? String(req.data.phone) : "";
+  const phone = rawPhone ? normalizePhone(rawPhone) : "";
   const ref = req.data?.ref ? String(req.data.ref).toLowerCase().trim() : null;
   const pref = req.data?.pref ? normalizeReferralCode(String(req.data.pref)) : null;
   const deviceId = req.data?.deviceId ? String(req.data.deviceId).trim().slice(0, 128) : null;
@@ -58,7 +60,13 @@ export const completeRegistration = onCall(async (req) => {
     null;
 
   if (!name) throw new HttpsError("invalid-argument", "Name is required.");
-  if (!phone) throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
+  if (!phone) {
+    logger.warn("completeRegistration rejected phone", {
+      raw: rawPhone,
+      digits: rawPhone.replace(/\D/g, ""),
+    });
+    throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
+  }
 
   await requireOtpVerifiedForPhone(phone);
 

@@ -13,6 +13,7 @@ import { agentSignupUrl } from "@/lib/agentLinks";
 import { staffSignInId } from "@/lib/staffAccount";
 import { lookupUsersByPhoneOrId } from "@/lib/adminUserLookup";
 import { normalizePhone, formatDate } from "@/lib/format";
+import { PHONE_HINT } from "@/lib/phone";
 import {
   PASSWORD_FIELD_LABEL,
   PASSWORD_MAX,
@@ -224,7 +225,7 @@ function AdminUsersContent() {
         role,
         name: name.trim(),
         email: email.trim().toLowerCase() || undefined,
-        phone: normalizePhone(phone) || undefined,
+        phone: phone.trim() || undefined,
         username: username.trim().toLowerCase() || undefined,
         password,
         parentId: parentId || null,
@@ -483,9 +484,12 @@ function AdminUsersContent() {
             <Input
               label="Phone (used to sign in)"
               type="tel"
+              inputMode="numeric"
+              placeholder="874176003 or 4176003"
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
             />
+            <p className="text-xs text-slate-500">{PHONE_HINT}</p>
           ) : (
             <Input
               label="Email (optional — sign in with username or name instead)"

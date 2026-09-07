@@ -104,23 +104,16 @@ export function classifyGambia9(input: string): Gambia9Plan {
   if (local.length === 9) {
     const prefix = local.slice(0, 2);
     const network = NETWORK_BY_NINE_PREFIX[prefix] ?? "unknown";
-    if (network === "unknown") {
-      return {
-        oldNumber: local,
-        newNumber: local,
-        network: "unknown",
-        status: "unsafe",
-        alreadyConverted: false,
-        reason: "9-digit number with an unknown prefix",
-      };
-    }
     return {
       oldNumber: local,
       newNumber: local,
       network,
       status: "already_converted",
       alreadyConverted: true,
-      reason: "Already 9 digits — left unchanged",
+      reason:
+        network === "unknown"
+          ? "Already 9 digits — left unchanged (unlisted prefix)"
+          : "Already 9 digits — left unchanged",
     };
   }
 
