@@ -6,7 +6,6 @@ import { Banknote, UserPlus } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import { todayIso, formatXof } from "@/lib/format";
-import { agentPeriodGgr } from "@/lib/agentPeriodGgr";
 import {
   agentOfficeFigures,
   allLinkDeposits,
@@ -14,7 +13,6 @@ import {
   firstDepositsFromWave,
   firstDepositsInRange,
   firstDepositQualify,
-  ggrBookDeposits,
   successfulDepositsByAgent,
 } from "@/lib/agentDepositSales";
 import {
@@ -28,7 +26,6 @@ import {
   addPlayerToAgentBook,
   agentCommissionDue,
   agentIdsForPlayer,
-  commissionableGgr,
   emptyAgentCommissionBook,
   finalizeAgentBook,
   type AgentCommissionBook,
@@ -70,6 +67,17 @@ function ContinueDepositCell({ amount }: { amount: number }) {
     <Td className="text-right tabular-nums font-bold text-white">
       {formatXof(amount)}
       <span className="block text-[10px] font-normal text-slate-500">later deposits</span>
+    </Td>
+  );
+}
+
+function MonthPlayCell({ amount, profit = false }: { amount: number; profit?: boolean }) {
+  return (
+    <Td
+      className={`text-right tabular-nums font-bold ${profit ? "text-violet-200" : "text-white"}`}
+    >
+      {formatXof(amount)}
+      <span className="block text-[10px] font-normal text-slate-500">this month</span>
     </Td>
   );
 }
@@ -219,10 +227,6 @@ export function AdminDailyCustomerOpens() {
   }, [periodFrom, periodTo]);
 
   useEffect(() => {
-    if (isLive) {
-      setPeriodPlay(new Map());
-      return;
-    }
     const q = query(
       collection(db, "agentDailyGgr"),
       where("date", ">=", periodFrom),
@@ -251,7 +255,7 @@ export function AdminDailyCustomerOpens() {
       },
       () => setPeriodPlay(new Map())
     );
-  }, [isLive, periodFrom, periodTo]);
+  }, [periodFrom, periodTo]);
 
   const rows = useMemo<AgentOpenRow[] | null>(() => {
     if (!agents || !opensByAgent || !players) return null;
@@ -320,7 +324,6 @@ export function AdminDailyCustomerOpens() {
     const map = new Map<string, ReturnType<typeof agentOfficeFigures>>();
     if (!agents) return map;
     for (const a of agents) {
-      const book = booksByAgent.books.get(a.uid);
       const periodDeposits = allLinkDeposits({
         ledgerLifetime: periodLedgerByAgent.get(a.uid) ?? 0,
         waveLifetime: periodWaveByAgent.get(a.uid) ?? 0,
@@ -331,40 +334,20 @@ export function AdminDailyCustomerOpens() {
         agentOfficeFigures({
           bookDeposits: periodDeposits,
           storedDeposits: periodDeposits,
-          bookStakes: isLive ? book?.stakes : play?.played,
-          storedBets: isLive ? a.stats?.totalBets : play?.played,
-          bookWins: isLive ? book?.wins : play?.wins,
-          storedWins: isLive ? a.stats?.totalWins : play?.wins,
+          bookStakes: play?.played ?? 0,
+          storedBets: play?.played ?? 0,
+          bookWins: play?.wins ?? 0,
+          storedWins: play?.wins ?? 0,
         })
       );
     }
     return map;
-  }, [
-    agents,
-    booksByAgent,
-    periodLedgerByAgent,
-    periodWaveByAgent,
-    periodPlay,
-    isLive,
-  ]);
+  }, [agents, periodLedgerByAgent, periodWaveByAgent, periodPlay]);
 
   const agentTotalToday = useMemo(
     () => rows?.reduce((sum, r) => sum + r.customersOpened, 0) ?? 0,
     [rows]
   );
-
-  const creditedByAgent = useMemo(() => {
-    const map = new Map<string, { day: number; week: number; month: number }>();
-    for (const c of commissions ?? []) {
-      const cur = map.get(c.agentId) ?? { day: 0, week: 0, month: 0 };
-      const g = Number(c.ggrAmount) || 0;
-      cur.month += g;
-      if (c.periodDate >= week.from) cur.week += g;
-      if (c.periodDate === today) cur.day += g;
-      map.set(c.agentId, cur);
-    }
-    return map;
-  }, [commissions, week.from, today]);
 
   const periodLedger = useMemo(() => {
     const map = new Map<string, { ggr: number; commission: number }>();
@@ -481,8 +464,8 @@ export function AdminDailyCustomerOpens() {
               </h2>
               <p className="text-sm text-slate-400">
                 {isLive
-                  ? `Accounts below are ${month.label} only. First deposit is each customer's first payment this month. Continue deposit is later top-ups from customers who already paid once. Qualify still uses lifetime first payments at ${formatXof(qualifyAt)}. ${pct}% is of this month's GGR profit.`
-                  : `This window only (${periodFrom} → ${periodTo}). First deposit is each customer's first payment in this window. Continue deposit is later top-ups after that first payment. Qualify uses lifetime first payments. Period GGR ${pct}% is profit credited in that window.`}
+                  ? `Accounts below are ${month.label} only. First deposit is each customer's first payment this month. Continue deposit is later top-ups. Played, wins and profit are this month's bets and wins, not lifetime. Qualify still uses lifetime first payments at ${formatXof(qualifyAt)}. ${pct}% is of this month's play profit.`
+                  : `This window only (${periodFrom} → ${periodTo}). First deposit is each customer's first payment in this window. Continue deposit is later top-ups. Played, wins and profit are bets and wins in this window. Qualify uses lifetime first payments. Period GGR ${pct}% is profit credited in that window.`}
               </p>
             </div>
             <div className="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:items-end lg:w-auto">
@@ -557,22 +540,8 @@ export function AdminDailyCustomerOpens() {
                   const agent = agents!.find((a) => a.uid === r.uid);
                   const linked = booksByAgent.counts.get(r.uid) ?? 0;
                   const lifetime = Math.max(agent?.stats?.customerCount ?? 0, linked);
-                  const book = booksByAgent.books.get(r.uid);
                   const office = officeByAgent.get(r.uid) ?? agentOfficeFigures({});
-                  const bookDeposits = ggrBookDeposits(
-                    book?.deposits ?? 0,
-                    agent?.stats?.customerDeposits ?? 0
-                  );
-                  const withdrawals = book?.withdrawals ?? 0;
-                  const cashHeld = book?.cashHeld ?? agent?.stats?.customerCashHeld ?? 0;
-                  const lifetimeGgr = commissionableGgr(bookDeposits, withdrawals, cashHeld);
-                  const credited = creditedByAgent.get(r.uid);
-                  const monthGgr = agentPeriodGgr(
-                    "month",
-                    lifetimeGgr,
-                    agent?.stats,
-                    credited?.month ?? 0
-                  );
+                  const monthGgr = office.playGgr;
                   const rate = settings.agentRate ?? 0.05;
                   const liveFirst = firstByAgent.get(r.uid);
                   const periodFirst = periodFirstByAgent.get(r.uid) ?? { amount: 0, count: 0 };
@@ -584,15 +553,9 @@ export function AdminDailyCustomerOpens() {
                       <Td className="font-medium">{r.name}</Td>
                       <FirstDepositCell count={periodFirst.count} amount={periodFirst.amount} />
                       <ContinueDepositCell amount={periodContinue} />
-                      <Td className="text-right tabular-nums font-bold text-white">
-                        {formatXof(office.played)}
-                      </Td>
-                      <Td className="text-right tabular-nums font-bold text-white">
-                        {formatXof(office.wins)}
-                      </Td>
-                      <Td className="text-right tabular-nums font-bold text-violet-200">
-                        {formatXof(office.playGgr)}
-                      </Td>
+                      <MonthPlayCell amount={office.played} />
+                      <MonthPlayCell amount={office.wins} />
+                      <MonthPlayCell amount={office.playGgr} profit />
                       <Td
                         className={`text-right text-xs font-semibold ${q.qualified ? "text-emerald-300" : "text-amber-200"}`}
                       >
