@@ -28,6 +28,7 @@ import {
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
 import { DEFAULT_SETTINGS, type PlatformSettings, type SmartBonusOffer, type HappyHourCampaign } from "@/lib/types";
 import { formatXof } from "@/lib/format";
+import { MIN_DEPOSIT_GMD } from "@/lib/depositLimits";
 import { formatPlayerId } from "@/lib/playerId";
 import { offerMessage, offerStatusMeta, tierMeta } from "@/lib/smartBonus";
 import { SmartBonusBriefing } from "@/components/admin/SmartBonusBriefing";
@@ -48,6 +49,28 @@ import {
 
 type StatusFilter = "all" | "pending" | "approved" | "sent" | "activated" | "completed" | "rejected" | "expired";
 
+const GIFT_AMOUNTS = [25, 50, 100, 200] as const;
+
+function GiftAmountPicks({ value, onPick }: { value: string; onPick: (n: number) => void }) {
+  const current = Number(value);
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {GIFT_AMOUNTS.map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onPick(n)}
+          className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
+            current === n ? "bg-emerald-500 text-white" : "bg-white/10 text-slate-300 hover:bg-white/15"
+          }`}
+        >
+          {n} GMD
+        </button>
+      ))}
+    </div>
+  );
+}
+
 type EventRow = {
   id: string;
   action: string;
@@ -65,11 +88,11 @@ export default function AdminSmartBonusPage() {
   const [running, setRunning] = useState(false);
 
   const [tgtNumber, setTgtNumber] = useState("");
-  const [tgtBonus, setTgtBonus] = useState("100");
+  const [tgtBonus, setTgtBonus] = useState("25");
   const [tgtMatch, setTgtMatch] = useState("");
   const [tgtBusy, setTgtBusy] = useState(false);
 
-  const [hhBonus, setHhBonus] = useState("100");
+  const [hhBonus, setHhBonus] = useState("25");
   const [hhMatch, setHhMatch] = useState("");
   const [hhBusy, setHhBusy] = useState(false);
   const [hhList, setHhList] = useState<HappyHourCampaign[] | null>(null);
@@ -139,6 +162,17 @@ export default function AdminSmartBonusPage() {
 
   const sb = settings.smartBonus ?? DEFAULT_SETTINGS.smartBonus!;
   const hh = hhList?.[0] ?? null;
+
+  function claimedMatch(bonusRaw: string, matchRaw: string): number {
+    const bonus = Number(bonusRaw);
+    if (!Number.isFinite(bonus) || bonus <= 0) return MIN_DEPOSIT_GMD;
+    if (matchRaw.trim()) {
+      const m = Number(matchRaw);
+      return Number.isFinite(m) && m > 0 ? Math.max(MIN_DEPOSIT_GMD, m) : MIN_DEPOSIT_GMD;
+    }
+    const pct = Number(sb.matchPercent) || 1;
+    return Math.max(MIN_DEPOSIT_GMD, Math.round((pct > 0 ? bonus / pct : bonus) * 100) / 100);
+  }
 
   const filtered = useMemo(() => {
     if (!offers) return null;
@@ -373,12 +407,21 @@ export default function AdminSmartBonusPage() {
               <Zap size={16} className="text-amber-300" /> Start a Happy Hour
             </h2>
             <p className="mb-3 text-xs text-slate-400">
-              Sends one fixed bonus to every recently-active player (last 14 days) at once — in-app banner plus SMS.
-              They claim it by matching the deposit. Expiry follows your main setting. Leave match blank to auto-set.
+              Sends one gift size to every recently-active player. Use a smaller amount (25 or 50) if many cannot
+              match 100. They claim it by depositing the match. Leave match blank to auto-set.
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Input label="Bonus (GMD)" type="number" value={hhBonus} onChange={(e) => setHhBonus(e.target.value)} />
-              <Input label="Match deposit (GMD)" type="number" value={hhMatch} onChange={(e) => setHhMatch(e.target.value)} placeholder="auto" />
+              <div>
+                <Input label="Gift bonus (GMD)" type="number" min={1} value={hhBonus} onChange={(e) => setHhBonus(e.target.value)} />
+                <GiftAmountPicks
+                  value={hhBonus}
+                  onPick={(n) => {
+                    setHhBonus(String(n));
+                    setHhMatch("");
+                  }}
+                />
+              </div>
+              <Input label="Match deposit (GMD)" type="number" min={MIN_DEPOSIT_GMD} value={hhMatch} onChange={(e) => setHhMatch(e.target.value)} placeholder={`auto ${claimedMatch(hhBonus, "")}`} />
               <div className="flex items-end">
                 <Button className="w-full" onClick={startHappyHour} disabled={hhBusy || hhRunning}>
                   <span className="flex items-center justify-center gap-1.5">
@@ -387,6 +430,9 @@ export default function AdminSmartBonusPage() {
                 </Button>
               </div>
             </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Each player deposits {formatXof(claimedMatch(hhBonus, hhMatch))} to claim a {formatXof(Number(hhBonus) || 0)} gift.
+            </p>
           </Card>
 
           {hh && (
@@ -604,7 +650,7 @@ export default function AdminSmartBonusPage() {
           <Send size={16} className="text-violet-300" /> Send a bonus to a number
         </h2>
         <p className="mb-3 text-xs text-slate-400">
-          Push a gift bonus to one player right now — skips the nightly rules. They get an SMS with the link and
+          Push a gift to one player now. Tap 25 or 50 if they cannot afford to match 100. They get an SMS and
           claim it by depositing the match amount. Leave match blank to auto-set it.
         </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -614,14 +660,40 @@ export default function AdminSmartBonusPage() {
             onChange={(e) => setTgtNumber(e.target.value)}
             placeholder="7793854 or 9"
           />
-          <Input label="Bonus (GMD)" type="number" value={tgtBonus} onChange={(e) => setTgtBonus(e.target.value)} />
-          <Input label="Match deposit (GMD)" type="number" value={tgtMatch} onChange={(e) => setTgtMatch(e.target.value)} placeholder="auto" />
+          <div>
+            <Input
+              label="Gift bonus (GMD)"
+              type="number"
+              min={1}
+              value={tgtBonus}
+              onChange={(e) => setTgtBonus(e.target.value)}
+            />
+            <GiftAmountPicks
+              value={tgtBonus}
+              onPick={(n) => {
+                setTgtBonus(String(n));
+                setTgtMatch("");
+              }}
+            />
+          </div>
+          <Input
+            label="Match deposit (GMD)"
+            type="number"
+            min={MIN_DEPOSIT_GMD}
+            value={tgtMatch}
+            onChange={(e) => setTgtMatch(e.target.value)}
+            placeholder={`auto ${claimedMatch(tgtBonus, "")}`}
+          />
           <div className="flex items-end">
             <Button className="w-full" onClick={sendTargeted} disabled={tgtBusy}>
               {tgtBusy ? "Sending…" : "Send bonus"}
             </Button>
           </div>
         </div>
+        <p className="mt-2 text-xs text-slate-500">
+          This customer deposits {formatXof(claimedMatch(tgtBonus, tgtMatch))} to claim a{" "}
+          {formatXof(Number(tgtBonus) || 0)} gift.
+        </p>
       </Card>
 
       {/* Filter */}

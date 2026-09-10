@@ -13,6 +13,7 @@ import {
   db,
   FieldValue,
   getSettings,
+  MIN_DEPOSIT_GMD,
   requireRole,
   round2,
   walletRead,
@@ -64,6 +65,28 @@ function clampNum(v: unknown, fallback: number, min: number, max: number): numbe
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
+}
+
+/** Admin can send below the nightly min so a customer who cannot match 100 still gets a small gift. */
+function manualGiftAmount(bonusIn: number, cfg: SmartBonusConfig): number {
+  if (!Number.isFinite(bonusIn) || bonusIn <= 0) {
+    throw new HttpsError("invalid-argument", "Enter a positive bonus amount.");
+  }
+  if (bonusIn > cfg.maxBonus) {
+    throw new HttpsError("invalid-argument", `Bonus exceeds configured maximum (${cfg.maxBonus} GMD).`);
+  }
+  return round2(bonusIn);
+}
+
+function manualMatchDeposit(explicit: unknown, bonusAmount: number, cfg: SmartBonusConfig): number {
+  const hasExplicit = explicit !== undefined && explicit !== null && String(explicit).trim() !== "";
+  const raw = hasExplicit
+    ? round2(Number(explicit))
+    : round2(cfg.matchPercent > 0 ? bonusAmount / cfg.matchPercent : bonusAmount);
+  if (!Number.isFinite(raw) || raw <= 0) {
+    throw new HttpsError("invalid-argument", "Match deposit must be positive.");
+  }
+  return round2(Math.max(MIN_DEPOSIT_GMD, raw));
 }
 
 // ---------------------------------------------------------------------------
@@ -777,20 +800,8 @@ export const adminCreateSmartBonusOffer = onCall(async (req) => {
   const settings = await getSettings();
   const cfg = smartBonusConfig(settings);
 
-  const bonusIn = round2(Number(req.data?.bonusAmount));
-  if (!Number.isFinite(bonusIn) || bonusIn <= 0) {
-    throw new HttpsError("invalid-argument", "Enter a positive bonus amount.");
-  }
-  const bonusAmount = round2(Math.min(cfg.maxBonus, Math.max(cfg.minBonus, bonusIn)));
-  const matchDeposit =
-    req.data?.matchDeposit !== undefined && req.data?.matchDeposit !== null && String(req.data.matchDeposit) !== ""
-      ? round2(Number(req.data.matchDeposit))
-      : round2(cfg.matchPercent > 0 ? bonusAmount / cfg.matchPercent : bonusAmount);
-  if (!Number.isFinite(matchDeposit) || matchDeposit <= 0) {
-    throw new HttpsError("invalid-argument", "Match deposit must be positive.");
-  }
-
-  // Resolve by uid, phone (e.g. 7793854), or playerNumber (e.g. 9).
+  const bonusAmount = manualGiftAmount(round2(Number(req.data?.bonusAmount)), cfg);
+  const matchDeposit = manualMatchDeposit(req.data?.matchDeposit, bonusAmount, cfg);
   const playerId = String(req.data?.playerId ?? "").trim();
   let playerSnap: FirebaseFirestore.DocumentSnapshot | undefined;
   if (playerId) {
@@ -954,18 +965,8 @@ export const adminStartHappyHour = onCall(async (req) => {
   const settings = await getSettings();
   const cfg = smartBonusConfig(settings);
 
-  const bonusIn = round2(Number(req.data?.bonusAmount));
-  if (!Number.isFinite(bonusIn) || bonusIn <= 0) {
-    throw new HttpsError("invalid-argument", "Enter a positive bonus amount.");
-  }
-  const bonusAmount = round2(Math.min(cfg.maxBonus, Math.max(cfg.minBonus, bonusIn)));
-  const matchDeposit =
-    req.data?.matchDeposit !== undefined && req.data?.matchDeposit !== null && String(req.data.matchDeposit) !== ""
-      ? round2(Number(req.data.matchDeposit))
-      : round2(cfg.matchPercent > 0 ? bonusAmount / cfg.matchPercent : bonusAmount);
-  if (!Number.isFinite(matchDeposit) || matchDeposit <= 0) {
-    throw new HttpsError("invalid-argument", "Match deposit must be positive.");
-  }
+  const bonusAmount = manualGiftAmount(round2(Number(req.data?.bonusAmount)), cfg);
+  const matchDeposit = manualMatchDeposit(req.data?.matchDeposit, bonusAmount, cfg);
   const activeDays = clampNum(req.data?.activeDays, 14, 1, 365);
   const notify = req.data?.notify === "sms" ? "sms" : "inapp";
 
