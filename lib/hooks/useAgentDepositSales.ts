@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { todayIso } from "@/lib/format";
 import { monthRangeIso, weekRangeIso } from "@/lib/ggrAccounting";
-import { useAgentCustomerIds } from "@/lib/hooks/useAgentCustomerIds";
+import { useAgentLinkedPlayers } from "@/lib/hooks/useAgentLinkedPlayers";
 import { useLedgerDeposits } from "@/lib/hooks/useLedgerDeposits";
 import { subscribeDeposits } from "@/lib/payments/rtdbClient";
 import type { RtdbDepositRecord } from "@/lib/payments/rtdbRecords";
@@ -27,7 +27,11 @@ export function useAgentDepositSales(agentId: string | undefined): {
   linkDeposits: number;
   ready: boolean;
 } {
-  const { customerIds } = useAgentCustomerIds(agentId);
+  const players = useAgentLinkedPlayers(agentId);
+  const customerIds = useMemo(() => {
+    if (!players) return null;
+    return new Set(players.map((p) => p.uid));
+  }, [players]);
   const { deposits } = useLedgerDeposits({ customerIds });
   const [wave, setWave] = useState<RtdbDepositRecord[]>([]);
   const today = useMemo(() => todayIso(), []);

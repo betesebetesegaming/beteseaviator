@@ -9,6 +9,8 @@ import {
   finalizeAgentBook,
   type AgentCommissionBook,
 } from "@/lib/platformFinancials";
+import { createdAtIso } from "@/lib/format";
+import { monthRangeIso } from "@/lib/ggrAccounting";
 import { useAgentLinkedPlayers } from "@/lib/hooks/useAgentLinkedPlayers";
 
 /** Live cash for linked players. Falls back to stats.walletCash when a wallet doc is missing. */
@@ -36,11 +38,13 @@ export function useAgentCommissionBook(agentId: string | undefined) {
   const players = useAgentLinkedPlayers(agentId);
   const [book, setBook] = useState<AgentCommissionBook | null>(null);
   const [customerCount, setCustomerCount] = useState(0);
+  const [monthCustomerCount, setMonthCustomerCount] = useState(0);
 
   useEffect(() => {
     if (!agentId) {
       setBook(null);
       setCustomerCount(0);
+      setMonthCustomerCount(0);
       return;
     }
     if (!players) {
@@ -64,7 +68,11 @@ export function useAgentCommissionBook(agentId: string | undefined) {
             live != null ? live : Math.max(0, Number(p.stats?.walletCash ?? 0));
         }
       }
+      const monthFrom = monthRangeIso().from;
       setCustomerCount(players.length);
+      setMonthCustomerCount(
+        players.filter((p) => createdAtIso(p.createdAt) >= monthFrom).length
+      );
       setBook(finalizeAgentBook(acc));
     });
     return () => {
@@ -72,5 +80,5 @@ export function useAgentCommissionBook(agentId: string | undefined) {
     };
   }, [agentId, players]);
 
-  return { book, customerCount };
+  return { book, customerCount, monthCustomerCount };
 }

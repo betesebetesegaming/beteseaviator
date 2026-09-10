@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { AgentQuickStart } from "@/components/agent/AgentQuickStart";
 import { AgentProfitOverview } from "@/components/agent/AgentProfitOverview";
-import { AgentTodayCustomerOpens } from "@/components/staff/DailyCustomerOpens";
+import { AgentMonthCustomerOpens, AgentTodayCustomerOpens } from "@/components/staff/DailyCustomerOpens";
 import { AgentPeriodStats } from "@/components/staff/AgentPeriodStats";
 import { Card, StatCard } from "@/components/ui";
 
@@ -18,9 +18,9 @@ export default function AgentDashboard() {
     <div>
       <h1 className="mb-1 text-xl font-bold">Welcome back, {profile?.name}</h1>
       <p className="mb-6 text-sm text-slate-400">
-        Use your QR code below to bring new customers. Deposits, played, wins, and profit on your
-        account match the BETESE backoffice. You earn 5% of this month&apos;s profit. A new month
-        starts that 5% at zero.
+        Use your QR code below to bring new customers. {new Date().toLocaleString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}{" "}
+        is a new month: accounts and deposits this month start from zero. Last month stays in
+        lifetime. You earn 5% of this month&apos;s profit.
       </p>
 
       {profile?.agentSlug ? (
@@ -45,7 +45,8 @@ export default function AgentDashboard() {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <AgentMonthCustomerOpens />
         <AgentTodayCustomerOpens />
         <Link href="/agent/operations">
           <StatCard
@@ -56,9 +57,9 @@ export default function AgentDashboard() {
           />
         </Link>
         <StatCard
-          label="My Customers"
+          label="Customers (lifetime)"
           value={stats.customerCount ?? 0}
-          hint="players from your link"
+          hint="all months on your link"
           icon={<Users size={20} />}
         />
       </div>

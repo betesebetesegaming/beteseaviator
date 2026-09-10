@@ -1,5 +1,8 @@
+import { createdAtIso } from "@/lib/format";
 import { isSuccessfulDeposit, paymentIsoDate } from "@/lib/modemPayAccounting";
 import type { RtdbDepositRecord } from "@/lib/payments/rtdbRecords";
+import { agentIdsForPlayer } from "@/lib/platformFinancials";
+import type { UserProfile } from "@/lib/types";
 
 export type DepositSalesTotals = {
   day: number;
@@ -64,6 +67,30 @@ function bumpFirst(sales: FirstDepositSales, amount: number, isoDate: string, ra
   if (isoDate === ranges.today) sales.dayCount += 1;
 }
 
+function isWaveRow(row: RtdbDepositRecord): boolean {
+  return String(row.method || "").toLowerCase() === "wave";
+}
+
+/** Same Wave checkout often exists in RTDB and the wallet ledger — count it once. */
+export function dedupeSuccessfulDeposits(rows: RtdbDepositRecord[]): RtdbDepositRecord[] {
+  const byKey = new Map<string, RtdbDepositRecord>();
+  for (const row of rows) {
+    if (!isSuccessfulDeposit(row) || !row.customer_id) continue;
+    const amt = round2(Math.abs(Number(row.amount) || 0));
+    if (amt <= 0) continue;
+    const ts = Date.parse(String(row.timestamp || ""));
+    const bucket = Number.isFinite(ts) ? Math.floor(ts / 120000) : String(row.timestamp || "").slice(0, 16);
+    const key = `${row.customer_id}|${amt}|${bucket}`;
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, row);
+      continue;
+    }
+    if (isWaveRow(prev) && !isWaveRow(row)) byKey.set(key, row);
+  }
+  return [...byKey.values()];
+}
+
 /**
  * Each customer's earliest successful payment is the first deposit.
  * Later payments by the same person are continue/top-up deposits.
@@ -75,8 +102,7 @@ export function splitFirstAndContinue(rows: RtdbDepositRecord[]): {
   continueRows: RtdbDepositRecord[];
 } {
   const byCustomer = new Map<string, RtdbDepositRecord[]>();
-  for (const row of rows) {
-    if (!isSuccessfulDeposit(row) || !row.customer_id) continue;
+  for (const row of dedupeSuccessfulDeposits(rows)) {
     const list = byCustomer.get(row.customer_id) ?? [];
     list.push(row);
     byCustomer.set(row.customer_id, list);
@@ -171,6 +197,42 @@ export function firstDepositsInRange(
   to: string
 ): Map<string, { amount: number; count: number }> {
   return sumRowsInRange(splitFirstAndContinue(rows).first, playerAgents, from, to, true);
+}
+
+/**
+ * First-time deposits for people who signed up in this window and paid
+ * their first payment in this window. One payment per customer — not
+ * lifetime money, not later top-ups, not Wave+ledger counted twice.
+ */
+export function firstDepositsOfNewSignups(
+  rows: RtdbDepositRecord[],
+  players: UserProfile[] | null | undefined,
+  from: string,
+  to: string
+): Map<string, { amount: number; count: number }> {
+  const map = new Map<string, { amount: number; count: number }>();
+  if (!players?.length || !from || !to) return map;
+  const firstByCustomer = new Map<string, RtdbDepositRecord>();
+  for (const row of splitFirstAndContinue(rows).first) {
+    firstByCustomer.set(row.customer_id, row);
+  }
+  for (const player of players) {
+    const joined = createdAtIso(player.createdAt);
+    if (!joined || joined < from || joined > to) continue;
+    const first = firstByCustomer.get(player.uid);
+    if (!first) continue;
+    const paid = paymentIsoDate(first.timestamp);
+    if (!paid || paid < from || paid > to) continue;
+    const amt = round2(Math.abs(Number(first.amount) || 0));
+    if (amt <= 0) continue;
+    for (const agentId of agentIdsForPlayer(player)) {
+      const cur = map.get(agentId) ?? { amount: 0, count: 0 };
+      cur.amount = round2(cur.amount + amt);
+      cur.count += 1;
+      map.set(agentId, cur);
+    }
+  }
+  return map;
 }
 
 export function continueDepositsInRange(

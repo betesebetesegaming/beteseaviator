@@ -55,6 +55,29 @@ export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** YYYY-MM-DD from a Firestore timestamp or ISO string. */
+export function createdAtIso(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "object" && value && "toDate" in value) {
+    try {
+      const date = (value as { toDate: () => Date }).toDate();
+      if (date instanceof Date && !Number.isNaN(date.getTime())) {
+        return date.toISOString().slice(0, 10);
+      }
+    } catch {
+      return "";
+    }
+  }
+  if (typeof value === "object" && value && "seconds" in value) {
+    const seconds = Number((value as { seconds: number }).seconds);
+    if (Number.isFinite(seconds)) {
+      return new Date(seconds * 1000).toISOString().slice(0, 10);
+    }
+  }
+  const raw = String(value);
+  return /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.slice(0, 10) : "";
+}
+
 export function daysAgoIso(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);

@@ -27,6 +27,7 @@ import { AgentQuickStart } from "@/components/agent/AgentQuickStart";
 import { AgentProfitOverview } from "@/components/agent/AgentProfitOverview";
 import {
   AdminDailyCustomerOpens,
+  AgentMonthCustomerOpens,
   AgentTodayCustomerOpens,
 } from "@/components/staff/DailyCustomerOpens";
 import {
@@ -258,8 +259,9 @@ export function StaffDashboard() {
         </p>
         <h1 className="text-xl font-bold">Welcome back, {profile.name}</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Share your marketing link. Deposits, played, wins, and profit/GGR on your account are the
-          same figures BETESE staff see. You earn 5% of this month&apos;s GGR profit.
+          Share your marketing link. {new Date().toLocaleString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}{" "}
+          is a new month — accounts and deposits this month start from zero. Lifetime totals stay
+          separate. You earn 5% of this month&apos;s GGR profit.
         </p>
       </div>
 
@@ -280,6 +282,7 @@ export function StaffDashboard() {
       <AgentPeriodStats />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <AgentMonthCustomerOpens />
         <AgentTodayCustomerOpens />
         <AgentTodayDepositsStat />
         <Link href="/admin/operations">
@@ -290,7 +293,7 @@ export function StaffDashboard() {
             icon={<Activity size={20} />}
           />
         </Link>
-        <StatCard label="My Customers" value={stats.customerCount ?? 0} icon={<Users size={20} />} />
+        <StatCard label="Customers (lifetime)" value={stats.customerCount ?? 0} icon={<Users size={20} />} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

@@ -52,6 +52,11 @@ export function livePeriodGgr(args: {
   }
   const peak = finiteNumber(args.commissionedGgr);
   const unpaid = peak == null ? 0 : Math.max(0, current - peak);
+  // Calendar rolled over (new month) before the freeze job ran: do not show last
+  // month's unpaid profit as this period. Credited rows in this period still count.
+  if (args.storedKey && args.storedKey !== args.periodKey) {
+    return round2(Math.max(0, Number(args.creditedInPeriod) || 0));
+  }
   return round2(Math.max(0, (Number(args.creditedInPeriod) || 0) + unpaid));
 }
 
