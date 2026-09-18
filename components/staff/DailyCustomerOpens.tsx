@@ -11,7 +11,7 @@ import {
   allLinkDeposits,
   continueDepositsInRange,
   firstDepositsFromWave,
-  firstDepositsInRange,
+  firstDepositsOfNewSignups,
   firstDepositQualify,
   successfulDepositsByAgent,
 } from "@/lib/agentDepositSales";
@@ -78,6 +78,29 @@ function MonthPlayCell({ amount, profit = false }: { amount: number; profit?: bo
     >
       {formatXof(amount)}
       <span className="block text-[10px] font-normal text-slate-500">this month</span>
+    </Td>
+  );
+}
+
+/**
+ * Progress toward the GMD 40,000 pay target. `have` is the marketer's LIFETIME
+ * first deposits only — each customer's first-ever payment, never continue /
+ * top-ups — accumulated across all months and never reset. It is the exact
+ * figure that decides whether they get paid, and it shows the real total even
+ * when it is above the target (e.g. 47,500 / 40,000 GMD).
+ */
+function QualifyCell({ q }: { q: ReturnType<typeof firstDepositQualify> }) {
+  const have = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(q.have);
+  return (
+    <Td
+      className={`text-right text-xs font-semibold ${q.qualified ? "text-emerald-300" : "text-amber-200"}`}
+    >
+      <span className="tabular-nums">
+        {have} / {formatXof(q.threshold)}
+      </span>
+      <span className="block text-[10px] font-normal text-slate-500">
+        {q.qualified ? "QUALIFIED" : `${formatXof(q.remaining)} remaining`}
+      </span>
     </Td>
   );
 }
@@ -313,8 +336,10 @@ export function AdminDailyCustomerOpens() {
   }, [ledgerDeposits, waveDeposits, playerAgents, today, week.from, month.from]);
   const periodFirstByAgent = useMemo(() => {
     const merged = [...(ledgerDeposits ?? []), ...waveDeposits];
-    return firstDepositsInRange(merged, playerAgents, periodFrom, periodTo);
-  }, [ledgerDeposits, waveDeposits, playerAgents, periodFrom, periodTo]);
+    // First payment of customers who signed up in this window — same figure the
+    // marketer sees on their own page (useAgentDepositSales.firstNewSignups).
+    return firstDepositsOfNewSignups(merged, players, periodFrom, periodTo);
+  }, [ledgerDeposits, waveDeposits, players, periodFrom, periodTo]);
   const periodContinueByAgent = useMemo(() => {
     const merged = [...(ledgerDeposits ?? []), ...waveDeposits];
     return continueDepositsInRange(merged, playerAgents, periodFrom, periodTo);
@@ -556,18 +581,7 @@ export function AdminDailyCustomerOpens() {
                       <MonthPlayCell amount={office.played} />
                       <MonthPlayCell amount={office.wins} />
                       <MonthPlayCell amount={office.playGgr} profit />
-                      <Td
-                        className={`text-right text-xs font-semibold ${q.qualified ? "text-emerald-300" : "text-amber-200"}`}
-                      >
-                        {q.qualified ? (
-                          "Yes"
-                        ) : (
-                          <>
-                            No · <span className="font-bold text-white">{formatXof(q.remaining)}</span>{" "}
-                            to go
-                          </>
-                        )}
-                      </Td>
+                      <QualifyCell q={q} />
                       <Td className="text-right tabular-nums text-slate-300">
                         {formatXof(monthGgr)}
                       </Td>
@@ -635,18 +649,7 @@ export function AdminDailyCustomerOpens() {
                       <Td className="text-right tabular-nums font-bold text-violet-200">
                         {formatXof(office.playGgr)}
                       </Td>
-                      <Td
-                        className={`text-right text-xs font-semibold ${q.qualified ? "text-emerald-300" : "text-amber-200"}`}
-                      >
-                        {q.qualified ? (
-                          "Yes"
-                        ) : (
-                          <>
-                            No · <span className="font-bold text-white">{formatXof(q.remaining)}</span>{" "}
-                            to go
-                          </>
-                        )}
-                      </Td>
+                      <QualifyCell q={q} />
                       <Td className="text-right tabular-nums text-slate-300">{formatXof(ggr)}</Td>
                       <Td className="text-right tabular-nums text-emerald-300">
                         {formatXof(commission)}

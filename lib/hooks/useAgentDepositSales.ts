@@ -13,6 +13,7 @@ import {
   emptyDepositSales,
   emptyFirstDepositSales,
   firstDepositsFromWave,
+  firstDepositsOfNewSignups,
   getFirstSales,
   getSales,
   successfulDepositsByAgent,
@@ -23,6 +24,8 @@ import {
 /** Live first deposits (target/pay) and continue deposits (GGR only) on one link. */
 export function useAgentDepositSales(agentId: string | undefined): {
   first: FirstDepositSales;
+  /** First payment of customers who signed up this month — matches the admin table. */
+  firstNewSignups: { amount: number; count: number };
   continueSales: DepositSalesTotals;
   linkDeposits: number;
   ready: boolean;
@@ -46,6 +49,7 @@ export function useAgentDepositSales(agentId: string | undefined): {
     if (!agentId || !customerIds) {
       return {
         first: emptyFirstDepositSales(),
+        firstNewSignups: { amount: 0, count: 0 },
         continueSales: emptyDepositSales(),
         linkDeposits: 0,
       };
@@ -58,10 +62,19 @@ export function useAgentDepositSales(agentId: string | undefined): {
     const continueMap = continueDepositsFromWave(merged, playerAgents, ranges);
     const first = getFirstSales(firstMap, agentId);
     const continueSales = getSales(continueMap, agentId);
+    // "First deposit this month" the admin table also shows: customers who
+    // signed up this month, counting their first payment. Same function, so the
+    // two screens agree for this marketer.
+    const firstNewSignups =
+      firstDepositsOfNewSignups(merged, players, month.from, today).get(agentId) ?? {
+        amount: 0,
+        count: 0,
+      };
     const ledgerLifetime = successfulDepositsByAgent(deposits ?? [], playerAgents).get(agentId) ?? 0;
     const waveLifetime = successfulDepositsByAgent(wave, playerAgents).get(agentId) ?? 0;
     return {
       first,
+      firstNewSignups,
       continueSales,
       linkDeposits: allLinkDeposits({
         firstLifetime: first.lifetime,
@@ -70,10 +83,11 @@ export function useAgentDepositSales(agentId: string | undefined): {
         waveLifetime,
       }),
     };
-  }, [agentId, customerIds, deposits, wave, today, week.from, month.from]);
+  }, [agentId, customerIds, players, deposits, wave, today, week.from, month.from]);
 
   return {
     first: computed.first,
+    firstNewSignups: computed.firstNewSignups,
     continueSales: computed.continueSales,
     linkDeposits: computed.linkDeposits,
     ready: Boolean(agentId) && customerIds != null && deposits != null,

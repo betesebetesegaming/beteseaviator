@@ -39,7 +39,7 @@ export function AgentProfitOverview({
   rate?: number;
 }) {
   const { book, customerCount } = useAgentCommissionBook(agentId);
-  const { linkDeposits, first, continueSales } = useAgentDepositSales(agentId);
+  const { linkDeposits, first, firstNewSignups, continueSales } = useAgentDepositSales(agentId);
   const { opened: monthOpened, count: monthLinkCount, month } = useAgentMonthLinkAccounts(agentId);
   const week = useMemo(() => weekRangeIso(), []);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
@@ -110,7 +110,8 @@ export function AgentProfitOverview({
   const pct = Math.round(rate * 100);
   const firstHave = Math.max(first.lifetime, Number(anchors?.firstDeposits ?? 0));
   const q = firstDepositQualify(firstHave, settings.firstDepositQualifyGmd ?? 40_000);
-  const monthDeposits = Math.round(((first.month || 0) + (continueSales.month || 0)) * 100) / 100;
+  const monthDeposits =
+    Math.round(((firstNewSignups.amount || 0) + (continueSales.month || 0)) * 100) / 100;
   const continueHave = Math.round(
     Math.max(continueSales.lifetime, Math.max(0, office.deposits - firstHave)) * 100
   ) / 100;
@@ -139,9 +140,12 @@ export function AgentProfitOverview({
             <dt className="text-[11px] font-bold uppercase tracking-wide text-amber-200/80">
               First deposit
             </dt>
-            <dd className="mt-1 text-2xl font-bold tabular-nums text-white">{formatXof(first.month)}</dd>
+            <dd className="mt-1 text-2xl font-bold tabular-nums text-white">
+              {formatXof(firstNewSignups.amount)}
+            </dd>
             <p className="mt-1 text-[11px] text-slate-500">
-              {first.monthCount} first-time {first.monthCount === 1 ? "customer" : "customers"}
+              {firstNewSignups.count} first-time{" "}
+              {firstNewSignups.count === 1 ? "customer" : "customers"}
             </p>
           </div>
           <div className="rounded-lg border border-sky-400/30 bg-slate-950/50 px-3 py-3">
