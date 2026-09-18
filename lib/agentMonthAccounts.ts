@@ -36,3 +36,40 @@ export function openedViaLinkByAgent(
   }
   return map;
 }
+
+/**
+ * New sign-ups per marketer, bucketed by calendar month (YYYY-MM).
+ * Each month stays separate — a new month starts at 0.
+ */
+export function monthlyOpenedViaLinkByAgent(
+  players: UserProfile[] | null | undefined,
+  monthKeys?: string[]
+): Map<string, Map<string, number>> {
+  const map = new Map<string, Map<string, number>>();
+  if (!players?.length) return map;
+  const allow = monthKeys?.length ? new Set(monthKeys) : null;
+  for (const p of players) {
+    const iso = createdAtIso(p.createdAt);
+    if (!iso) continue;
+    const key = iso.slice(0, 7);
+    if (allow && !allow.has(key)) continue;
+    for (const agentId of agentIdsForPlayer(p)) {
+      let months = map.get(agentId);
+      if (!months) {
+        months = new Map();
+        map.set(agentId, months);
+      }
+      months.set(key, (months.get(key) ?? 0) + 1);
+    }
+  }
+  return map;
+}
+
+/** One marketer's new sign-ups for a YYYY-MM key. */
+export function monthOpenCount(
+  byAgent: Map<string, Map<string, number>>,
+  agentId: string,
+  monthKey: string
+): number {
+  return byAgent.get(agentId)?.get(monthKey) ?? 0;
+}

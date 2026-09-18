@@ -13,7 +13,7 @@ import {
   ggrBookDeposits,
 } from "@/lib/agentDepositSales";
 import { useAgentDepositSales } from "@/lib/hooks/useAgentDepositSales";
-import { weekRangeIso } from "@/lib/ggrAccounting";
+import { monthShortLabelFromKey, shiftMonthKey, weekRangeIso } from "@/lib/ggrAccounting";
 import { agentCommissionDue, commissionableGgr } from "@/lib/platformFinancials";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
 import { useAgentCommissionBook } from "@/lib/hooks/useAgentCommissionBook";
@@ -40,7 +40,14 @@ export function AgentProfitOverview({
 }) {
   const { book, customerCount } = useAgentCommissionBook(agentId);
   const { linkDeposits, first, firstNewSignups, continueSales } = useAgentDepositSales(agentId);
-  const { opened: monthOpened, count: monthLinkCount, month } = useAgentMonthLinkAccounts(agentId);
+  const {
+    opened: monthOpened,
+    count: monthLinkCount,
+    month,
+    monthKeys,
+    byMonth,
+    lifetimeCount,
+  } = useAgentMonthLinkAccounts(agentId);
   const week = useMemo(() => weekRangeIso(), []);
   const [settings, setSettings] = useState<PlatformSettings>(DEFAULT_SETTINGS);
   const [credited, setCredited] = useState<{ day: number; week: number; month: number }>({
@@ -116,6 +123,9 @@ export function AgentProfitOverview({
     Math.max(continueSales.lifetime, Math.max(0, office.deposits - firstHave)) * 100
   ) / 100;
   const monthAccounts = monthLinkCount;
+  const lastMonthKey = shiftMonthKey(month.from.slice(0, 7), -1);
+  const lastMonthAccounts = byMonth.get(lastMonthKey) ?? 0;
+  const monthSignupDiff = monthAccounts - lastMonthAccounts;
 
   return (
     <div className="space-y-4">
@@ -135,6 +145,18 @@ export function AgentProfitOverview({
             </dt>
             <dd className="mt-1 text-2xl font-bold tabular-nums text-white">{monthAccounts}</dd>
             <p className="mt-1 text-[11px] text-slate-500">signed up in {month.label}</p>
+            <p
+              className={`mt-1 text-[11px] ${
+                monthSignupDiff > 0
+                  ? "text-emerald-400"
+                  : monthSignupDiff < 0
+                    ? "text-rose-400"
+                    : "text-slate-500"
+              }`}
+            >
+              {monthSignupDiff > 0 ? `+${monthSignupDiff}` : monthSignupDiff} vs last month (
+              {lastMonthAccounts})
+            </p>
           </div>
           <div className="rounded-lg border border-amber-400/40 bg-slate-950/50 px-3 py-3">
             <dt className="text-[11px] font-bold uppercase tracking-wide text-amber-200/80">
@@ -190,6 +212,41 @@ export function AgentProfitOverview({
               ))}
             </ul>
           )}
+        </div>
+        <div className="mt-4 overflow-hidden rounded-lg border border-white/10 bg-slate-950/40">
+          <p className="border-b border-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-sky-200/80">
+            New customers each month
+          </p>
+          <ul className="max-h-72 divide-y divide-white/5 overflow-y-auto">
+            {monthKeys.map((key) => {
+              const count = byMonth.get(key) ?? 0;
+              const isCurrent = key === month.from.slice(0, 7);
+              return (
+                <li
+                  key={key}
+                  className="flex items-baseline justify-between gap-3 px-3 py-2 text-sm"
+                >
+                  <span className={isCurrent ? "font-semibold text-sky-200" : "text-slate-300"}>
+                    {monthShortLabelFromKey(key)}
+                    {isCurrent ? " · this month" : ""}
+                  </span>
+                  <span
+                    className={`tabular-nums ${
+                      isCurrent ? "font-bold text-white" : count > 0 ? "text-white" : "text-slate-600"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </li>
+              );
+            })}
+            <li className="flex items-baseline justify-between gap-3 px-3 py-2 text-sm">
+              <span className="font-semibold text-slate-200">All months</span>
+              <span className="font-bold tabular-nums text-white">
+                {Math.max(lifetimeCount, customerCount)}
+              </span>
+            </li>
+          </ul>
         </div>
       </Card>
 
@@ -272,8 +329,9 @@ export function AgentProfitOverview({
           Your {pct}% of this month = {formatXof(monthShare)}
         </p>
         <p className="mt-1 text-xs text-slate-500">
-          {monthAccounts} new this month · {customerCount} customer
-          {customerCount === 1 ? "" : "s"} on your link lifetime
+          {monthAccounts} new this month · {lastMonthAccounts} last month ·{" "}
+          {Math.max(lifetimeCount, customerCount)} customer
+          {Math.max(lifetimeCount, customerCount) === 1 ? "" : "s"} on your link lifetime
         </p>
       </Card>
 

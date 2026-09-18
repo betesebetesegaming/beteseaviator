@@ -102,6 +102,24 @@ export function monthLabelFromKey(yyyyMm: string): string {
   });
 }
 
+/** Short header label, e.g. "Sep 2026". */
+export function monthShortLabelFromKey(yyyyMm: string): string {
+  const [y, m] = yyyyMm.split("-").map(Number);
+  if (!y || !m) return yyyyMm;
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-GB", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Shift a YYYY-MM key by whole months (negative = earlier). */
+export function shiftMonthKey(yyyyMm: string, deltaMonths: number): string {
+  const [y, m] = yyyyMm.split("-").map(Number);
+  const d = new Date(Date.UTC(y || 1970, (m || 1) - 1 + deltaMonths, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 export type MonthlyPeriodRow = PeriodTotals & {
   monthKey: string;
   label: string;

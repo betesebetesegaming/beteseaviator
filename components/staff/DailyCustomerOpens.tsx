@@ -19,7 +19,9 @@ import {
   calendarMonthRangeIso,
   monthLabelFromKey,
   monthRangeIso,
+  monthShortLabelFromKey,
   recentMonthKeys,
+  shiftMonthKey,
   weekRangeIso,
 } from "@/lib/ggrAccounting";
 import {
@@ -31,7 +33,11 @@ import {
   type AgentCommissionBook,
 } from "@/lib/platformFinancials";
 import { mergePlatformSettings } from "@/lib/platformSettingsMerge";
-import { openedViaLinkByAgent } from "@/lib/agentMonthAccounts";
+import {
+  monthOpenCount,
+  monthlyOpenedViaLinkByAgent,
+  openedViaLinkByAgent,
+} from "@/lib/agentMonthAccounts";
 import { useAgentMonthLinkAccounts } from "@/lib/hooks/useAgentMonthLinkAccounts";
 import { useLedgerDeposits } from "@/lib/hooks/useLedgerDeposits";
 import { subscribeDeposits } from "@/lib/payments/rtdbClient";
@@ -67,6 +73,45 @@ function ContinueDepositCell({ amount }: { amount: number }) {
     <Td className="text-right tabular-nums font-bold text-white">
       {formatXof(amount)}
       <span className="block text-[10px] font-normal text-slate-500">later deposits</span>
+    </Td>
+  );
+}
+
+function MonthDelta({ current, previous }: { current: number; previous: number }) {
+  const diff = current - previous;
+  const tone =
+    diff > 0 ? "text-emerald-400" : diff < 0 ? "text-rose-400" : "text-slate-500";
+  const label = diff > 0 ? `+${diff}` : `${diff}`;
+  return (
+    <span className={`block text-[10px] font-normal ${tone}`}>
+      {label} vs last month ({previous})
+    </span>
+  );
+}
+
+function NewCustomersCell({
+  count,
+  lastMonth,
+  label,
+}: {
+  count: number;
+  lastMonth: number;
+  label: string;
+}) {
+  return (
+    <Td className="text-right tabular-nums font-bold text-sky-100">
+      {count}
+      <span className="block text-[10px] font-normal text-slate-500">new in {label}</span>
+      <MonthDelta current={count} previous={lastMonth} />
+    </Td>
+  );
+}
+
+function LifetimeCustomersCell({ count }: { count: number }) {
+  return (
+    <Td className="text-right tabular-nums text-slate-300">
+      {count}
+      <span className="block text-[10px] font-normal text-slate-500">all months</span>
     </Td>
   );
 }
@@ -142,7 +187,7 @@ export function AgentMonthCustomerOpens() {
     <StatCard
       label={`Opened via your link · ${month.label}`}
       value={count}
-      hint="everyone who signed up on your link this month"
+      hint="this month only — last month keeps its own count"
       icon={<UserPlus size={20} />}
     />
   );
@@ -181,6 +226,10 @@ export function AdminDailyCustomerOpens() {
   const periodTo = isLive ? today : periodKind === "day" ? dayDate : selectedMonth.to;
   const periodLabel =
     periodKind === "day" ? dayDate : periodKind === "month" ? selectedMonth.label : month.label;
+  const focusMonthKey =
+    periodKind === "day" ? dayDate.slice(0, 7) : isLive ? month.from.slice(0, 7) : monthKey;
+  const prevMonthKey = shiftMonthKey(focusMonthKey, -1);
+  const prevMonthLabel = monthShortLabelFromKey(prevMonthKey);
 
   useEffect(() => {
     const unsubPlatform = onSnapshot(doc(db, "dailyStats", today), (snap) => {
@@ -291,6 +340,29 @@ export function AdminDailyCustomerOpens() {
       }))
       .sort((a, b) => b.customersOpened - a.customersOpened || a.name.localeCompare(b.name));
   }, [agents, opensByAgent, players, periodFrom, periodTo]);
+
+  const monthlyNewByAgent = useMemo(
+    () => monthlyOpenedViaLinkByAgent(players, monthOptions),
+    [players, monthOptions]
+  );
+
+  const monthSignupTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const key of monthOptions) totals.set(key, 0);
+    for (const months of monthlyNewByAgent.values()) {
+      for (const [key, count] of months) {
+        totals.set(key, (totals.get(key) ?? 0) + count);
+      }
+    }
+    return totals;
+  }, [monthlyNewByAgent, monthOptions]);
+
+  const lastMonthOpenedTotal = useMemo(
+    () =>
+      agents?.reduce((sum, a) => sum + monthOpenCount(monthlyNewByAgent, a.uid, prevMonthKey), 0) ??
+      0,
+    [agents, monthlyNewByAgent, prevMonthKey]
+  );
 
   const booksByAgent = useMemo(() => {
     const map = new Map<string, AgentCommissionBook>();
@@ -447,7 +519,7 @@ export function AdminDailyCustomerOpens() {
           <StatCard
             label={`Opened · ${month.label}`}
             value={agentTotalToday}
-            hint={`new accounts this month · ${platformToday} today`}
+            hint={`${platformToday} today · ${lastMonthOpenedTotal} in ${prevMonthLabel}`}
             icon={<UserPlus size={20} />}
           />
         </div>
@@ -472,7 +544,7 @@ export function AdminDailyCustomerOpens() {
           <StatCard
             label={`Opened · ${periodLabel}`}
             value={periodTotals.opens}
-            hint="accounts registered then"
+            hint={`new that ${periodKind === "day" ? "day" : "month"} · ${lastMonthOpenedTotal} in ${prevMonthLabel}`}
             icon={<UserPlus size={20} />}
           />
         </div>
@@ -489,8 +561,8 @@ export function AdminDailyCustomerOpens() {
               </h2>
               <p className="text-sm text-slate-400">
                 {isLive
-                  ? `Accounts below are ${month.label} only. First deposit is each customer's first payment this month. Continue deposit is later top-ups. Played, wins and profit are this month's bets and wins, not lifetime. Qualify still uses lifetime first payments at ${formatXof(qualifyAt)}. ${pct}% is of this month's play profit.`
-                  : `This window only (${periodFrom} → ${periodTo}). First deposit is each customer's first payment in this window. Continue deposit is later top-ups. Played, wins and profit are bets and wins in this window. Qualify uses lifetime first payments. Period GGR ${pct}% is profit credited in that window.`}
+                  ? `Accounts below are ${month.label} only. New customers this month are counted separately from last month and from the lifetime total. First deposit is each customer's first payment this month. Continue deposit is later top-ups. Played, wins and profit are this month's bets and wins, not lifetime. Qualify still uses lifetime first payments at ${formatXof(qualifyAt)}. ${pct}% is of this month's play profit.`
+                  : `This window only (${periodFrom} → ${periodTo}). New customers in this month stay in this month — last month keeps its own count. First deposit is each customer's first payment in this window. Continue deposit is later top-ups. Played, wins and profit are bets and wins in this window. Qualify uses lifetime first payments. Period GGR ${pct}% is profit credited in that window.`}
               </p>
             </div>
             <div className="flex w-full shrink-0 flex-col gap-2 sm:flex-row sm:items-end lg:w-auto">
@@ -551,7 +623,8 @@ export function AdminDailyCustomerOpens() {
                 <Th className="text-right text-amber-200/90">Qualify {formatXof(qualifyAt)}</Th>
                 <Th className="text-right">Month GGR</Th>
                 <Th className="text-right">{pct}% of GGR</Th>
-                <Th className="text-right">Opened this month</Th>
+                <Th className="text-right">New this month</Th>
+                <Th className="text-right">All customers</Th>
               </tr>
             </thead>
             <tbody>
@@ -573,6 +646,7 @@ export function AdminDailyCustomerOpens() {
                   const periodContinue = periodContinueByAgent.get(r.uid) ?? 0;
                   const firstDeposits = Math.max(liveFirst?.lifetime ?? 0, Number(agent?.stats?.firstDeposits ?? 0));
                   const q = firstDepositQualify(firstDeposits, qualifyAt);
+                  const lastMonthNew = monthOpenCount(monthlyNewByAgent, r.uid, prevMonthKey);
                   return (
                     <tr key={r.uid}>
                       <Td className="font-medium">{r.name}</Td>
@@ -588,12 +662,12 @@ export function AdminDailyCustomerOpens() {
                       <Td className="text-right tabular-nums text-emerald-300">
                         {formatXof(agentCommissionDue(monthGgr, rate))}
                       </Td>
-                      <Td className="text-right tabular-nums text-slate-300">
-                        {r.customersOpened}
-                        <span className="block text-[10px] font-normal text-slate-500">
-                          {lifetime} lifetime
-                        </span>
-                      </Td>
+                      <NewCustomersCell
+                        count={monthOpenCount(monthlyNewByAgent, r.uid, focusMonthKey)}
+                        lastMonth={lastMonthNew}
+                        label={month.label}
+                      />
+                      <LifetimeCustomersCell count={lifetime} />
                     </tr>
                   );
                 })}
@@ -612,6 +686,7 @@ export function AdminDailyCustomerOpens() {
                 <Th className="text-right">Qualify</Th>
                 <Th className="text-right">Period GGR</Th>
                 <Th className="text-right">{pct}% of GGR</Th>
+                <Th className="text-right">New in {periodLabel}</Th>
                 <Th className="text-right">All customers</Th>
               </tr>
             </thead>
@@ -635,6 +710,7 @@ export function AdminDailyCustomerOpens() {
                   const periodContinue = periodContinueByAgent.get(r.uid) ?? 0;
                   const firstDeposits = Math.max(liveFirst, Number(agent?.stats?.firstDeposits ?? 0));
                   const q = firstDepositQualify(firstDeposits, qualifyAt);
+                  const lastMonthNew = monthOpenCount(monthlyNewByAgent, r.uid, prevMonthKey);
                   return (
                     <tr key={r.uid}>
                       <Td className="font-medium">{r.name}</Td>
@@ -654,13 +730,125 @@ export function AdminDailyCustomerOpens() {
                       <Td className="text-right tabular-nums text-emerald-300">
                         {formatXof(commission)}
                       </Td>
-                      <Td className="text-right tabular-nums text-slate-400">{lifetime}</Td>
+                      <NewCustomersCell
+                        count={monthOpenCount(monthlyNewByAgent, r.uid, focusMonthKey)}
+                        lastMonth={lastMonthNew}
+                        label={periodLabel}
+                      />
+                      <LifetimeCustomersCell count={lifetime} />
                     </tr>
                   );
                 })}
             </tbody>
           </TableShell>
         )}
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        <div className="border-b border-white/10 px-4 py-3">
+          <h2 className="font-semibold">New customers by month</h2>
+          <p className="text-sm text-slate-400">
+            How many accounts each marketer created in each month. A new month starts at 0 and
+            keeps its own count. All customers is the lifetime total across every month.
+          </p>
+        </div>
+        <TableShell>
+          <thead>
+            <tr>
+              <Th>Marketer</Th>
+              {monthOptions.map((key) => (
+                <Th
+                  key={key}
+                  className={`text-right ${key === focusMonthKey ? "text-sky-300" : ""}`}
+                >
+                  {monthShortLabelFromKey(key)}
+                  {key === month.from.slice(0, 7) ? (
+                    <span className="block text-[10px] font-normal normal-case tracking-normal text-sky-400/80">
+                      this month
+                    </span>
+                  ) : null}
+                </Th>
+              ))}
+              <Th className="text-right">All customers</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...(agents ?? [])]
+              .map((a) => {
+                const linked = booksByAgent.counts.get(a.uid) ?? 0;
+                const lifetime = Math.max(a.stats?.customerCount ?? 0, linked);
+                return { agent: a, lifetime };
+              })
+              .sort((a, b) => {
+                const na = monthOpenCount(monthlyNewByAgent, a.agent.uid, focusMonthKey);
+                const nb = monthOpenCount(monthlyNewByAgent, b.agent.uid, focusMonthKey);
+                return nb - na || a.agent.name.localeCompare(b.agent.name);
+              })
+              .map(({ agent, lifetime }) => (
+                <tr key={agent.uid}>
+                  <Td className="font-medium">{agent.name}</Td>
+                  {monthOptions.map((key) => {
+                    const count = monthOpenCount(monthlyNewByAgent, agent.uid, key);
+                    const prev = monthOpenCount(
+                      monthlyNewByAgent,
+                      agent.uid,
+                      shiftMonthKey(key, -1)
+                    );
+                    const diff = count - prev;
+                    return (
+                      <Td
+                        key={key}
+                        className={`text-right tabular-nums ${
+                          key === focusMonthKey
+                            ? "font-bold text-sky-100"
+                            : count > 0
+                              ? "text-white"
+                              : "text-slate-600"
+                        }`}
+                      >
+                        {count}
+                        {key === focusMonthKey ? (
+                          <span
+                            className={`block text-[10px] font-normal ${
+                              diff > 0
+                                ? "text-emerald-400"
+                                : diff < 0
+                                  ? "text-rose-400"
+                                  : "text-slate-500"
+                            }`}
+                          >
+                            {diff > 0 ? `+${diff}` : diff} vs {prevMonthLabel}
+                          </span>
+                        ) : null}
+                      </Td>
+                    );
+                  })}
+                  <Td className="text-right tabular-nums font-semibold text-slate-200">
+                    {lifetime}
+                  </Td>
+                </tr>
+              ))}
+            <tr>
+              <Td className="font-semibold text-slate-300">Total</Td>
+              {monthOptions.map((key) => (
+                <Td
+                  key={key}
+                  className={`text-right tabular-nums font-semibold ${
+                    key === focusMonthKey ? "text-sky-100" : "text-slate-200"
+                  }`}
+                >
+                  {monthSignupTotals.get(key) ?? 0}
+                </Td>
+              ))}
+              <Td className="text-right tabular-nums font-semibold text-white">
+                {(agents ?? []).reduce((sum, a) => {
+                  const linked = booksByAgent.counts.get(a.uid) ?? 0;
+                  return sum + Math.max(a.stats?.customerCount ?? 0, linked);
+                }, 0)}
+              </Td>
+            </tr>
+          </tbody>
+        </TableShell>
       </Card>
     </div>
   );
