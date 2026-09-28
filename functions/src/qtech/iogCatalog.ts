@@ -15,7 +15,6 @@ const IOG_SLOT_IDS = new Set([
   "IOG-mineslot",
   "IOG-mineslot2",
   "IOG-chickencoin",
-  "IOG-chickenroyal",
 ]);
 
 /** QTech newsletter: 3 table games. */
@@ -41,7 +40,7 @@ export function classifyIOGGame(qtechGameId: string, name = ""): IOGKind {
 
   if (IOG_SLOT_IDS.has(id)) return "slot";
   if (/\bmineslot\b/.test(hay)) return "slot";
-  if (/\b(jokerpyre|chickencoin|chickenroyal)\b/.test(hay.replace(/-/g, ""))) return "slot";
+  if (/\b(jokerpyre|chickencoin)\b/.test(hay.replace(/-/g, ""))) return "slot";
 
   if (id === "IOG-cricketroad" || id === "IOG-limbo" || /\b(crash|limbo)\b/.test(hay)) return "crash";
 
@@ -68,6 +67,7 @@ export const IOG_LAUNCH_VALID_GAMES: IOGSeed[] = [
   { qtechGameId: "IOG-chickenroadrace", name: "Chicken Road Race", kind: "instantwin", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "IOG-chickenroadvegas", name: "Chicken Road Vegas", kind: "instantwin", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "IOG-chickenroadgold", name: "Chicken Road Gold", kind: "instantwin", type: "slots", lobbyCategory: "instantwin" },
+  { qtechGameId: "IOG-chickenroyal", name: "Chicken Royal", kind: "instantwin", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "IOG-chickenvszombies", name: "Chicken vs Zombies", kind: "instantwin", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "IOG-rabbitroad", name: "Rabbit Road", kind: "instantwin", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "IOG-cricketroad", name: "Cricket Road", kind: "crash", type: "crash", lobbyCategory: "crash" },

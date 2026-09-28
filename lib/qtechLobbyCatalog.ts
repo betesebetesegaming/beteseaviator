@@ -44,6 +44,7 @@ const QTECH_LOBBY_GAME_IDS = new Set<string>([
   "AID-katiecombstreasuresofthelostcity",
   "AUX-majesticmeow",
   "AUX-toadsbounty",
+  "AVR-aviator",
   "AVX-aviatrix",
   "AVX-secondchance",
   "BAR-championsroadbb",
@@ -94,6 +95,7 @@ const QTECH_LOBBY_GAME_IDS = new Set<string>([
   "IOG-chickenroadice",
   "IOG-chickenroadrace",
   "IOG-chickenroadvegas",
+  "IOG-chickenroyal",
   "IOG-chickenvszombies",
   "IOG-coinflip",
   "IOG-cricketroad",
@@ -148,6 +150,7 @@ const QTECH_LOBBY_GAME_IDS = new Set<string>([
   "UPG-hilo",
   "UPG-mines",
   "UPG-plinko",
+  "WSO-spinmydrink",
 ]);
 
 export function isCatalogQTechGameId(qtechGameId: string): boolean {

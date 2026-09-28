@@ -87,6 +87,7 @@ function providerForQtechId(qtechGameId: string): string {
     PLP: "Platipus",
     YOG: "YOriginal",
     YOR: "YOriginal",
+    WSO: "Wild Sheep Originals",
     ABR: "AbraCadabra",
     ABC: "AbraCadabra",
     "77G": "77 Gaming",
@@ -94,6 +95,7 @@ function providerForQtechId(qtechGameId: string): string {
     AID: "air dice",
     AMG: "Amigo Gaming",
     AUX: "AvatarUX",
+    AVR: "Aviator",
     BAR: "BARBARA BANG",
     BGG: "BIGPOT Gaming",
     BLG: "blaze gaming",
@@ -118,6 +120,11 @@ const SPRIBE_GAMES: SpribeSeed[] = [
 const AVIATRIX_GAMES: QTechSeed[] = [
   { qtechGameId: "AVX-aviatrix", name: "Aviatrix", type: "crash", lobbyCategory: "aviator" },
   { qtechGameId: "AVX-secondchance", name: "Aviatrix Second Chance", type: "crash", lobbyCategory: "crash" },
+];
+
+/** Other crash titles. */
+const OTHER_CRASH_GAMES: QTechSeed[] = [
+  { qtechGameId: "AVR-aviator", name: "Aviator", type: "crash", lobbyCategory: "aviator" },
 ];
 
 /** Other studios — chicken / rush titles (non-IOG). */
@@ -288,9 +295,11 @@ const PARTNER_GAMES: QTechSeed[] = [
   // blaze gaming (BLG) — instant win
   { qtechGameId: "BLG-frogxstormsurvival", name: "FrogX Storm Survival", type: "slots", lobbyCategory: "instantwin" },
   { qtechGameId: "BLG-santashilo", name: "Santas HI or LO", type: "slots", lobbyCategory: "instantwin" },
+  // Wild Sheep Originals (WSO)
+  { qtechGameId: "WSO-spinmydrink", name: "Spin My Drink", type: "slots", lobbyCategory: "instantwin" },
 ];
 
-export const QTECH_GAME_SEEDS: GameSeed[] = [...SPRIBE_GAMES, ...AVIATRIX_GAMES, ...OTHER_CHICKEN_GAMES, ...IOG_GAMES, ...PARTNER_GAMES].map((g) => ({
+export const QTECH_GAME_SEEDS: GameSeed[] = [...SPRIBE_GAMES, ...AVIATRIX_GAMES, ...OTHER_CRASH_GAMES, ...OTHER_CHICKEN_GAMES, ...IOG_GAMES, ...PARTNER_GAMES].map((g) => ({
   id: qtechGameDocId(g.qtechGameId),
   name: g.name,
   type: g.type,

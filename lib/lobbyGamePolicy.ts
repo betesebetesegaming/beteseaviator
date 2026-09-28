@@ -41,7 +41,7 @@ export function disallowedLobbyGameKind(input: {
 
   if (/mineslot/.test(compact)) return "slot";
   if (
-    /(multihot|bonusmania|bonanza|megaways|bookof|hammercrusher|wishoffortune|piggybar|foxjob|cockadoodle|luckymoney|jokerpyre|chickencoin|chickenroyal)/.test(
+    /(multihot|bonusmania|bonanza|megaways|bookof|hammercrusher|wishoffortune|piggybar|foxjob|cockadoodle|luckymoney|jokerpyre|chickencoin)/.test(
       compact
     )
   ) {

@@ -326,6 +326,63 @@ export default function AdminQTechPage() {
         </div>
       </div>
 
+      <Card>
+        <h2 className="mb-1 font-semibold">Add a game</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Paste the QTech game ID, name it, pick the lobby tab, then click Add game. It shows on /play
+          as soon as QTech accepts the ID.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input
+            label="QTech game ID"
+            placeholder="e.g. IOG-chickenroyal"
+            value={addForm.qtechGameId}
+            onChange={(e) => setAddForm((f) => ({ ...f, qtechGameId: e.target.value }))}
+          />
+          <Input
+            label="Display name"
+            placeholder="e.g. Chicken Royal"
+            value={addForm.name}
+            onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+          />
+          <label className="block text-sm">
+            <span className="mb-1 block text-slate-400">Lobby tab</span>
+            <select
+              className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+              value={addForm.lobbyCategory}
+              onChange={(e) =>
+                setAddForm((f) => ({
+                  ...f,
+                  lobbyCategory: e.target.value as "aviator" | "crash" | "instantwin",
+                }))
+              }
+            >
+              <option value="aviator">Aviator</option>
+              <option value="crash">Crash</option>
+              <option value="instantwin">Instant Win</option>
+            </select>
+          </label>
+          <Input
+            label="Display RTP %"
+            type="number"
+            value={addForm.rtp}
+            onChange={(e) => setAddForm((f) => ({ ...f, rtp: e.target.value }))}
+          />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button onClick={() => void addGame()} disabled={adding}>
+            {adding ? "Adding…" : "Add game"}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => void previewGame(addForm.qtechGameId)}
+            disabled={previewing}
+          >
+            {previewing ? "Loading…" : "Preview (demo)"}
+          </Button>
+        </div>
+      </Card>
+
       <LobbyOrderEditor />
 
       {/* Environment banner — prevents accidental INT launches after production cutover */}
@@ -547,72 +604,9 @@ export default function AdminQTechPage() {
       <Card>
         <h2 className="mb-1 font-semibold">5. Enable games on /play</h2>
         <p className="mb-4 text-sm text-slate-400">
-          Copy the <strong>Game ID</strong> from{" "}
-          <a
-            href="https://bo-int.qtplatform.com/client/main.html#/operator-games"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-400 underline"
-          >
-            QTech operator games
-          </a>
-          , add it here, upload a thumbnail in section 6, and enter API credentials in section 4.
+          New games are added with <strong>Add a game</strong> at the top of this page. Use the list
+          below to turn a game on or off, change its ID, or remove it.
         </p>
-
-        {/* Add a QTech game by catalog ID */}
-        <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-          <p className="mb-3 text-sm font-semibold text-emerald-200">Add a QTech game</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input
-              label="QTech game ID"
-              placeholder="e.g. SPB-aviator"
-              value={addForm.qtechGameId}
-              onChange={(e) => setAddForm((f) => ({ ...f, qtechGameId: e.target.value }))}
-            />
-            <Input
-              label="Display name"
-              placeholder="e.g. Aviator"
-              value={addForm.name}
-              onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
-            />
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-400">Lobby tab</span>
-              <select
-                className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                value={addForm.lobbyCategory}
-                onChange={(e) =>
-                  setAddForm((f) => ({
-                    ...f,
-                    lobbyCategory: e.target.value as "aviator" | "crash" | "instantwin",
-                  }))
-                }
-              >
-                <option value="aviator">Aviator</option>
-                <option value="crash">Crash</option>
-                <option value="instantwin">Instant Win</option>
-              </select>
-            </label>
-            <Input
-              label="Display RTP %"
-              type="number"
-              value={addForm.rtp}
-              onChange={(e) => setAddForm((f) => ({ ...f, rtp: e.target.value }))}
-            />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button className="px-3 py-1.5 text-xs" onClick={() => void addGame()} disabled={adding}>
-              {adding ? "Adding…" : "Add game"}
-            </Button>
-            <Button
-              variant="secondary"
-              className="px-3 py-1.5 text-xs"
-              onClick={() => void previewGame(addForm.qtechGameId)}
-              disabled={previewing}
-            >
-              {previewing ? "Loading…" : "Preview (demo)"}
-            </Button>
-          </div>
-        </div>
 
         {qtechGames.length === 0 ? (
           <EmptyState message='Click "Create game entries" above to add Aviator and Crash.' />
