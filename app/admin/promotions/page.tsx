@@ -3,12 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { ImagePlus, Plus, Trash2, Upload } from "lucide-react";
+import { Copy, ImagePlus, Plus, Trash2, Upload } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { adminSaveLobbyPromos, errorMessage } from "@/lib/api";
 import { gamePlayPath } from "@/lib/games/api";
 import { filterLobbyGames } from "@/lib/games/catalog";
-import { LOBBY_BANNER_SIZE_LABEL, PROMO_TICKER, type LobbyPromoConfig, type PromoSlide } from "@/lib/games/promotions";
+import {
+  FREE_SPIN_BULK_SMS,
+  LOBBY_BANNER_SIZE_LABEL,
+  PROMO_TICKER,
+  type LobbyPromoConfig,
+  type PromoSlide,
+} from "@/lib/games/promotions";
 import { subscribeLobbyPromos, uploadPromoBannerImage } from "@/lib/promotions/lobbyPromos";
 import type { Game } from "@/lib/types";
 import { Button, Card, Input } from "@/components/ui";
@@ -32,6 +38,7 @@ export default function AdminPromotionsPage() {
   const [games, setGames] = useState<Game[]>([]);
   const [busy, setBusy] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [bulkSms, setBulkSms] = useState(FREE_SPIN_BULK_SMS);
 
   useEffect(() => {
     return subscribeLobbyPromos(setConfig);
@@ -107,6 +114,20 @@ export default function AdminPromotionsPage() {
     }
   }
 
+  async function copyBulkSms() {
+    const text = bulkSms.trim();
+    if (!text) {
+      toast.error("Write the SMS first.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`Copied ${text.length} characters. Paste it into your bulk SMS.`);
+    } catch {
+      toast.error("Could not copy. Select the text and copy it yourself.");
+    }
+  }
+
   async function save() {
     const cleaned = slides
       .map((s, i) => ({
@@ -149,6 +170,30 @@ export default function AdminPromotionsPage() {
           <strong className="text-white">/play</strong>.
         </p>
       </div>
+
+      <Card className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Bulk SMS</h2>
+            <p className="mt-1 text-xs text-slate-400">
+              One text for Spin My Drink, Aviator, and Chicken Road 2. Stay under 160 characters so
+              each customer is charged as a single SMS.
+            </p>
+          </div>
+          <p className={`text-xs font-bold ${bulkSms.trim().length > 160 ? "text-amber-300" : "text-emerald-300"}`}>
+            {bulkSms.trim().length}/160
+          </p>
+        </div>
+        <textarea
+          value={bulkSms}
+          onChange={(e) => setBulkSms(e.target.value)}
+          rows={4}
+          className="w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white"
+        />
+        <Button onClick={() => void copyBulkSms()} className="w-full sm:w-auto">
+          <Copy size={16} className="mr-1 inline" /> Copy SMS for bulk send
+        </Button>
+      </Card>
 
       {/* live preview */}
       {previewSlides[0] && (

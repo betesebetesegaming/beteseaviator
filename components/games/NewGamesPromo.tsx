@@ -11,7 +11,7 @@ import { qtechCdnLobbyImage } from "@/lib/games/qtechImages";
 import { useCustomerCare } from "@/lib/useCustomerCare";
 
 const CLAIM_MESSAGE =
-  "Hello BETESE, I want my free spin on Spin My Drink and my free Aviator round.";
+  "Hello BETESE, I want my free spin on Spin My Drink and my free Aviator round. I also want to play Chicken Road 2.";
 
 const OFFERS = [
   {

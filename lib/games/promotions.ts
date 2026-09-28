@@ -48,6 +48,13 @@ export const PROMO_SLIDES: PromoSlide[] = [
   },
 ];
 
+/**
+ * One GSM segment (under 160). No emoji — those split into extra paid texts.
+ * Free spin is Spin My Drink, free round is Aviator, Chicken Road 2 is the new game to open.
+ */
+export const FREE_SPIN_BULK_SMS =
+  "BETESE: Free spin on Spin My Drink. Free Aviator too. Chicken Road 2 is live. WhatsApp 2204176003 to claim. Play beteseaviator.com/play";
+
 export const PROMO_TICKER: string[] = [
   "🎁 Free spin on Spin My Drink — WhatsApp +220 417 6003",
   "✈️ Free Aviator round — call or WhatsApp +220 417 6003",
