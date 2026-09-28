@@ -53,7 +53,7 @@ export default function AdminPromotionsPage() {
         {
           id: "aviator-free-spin",
           title: "Aviator free spin",
-          subtitle: "WhatsApp or call +220 417 6003 to claim your free spin, then play.",
+          subtitle: "Call +220 417 6003 to claim your free spin, then play.",
           cta: "Play Aviator",
           href: "/play/game/qt-spb-aviator",
           gradient: "from-red-600 via-rose-900 to-black",

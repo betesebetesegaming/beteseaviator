@@ -58,3 +58,11 @@ export function customerCareWhatsAppUrl(digits: string, message?: string): strin
   if (!message?.trim()) return base;
   return `${base}?text=${encodeURIComponent(message.trim())}`;
 }
+
+/** Open a WhatsApp chat to one customer from the office WhatsApp. */
+export function whatsAppToCustomerUrl(customerPhone: string, message: string): string {
+  const d = digitsOnly(customerPhone);
+  if (!d) return "";
+  const intl = d.startsWith("220") ? d : `220${d}`;
+  return customerCareWhatsAppUrl(intl, message);
+}

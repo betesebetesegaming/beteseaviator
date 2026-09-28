@@ -1,17 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { MessageCircle, Phone } from "lucide-react";
-import {
-  customerCareTelUrl,
-  customerCareWhatsAppUrl,
-  formatCustomerCarePhone,
-} from "@/lib/customerCare";
+import { Phone } from "lucide-react";
+import { customerCareTelUrl, formatCustomerCarePhone } from "@/lib/customerCare";
 import { qtechCdnLobbyImage } from "@/lib/games/qtechImages";
 import { useCustomerCare } from "@/lib/useCustomerCare";
-
-const CLAIM_MESSAGE =
-  "Hello BETESE, I want my free spin on Spin My Drink and my Aviator free spin. I also want to play Chicken Road 2.";
 
 const OFFERS = [
   {
@@ -43,9 +36,8 @@ const NEW_GAMES = [
 
 export function NewGamesPromo() {
   const care = useCustomerCare();
-  const phoneLabel = formatCustomerCarePhone(care.whatsapp || care.phone);
+  const phoneLabel = formatCustomerCarePhone(care.phone);
   const telUrl = customerCareTelUrl(care.phone);
-  const waUrl = customerCareWhatsAppUrl(care.whatsapp || care.phone, CLAIM_MESSAGE);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80">
@@ -57,7 +49,7 @@ export function NewGamesPromo() {
           Free spin on Spin My Drink and Aviator
         </h2>
         <p className="mt-1 max-w-2xl text-xs text-white/80 sm:text-sm">
-          Spin My Drink, Aviator, Chicken Royal and Chicken Road 2 are live. WhatsApp or call
+          Spin My Drink, Aviator, Chicken Royal and Chicken Road 2 are live. Call
           {phoneLabel ? ` ${phoneLabel}` : ""} to claim, then open the game.
         </p>
       </div>
@@ -97,15 +89,13 @@ export function NewGamesPromo() {
               >
                 {offer.playLabel}
               </Link>
-              {waUrl ? (
+              {telUrl ? (
                 <a
-                  href={waUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-200 hover:bg-emerald-500/25"
+                  href={telUrl}
+                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-2 text-xs font-bold text-sky-100 hover:bg-sky-500/25"
                 >
-                  <MessageCircle size={14} />
-                  WhatsApp
+                  <Phone size={14} />
+                  {phoneLabel || "Call"}
                 </a>
               ) : null}
             </div>
@@ -115,31 +105,18 @@ export function NewGamesPromo() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-4 py-3">
         <p className="text-xs text-white/70">
-          Claim on WhatsApp or by phone
+          Claim by phone
           {phoneLabel ? <span className="font-semibold text-white"> {phoneLabel}</span> : null}
         </p>
-        <div className="flex gap-2">
-          {waUrl ? (
-            <a
-              href={waUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-200 hover:bg-emerald-500/25"
-            >
-              <MessageCircle size={14} />
-              WhatsApp
-            </a>
-          ) : null}
-          {telUrl ? (
-            <a
-              href={telUrl}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-2 text-xs font-bold text-sky-200 hover:bg-sky-500/25"
-            >
-              <Phone size={14} />
-              Call
-            </a>
-          ) : null}
-        </div>
+        {telUrl ? (
+          <a
+            href={telUrl}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-2 text-xs font-bold text-sky-100 hover:bg-sky-500/25"
+          >
+            <Phone size={14} />
+            Call {phoneLabel}
+          </a>
+        ) : null}
       </div>
 
       <div className="border-t border-white/10 px-4 py-3">

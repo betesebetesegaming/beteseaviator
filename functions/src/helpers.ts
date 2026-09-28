@@ -180,8 +180,8 @@ export const DEFAULT_SETTINGS = {
     maxConcurrent: 1,
   },
   customerCare: {
-    phone: "220874176003",
-    whatsapp: "220874176003",
+    phone: "2204176003",
+    whatsapp: "2204176003",
     label: "BETESE Customer Care",
   },
   qtech: {

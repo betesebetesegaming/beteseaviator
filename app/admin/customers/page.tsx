@@ -11,7 +11,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { Plus, Search, Banknote, Copy, Receipt, BookOpen } from "lucide-react";
+import { Plus, Search, Banknote, Copy, Receipt, BookOpen, MessageCircle } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -20,6 +20,8 @@ import {
   errorMessage,
 } from "@/lib/api";
 import { formatDate, formatXof, normalizePhone } from "@/lib/format";
+import { whatsAppToCustomerUrl } from "@/lib/customerCare";
+import { CUSTOMER_WHATSAPP_PROMO } from "@/lib/games/promotions";
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
 import { accountTotalsFromStats } from "@/lib/playerAccount";
 import {
@@ -306,6 +308,22 @@ export default function AgentPlayersPage() {
                           </span>
                         </Button>
                       </Link>
+                      <Button
+                        variant="secondary"
+                        className="!px-2.5 !py-1 text-xs text-emerald-200"
+                        onClick={() => {
+                          const url = whatsAppToCustomerUrl(p.phone ?? "", CUSTOMER_WHATSAPP_PROMO);
+                          if (!url) {
+                            toast.error("This customer has no phone number.");
+                            return;
+                          }
+                          window.open(url, "_blank", "noopener,noreferrer");
+                        }}
+                      >
+                        <span className="flex items-center gap-1">
+                          <MessageCircle size={13} /> WhatsApp
+                        </span>
+                      </Button>
                       <AgentCustomerCashActions
                         customer={p}
                         cashOpsEnabled={!!profile?.cashOpsEnabled}
