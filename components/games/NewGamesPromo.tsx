@@ -11,7 +11,7 @@ import { qtechCdnLobbyImage } from "@/lib/games/qtechImages";
 import { useCustomerCare } from "@/lib/useCustomerCare";
 
 const CLAIM_MESSAGE =
-  "Hello BETESE, I want my free spin on Spin My Drink and my free Aviator round. I also want to play Chicken Road 2.";
+  "Hello BETESE, I want my free spin on Spin My Drink and my Aviator free spin. I also want to play Chicken Road 2.";
 
 const OFFERS = [
   {
@@ -25,11 +25,11 @@ const OFFERS = [
   },
   {
     id: "aviator",
-    kicker: "Free Aviator",
+    kicker: "Free spin",
     name: "Aviator",
-    detail: "Cash out before the crash. Claim a free Aviator round, then play.",
+    detail: "Claim your Aviator free spin, then cash out before the crash.",
     href: "/play/game/qt-spb-aviator",
-    qtechId: "SPB-aviator",
+    qtechId: "",
     playLabel: "Play Aviator",
   },
 ] as const;
@@ -54,7 +54,7 @@ export function NewGamesPromo() {
           New games promo
         </p>
         <h2 className="mt-1 text-lg font-black text-white sm:text-xl">
-          Free spin and free Aviator — start playing
+          Free spin on Spin My Drink and Aviator
         </h2>
         <p className="mt-1 max-w-2xl text-xs text-white/80 sm:text-sm">
           Spin My Drink, Aviator, Chicken Royal and Chicken Road 2 are live. WhatsApp or call
@@ -69,12 +69,19 @@ export function NewGamesPromo() {
             className="overflow-hidden rounded-xl border border-white/10 bg-black/40"
           >
             <div className="flex gap-3 p-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={qtechCdnLobbyImage(offer.qtechId)}
-                alt=""
-                className="h-16 w-16 shrink-0 rounded-lg object-cover"
-              />
+              {offer.qtechId ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={qtechCdnLobbyImage(offer.qtechId)}
+                  alt=""
+                  className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                />
+              ) : (
+                <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-lg bg-gradient-to-br from-red-600 via-rose-800 to-black text-center">
+                  <span className="text-[8px] font-black uppercase tracking-wide text-betese-yellow">Free</span>
+                  <span className="text-[11px] font-black leading-none text-white">SPIN</span>
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-wide text-betese-yellow">
                   {offer.kicker}

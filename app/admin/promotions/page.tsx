@@ -51,13 +51,12 @@ export default function AdminPromotionsPage() {
     } else {
       setSlides([
         {
-          id: "aviator-launch",
-          title: "Fly high with Aviator",
-          subtitle: "Cash out before the crash — win real GMD on BETESE",
-          cta: "Play now",
+          id: "aviator-free-spin",
+          title: "Aviator free spin",
+          subtitle: "WhatsApp or call +220 417 6003 to claim your free spin, then play.",
+          cta: "Play Aviator",
           href: "/play/game/qt-spb-aviator",
-          imageUrl: "/promotions/aviator-ad.png",
-          gradient: "from-red-700 via-rose-900 to-black",
+          gradient: "from-red-600 via-rose-900 to-black",
           accent: "text-betese-yellow",
           active: true,
           sortOrder: 0,

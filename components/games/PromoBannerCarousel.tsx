@@ -39,31 +39,24 @@ function SlideLayer({ slide }: { slide: PromoSlide }) {
       ) : null}
 
       {showCopy ? (
-        <div className="relative flex h-full flex-col justify-center px-5 sm:px-8 md:px-10">
-          <p className={`text-[10px] font-black uppercase tracking-[0.25em] ${slide.accent || "text-betese-yellow"} opacity-90`}>
-            Promotion
-          </p>
-          <h2 className="mt-1 max-w-lg text-xl font-black text-white drop-shadow sm:text-2xl md:text-3xl">
-            {slide.title || "Welcome to BETESE"}
-          </h2>
-          <p className="mt-1 max-w-md text-xs text-white/90 drop-shadow sm:text-sm">
-            {slide.subtitle || "Top up with Wave — play QTech games"}
-          </p>
-          {slide.href && slide.cta ? (
-            <Link
-              href={slide.href}
-              className="mt-3 inline-flex w-fit rounded-lg bg-[var(--lobby-accent)] px-4 py-1.5 text-xs font-black uppercase tracking-wide text-black transition hover:brightness-110"
-            >
-              {slide.cta}
-            </Link>
-          ) : (
-            <Link
-              href="/play/wallet"
-              className="mt-3 inline-flex w-fit rounded-lg bg-[var(--lobby-accent)] px-4 py-1.5 text-xs font-black uppercase tracking-wide text-black transition hover:brightness-110"
-            >
-              Top up wallet
-            </Link>
-          )}
+        <div className="relative flex h-full items-center justify-between gap-3 px-4 sm:px-8">
+          <div className="min-w-0">
+            <p className={`text-[9px] font-black uppercase tracking-[0.22em] sm:text-[10px] ${slide.accent || "text-betese-yellow"}`}>
+              Free spin
+            </p>
+            <h2 className="truncate text-base font-black leading-tight text-white drop-shadow sm:text-2xl md:text-3xl">
+              {slide.title || "Aviator free spin"}
+            </h2>
+            {slide.subtitle ? (
+              <p className="mt-0.5 hidden truncate text-xs text-white/85 sm:block">{slide.subtitle}</p>
+            ) : null}
+          </div>
+          <Link
+            href={slide.href || "/play/game/qt-spb-aviator"}
+            className="inline-flex shrink-0 rounded-lg bg-[var(--lobby-accent)] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-black hover:brightness-110 sm:px-4 sm:text-xs"
+          >
+            {slide.cta || "Play now"}
+          </Link>
         </div>
       ) : null}
     </>

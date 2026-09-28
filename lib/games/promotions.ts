@@ -57,7 +57,7 @@ export const FREE_SPIN_BULK_SMS =
 
 export const PROMO_TICKER: string[] = [
   "🎁 Free spin on Spin My Drink — WhatsApp +220 417 6003",
-  "✈️ Free Aviator round — call or WhatsApp +220 417 6003",
+  "✈️ Aviator free spin — call or WhatsApp +220 417 6003",
   "🆕 New games are live — Spin My Drink, Aviator, Chicken Royal",
   "💰 Instant Wave & AfriMoney deposits",
 ];
