@@ -17,6 +17,7 @@ import type { Game } from "@/lib/types";
 import { EmptyState } from "@/components/ui";
 import { GameLobbyCard } from "./GameLobbyCard";
 import { LobbyCategoryNav } from "./LobbyCategoryNav";
+import { NewGamesPromo } from "./NewGamesPromo";
 import { LOBBY_NAV, type LobbyNavCategory } from "@/lib/games/promotions";
 
 const PromoBannerCarousel = dynamic(
@@ -168,6 +169,8 @@ export function GameLobby() {
   return (
     <div className="lobby-page -mx-4 space-y-4 px-4 pb-8 sm:-mx-0 sm:space-y-5 sm:px-0">
       <PromoBannerCarousel />
+
+      <NewGamesPromo />
 
       <LobbyCategoryNav active={category} onChange={setCategory} counts={counts} />
 

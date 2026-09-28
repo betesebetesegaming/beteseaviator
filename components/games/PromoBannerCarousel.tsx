@@ -32,6 +32,12 @@ function SlideLayer({ slide }: { slide: PromoSlide }) {
         />
       ) : null}
 
+      {showImage && slide.title ? (
+        <div className="absolute left-3 top-3 z-[1] max-w-[70%] rounded-full bg-black/75 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-betese-yellow sm:text-xs">
+          {slide.title}
+        </div>
+      ) : null}
+
       {showCopy ? (
         <div className="relative flex h-full flex-col justify-center px-5 sm:px-8 md:px-10">
           <p className={`text-[10px] font-black uppercase tracking-[0.25em] ${slide.accent || "text-betese-yellow"} opacity-90`}>

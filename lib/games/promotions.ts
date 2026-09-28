@@ -49,9 +49,10 @@ export const PROMO_SLIDES: PromoSlide[] = [
 ];
 
 export const PROMO_TICKER: string[] = [
-  "✈️ QTech games — play with your BETESE wallet",
+  "🎁 Free spin on Spin My Drink — WhatsApp +220 417 6003",
+  "✈️ Free Aviator round — call or WhatsApp +220 417 6003",
+  "🆕 New games are live — Spin My Drink, Aviator, Chicken Royal",
   "💰 Instant Wave & AfriMoney deposits",
-  "🎮 New games added from your QTech catalog",
 ];
 
 export type LobbyNavCategory = "all" | "aviator" | "crash" | "instantwin";
