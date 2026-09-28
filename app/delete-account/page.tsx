@@ -49,15 +49,15 @@ export default function DeleteAccountPage() {
                   WhatsApp:{" "}
                   <a
                     className="text-emerald-400 hover:underline"
-                    href="https://wa.me/2204176003?text=Hello%20BETESE%2C%20I%20want%20to%20delete%20my%20account."
+                    href="https://wa.me/220874176003?text=Hello%20BETESE%2C%20I%20want%20to%20delete%20my%20account."
                   >
-                    +220 417 6003
+                    +220 874 176003
                   </a>
                 </li>
                 <li>
                   Phone:{" "}
-                  <a className="text-emerald-400 hover:underline" href="tel:+2204176003">
-                    +220 417 6003
+                  <a className="text-emerald-400 hover:underline" href="tel:+220874176003">
+                    +220 874 176003
                   </a>
                 </li>
                 <li>

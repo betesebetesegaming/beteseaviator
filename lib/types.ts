@@ -476,8 +476,8 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     maxConcurrent: 1,
   },
   customerCare: {
-    phone: "2204176003",
-    whatsapp: "2204176003",
+    phone: "220874176003",
+    whatsapp: "220874176003",
     label: "BETESE Customer Care",
   },
   qtech: {

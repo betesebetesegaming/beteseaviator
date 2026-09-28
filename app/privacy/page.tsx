@@ -36,8 +36,8 @@ export default function PrivacyPolicyPage() {
             <li>Website: https://www.beteseaviator.com</li>
             <li>
               Customer Care: WhatsApp and phone{" "}
-              <a className="text-emerald-400 hover:underline" href="https://wa.me/2204176003">
-                +220 417 6003
+              <a className="text-emerald-400 hover:underline" href="https://wa.me/220874176003">
+                +220 874 176003
               </a>
             </li>
             <li>
@@ -209,7 +209,7 @@ export default function PrivacyPolicyPage() {
             <a className="text-emerald-400 hover:underline" href="mailto:admin@beteseaviator.com">
               admin@beteseaviator.com
             </a>{" "}
-            or contact Customer Care on WhatsApp/phone +220 417 6003. We may need to verify your
+            or contact Customer Care on WhatsApp/phone +220 874 176003. We may need to verify your
             identity before acting on a request.
           </p>
         </Section>
@@ -255,12 +255,12 @@ export default function PrivacyPolicyPage() {
             </li>
             <li>
               Customer Care:{" "}
-              <a className="text-emerald-400 hover:underline" href="https://wa.me/2204176003">
-                WhatsApp +220 417 6003
+              <a className="text-emerald-400 hover:underline" href="https://wa.me/220874176003">
+                WhatsApp +220 874 176003
               </a>{" "}
               /{" "}
-              <a className="text-emerald-400 hover:underline" href="tel:+2204176003">
-                Call +220 417 6003
+              <a className="text-emerald-400 hover:underline" href="tel:+220874176003">
+                Call +220 874 176003
               </a>
             </li>
             <li>Website: https://www.beteseaviator.com</li>

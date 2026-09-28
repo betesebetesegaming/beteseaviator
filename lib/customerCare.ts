@@ -4,8 +4,8 @@ export type CustomerCareConfig = {
   label: string;
 };
 
-const DEFAULT_PHONE = "2204176003";
-const DEFAULT_WHATSAPP = "2204176003";
+const DEFAULT_PHONE = "220874176003";
+const DEFAULT_WHATSAPP = "220874176003";
 
 function readCareEnv(name: "NEXT_PUBLIC_CUSTOMER_CARE_PHONE" | "NEXT_PUBLIC_CUSTOMER_CARE_WHATSAPP"): string {
   if (typeof window !== "undefined") {
@@ -36,11 +36,11 @@ export function digitsOnly(value: string): string {
 
 export function formatCustomerCarePhone(digits: string): string {
   const d = digitsOnly(digits);
-  if (d.startsWith("220") && d.length === 10) {
+  if (d.startsWith("220") && (d.length === 10 || d.length === 12)) {
     const local = d.slice(3);
     return `+220 ${local.slice(0, 3)} ${local.slice(3)}`;
   }
-  if (d.length === 7) {
+  if (d.length === 7 || d.length === 9) {
     return `+220 ${d.slice(0, 3)} ${d.slice(3)}`;
   }
   return d ? `+${d}` : "";
