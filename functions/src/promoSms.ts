@@ -7,11 +7,14 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions/v2";
 import { db, FieldValue, requireRole } from "./helpers";
 import { toMsisdn } from "./smartBonusNotify";
-import { sendSmsWithFallback } from "./routes/otp";
 
-const BATCH = 8;
-const TIME_BUDGET_MS = 240_000;
+const PAGE = 40;
+const PARALLEL = 5;
+const TIME_BUDGET_MS = 200_000;
 const MAX_MESSAGE = 480;
+const PMU_OTP_BASE_URL = (
+  process.env.PMU_OTP_API_BASE_URL || "https://us-central1-betesepmu-4ffc7.cloudfunctions.net"
+).replace(/\/+$/, "");
 
 export const adminStartPromoSms = onCall({ timeoutSeconds: 300 }, async (req) => {
   const { uid } = await requireRole(req, ["admin"]);
@@ -74,17 +77,48 @@ export const processPromoSms = onSchedule(
   },
 );
 
+/** One row per phone. create() fails if this campaign already claimed that number. */
+async function claimPhone(campaignId: string, msisdn: string): Promise<boolean> {
+  try {
+    await db.doc(`promoSmsCampaigns/${campaignId}/sent/${msisdn}`).create({
+      status: "sending",
+      at: FieldValue.serverTimestamp(),
+    });
+    return true;
+  } catch (e) {
+    const code = (e as { code?: number | string }).code;
+    if (code === 6 || code === "already-exists" || String(e).includes("ALREADY_EXISTS")) return false;
+    throw e;
+  }
+}
+
+/** PMU delivers the text directly. Africell from this server usually times out first and makes every text slow. */
+async function sendPromoSms(msisdn: string, message: string): Promise<void> {
+  const phone = msisdn.startsWith("220") && msisdn.length >= 10 ? msisdn.slice(3) : msisdn;
+  const res = await fetch(`${PMU_OTP_BASE_URL}/sendOtp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, message, code: "000000" }),
+    signal: AbortSignal.timeout(12000),
+  });
+  const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+  if (!(res.ok && data.ok === true)) {
+    throw new Error(data.error || `SMS failed (${res.status})`);
+  }
+}
+
 async function processPromoSmsCore(): Promise<void> {
   const snap = await db.collection("promoSmsCampaigns").where("status", "==", "running").limit(1).get();
   if (snap.empty) return;
   const campRef = snap.docs[0].ref;
+  const campaignId = campRef.id;
 
   const claimed = await db.runTransaction(async (tx) => {
     const fresh = await tx.get(campRef);
     const d = fresh.data();
     if (!d || d.status !== "running") return false;
     if (Number(d.lockUntil ?? 0) > Date.now()) return false;
-    tx.update(campRef, { lockUntil: Date.now() + 6 * 60 * 1000 });
+    tx.update(campRef, { lockUntil: Date.now() + TIME_BUDGET_MS + 60_000 });
     return true;
   });
   if (!claimed) return;
@@ -96,55 +130,103 @@ async function processPromoSmsCore(): Promise<void> {
   let smsSent = Number(c.smsSent ?? 0);
   let smsFailed = Number(c.smsFailed ?? 0);
   let skipped = Number(c.skipped ?? 0);
+  let skippedDuplicate = Number(c.skippedDuplicate ?? 0);
+  const deadline = Date.now() + TIME_BUDGET_MS;
+  let done = false;
 
-  let q = db
-    .collection("users")
-    .where("role", "==", "player")
-    .where("status", "==", "active")
-    .orderBy("__name__")
-    .limit(BATCH);
-  if (cursor) q = q.startAfter(cursor);
-  const page = await q.get();
+  const save = async (finished: boolean) => {
+    const fresh = await campRef.get();
+    const canceled = fresh.data()?.status !== "running";
+    const status = canceled ? "canceled" : finished ? "done" : "running";
+    await campRef.set(
+      {
+        cursor,
+        processed,
+        smsSent,
+        smsFailed,
+        skipped,
+        skippedDuplicate,
+        // Hold the lock until this run is finished so the next minute cannot text the same page.
+        lockUntil: status === "running" ? deadline + 30_000 : 0,
+        status,
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(status === "done" ? { completedAt: FieldValue.serverTimestamp() } : {}),
+      },
+      { merge: true },
+    );
+  };
 
-  const startedMs = Date.now();
-  let handled = 0;
-  for (const userDoc of page.docs) {
-    if (Date.now() - startedMs > TIME_BUDGET_MS) break;
+  while (Date.now() < deadline) {
     const latest = await campRef.get();
-    if (latest.data()?.status !== "running") break;
-    handled += 1;
-    cursor = userDoc.id;
-    processed += 1;
-    const phone = (userDoc.data().phone as string | null) ?? null;
-    const msisdn = toMsisdn(phone);
-    if (!msisdn) {
-      skipped += 1;
-      continue;
+    if (latest.data()?.status !== "running") {
+      await save(false);
+      return;
     }
-    try {
-      await sendSmsWithFallback(msisdn, message);
-      smsSent += 1;
-    } catch (e) {
-      smsFailed += 1;
-      logger.warn("promo SMS failed", { uid: userDoc.id, error: String(e) });
+
+    let q = db
+      .collection("users")
+      .where("role", "==", "player")
+      .where("status", "==", "active")
+      .orderBy("__name__")
+      .limit(PAGE);
+    if (cursor) q = q.startAfter(cursor);
+    const page = await q.get();
+    if (page.empty) {
+      done = true;
+      break;
+    }
+
+    const wave: Array<Promise<void>> = [];
+    const flush = async () => {
+      if (!wave.length) return;
+      await Promise.all(wave);
+      wave.length = 0;
+      await save(false);
+    };
+
+    for (const userDoc of page.docs) {
+      if (Date.now() >= deadline) break;
+      cursor = userDoc.id;
+      processed += 1;
+      const msisdn = toMsisdn((userDoc.data().phone as string | null) ?? null);
+      if (!msisdn) {
+        skipped += 1;
+        continue;
+      }
+      const firstTime = await claimPhone(campaignId, msisdn);
+      if (!firstTime) {
+        skippedDuplicate += 1;
+        continue;
+      }
+      wave.push(
+        sendPromoSms(msisdn, message)
+          .then(async () => {
+            smsSent += 1;
+            await db.doc(`promoSmsCampaigns/${campaignId}/sent/${msisdn}`).set(
+              { status: "sent", at: FieldValue.serverTimestamp() },
+              { merge: true },
+            );
+          })
+          .catch(async (e) => {
+            // Keep the claim so a retry cannot text this number again.
+            smsFailed += 1;
+            await db.doc(`promoSmsCampaigns/${campaignId}/sent/${msisdn}`).set(
+              { status: "failed", error: String(e).slice(0, 180), at: FieldValue.serverTimestamp() },
+              { merge: true },
+            );
+            logger.warn("promo SMS failed", { msisdn, error: String(e) });
+          }),
+      );
+      if (wave.length >= PARALLEL) await flush();
+    }
+    await flush();
+
+    if (cursor === page.docs[page.docs.length - 1]?.id && page.size < PAGE) {
+      done = true;
+      break;
     }
   }
 
-  const done = page.empty || (page.size < BATCH && handled === page.size);
-  const stillRunning = (await campRef.get()).data()?.status === "running";
-  await campRef.set(
-    {
-      cursor,
-      processed,
-      smsSent,
-      smsFailed,
-      skipped,
-      lockUntil: 0,
-      status: !stillRunning ? "canceled" : done ? "done" : "running",
-      updatedAt: FieldValue.serverTimestamp(),
-      ...(done && stillRunning ? { completedAt: FieldValue.serverTimestamp() } : {}),
-    },
-    { merge: true },
-  );
-  logger.info("promo SMS batch", { campaign: campRef.id, processed, smsSent, smsFailed, skipped, done });
+  await save(done);
+  logger.info("promo SMS batch", { campaign: campaignId, processed, smsSent, smsFailed, skipped, skippedDuplicate, done });
 }

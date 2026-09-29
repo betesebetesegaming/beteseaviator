@@ -16,6 +16,7 @@ type PromoSmsCampaign = {
   smsSent?: number;
   smsFailed?: number;
   skipped?: number;
+  skippedDuplicate?: number;
   processed?: number;
 };
 
@@ -79,8 +80,7 @@ export function PromoSmsPanel() {
         <MessageSquare size={16} className="text-emerald-300" /> Paste and send SMS
       </h2>
       <p className="mb-3 text-xs text-slate-400">
-        This is separate from the Happy Hour gift text. Paste the free-spin message, then send it to active players.
-        One text is 160 characters.
+        This is separate from the Happy Hour gift text. Each phone number gets this SMS once. If it pauses, it continues and will not text that number again.
       </p>
       <textarea
         value={message}
@@ -111,6 +111,9 @@ export function PromoSmsPanel() {
             <span className="text-rose-300"> · {campaign.smsFailed} failed</span>
           ) : null}
           {(campaign.skipped ?? 0) > 0 ? <span> · {campaign.skipped} skipped (no phone)</span> : null}
+          {(campaign.skippedDuplicate ?? 0) > 0 ? (
+            <span> · {campaign.skippedDuplicate} already texted</span>
+          ) : null}
           {campaign.status === "running" ? " · still sending…" : null}
         </p>
       ) : null}
