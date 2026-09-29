@@ -53,7 +53,7 @@ export const PROMO_SLIDES: PromoSlide[] = [
  * Free spin is Spin My Drink, free round is Aviator, Chicken Road 2 is the new game to open.
  */
 export const FREE_SPIN_BULK_SMS =
-  "BETESE: Free spin on Spin My Drink. Aviator free spin too. Chicken Road 2 is live. Call 220874176003. Play beteseaviator.com/play";
+  "BETESE: FREE SPIN on Spin My Drink and Aviator. Chicken Road 2 is live. Call 220874176003 to claim. Play beteseaviator.com/play";
 
 /** Admin opens this in WhatsApp, addressed to one customer. */
 export const CUSTOMER_WHATSAPP_PROMO = FREE_SPIN_BULK_SMS;
