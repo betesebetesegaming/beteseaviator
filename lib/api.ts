@@ -299,6 +299,13 @@ export const adminStartHappyHour = call<
 
 export const adminCancelHappyHour = call<{ campaignId?: string }, { ok: true }>("adminCancelHappyHour");
 
+export const adminStartPromoSms = call<
+  { message: string },
+  { ok: true; campaignId: string; smsSent: number; smsFailed: number }
+>("adminStartPromoSms");
+
+export const adminCancelPromoSms = call<{ campaignId?: string }, { ok: true }>("adminCancelPromoSms");
+
 export const agentRequestSmartBonus = call<
   { playerId: string },
   { ok: true; offerId: string }

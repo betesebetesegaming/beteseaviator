@@ -80,6 +80,7 @@ export {
   adminCancelHappyHour,
   agentRequestSmartBonus,
 } from "./smartBonus";
+export { adminStartPromoSms, adminCancelPromoSms, processPromoSms } from "./promoSms";
 
 export { getOperationsHub } from "./operations";
 export {

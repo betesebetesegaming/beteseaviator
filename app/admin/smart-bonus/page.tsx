@@ -33,6 +33,7 @@ import { formatPlayerId } from "@/lib/playerId";
 import { offerMessage, offerStatusMeta, tierMeta } from "@/lib/smartBonus";
 import { SmartBonusBriefing } from "@/components/admin/SmartBonusBriefing";
 import { SmartBonusReports } from "@/components/admin/SmartBonusReports";
+import { PromoSmsPanel } from "@/components/admin/PromoSmsPanel";
 import {
   Button,
   Card,
@@ -368,6 +369,8 @@ export default function AdminSmartBonusPage() {
           </span>
         </Button>
       </div>
+
+      <PromoSmsPanel />
 
       {!sb.enabled && (
         <Card className="mb-5 border-amber-500/30 bg-amber-500/10 text-sm text-amber-100">

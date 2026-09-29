@@ -137,6 +137,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /promoSmsCampaigns/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /dailyStats/{date} {
       allow read: if isAdmin();
       allow write: if false;
