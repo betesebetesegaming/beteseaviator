@@ -40,7 +40,7 @@ export function activeLobbySlides(config: LobbyPromoConfig | null): PromoSlide[]
     ?.filter((s) => s.active !== false && inSchedule(s, now))
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   if (fromDb?.length) return fromDb;
-  return PROMO_SLIDES;
+  return PROMO_SLIDES.filter((s) => inSchedule(s, now));
 }
 
 export function lobbyTicker(config: LobbyPromoConfig | null): string[] {

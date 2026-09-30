@@ -32,6 +32,28 @@ export type LobbyPromoConfig = {
 
 export const PROMO_SLIDES: PromoSlide[] = [
   {
+    id: "rain-of-wins",
+    title: "Rain of Wins — GMD 186,000",
+    subtitle: "1–31 October on Aviator, 8am–11pm daily.",
+    cta: "Play Aviator",
+    href: "/play/game/qt-spb-aviator",
+    imageUrl: "/promotions/rain-of-wins.jpg",
+    gradient: "from-zinc-800 via-neutral-900 to-black",
+    accent: "text-betese-yellow",
+    endsAt: "2026-11-01T00:00:00Z",
+  },
+  {
+    id: "rain-is-here",
+    title: "Rain is here!",
+    subtitle: "Claim free Aviator rain drops in the game chat. 1–31 October.",
+    cta: "Play Aviator",
+    href: "/play/game/qt-spb-aviator",
+    imageUrl: "/promotions/rain-is-here.jpg",
+    gradient: "from-red-800 via-rose-950 to-black",
+    accent: "text-betese-yellow",
+    endsAt: "2026-11-01T00:00:00Z",
+  },
+  {
     id: "welcome",
     title: "Welcome to BETESE",
     subtitle: "Top up from GMD 20 — Wave, AfriMoney & more. Play QTech games in GMD",
