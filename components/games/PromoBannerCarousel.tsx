@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { activeLobbySlides, lobbyTicker, subscribeLobbyPromos } from "@/lib/promotions/lobbyPromos";
@@ -99,23 +99,51 @@ export function PromoBannerCarousel() {
     });
   }, [slides]);
 
+  const [paused, setPaused] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+
   useEffect(() => {
-    if (slides.length <= 1) return;
+    if (slides.length <= 1 || paused) return;
     const id = window.setInterval(() => {
       setIndex((i) => (i + 1) % slides.length);
-    }, 5500);
+    }, 4500);
     return () => clearInterval(id);
-  }, [slides.length]);
+  }, [slides.length, paused, index]);
 
   if (slides.length === 0) return null;
 
-  const activeSlide = slides[index];
-  if (!activeSlide) return null;
+  const current = Math.min(index, slides.length - 1);
+
+  function onTouchEnd(e: TouchEvent) {
+    const start = touchStartX.current;
+    touchStartX.current = null;
+    if (start === null || slides.length <= 1) return;
+    const dx = e.changedTouches[0].clientX - start;
+    if (Math.abs(dx) < 40) return;
+    setIndex((i) => (dx < 0 ? (i + 1) % slides.length : (i - 1 + slides.length) % slides.length));
+  }
 
   return (
     <section className="space-y-0 overflow-hidden rounded-2xl border border-white/10">
-      <div className="relative w-full aspect-[1920/360] max-h-[360px] bg-slate-900">
-        <SlideLayer key={activeSlide.id} slide={activeSlide} />
+      <div
+        className="relative w-full aspect-[1920/360] max-h-[360px] overflow-hidden bg-slate-900"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onTouchStart={(e) => {
+          touchStartX.current = e.touches[0].clientX;
+        }}
+        onTouchEnd={onTouchEnd}
+      >
+        <div
+          className="flex h-full transition-transform duration-700 ease-in-out"
+          style={{ transform: `translateX(-${current * 100}%)` }}
+        >
+          {slides.map((slide) => (
+            <div key={slide.id} className="relative h-full w-full shrink-0">
+              <SlideLayer slide={slide} />
+            </div>
+          ))}
+        </div>
 
         {slides.length > 1 ? (
           <>
@@ -143,7 +171,7 @@ export function PromoBannerCarousel() {
                   aria-label={`Go to slide ${i + 1}`}
                   onClick={() => setIndex(i)}
                   className={`h-1.5 rounded-full transition-all ${
-                    i === index ? "w-6 bg-[var(--lobby-accent)]" : "w-1.5 bg-white/40"
+                    i === current ? "w-6 bg-[var(--lobby-accent)]" : "w-1.5 bg-white/40"
                   }`}
                 />
               ))}

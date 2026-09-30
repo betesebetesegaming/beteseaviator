@@ -28,9 +28,16 @@ export function subscribeLobbyPromos(onConfig: (config: LobbyPromoConfig | null)
   );
 }
 
+function inSchedule(slide: PromoSlide, now: number): boolean {
+  if (slide.startsAt && Date.parse(slide.startsAt) > now) return false;
+  if (slide.endsAt && Date.parse(slide.endsAt) <= now) return false;
+  return true;
+}
+
 export function activeLobbySlides(config: LobbyPromoConfig | null): PromoSlide[] {
+  const now = Date.now();
   const fromDb = config?.slides
-    ?.filter((s) => s.active !== false)
+    ?.filter((s) => s.active !== false && inSchedule(s, now))
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   if (fromDb?.length) return fromDb;
   return PROMO_SLIDES;

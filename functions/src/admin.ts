@@ -702,6 +702,8 @@ export const adminSaveLobbyPromos = onCall(async (req) => {
       accent: s.accent ? String(s.accent).trim().slice(0, 40) : "text-betese-yellow",
       active: s.active !== false,
       sortOrder: Number(s.sortOrder ?? i),
+      ...(s.startsAt ? { startsAt: String(s.startsAt).trim().slice(0, 40) } : {}),
+      ...(s.endsAt ? { endsAt: String(s.endsAt).trim().slice(0, 40) } : {}),
     });
   }
 

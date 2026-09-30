@@ -18,6 +18,9 @@ export type PromoSlide = {
   accent: string;
   active?: boolean;
   sortOrder?: number;
+  /** ISO timestamps — slide is hidden outside this window. */
+  startsAt?: string;
+  endsAt?: string;
 };
 
 /** Stored at settings/lobbyPromos — managed from admin → Promotions. */
