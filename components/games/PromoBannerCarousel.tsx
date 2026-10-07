@@ -20,16 +20,27 @@ function SlideLayer({ slide }: { slide: PromoSlide }) {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_10%_80%,rgba(0,128,0,0.2),transparent_50%)]" />
 
       {showImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageUrl}
-          alt={slide.title || "Promotion"}
-          loading="eager"
-          decoding="async"
-          fetchPriority="high"
-          onError={() => setImageFailed(true)}
-          className="absolute inset-0 h-full w-full object-cover object-center"
-        />
+        <>
+          {/* Blurred copy fills any space left around banners of a different shape */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full scale-110 object-cover object-center opacity-60 blur-xl"
+          />
+          {/* Whole banner stays visible — never crop the prize amount or date */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt={slide.title || "Promotion"}
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
+            onError={() => setImageFailed(true)}
+            className="absolute inset-0 h-full w-full object-contain object-center"
+          />
+        </>
       ) : null}
 
       {showCopy ? (
@@ -120,7 +131,7 @@ export function PromoBannerCarousel() {
   return (
     <section className="space-y-0 overflow-hidden rounded-2xl border border-white/10">
       <div
-        className="relative w-full aspect-[1920/360] max-h-[360px] overflow-hidden bg-slate-900"
+        className="relative w-full aspect-[3/1] max-h-[440px] overflow-hidden bg-slate-900"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onTouchStart={(e) => {
@@ -157,7 +168,7 @@ export function PromoBannerCarousel() {
             >
               <ChevronRight size={18} />
             </button>
-            <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-1.5">
+            <div className="absolute bottom-2 right-3 z-10 flex gap-1.5 rounded-full bg-black/40 px-2 py-1 backdrop-blur">
               {slides.map((s, i) => (
                 <button
                   key={s.id}

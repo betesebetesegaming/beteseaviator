@@ -1,31 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Phone } from "lucide-react";
-import { customerCareTelUrl, formatCustomerCarePhone } from "@/lib/customerCare";
+import { formatCustomerCarePhone } from "@/lib/customerCare";
 import { qtechCdnLobbyImage } from "@/lib/games/qtechImages";
 import { useCustomerCare } from "@/lib/useCustomerCare";
-
-const OFFERS = [
-  {
-    id: "spin-my-drink",
-    kicker: "Free spin",
-    name: "Spin My Drink",
-    detail: "New game. Tap the bottle and pick UP or DOWN. Claim your free spin, then play.",
-    href: "/play/game/qt-wso-spinmydrink",
-    qtechId: "WSO-spinmydrink",
-    playLabel: "Play Spin My Drink",
-  },
-  {
-    id: "aviator",
-    kicker: "Free spin",
-    name: "Aviator",
-    detail: "Claim your Aviator free spin, then cash out before the crash.",
-    href: "/play/game/qt-spb-aviator",
-    qtechId: "",
-    playLabel: "Play Aviator",
-  },
-] as const;
 
 const NEW_GAMES = [
   { name: "Spin My Drink", href: "/play/game/qt-wso-spinmydrink", qtechId: "WSO-spinmydrink" },
@@ -37,7 +15,6 @@ const NEW_GAMES = [
 export function NewGamesPromo() {
   const care = useCustomerCare();
   const phoneLabel = formatCustomerCarePhone(care.phone);
-  const telUrl = customerCareTelUrl(care.phone);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80">
@@ -52,71 +29,6 @@ export function NewGamesPromo() {
           Spin My Drink, Aviator, Chicken Royal and Chicken Road 2 are live. Call
           {phoneLabel ? ` ${phoneLabel}` : ""} to claim, then open the game.
         </p>
-      </div>
-
-      <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4">
-        {OFFERS.map((offer) => (
-          <article
-            key={offer.id}
-            className="overflow-hidden rounded-xl border border-white/10 bg-black/40"
-          >
-            <div className="flex gap-3 p-3">
-              {offer.qtechId ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={qtechCdnLobbyImage(offer.qtechId)}
-                  alt=""
-                  className="h-16 w-16 shrink-0 rounded-lg object-cover"
-                />
-              ) : (
-                <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-lg bg-gradient-to-br from-red-600 via-rose-800 to-black text-center">
-                  <span className="text-[8px] font-black uppercase tracking-wide text-betese-yellow">Free</span>
-                  <span className="text-[11px] font-black leading-none text-white">SPIN</span>
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-wide text-betese-yellow">
-                  {offer.kicker}
-                </p>
-                <h3 className="text-sm font-black text-white">{offer.name}</h3>
-                <p className="mt-0.5 text-xs leading-snug text-white/70">{offer.detail}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 px-3 pb-3">
-              <Link
-                href={offer.href}
-                className="inline-flex items-center justify-center rounded-lg bg-[var(--lobby-accent)] px-3 py-2 text-center text-xs font-black uppercase tracking-wide text-black hover:brightness-110"
-              >
-                {offer.playLabel}
-              </Link>
-              {telUrl ? (
-                <a
-                  href={telUrl}
-                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-2 text-xs font-bold text-sky-100 hover:bg-sky-500/25"
-                >
-                  <Phone size={14} />
-                  {phoneLabel || "Call"}
-                </a>
-              ) : null}
-            </div>
-          </article>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-4 py-3">
-        <p className="text-xs text-white/70">
-          Claim by phone
-          {phoneLabel ? <span className="font-semibold text-white"> {phoneLabel}</span> : null}
-        </p>
-        {telUrl ? (
-          <a
-            href={telUrl}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-2 text-xs font-bold text-sky-100 hover:bg-sky-500/25"
-          >
-            <Phone size={14} />
-            Call {phoneLabel}
-          </a>
-        ) : null}
       </div>
 
       <div className="border-t border-white/10 px-4 py-3">
