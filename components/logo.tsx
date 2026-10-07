@@ -17,9 +17,10 @@ export function Logo({
       <Image
         src="/logo.png"
         alt="BETESE"
-        width={Math.round(height * 2.4)}
+        width={Math.round(height * 1.79)}
         height={height}
-        className="h-auto w-auto object-contain"
+        className="object-contain"
+        style={{ width: Math.round(height * 1.79), height }}
         priority={priority}
       />
       {showWordmark && (
