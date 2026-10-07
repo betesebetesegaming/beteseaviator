@@ -49,9 +49,6 @@ export async function consumeOtpVerification(msisdn: string): Promise<void> {
 }
 
 function resolveOtpCandidates(phone: string): string[] {
-  if (!isGambianPhoneKey(phone)) {
-    throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
-  }
   const candidates = otpMsisdnCandidates(phone);
   if (!candidates.length) {
     throw new HttpsError("invalid-argument", "A valid Gambian mobile number is required.");
@@ -80,10 +77,36 @@ export async function requireOtpVerifiedForPhone(phone: string): Promise<string>
   return matchVerifiedMsisdn(phone);
 }
 
+/** Try 7-digit and 9-digit forms so Gambia9 Wave payouts still match SMS OTP. */
+export async function requireOtpVerifiedForAnyPhone(phones: string[]): Promise<string> {
+  let last: unknown;
+  const seen = new Set<string>();
+  for (const phone of phones) {
+    const key = String(phone || "").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    try {
+      return await matchVerifiedMsisdn(key);
+    } catch (err) {
+      last = err;
+    }
+  }
+  if (last instanceof HttpsError) throw last;
+  throw otpVerificationError("missing");
+}
+
+async function deleteVerifiedAliases(phone: string, matched?: string): Promise<void> {
+  const ids = new Set(otpMsisdnCandidates(phone));
+  if (matched) ids.add(matched);
+  await Promise.all(
+    [...ids].map((id) => db.collection("otp_verified").doc(id).delete().catch(() => undefined)),
+  );
+}
+
 /** Consume Africell OTP after a sensitive action succeeds. */
 export async function consumeOtpVerifiedForPhone(phone: string): Promise<void> {
   const msisdn = await matchVerifiedMsisdn(phone);
-  await db.collection("otp_verified").doc(msisdn).delete().catch(() => undefined);
+  await deleteVerifiedAliases(phone, msisdn);
 }
 
 /** @deprecated Prefer requireOtpVerifiedForPhone + consumeOtpVerifiedForPhone. */

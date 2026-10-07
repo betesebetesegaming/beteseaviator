@@ -285,3 +285,19 @@ export function formatPhoneDisplay(phoneKey: string): string {
   }
   return phoneKey;
 }
+
+/** True when search (7-digit or 9-digit) refers to the same stored Gambian mobile. */
+export function phonesMatchSearch(stored: string | null | undefined, query: string): boolean {
+  const rawStored = String(stored || "").trim();
+  const rawQuery = String(query || "").trim();
+  if (!rawStored || !rawQuery) return false;
+  const qDigits = rawQuery.replace(/\D/g, "");
+  if (rawStored.toLowerCase().includes(rawQuery.toLowerCase())) return true;
+  if (qDigits && rawStored.replace(/\D/g, "").includes(qDigits)) return true;
+  const storedKeys = new Set(phoneStorageKeys(rawStored));
+  for (const key of phoneStorageKeys(rawQuery)) {
+    if (storedKeys.has(key)) return true;
+  }
+  const wave = toWaveAccountNumber(rawStored);
+  return Boolean(wave && (wave === qDigits || qDigits.endsWith(wave)));
+}

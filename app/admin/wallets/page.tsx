@@ -13,7 +13,8 @@ import { Search, Snowflake, Banknote, HandCoins, BookOpen } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { adminAdjustWallet, adminFreezeWallet, errorMessage } from "@/lib/api";
 import { lookupUsersByPhoneOrId } from "@/lib/adminUserLookup";
-import { formatXof, normalizePhone } from "@/lib/format";
+import { formatXof } from "@/lib/format";
+import { phonesMatchSearch } from "@/lib/phone";
 import { formatPlayerId } from "@/lib/playerId";
 import { accountTotalsFromStats } from "@/lib/playerAccount";
 import { isAgentRole } from "@/lib/roles";
@@ -122,18 +123,20 @@ export default function AdminWalletsPage() {
     }
     const s = search.trim().toLowerCase();
     if (s) {
+      const lookupIds = new Set(lookupHits.map((u) => u.uid));
       list = list.filter(
         (u) =>
+          lookupIds.has(u.uid) ||
           u.name?.toLowerCase().includes(s) ||
           u.email?.toLowerCase().includes(s) ||
           u.agentSlug?.toLowerCase().includes(s) ||
-          u.phone?.includes(normalizePhone(s) || s) ||
+          phonesMatchSearch(u.phone, search) ||
           (u.playerNumber ? formatPlayerId(u.playerNumber).toLowerCase().includes(s) : false) ||
           String(u.playerNumber ?? "").includes(s)
       );
     }
     return list;
-  }, [mergedUsers, wallets, search, roleFilter]);
+  }, [mergedUsers, lookupHits, wallets, search, roleFilter]);
 
   function openAdjust(row: Row, mode: "credit" | "withdraw") {
     setAdjustMode(mode);

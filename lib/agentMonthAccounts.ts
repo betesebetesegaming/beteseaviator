@@ -3,12 +3,12 @@ import { agentIdsForPlayer } from "@/lib/platformFinancials";
 import type { UserProfile } from "@/lib/types";
 
 /** Customers who joined a marketer's link in a date window (inclusive YYYY-MM-DD). */
-export function openedViaLinkInRange(
-  players: UserProfile[] | null | undefined,
+export function openedViaLinkInRange<T extends UserProfile>(
+  players: T[] | null | undefined,
   agentId: string | undefined,
   from: string,
   to: string
-): UserProfile[] {
+): T[] {
   if (!players?.length || !agentId || !from || !to) return [];
   return players
     .filter((p) => {

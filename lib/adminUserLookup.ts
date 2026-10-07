@@ -40,10 +40,31 @@ export async function lookupUsersByPhoneOrId(raw: string): Promise<UserProfile[]
 
   if (phone) {
     const keys = phoneStorageKeys(cleaned);
+    const phoneDocs = await Promise.all(keys.map((key) => getDoc(doc(db, "phones", key))));
+    const extraUids = phoneDocs
+      .map((snap) => String(snap.data()?.uid ?? ""))
+      .filter(Boolean);
+    for (const profile of await loadProfiles(extraUids)) hits.set(profile.uid, profile);
+
+    // Older profiles saved the phone as "+220…", "0…" or as a number, not only bare digits.
+    const values: (string | number)[] = [];
+    const addValue = (v: string | number) => {
+      if (!values.includes(v)) values.push(v);
+    };
+    for (const key of keys) {
+      addValue(key);
+      addValue(`+${key}`);
+      addValue(`0${key}`);
+      if (!key.startsWith("220")) addValue(`+220${key}`);
+      addValue(Number(key));
+    }
     const snaps = await Promise.all(
-      keys.map((key) => getDocs(query(collection(db, "users"), where("phone", "==", key), limit(5)))),
+      values.map((value) =>
+        getDocs(query(collection(db, "users"), where("phone", "==", value), limit(5))).catch(() => null),
+      ),
     );
     for (const snap of snaps) {
+      if (!snap) continue;
       for (const d of snap.docs) hits.set(d.id, asProfile(d.id, d.data()));
     }
   }

@@ -410,8 +410,7 @@ export default function AdminSmartBonusPage() {
               <Zap size={16} className="text-amber-300" /> Start a Happy Hour
             </h2>
             <p className="mb-3 text-xs text-slate-400">
-              Sends one gift size to every recently-active player. Use a smaller amount (25 or 50) if many cannot
-              match 100. They claim it by depositing the match. Leave match blank to auto-set.
+              Texts every customer who has a phone. If they already got a bonus text, they can get another one after 24 hours. They claim it by depositing the match. Leave match blank to auto-set.
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div>
@@ -449,7 +448,20 @@ export default function AdminSmartBonusPage() {
                     , <span className="text-rose-300">{hh.smsFailed} texts failed</span>
                   </>
                 ) : null}
-                {hh.skipped > 0 ? <>, {hh.skipped} skipped</> : null}
+                {hh.skipped > 0 ? (
+                  <>
+                    , {hh.skipped} skipped
+                    {hh.skippedInactive || hh.skippedClaimed || hh.skippedError
+                      ? ` (${[
+                          hh.skippedInactive ? `${hh.skippedInactive} not active in ${hh.activeDays} days` : "",
+                          hh.skippedClaimed ? `${hh.skippedClaimed} already using a bonus` : "",
+                          hh.skippedError ? `${hh.skippedError} errors` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(", ")})`
+                      : null}
+                  </>
+                ) : null}
                 {hh.status === "running" ? " · still sending…" : hh.status === "canceled" ? " · stopped" : " · done"}
               </span>
               {hh.status === "running" && (

@@ -369,36 +369,30 @@ export const PaymentSheet: React.FC<PaymentSheetProps> = ({
     } catch (firstErr: unknown) {
       const firstMsg = firstErr instanceof Error ? firstErr.message : String(firstErr || '');
       const firstLower = firstMsg.toLowerCase();
-      // Live Cloud Functions may still reject 9-digit Wave numbers. Retry the old 7-digit alias.
-      if (provider === 'wave' && /7-digit/.test(firstLower) && cleanPhone.length === 9) {
-        checkout = await checkoutOnce(cleanPhone.slice(2));
-      } else {
-        // Do not retry Validation / open-payment errors — a second create locks Wave.
-        const noRetry =
-          firstLower.includes('already has an open') ||
-          firstLower.includes('validation') ||
-          firstLower.includes('approve it now');
-        if (noRetry) {
-          throw firstErr instanceof Error ? firstErr : new Error(firstMsg || 'Could not start checkout');
+      const noRetry =
+        firstLower.includes('already has an open') ||
+        firstLower.includes('validation') ||
+        firstLower.includes('approve it now');
+      if (noRetry) {
+        throw firstErr instanceof Error ? firstErr : new Error(firstMsg || 'Could not start checkout');
+      }
+      try {
+        checkout = await checkoutOnce(cleanPhone);
+      } catch (retryErr: unknown) {
+        const raw = retryErr instanceof Error ? retryErr.message : String(retryErr || firstErr || '');
+        const lower = raw.toLowerCase();
+        if (
+          lower.includes('load failed') ||
+          lower.includes('failed to fetch') ||
+          lower.includes('networkerror') ||
+          lower.includes('abort') ||
+          lower.includes('timeout')
+        ) {
+          throw new Error(
+            'Payment connection timed out. Check your internet and try again — you were not charged.',
+          );
         }
-        try {
-          checkout = await checkoutOnce(cleanPhone);
-        } catch (retryErr: unknown) {
-          const raw = retryErr instanceof Error ? retryErr.message : String(retryErr || firstErr || '');
-          const lower = raw.toLowerCase();
-          if (
-            lower.includes('load failed') ||
-            lower.includes('failed to fetch') ||
-            lower.includes('networkerror') ||
-            lower.includes('abort') ||
-            lower.includes('timeout')
-          ) {
-            throw new Error(
-              'Payment connection timed out. Check your internet and try again — you were not charged.',
-            );
-          }
-          throw retryErr instanceof Error ? retryErr : new Error(raw || 'Could not start checkout');
-        }
+        throw retryErr instanceof Error ? retryErr : new Error(raw || 'Could not start checkout');
       }
     }
 

@@ -299,6 +299,9 @@ export interface HappyHourCampaign {
   smsSent: number;
   smsFailed: number;
   skipped: number;
+  skippedInactive?: number;
+  skippedClaimed?: number;
+  skippedError?: number;
   createdAt?: Timestamp | null;
   completedAt?: Timestamp | null;
 }

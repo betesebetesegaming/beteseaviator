@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { logger } from 'firebase-functions';
 import { normalizePhone, toWaveAccountNumber } from './phone';
 
@@ -643,7 +643,7 @@ export async function createTransfer(input: CreateTransferInput) {
   }
 
   const accountNumber = normalizeModemPayAccountNumber(input.recipient.phone, network);
-  if (!accountNumber) {
+  if (!accountNumber || (network === 'wave' && !/^\d{9}$/.test(accountNumber))) {
     throw new Error(
       network === 'wave'
         ? 'Wave needs the new 9-digit number (Africell 87, QCell 83, Comium 86).'
@@ -777,23 +777,54 @@ export function retrievePaymentIntent(id: string) {
 }
 
 // -----------------------------------------------------------------------------
-// Webhook signature verification (HMAC-SHA512 over raw body)
+// Webhook / callback_url signature verification
+// HMAC-SHA512 over the raw body. Callback events sign with SHA-256(secret_key)
+// as the HMAC key — not the raw secret.
+// https://docs.modempay.com/documentation/payment-intents/callback_url#3-security-and-validation
 // -----------------------------------------------------------------------------
 
-export function verifyWebhookSignature(rawBody: string, providedSignature: string): boolean {
-  const secret = process.env.MODEMPAY_WEBHOOK_SECRET;
-  if (!secret) {
-    logger.error('MODEMPAY_WEBHOOK_SECRET is not configured — rejecting webhook');
-    return false;
-  }
-  if (!providedSignature || typeof providedSignature !== 'string') return false;
+function sha256Hex(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
 
-  const computed = createHmac('sha512', secret).update(rawBody).digest('hex');
-  if (computed.length !== providedSignature.length) return false;
+function hmacSha512Hex(key: string | Buffer, rawBody: string): string {
+  return createHmac('sha512', key).update(rawBody).digest('hex');
+}
 
+function signaturesMatch(computed: string, provided: string): boolean {
+  if (!provided || computed.length !== provided.length) return false;
   try {
-    return timingSafeEqual(Buffer.from(computed), Buffer.from(providedSignature));
+    return timingSafeEqual(Buffer.from(computed), Buffer.from(provided));
   } catch {
     return false;
   }
+}
+
+function addHmacKeys(keys: Array<string | Buffer>, secret: string): void {
+  const hashedHex = sha256Hex(secret);
+  const hashedBytes = createHash('sha256').update(secret, 'utf8').digest();
+  keys.push(hashedHex, hashedBytes, secret);
+}
+
+export function verifyWebhookSignature(rawBody: string, providedSignature: string): boolean {
+  if (!providedSignature || typeof providedSignature !== 'string') return false;
+
+  const merchantSecret = String(process.env.MODEMPAY_SECRET_KEY || '').trim();
+  const webhookSecret = String(process.env.MODEMPAY_WEBHOOK_SECRET || '').trim();
+  if (!merchantSecret && !webhookSecret) {
+    logger.error('MODEMPAY_SECRET_KEY / MODEMPAY_WEBHOOK_SECRET is not configured — rejecting webhook');
+    return false;
+  }
+
+  const keys: Array<string | Buffer> = [];
+  // Callback URL: merchant API secret, hashed first (current ModemPay rule).
+  if (merchantSecret) addHmacKeys(keys, merchantSecret);
+  // Dashboard webhook signing key — hashed, plus raw for events signed the old way.
+  if (webhookSecret) addHmacKeys(keys, webhookSecret);
+
+  let matched = false;
+  for (const key of keys) {
+    matched = signaturesMatch(hmacSha512Hex(key, rawBody), providedSignature) || matched;
+  }
+  return matched;
 }

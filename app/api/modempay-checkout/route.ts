@@ -4,16 +4,11 @@ import { toWaveAccountNumber } from "@/lib/phone";
 
 export const runtime = "nodejs";
 
-function isOldSevenDigitReject(message: string): boolean {
-  const err = String(message || "");
-  return /7-digit/i.test(err) && !/7 or 9/i.test(err);
-}
-
 function checkoutOk(res: Response, data: Record<string, unknown>): boolean {
   return res.ok && Boolean(data.checkoutUrl || data.sessionId || data.ok || data.awaitWalletApproval);
 }
 
-/** Wave checkout via Vercel so 9-digit numbers work even if Cloud Functions still expect 7. */
+/** Wave checkout — Wave only accepts the new 9-digit Gambia9 number. */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const auth = req.headers.get("authorization") || "";
@@ -28,35 +23,19 @@ export async function POST(req: Request) {
     );
   }
 
-  const phones =
-    method === "wave" && wave9
-      ? [wave9, wave9.slice(2)].filter((phone, i, all) => phone.length >= 7 && all.indexOf(phone) === i)
-      : [rawPhone];
-
+  const customerPhone = method === "wave" ? wave9 : rawPhone;
   const url = `${getApiBaseUrl()}/modempayApi/modempay-checkout`;
-  let lastStatus = 502;
-  let lastData: Record<string, unknown> = { error: "Could not start checkout" };
-
-  for (const phone of phones) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(auth ? { Authorization: auth } : {}),
-      },
-      body: JSON.stringify({ ...body, customerPhone: phone }),
-    });
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    lastStatus = res.status;
-    lastData = data;
-    if (checkoutOk(res, data)) {
-      return NextResponse.json(data);
-    }
-    const err = String(data.error || data.message || "");
-    if (!isOldSevenDigitReject(err)) {
-      return NextResponse.json(data, { status: res.status || 400 });
-    }
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(auth ? { Authorization: auth } : {}),
+    },
+    body: JSON.stringify({ ...body, customerPhone }),
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (checkoutOk(res, data)) {
+    return NextResponse.json(data);
   }
-
-  return NextResponse.json(lastData, { status: lastStatus || 400 });
+  return NextResponse.json(data, { status: res.status || 400 });
 }

@@ -164,7 +164,9 @@ export default function WalletPage() {
   }, [frozen, router]);
 
   useEffect(() => {
-    if (profile?.phone && !withdrawPhone) setWithdrawPhone(profile.phone);
+    if (profile?.phone && !withdrawPhone) {
+      setWithdrawPhone(toWaveAccountNumber(profile.phone) || profile.phone);
+    }
   }, [profile, withdrawPhone]);
 
   const handleCreateDepositRequest = useCallback(
@@ -337,12 +339,11 @@ export default function WalletPage() {
       return toast.error("Verify your mobile number before withdrawing.");
     }
 
-    const requestId = generateAviatorWithdrawalRef();
     const payoutPhone =
       withdrawMethod === "Wave"
         ? toWaveAccountNumber(normalizedPhone)
         : normalizePhone(normalizedPhone);
-    if (!payoutPhone) {
+    if (!payoutPhone || (withdrawMethod === "Wave" && payoutPhone.length !== 9)) {
       return toast.error(
         withdrawMethod === "Wave"
           ? WAVE_PHONE_HINT
@@ -350,6 +351,7 @@ export default function WalletPage() {
       );
     }
     const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const requestId = generateAviatorWithdrawalRef();
 
     setBusy(true);
     try {

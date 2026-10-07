@@ -95,7 +95,7 @@ export {
  * WARNING: Do NOT add Firebase Phone Auth callables here. SMS = Africell only.
  */
 export const sendOtp = createHttpFunction(sendOtpHandler, {
-  timeoutSeconds: 60,
+  timeoutSeconds: 90,
   // Keep one warm instance — cold starts add 2–10s before Africell is even called.
   minInstances: 1,
   memory: "256MiB",

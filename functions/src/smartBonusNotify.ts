@@ -7,6 +7,7 @@
  * roll back a bonus credit or block an admin action. The caller logs the result.
  */
 import { logger } from "firebase-functions/v2";
+import { toOtpMsisdn } from "./phone";
 import { sendSmsWithFallback } from "./routes/otp";
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || "https://www.beteseaviator.com").replace(/\/+$/, "");
@@ -14,14 +15,14 @@ const SITE_URL = (process.env.PUBLIC_SITE_URL || "https://www.beteseaviator.com"
 /** The link every outreach SMS ends with — opens the site at the player's bonus. */
 export const REWARDS_LINK = `${SITE_URL}/play/rewards`;
 
-/** Africell expects a bare 220-prefixed MSISDN (Gambia). Returns null if unusable. */
+/**
+ * Africell expects 220 + the Gambia9 number.
+ * Old 7-digit numbers (e.g. 3706961) must become 220833706961 — the carrier
+ * drops the pre-cutover form, so the text never reaches the customer.
+ */
 export function toMsisdn(phone: string | null | undefined): string | null {
   if (!phone) return null;
-  let d = String(phone).replace(/\D/g, "");
-  if (!d) return null;
-  if (d.startsWith("00")) d = d.slice(2); // drop international 00 prefix
-  if (d.startsWith("220")) return d; // already carries the Gambia country code
-  return `220${d}`;
+  return toOtpMsisdn(String(phone));
 }
 
 /**

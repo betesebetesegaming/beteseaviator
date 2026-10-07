@@ -20,7 +20,8 @@ import { requireHttpAuth, requireHttpRole } from "./httpAuth";
 
 /**
  * Single Cloud Function hosting every ModemPay route (same handlers as betesepmu).
- * Webhook uses raw body on its path only — required for HMAC-SHA512 verification.
+ * Webhook uses raw body on its path only — required for HMAC-SHA512 verification
+ * (callback_url signatures use SHA-256 of the merchant secret as the HMAC key).
  *
  * Must be `invoker: "public"` — Gen2 runs on Cloud Run and blocks browser calls
  * with 403 (looks like CORS) unless allUsers has run.invoker.

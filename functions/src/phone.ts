@@ -160,17 +160,61 @@ export function normalizePhoneE164(
   return `+${GAMBIA_COUNTRY_CODE}${parsed.local}`;
 }
 
-/** Africell / OTP doc id: 220 + canonical 9-digit local. */
+function localOtpKeys(input: string): string[] {
+  const keys: string[] = [];
+  const add = (value?: string | null) => {
+    const digits = String(value || "").replace(/\D/g, "");
+    if (
+      digits &&
+      (digits.length === GAMBIA_LOCAL_LENGTH || digits.length === GAMBIA_LEGACY_LOCAL_LENGTH) &&
+      !keys.includes(digits)
+    ) {
+      keys.push(digits);
+    }
+  };
+
+  for (const key of phoneStorageKeys(input)) add(key);
+
+  const raw = String(input || "").replace(/\D/g, "").replace(/^0+/, "");
+  const local =
+    raw.startsWith(GAMBIA_COUNTRY_CODE) && raw.length > GAMBIA_COUNTRY_CODE.length
+      ? raw.slice(GAMBIA_COUNTRY_CODE.length)
+      : raw;
+  add(local);
+  if (local.length === GAMBIA_LOCAL_LENGTH && NEW_OPERATOR_PREFIXES.has(local.slice(0, 2))) {
+    add(local.slice(2));
+  }
+  if (local.length === GAMBIA_LEGACY_LOCAL_LENGTH) {
+    const prefix = operatorPrefixForLegacyStart(local[0] ?? "");
+    if (prefix) add(`${prefix}${local}`);
+    add(toWaveAccountNumber(local));
+  }
+  return keys;
+}
+
+/** Africell / OTP doc id: 220 + 7-digit or 9-digit local. */
 export function toOtpMsisdn(input: string): string | null {
   const local = normalizePhone(input);
-  if (!local) return null;
-  return `${GAMBIA_COUNTRY_CODE}${local}`;
+  if (local) return `${GAMBIA_COUNTRY_CODE}${local}`;
+  const fallback = localOtpKeys(input)[0];
+  return fallback ? `${GAMBIA_COUNTRY_CODE}${fallback}` : null;
 }
 
 export function otpMsisdnCandidates(input: string): string[] {
-  return phoneStorageKeys(input)
-    .filter((key) => key.length === GAMBIA_LOCAL_LENGTH || key.length === GAMBIA_LEGACY_LOCAL_LENGTH)
-    .map((key) => `${GAMBIA_COUNTRY_CODE}${key}`);
+  return localOtpKeys(input).map((key) => `${GAMBIA_COUNTRY_CODE}${key}`);
+}
+
+/** Phone forms to match SMS OTP. Wave money pays the 9-digit number only. */
+export function wavePayoutPhoneAttempts(input: string): string[] {
+  const out: string[] = [];
+  const add = (value?: string | null) => {
+    const digits = String(value || "").replace(/\D/g, "").replace(/^220/, "");
+    if (digits && !out.includes(digits)) out.push(digits);
+  };
+  add(toWaveAccountNumber(input));
+  add(normalizePhone(input));
+  add(input);
+  return out;
 }
 
 export function isGambianPhoneKey(phone: string): boolean {

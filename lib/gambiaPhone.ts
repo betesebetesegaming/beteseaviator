@@ -23,6 +23,8 @@ export {
   phoneAuthEmails,
   phoneStorageKeys,
   phoneForCloudFunction,
+  phonesMatchSearch,
+  legacyGambiaLocal,
   type ParsedPhone,
   type PhoneCountry,
 } from "./phone";

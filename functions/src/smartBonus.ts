@@ -22,7 +22,7 @@ import {
 } from "./helpers";
 import { playthroughRates, recordBonusWageringRequirement } from "./wagering";
 import { generateAiRecommendation, smartBonusAiEnabled } from "./smartBonusAi";
-import { sendBonusSms, resolveGiftBonusSms } from "./smartBonusNotify";
+import { sendBonusSms, resolveGiftBonusSms, toMsisdn } from "./smartBonusNotify";
 
 const DAY_MS = 86_400_000;
 
@@ -337,11 +337,58 @@ interface OfferSeed {
 }
 
 /** Creates a pending offer if the player has no active one. Returns offer id or null. */
-async function createOfferIfEligible(seed: OfferSeed): Promise<string | null> {
+const UNCLAIMED_STATUSES = ["pending", "approved", "sent"] as const;
+
+const BONUS_AGAIN_MS = 24 * 60 * 60 * 1000;
+
+function offerStampMs(data: FirebaseFirestore.DocumentData | undefined): number {
+  const stamp = data?.sentAt ?? data?.updatedAt ?? data?.createdAt;
+  return typeof stamp?.toMillis === "function" ? stamp.toMillis() : 0;
+}
+
+/**
+ * `replaceUnclaimed`: an existing offer the player hasn't claimed yet is expired
+ * and replaced. `resendAfterMs`: if they already got a bonus more recently than
+ * this, return null; once that wait has passed they can receive another one,
+ * including after a claimed offer.
+ */
+async function createOfferIfEligible(
+  seed: OfferSeed,
+  opts?: { replaceUnclaimed?: boolean; resendAfterMs?: number }
+): Promise<string | null> {
   const pointerRef = db.doc(`smartBonusActive/${seed.uid}`);
   return db.runTransaction(async (tx) => {
     const pointer = await tx.get(pointerRef);
-    if (pointer.exists && isActiveStatus(pointer.data()?.status)) return null;
+    const pointerStatus = pointer.data()?.status;
+    if (pointer.exists && isActiveStatus(pointerStatus)) {
+      const oldOfferId = String(pointer.data()?.offerId ?? "");
+      const oldRef = oldOfferId ? db.doc(`smartBonusOffers/${oldOfferId}`) : null;
+      const old = oldRef ? await tx.get(oldRef) : null;
+      const oldStatus = String(old?.data()?.status ?? pointerStatus ?? "");
+      const stampMs = offerStampMs(old?.data()) || offerStampMs(pointer.data());
+      const wait = opts?.resendAfterMs;
+      // Unused gift → always swap for the new one (admin changed the amount).
+      // Gift already claimed → they can get another once the wait has passed.
+      const unclaimed = (UNCLAIMED_STATUSES as readonly string[]).includes(oldStatus);
+      const cooldownPassed = Boolean(wait && (!stampMs || Date.now() - stampMs >= wait));
+      const canReplace = (opts?.replaceUnclaimed === true && unclaimed) || cooldownPassed;
+      if (!canReplace) return null;
+      if (old?.exists && (UNCLAIMED_STATUSES as readonly string[]).includes(oldStatus)) {
+        tx.update(oldRef!, {
+          status: "expired",
+          replacedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        logSmartBonusEvent(tx, {
+          offerId: oldOfferId,
+          userId: seed.uid,
+          actorId: seed.actorId,
+          actorRole: seed.actorRole,
+          action: "expired",
+          detail: "replaced by a newer offer",
+        });
+      }
+    }
 
     const offerRef = db.collection("smartBonusOffers").doc();
     const now = Date.now();
@@ -957,6 +1004,9 @@ export const agentRequestSmartBonus = onCall(async (req) => {
 // ---------------------------------------------------------------------------
 
 const HAPPY_HOUR_BATCH = 25; // players per worker run (bounded so a run stays well under the 540s timeout even if SMS is slow)
+/** Bump when rollout rules change so a running campaign starts over from the first player. */
+const HAPPY_HOUR_RULES_VERSION = 4;
+const HAPPY_HOUR_TIME_BUDGET_MS = 390_000; // stop starting new players after 6.5 min of the 9 min limit
 const HAPPY_HOUR_MAX = 10_000; // safety cap on total players per campaign
 
 /** Admin fires a Happy Hour. Returns immediately; the worker does the rollout. */
@@ -1006,48 +1056,6 @@ export const processHappyHour = onSchedule(
   }
 );
 
-/**
- * True when the player logged in or placed a bet within `activeDays`.
- *
- * Prefers the nightly `playerHealth` snapshot when it exists, but falls back to
- * live signals (last-login ping + most recent bet) when it doesn't — otherwise a
- * Happy Hour reaches nobody unless the Smart Bonus analysis has already populated
- * playerHealth (which it only does when Smart Bonus is enabled). Both fallbacks are
- * single indexed reads, so the every-minute worker stays cheap.
- */
-async function isRecentlyActive(
-  uid: string,
-  health: FirebaseFirestore.DocumentData,
-  activeDays: number,
-  nowMs: number
-): Promise<boolean> {
-  const fromHealth = Math.min(
-    Number(health.daysSinceLastBet ?? Infinity),
-    Number(health.daysSinceLastLogin ?? Infinity)
-  );
-  if (Number.isFinite(fromHealth)) return fromHealth <= activeDays;
-
-  const cutoff = nowMs - activeDays * DAY_MS;
-
-  // Last-login ping (single doc read).
-  const activity = (await db.doc(`playerActivity/${uid}`).get()).data() ?? {};
-  const loginMs = (activity.lastLoginAt as FirebaseFirestore.Timestamp | null)?.toMillis?.() ?? null;
-  if (loginMs && loginMs >= cutoff) return true;
-
-  // Most recent bet (single read via the userId + type + createdAt index).
-  const betSnap = await db
-    .collection("transactions")
-    .where("userId", "==", uid)
-    .where("type", "==", "bet")
-    .orderBy("createdAt", "desc")
-    .limit(1)
-    .get();
-  const betMs = betSnap.empty
-    ? null
-    : (betSnap.docs[0].data().createdAt as FirebaseFirestore.Timestamp | null)?.toMillis?.() ?? null;
-  return betMs != null && betMs >= cutoff;
-}
-
 async function processHappyHourCore(): Promise<void> {
   const snap = await db.collection("happyHourCampaigns").where("status", "==", "running").limit(1).get();
   if (snap.empty) return;
@@ -1069,7 +1077,6 @@ async function processHappyHourCore(): Promise<void> {
   const matchDeposit = round2(Number(c.matchDeposit ?? 0));
   const wagerMultiplier = Number(c.wagerMultiplier ?? 3);
   const expiryDays = Number(c.expiryDays ?? 3);
-  const activeDays = Number(c.activeDays ?? 14);
   const notify = String(c.notify ?? "inapp");
   const actorId = String(c.createdBy ?? "system");
   let cursor = String(c.cursor ?? "");
@@ -1078,7 +1085,21 @@ async function processHappyHourCore(): Promise<void> {
   let smsSent = Number(c.smsSent ?? 0);
   let smsFailed = Number(c.smsFailed ?? 0);
   let skipped = Number(c.skipped ?? 0);
-  const nowMs = Date.now();
+  let skippedInactive = Number(c.skippedInactive ?? 0);
+  let skippedClaimed = Number(c.skippedClaimed ?? 0);
+  let skippedError = Number(c.skippedError ?? 0);
+
+  // Older rollouts skipped anyone who had not played recently and never went
+  // back. Start this campaign over so those customers are texted.
+  if (Number(c.rulesVersion ?? 0) < HAPPY_HOUR_RULES_VERSION) {
+    cursor = "";
+    processed = 0;
+    skipped = 0;
+    skippedInactive = 0;
+    skippedClaimed = 0;
+    skippedError = 0;
+    logger.info("happy hour rules reset", { campaign: campRef.id, from: Number(c.rulesVersion ?? 0) });
+  }
 
   let q = db
     .collection("users")
@@ -1089,22 +1110,31 @@ async function processHappyHourCore(): Promise<void> {
   if (cursor) q = q.startAfter(cursor);
   const page = await q.get();
 
+  // One slow text (Africell http+https timeouts, then PMU) can take ~50s. Stop
+  // starting new players well before the 540s timeout so progress is always
+  // saved — a timed-out run saves nothing and would re-text the same people.
+  const startedMs = Date.now();
+  let handled = 0;
   for (const userDoc of page.docs) {
+    if (Date.now() - startedMs > HAPPY_HOUR_TIME_BUDGET_MS) break;
+    handled += 1;
     cursor = userDoc.id;
     processed += 1;
     try {
       const u = userDoc.data();
-      const health = (await db.doc(`playerHealth/${userDoc.id}`).get()).data() ?? {};
-      if (!(await isRecentlyActive(userDoc.id, health, activeDays, nowMs))) {
+      const phone = (u.phone as string | null) ?? null;
+      if (!toMsisdn(phone)) {
         skipped += 1;
-        continue; // not a recently-active player
+        skippedInactive += 1;
+        continue; // no number we can text
       }
+      const health = (await db.doc(`playerHealth/${userDoc.id}`).get()).data() ?? {};
       const daysBet = Number(health.daysSinceLastBet ?? NaN);
 
       const offerId = await createOfferIfEligible({
         uid: userDoc.id,
         userName: String(u.name ?? "Player"),
-        phone: (u.phone as string | null) ?? null,
+        phone,
         agentId: (u.parentId as string | null) ?? null,
         ancestors: (u.ancestors as string[] | undefined) ?? [],
         playerNumber: (u.playerNumber as number | null) ?? null,
@@ -1120,10 +1150,11 @@ async function processHappyHourCore(): Promise<void> {
         expiryDays,
         actorId,
         actorRole: "admin",
-      });
+      }, { replaceUnclaimed: true, resendAfterMs: BONUS_AGAIN_MS });
       if (!offerId) {
         skipped += 1;
-        continue; // already has an active offer
+        skippedClaimed += 1;
+        continue; // already deposited on a bonus and is still wagering it
       }
 
       await db.runTransaction(async (tx) => {
@@ -1150,11 +1181,12 @@ async function processHappyHourCore(): Promise<void> {
     } catch (e) {
       logger.warn("happy hour player failed", { uid: userDoc.id, error: String(e) });
       skipped += 1;
+      skippedError += 1;
     }
     if (processed >= HAPPY_HOUR_MAX) break;
   }
 
-  const done = page.size < HAPPY_HOUR_BATCH || processed >= HAPPY_HOUR_MAX;
+  const done = (page.size < HAPPY_HOUR_BATCH && handled === page.size) || processed >= HAPPY_HOUR_MAX;
   // Re-read status inside a transaction so a cancel that landed mid-batch is
   // never clobbered back to "running"/"completed".
   await db.runTransaction(async (tx) => {
@@ -1169,6 +1201,10 @@ async function processHappyHourCore(): Promise<void> {
         smsSent,
         smsFailed,
         skipped,
+        skippedInactive,
+        skippedClaimed,
+        skippedError,
+        rulesVersion: HAPPY_HOUR_RULES_VERSION,
         lockUntil: 0, // release the claim for the next run
         updatedAt: FieldValue.serverTimestamp(),
         ...(stillRunning && done ? { status: "completed", completedAt: FieldValue.serverTimestamp() } : {}),
@@ -1176,7 +1212,7 @@ async function processHappyHourCore(): Promise<void> {
       { merge: true }
     );
   });
-  logger.info("happy hour batch", { campaign: campRef.id, processed, offersCreated, smsSent, smsFailed, skipped, done });
+  logger.info("happy hour batch", { campaign: campRef.id, processed, offersCreated, smsSent, smsFailed, skipped, skippedInactive, skippedClaimed, skippedError, done });
 }
 
 /** Stop a Happy Hour mid-rollout. The worker only processes "running" campaigns,

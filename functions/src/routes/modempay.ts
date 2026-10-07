@@ -32,9 +32,10 @@ import {
   applyEarlyWithdrawalPenalties,
   parsePlaythroughWallet,
 } from '../wagering';
+import { collectModemPayPaymentIds, depositCreditLockIds } from '../depositCreditLock';
 import { syncAviatorWalletCredit } from '../walletSync';
-import { consumeOtpVerifiedForPhone, requireOtpVerifiedForPhone } from '../otpVerification';
-import { legacyGambiaLocal } from '../phone';
+import { consumeOtpVerifiedForPhone, requireOtpVerifiedForAnyPhone } from '../otpVerification';
+import { wavePayoutPhoneAttempts } from '../phone';
 import {
   patchDepositOnRtdb,
   syncCheckoutToRtdb,
@@ -80,6 +81,11 @@ async function healAviatorWalletIfNeeded(
     customer_id?: string | null;
     credited_amount?: number;
     amount?: number;
+    session_id?: string | null;
+    payment_intent_id?: string | null;
+    provider_transaction_id?: string | null;
+    reused_from?: string | null;
+    raw_payload?: Record<string, unknown>;
   };
   if (checkout.status !== 'completed' || checkout.aviator_wallet_synced || !checkout.customer_id) {
     return false;
@@ -89,9 +95,30 @@ async function healAviatorWalletIfNeeded(
   if (healAmount <= 0) return false;
 
   try {
-    await syncAviatorWalletCredit(String(checkout.customer_id), healAmount, externalRef);
+    const sync = await syncAviatorWalletCredit(String(checkout.customer_id), healAmount, externalRef, {
+      sessionId: checkout.session_id,
+      paymentIntentId: checkout.payment_intent_id,
+      providerTxnId: checkout.provider_transaction_id,
+      reusedFrom: checkout.reused_from,
+      payload: checkout.raw_payload || null,
+    });
+    if (!sync.credited) {
+      logger.info('Aviator wallet heal skipped — payment already credited', {
+        externalRef,
+        duplicateOf: sync.duplicateOf,
+      });
+    }
     await adminDb.collection('modempay_checkouts').doc(externalRef).set(
-      { aviator_wallet_synced: true },
+      {
+        aviator_wallet_synced: true,
+        ...(sync.credited
+          ? {}
+          : {
+              duplicate_payment: true,
+              duplicate_of: sync.duplicateOf || null,
+              credited_amount: 0,
+            }),
+      },
       { merge: true },
     );
     logger.info('Aviator wallet sync healed after deposit', { externalRef, customerId: checkout.customer_id, healAmount });
@@ -247,19 +274,25 @@ async function persistWalletPayLink(input: {
   const account = normalizeModemPayAccountNumber(input.phone, input.method);
   const reuseKey = waveReuseKey(input.method, account, input.amount);
   const now = new Date().toISOString();
-  const link: StoredWalletPayLink = {
-    checkoutUrl: input.checkoutUrl,
-    sessionId: input.sessionId,
-    intentSecret: input.intentSecret,
-    externalRef: input.externalRef,
-  };
-  waveLinkMemory.set(reuseKey, { link, updatedAt: Date.now(), status: 'pending' });
   const ref = adminDb.collection('wave_pay_links').doc(reuseKey);
   const existing = await ref.get();
   const createdAt =
     existing.exists && typeof existing.data()?.created_at === 'string'
       ? String(existing.data()?.created_at)
       : now;
+  const keepOriginalRef =
+    existing.exists &&
+    existing.data()?.status === 'pending' &&
+    typeof existing.data()?.external_ref === 'string'
+      ? String(existing.data()?.external_ref)
+      : input.externalRef;
+  const link: StoredWalletPayLink = {
+    checkoutUrl: input.checkoutUrl,
+    sessionId: input.sessionId,
+    intentSecret: input.intentSecret,
+    externalRef: keepOriginalRef,
+  };
+  waveLinkMemory.set(reuseKey, { link, updatedAt: Date.now(), status: 'pending' });
   await ref.set(
     {
       reuse_key: reuseKey,
@@ -270,7 +303,7 @@ async function persistWalletPayLink(input: {
       wave_payment_link: input.checkoutUrl,
       session_id: input.sessionId,
       intent_secret: input.intentSecret,
-      external_ref: input.externalRef,
+      external_ref: keepOriginalRef,
       status: 'pending',
       updated_at: now,
       created_at: createdAt,
@@ -389,7 +422,7 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
           id: body.customerId,
           name: body.customerName,
           email: body.customerEmail,
-          phone: body.customerPhone,
+          phone: accountNumber || body.customerPhone,
         },
         successUrl: body.returnUrl,
         cancelUrl: body.cancelUrl || body.returnUrl,
@@ -531,6 +564,13 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
         ? `${provider}:${accountNumber}:${amount}`
         : null;
 
+    const reusedFrom =
+      result.reused
+        ? String(
+            (result.raw as { reused_from?: string } | undefined)?.reused_from ||
+              '',
+          ).trim() || null
+        : null;
     const checkoutDoc = {
       external_ref: body.externalRef,
       session_id: result.sessionId,
@@ -548,6 +588,8 @@ export async function checkoutHandler(req: Request, res: Response): Promise<void
       wave_payment_link: provider === 'wave' ? checkoutUrl : null,
       reuse_key: reuseKey,
       reused: Boolean(result.reused),
+      reused_from: reusedFrom,
+      canonical_external_ref: reusedFrom || body.externalRef,
     };
 
     const criticalWrites: Promise<unknown>[] = [
@@ -796,7 +838,7 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
     }
 
     try {
-      await requireOtpVerifiedForPhone(recipientPhone);
+      await requireOtpVerifiedForAnyPhone(wavePayoutPhoneAttempts(recipientPhone));
     } catch (err) {
       const msg =
         err instanceof HttpsError
@@ -834,7 +876,7 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
     }
 
     const cleanPhone = normalizeModemPayAccountNumber(recipientPhone, method);
-    if (!cleanPhone) {
+    if (!cleanPhone || (method === 'wave' && !/^\d{9}$/.test(cleanPhone))) {
       await failWithdrawalWithoutHold(
         requestId,
         customerId,
@@ -946,25 +988,6 @@ export async function payoutHandler(req: Request, res: Response): Promise<void> 
       },
     };
     let result = await createTransfer(transferPayload);
-    const legacyPhone = legacyGambiaLocal(cleanPhone);
-    if (
-      !result.ok &&
-      legacyPhone &&
-      legacyPhone !== cleanPhone &&
-      !/balance|insufficient/i.test(String(result.errorMessage || ''))
-    ) {
-      logger.warn('Payout rejected on 9-digit number, retrying legacy 7-digit', {
-        requestId,
-        cleanPhone,
-        legacyPhone,
-        error: result.errorMessage,
-      });
-      result = await createTransfer({
-        ...transferPayload,
-        recipient: { ...transferPayload.recipient, phone: legacyPhone },
-        externalRef: `${requestId}-7`,
-      });
-    }
 
     const transfer = result.data as Record<string, unknown>;
     const transferId = (transfer.id as string | undefined) || null;
@@ -1350,7 +1373,7 @@ interface ModemPayEvent {
 
 /**
  * Modem Pay POSTs JSON events here. We:
- *   1. Verify the x-modem-signature header (HMAC-SHA512 over the raw body).
+ *   1. Verify x-modem-signature (HMAC-SHA512; callback_url uses SHA-256(secret)).
  *   2. Log the raw event to Firestore (modempay_events) for audit.
  *   3. Update business state for the headline events:
  *        charge.succeeded   -> credit customer wallet, mark deposit completed
@@ -1639,7 +1662,104 @@ async function findPendingCheckoutByHints(payload: Record<string, unknown>): Pro
   return undefined;
 }
 
+/** After one Wave payment is credited, close other pending checkouts on the same intent. */
+async function closeSiblingPendingCheckouts(
+  creditedRef: string,
+  checkout: {
+    session_id?: string | null;
+    payment_intent_id?: string | null;
+    provider_transaction_id?: string | null;
+  },
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const ids = collectModemPayPaymentIds(payload, checkout);
+  const sessionId = String(checkout.session_id || checkout.payment_intent_id || payload.payment_intent_id || payload.id || '').trim();
+  if (!sessionId) return;
+
+  const snap = await adminDb
+    .collection('modempay_checkouts')
+    .where('session_id', '==', sessionId)
+    .limit(20)
+    .get()
+    .catch(() => null);
+  if (!snap || snap.empty) return;
+
+  const now = new Date().toISOString();
+  const writes: Promise<unknown>[] = [];
+  for (const doc of snap.docs) {
+    if (doc.id === creditedRef) continue;
+    const data = doc.data() as { status?: string };
+    const status = String(data.status || '').toLowerCase();
+    if (status && status !== 'pending' && status !== 'processing') continue;
+    writes.push(
+      doc.ref.set(
+        {
+          status: 'completed',
+          duplicate_payment: true,
+          duplicate_of: creditedRef,
+          credited_amount: 0,
+          aviator_wallet_synced: true,
+          completed_at: now,
+          provider_ids: ids,
+        },
+        { merge: true },
+      ),
+    );
+    writes.push(
+      adminDb.collection('deposit_requests').doc(doc.id).set(
+        {
+          status: 'Approved',
+          processed_by: 'MODEMPAY_WEBHOOK',
+          processed_by_name: 'ModemPay',
+          processed_at: now,
+          verification_status: 'Verified',
+          verification_source: 'webhook',
+          verification_message: 'Same Wave payment already credited on another checkout.',
+          verified_at: now,
+          duplicate_payment: true,
+          duplicate_of: creditedRef,
+        },
+        { merge: true },
+      ),
+    );
+  }
+  if (writes.length) await Promise.all(writes);
+}
+
+/** A second receipt for a Wave payment that was already credited must not pay again. */
+async function blockIfWavePaymentAlreadyCredited(
+  externalRef: string,
+  payload: Record<string, unknown>,
+): Promise<boolean> {
+  const ids = depositCreditLockIds({
+    externalRef,
+    providerIds: collectModemPayPaymentIds(payload),
+  });
+  for (const id of ids) {
+    if (id === externalRef) continue;
+    const snap = await adminDb.doc(`deposit_credits/${id}`).get();
+    if (!snap.exists) continue;
+    const keeper = String(snap.data()?.externalRef || '').trim();
+    if (!keeper || keeper === externalRef) continue;
+    await adminDb.collection('modempay_checkouts').doc(externalRef).set(
+      {
+        status: 'completed',
+        duplicate_payment: true,
+        duplicate_of: keeper,
+        credited_amount: 0,
+        aviator_wallet_synced: true,
+        provider_transaction_id: payload.id || payload.transaction_id || null,
+      },
+      { merge: true },
+    );
+    logger.info('Blocked second credit for Wave payment', { externalRef, duplicateOf: keeper, lock: id });
+    return true;
+  }
+  return false;
+}
+
 async function markDepositCompleted(externalRef: string, payload: Record<string, unknown>) {
+  if (await blockIfWavePaymentAlreadyCredited(externalRef, payload)) return;
   const payloadAmount = Number(payload.amount ?? payload.paid_amount ?? payload.total_amount ?? 0);
   let customerId: string | undefined;
   const completedAt = new Date().toISOString();
@@ -1678,6 +1798,7 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
           customer_name?: string | null;
           customer_phone?: string | null;
           method?: string;
+          session_id?: string | null;
         }
       : null;
 
@@ -1709,15 +1830,6 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
 
     customerId = String(checkout?.customer_id || depositReq?.customer_id || '') || undefined;
 
-    // Read the user (if we know who) — still in the read-only phase.
-    const userRef = customerId ? adminDb.collection('users').doc(customerId) : null;
-    const userSnap = userRef ? await tx.get(userRef) : null;
-    const userData = userSnap?.exists ? userSnap.data() as {
-      wallet_balance?: number;
-      total_deposited_amount?: number;
-      first_deposit_at?: string | null;
-    } : null;
-
     const methodLabel = mapModemPayMethodLabel(
       checkout?.method || depositReq?.method || payload.payment_method,
     );
@@ -1731,7 +1843,8 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
         credited_amount: creditAmount,
         provider_transaction_id: providerTxnId,
         transaction_reference: txnReference,
-        payment_intent_id: payload.payment_intent_id || null,
+        payment_intent_id: payload.payment_intent_id || payload.id || null,
+        session_id: checkout?.session_id || payload.payment_intent_id || payload.id || null,
         completed_at: completedAt,
         raw_payload: payload,
       });
@@ -1793,27 +1906,56 @@ async function markDepositCompleted(externalRef: string, payload: Record<string,
       aviatorCredit = creditAmount;
       aviatorUid = customerId;
     }
-
-    if (userRef && userData) {
-      const currentWallet = Number(userData.wallet_balance || 0);
-      const currentDeposited = Number(userData.total_deposited_amount || 0);
-      tx.update(userRef, {
-        wallet_balance: Number((currentWallet + creditAmount).toFixed(2)),
-        total_deposited_amount: Number((currentDeposited + creditAmount).toFixed(2)),
-        ...(userData.first_deposit_at ? {} : { first_deposit_at: completedAt }),
-      });
-    } else if (customerId) {
-      logger.warn('markDepositCompleted: users doc missing — crediting aviator wallet only', { externalRef, customerId });
-    }
   });
 
   if (aviatorUid && aviatorCredit > 0) {
     try {
-      await syncAviatorWalletCredit(aviatorUid, aviatorCredit, externalRef);
+      const checkoutAfter = await adminDb.collection('modempay_checkouts').doc(externalRef).get();
+      const checkoutData = (checkoutAfter.data() || {}) as {
+        session_id?: string | null;
+        payment_intent_id?: string | null;
+        provider_transaction_id?: string | null;
+        reused_from?: string | null;
+      };
+      const sync = await syncAviatorWalletCredit(aviatorUid, aviatorCredit, externalRef, {
+        sessionId: checkoutData.session_id || String(payload.payment_intent_id || payload.id || '') || null,
+        paymentIntentId: checkoutData.payment_intent_id || String(payload.payment_intent_id || '') || null,
+        providerTxnId: checkoutData.provider_transaction_id || String(providerTxnId || '') || null,
+        reusedFrom: checkoutData.reused_from || null,
+        payload,
+      });
       await adminDb.collection('modempay_checkouts').doc(externalRef).set(
-        { aviator_wallet_synced: true },
+        {
+          aviator_wallet_synced: true,
+          credited: sync.credited,
+          ...(sync.credited
+            ? {}
+            : {
+                duplicate_payment: true,
+                duplicate_of: sync.duplicateOf || null,
+                credited_amount: 0,
+              }),
+        },
         { merge: true },
       );
+      if (sync.credited) {
+        await closeSiblingPendingCheckouts(externalRef, checkoutData, payload);
+      } else {
+        logger.info('Skipped duplicate ModemPay credit', {
+          externalRef,
+          duplicateOf: sync.duplicateOf,
+        });
+        if (checkoutAfter.exists) {
+          await adminDb.collection('deposit_logs').doc(externalRef).set(
+            {
+              duplicate: true,
+              duplicate_of: sync.duplicateOf || null,
+              amount: 0,
+            },
+            { merge: true },
+          );
+        }
+      }
     } catch (err) {
       logger.warn('Aviator wallet sync failed after deposit', { externalRef, err: serializeError(err) });
     }

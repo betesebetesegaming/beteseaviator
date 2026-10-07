@@ -1,5 +1,5 @@
 import { apiUrl } from "./apiUrl";
-import { legacyGambiaLocal, normalizePhone } from "./phone";
+import { normalizePhone } from "./phone";
 
 /**
  * Africell SMS OTP client (sendOtp / verifyOtp Cloud Functions).
@@ -52,13 +52,11 @@ export async function probeSignupOtpGateway(): Promise<{ status: OtpGatewayStatu
 
 function otpPhoneAttempts(phone: string): string[] {
   const canonical = normalizePhone(phone);
-  const legacy = canonical ? legacyGambiaLocal(canonical) : null;
   const attempts: string[] = [];
   const add = (value?: string | null) => {
     const digits = String(value || "").replace(/\D/g, "");
     if (digits && !attempts.includes(digits)) attempts.push(digits);
   };
-  add(legacy);
   add(canonical);
   add(phone);
   return attempts;

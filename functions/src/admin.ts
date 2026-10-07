@@ -7,6 +7,7 @@ import {
   normalizePhone,
   findUidByPhone,
   phoneStorageKeys,
+  phoneAuthEmails,
   writePhoneIndex,
   requireRole,
   round2,
@@ -294,14 +295,41 @@ export const adminLookupUser = onCall(async (req) => {
   const phone = normalizePhone(raw);
 
   if (phone) {
-    for (const key of phoneStorageKeys(phone)) {
-      const phoneSnap = await db.doc(`phones/${key}`).get();
-      const phoneUid = String(phoneSnap.data()?.uid ?? "");
-      if (phoneUid) uids.add(phoneUid);
+    const keys = phoneStorageKeys(raw);
+    for (const key of phoneStorageKeys(phone)) if (!keys.includes(key)) keys.push(key);
 
-      const byPhone = await db.collection("users").where("phone", "==", key).limit(5).get();
-      for (const d of byPhone.docs) uids.add(d.id);
+    // Older profiles saved the phone as "+220…", "0…" or as a number, not only bare digits.
+    const values: (string | number)[] = [];
+    const addValue = (v: string | number) => {
+      if (!values.includes(v)) values.push(v);
+    };
+    for (const key of keys) {
+      addValue(key);
+      addValue(`+${key}`);
+      addValue(`0${key}`);
+      if (!key.startsWith("220")) addValue(`+220${key}`);
+      addValue(Number(key));
     }
+
+    await Promise.all([
+      ...keys.map(async (key) => {
+        const phoneSnap = await db.doc(`phones/${key}`).get();
+        const phoneUid = String(phoneSnap.data()?.uid ?? "");
+        if (phoneUid) uids.add(phoneUid);
+      }),
+      ...values.map(async (value) => {
+        const byPhone = await db.collection("users").where("phone", "==", value).limit(5).get();
+        for (const d of byPhone.docs) uids.add(d.id);
+      }),
+      // The sign-in account is keyed by phone even when the profile phone field differs.
+      ...phoneAuthEmails(raw).map(async (email) => {
+        try {
+          uids.add((await auth.getUserByEmail(email)).uid);
+        } catch {
+          // No auth account for this key.
+        }
+      }),
+    ]);
   }
 
   const idMatch = raw.toUpperCase().replace(/\s/g, "").match(/^(?:BTE-?)?0*(\d+)$/);

@@ -3,14 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
-  collection,
   doc,
   getDoc,
   onSnapshot,
-  query,
-  where,
 } from "firebase/firestore";
-import { Plus, Search, Banknote, UserPlus } from "lucide-react";
+import { Plus, Search, UserPlus } from "lucide-react";
 import { db } from "@/lib/firestore";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -22,8 +19,16 @@ import { AgentMarketingLinks } from "@/components/agent/AgentMarketingLinks";
 import { AgentCustomerCashActions, AgentServeAnyCustomer } from "@/components/agent/AgentCashDesk";
 import { CustomerOtpGate } from "@/components/shared/CustomerOtpGate";
 import { CustomerCreatedSuccess } from "@/components/agent/CustomerCreatedSuccess";
-import { formatXof, normalizePhone, todayIso } from "@/lib/format";
+import { formatXof, normalizePhone, todayIso, createdAtIso } from "@/lib/format";
 import { formatPlayerId, playerDisplayId } from "@/lib/playerId";
+import { monthlyOpenedViaLinkByAgent, openedViaLinkInRange } from "@/lib/agentMonthAccounts";
+import {
+  calendarMonthRangeIso,
+  monthRangeIso,
+  monthShortLabelFromKey,
+  recentMonthKeys,
+} from "@/lib/ggrAccounting";
+import { useAgentLinkedPlayers } from "@/lib/hooks/useAgentLinkedPlayers";
 import {
   PASSWORD_FIELD_LABEL,
   PASSWORD_MAX,
@@ -47,8 +52,13 @@ type PlayerRow = UserProfile & { balance?: number };
 
 export default function AgentPlayersPage() {
   const { fbUser, wallet, profile } = useAuth();
+  const linked = useAgentLinkedPlayers(fbUser?.uid);
   const [players, setPlayers] = useState<PlayerRow[] | null>(null);
   const [search, setSearch] = useState("");
+  const [listFilter, setListFilter] = useState<string>("month");
+  const month = useMemo(() => monthRangeIso(), []);
+  const monthKeys = useMemo(() => recentMonthKeys(6), []);
+  const currentMonthKey = month.from.slice(0, 7);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -77,43 +87,66 @@ export default function AgentPlayersPage() {
   }, [fbUser]);
 
   useEffect(() => {
-    if (!fbUser) return;
-    // ancestors contains every agent above the player, so super agents also
-    // see their sub agents' customers here.
-    const q = query(
-      collection(db, "users"),
-      where("role", "==", "player"),
-      where("ancestors", "array-contains", fbUser.uid)
-    );
-    return onSnapshot(q, async (snap) => {
-      const rows = snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as PlayerRow);
-      // fetch balances (agents may read wallets in their tree)
-      await Promise.all(
-        rows.map(async (r) => {
-          try {
-            const w = await getDoc(doc(db, "wallets", r.uid));
-            r.balance = w.exists() ? (w.data().balance as number) : 0;
-          } catch {
-            r.balance = undefined;
-          }
-        })
-      );
-      setPlayers(rows.sort((a, b) => (a.name > b.name ? 1 : -1)));
+    if (!linked) {
+      setPlayers(null);
+      return;
+    }
+    let cancelled = false;
+    void Promise.all(
+      linked.map(async (r) => {
+        const row = { ...r } as PlayerRow;
+        try {
+          const w = await getDoc(doc(db, "wallets", r.uid));
+          row.balance = w.exists() ? (w.data().balance as number) : 0;
+        } catch {
+          row.balance = undefined;
+        }
+        return row;
+      })
+    ).then((rows) => {
+      if (cancelled) return;
+      setPlayers(rows.sort((a, b) => createdAtIso(b.createdAt).localeCompare(createdAtIso(a.createdAt))));
     });
-  }, [fbUser]);
+    return () => {
+      cancelled = true;
+    };
+  }, [linked]);
+
+  const agentId = fbUser?.uid;
+  const monthOpened = useMemo(
+    () => openedViaLinkInRange(players, agentId, month.from, month.to),
+    [players, agentId, month.from, month.to]
+  );
+  const byMonth = useMemo(() => {
+    if (!agentId) return new Map<string, number>();
+    return monthlyOpenedViaLinkByAgent(players, monthKeys).get(agentId) ?? new Map();
+  }, [players, agentId, monthKeys]);
+  const selectedMonthKey = listFilter === "all" || listFilter === "month" ? currentMonthKey : listFilter;
+  const selectedRange = useMemo(
+    () =>
+      selectedMonthKey === currentMonthKey
+        ? month
+        : calendarMonthRangeIso(selectedMonthKey),
+    [selectedMonthKey, currentMonthKey, month]
+  );
+  const monthList = useMemo(
+    () => openedViaLinkInRange(players, agentId, selectedRange.from, selectedRange.to),
+    [players, agentId, selectedRange.from, selectedRange.to]
+  );
 
   const filtered = useMemo(() => {
-    if (!players) return null;
+    const source = listFilter === "all" ? players : monthList;
+    if (!source) return null;
     const s = search.trim().toLowerCase();
-    if (!s) return players;
-    return players.filter(
+    if (!s) return source;
+    return source.filter(
       (p) =>
         p.name?.toLowerCase().includes(s) ||
         p.phone?.includes(normalizePhone(s) || s) ||
         (p.playerNumber ? formatPlayerId(p.playerNumber).toLowerCase().includes(s) : false) ||
         String(p.playerNumber ?? "").includes(s)
     );
-  }, [players, search]);
+  }, [players, monthList, listFilter, search]);
 
   async function createCustomer() {
     const phone = normalizePhone(newPhone);
@@ -181,6 +214,10 @@ export default function AgentPlayersPage() {
                 {openedToday} opened today
               </span>
             ) : null}
+            <span className="ml-2 inline-flex items-center gap-1 text-sky-300">
+              <UserPlus size={14} />
+              {monthOpened.length} via your link in {month.label}
+            </span>
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -198,6 +235,31 @@ export default function AgentPlayersPage() {
 
       <AgentServeAnyCustomer cashOpsEnabled={!!profile?.cashOpsEnabled} />
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {monthKeys.map((key) => {
+          const count = key === currentMonthKey ? monthOpened.length : byMonth.get(key) ?? 0;
+          const active = listFilter === "all" ? false : selectedMonthKey === key;
+          return (
+            <Button
+              key={key}
+              variant={active ? "primary" : "secondary"}
+              className="!px-3 !py-1.5 text-xs"
+              onClick={() => setListFilter(key === currentMonthKey ? "month" : key)}
+            >
+              {monthShortLabelFromKey(key)}
+              {key === currentMonthKey ? " · this month" : ""} ({count})
+            </Button>
+          );
+        })}
+        <Button
+          variant={listFilter === "all" ? "primary" : "secondary"}
+          className="!px-3 !py-1.5 text-xs"
+          onClick={() => setListFilter("all")}
+        >
+          All months ({players?.length ?? 0})
+        </Button>
+      </div>
+
       <div className="relative mb-4 max-w-sm">
         <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
         <Input
@@ -211,7 +273,13 @@ export default function AgentPlayersPage() {
       {!filtered ? (
         <Spinner />
       ) : filtered.length === 0 ? (
-        <EmptyState message="No customers yet. Share your referral link to start earning!" />
+        <EmptyState
+          message={
+            listFilter === "all"
+              ? "No customers yet. Share your referral link to start earning!"
+              : `Nobody has opened via your link in ${selectedRange.label} yet.`
+          }
+        />
       ) : (
         <TableShell>
           <thead>

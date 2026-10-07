@@ -13,7 +13,7 @@ import { agentSignupUrl } from "@/lib/agentLinks";
 import { staffSignInId } from "@/lib/staffAccount";
 import { lookupUsersByPhoneOrId } from "@/lib/adminUserLookup";
 import { normalizePhone, formatDate } from "@/lib/format";
-import { PHONE_HINT } from "@/lib/phone";
+import { formatPhoneDisplay, PHONE_HINT, phonesMatchSearch } from "@/lib/phone";
 import {
   PASSWORD_FIELD_LABEL,
   PASSWORD_MAX,
@@ -56,6 +56,7 @@ function AdminUsersContent() {
   const [busyUid, setBusyUid] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [form, setForm] = useState({
     role: "player" as Role,
     name: "",
@@ -72,6 +73,7 @@ function AdminUsersContent() {
   const [supportUser, setSupportUser] = useState<UserProfile | null>(null);
 
   function openCreate(role: Role = "player") {
+    setCreateError(null);
     setForm({
       role,
       name: "",
@@ -143,18 +145,20 @@ function AdminUsersContent() {
     if (roleFilter !== "all") list = list.filter((u) => u.role === roleFilter);
     const s = search.trim().toLowerCase();
     if (s) {
+      const lookupIds = new Set(lookupHits.map((u) => u.uid));
       list = list.filter(
         (u) =>
+          lookupIds.has(u.uid) ||
           u.name?.toLowerCase().includes(s) ||
           u.email?.toLowerCase().includes(s) ||
           u.agentSlug?.toLowerCase().includes(s) ||
-          u.phone?.includes(normalizePhone(s) || s) ||
+          phonesMatchSearch(u.phone, search) ||
           (u.playerNumber ? formatPlayerId(u.playerNumber).toLowerCase().includes(s) : false) ||
           String(u.playerNumber ?? "").includes(s)
       );
     }
     return list;
-  }, [mergedUsers, search, roleFilter]);
+  }, [mergedUsers, lookupHits, search, roleFilter]);
 
   async function toggleStatus(u: UserProfile) {
     const next = u.status === "active" ? "suspended" : "active";
@@ -208,17 +212,22 @@ function AdminUsersContent() {
 
   async function create() {
     const { role, name, email, phone, username, password, parentId } = form;
-    if (!name.trim()) return toast.error("Name is required.");
+    const fail = (message: string) => {
+      setCreateError(message);
+      toast.error(message);
+    };
+    if (!name.trim()) return fail("Name is required.");
     if (role === "player") {
       const pwCheck = validatePassword(password);
-      if (!pwCheck.ok) return toast.error(pwCheck.message);
+      if (!pwCheck.ok) return fail(pwCheck.message);
     } else if (password.length < 8) {
-      return toast.error("Staff password must be at least 8 characters.");
+      return fail("Staff password must be at least 8 characters.");
     }
     if (role === "player" && !normalizePhone(phone))
-      return toast.error("Customers need a valid Gambian mobile number.");
+      return fail("Customers need a valid Gambian mobile number.");
     if (isStaffRole && !email.trim() && !username.trim())
-      return toast.error("Staff can sign in with name or username — add a username if needed.");
+      return fail("Staff can sign in with name or username — add a username if needed.");
+    setCreateError(null);
     setCreating(true);
     try {
       const res = await adminCreateUser({
@@ -236,6 +245,7 @@ function AdminUsersContent() {
           : `User created${res.slug ? ` — username "${res.slug}"` : ""}.`,
       );
       setCreateOpen(false);
+      setCreateError(null);
       setForm({
         role: "player",
         name: "",
@@ -246,7 +256,7 @@ function AdminUsersContent() {
         parentId: "",
       });
     } catch (e) {
-      toast.error(errorMessage(e));
+      fail(errorMessage(e));
     } finally {
       setCreating(false);
     }
@@ -386,7 +396,7 @@ function AdminUsersContent() {
                 </Td>
                 <Td className="tabular-nums text-slate-400">
                   {u.role === "player"
-                    ? (u.phone ?? "—")
+                    ? (u.phone ? formatPhoneDisplay(u.phone) : "—")
                     : (staffSignInId(u) ?? "—")}
                 </Td>
                 <Td className="text-emerald-300">
@@ -466,6 +476,11 @@ function AdminUsersContent() {
         title={form.role === "agent" ? "Create Agent Account" : form.role === "admin" ? "Create Admin Account" : "Create Customer"}
       >
         <div className="space-y-4">
+          {createError ? (
+            <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+              {createError}
+            </p>
+          ) : null}
           <Select
             label="Role"
             value={form.role}

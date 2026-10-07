@@ -4,7 +4,7 @@ import http from "node:http";
 import https from "node:https";
 import { logger } from "firebase-functions";
 import { db } from "../helpers";
-import { legacyGambiaLocal, toOtpMsisdn } from "../phone";
+import { otpMsisdnCandidates, toOtpMsisdn } from "../phone";
 
 /**
  * Africell SMS OTP HTTP handlers (sendOtp / verifyOtp).
@@ -81,14 +81,16 @@ async function proxyPmuOtp(
   }
 }
 
-async function mirrorOtpVerified(msisdn: string): Promise<void> {
+async function mirrorOtpVerified(msisdn: string, phoneInput?: string): Promise<void> {
   const verifiedExpiresAt = Date.now() + OTP_VERIFIED_TTL_SECONDS * 1000;
-  await db.collection("otp_verified").doc(msisdn).set({
+  const payload = {
     phone: msisdn,
     verified_at: new Date().toISOString(),
     expires_at: new Date(verifiedExpiresAt).toISOString(),
     source: "pmu",
-  });
+  };
+  const ids = Array.from(new Set([msisdn, ...otpMsisdnCandidates(phoneInput || msisdn)]));
+  await Promise.all(ids.map((id) => db.collection("otp_verified").doc(id).set({ ...payload, phone: id })));
 }
 
 /**
@@ -312,14 +314,8 @@ export async function sendViaAfricell(msisdn: string, message: string): Promise<
  * supplied `code` so it delivers `message` as-is and does not create an OTP hash.
  */
 function deliveryMsisdns(canonicalMsisdn: string): string[] {
-  const out = [canonicalMsisdn];
-  const local = canonicalMsisdn.startsWith("220") ? canonicalMsisdn.slice(3) : canonicalMsisdn;
-  const legacy = legacyGambiaLocal(local);
-  if (legacy) {
-    const legacyMsisdn = `220${legacy}`;
-    if (!out.includes(legacyMsisdn)) out.push(legacyMsisdn);
-  }
-  return out;
+  // Wave / Africell / QCell / Comium only accept the new 9-digit national number.
+  return [canonicalMsisdn];
 }
 
 export async function sendSmsWithFallback(
@@ -439,14 +435,19 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
 
   if (storeHashForVerification) {
     const expiresAt = Date.now() + OTP_TTL_SECONDS * 1000;
+    const otpIds = Array.from(new Set([msisdn, ...otpMsisdnCandidates(phoneInput)]));
     try {
-      await db.collection("otp_codes").doc(msisdn).set({
-        phone: msisdn,
-        code_hash: hashOtp(code, msisdn, otpSalt),
-        expires_at: new Date(expiresAt).toISOString(),
-        attempts: 0,
-        created_at: new Date().toISOString(),
-      });
+      await Promise.all(
+        otpIds.map((id) =>
+          db.collection("otp_codes").doc(id).set({
+            phone: id,
+            code_hash: hashOtp(code, id, otpSalt),
+            expires_at: new Date(expiresAt).toISOString(),
+            attempts: 0,
+            created_at: new Date().toISOString(),
+          }),
+        ),
+      );
     } catch (err) {
       logger.error("Failed to persist OTP hash", err);
       res.status(502).json({ error: "Failed to persist OTP. Please try again." });
@@ -507,12 +508,26 @@ export async function verifySmsOtp(phoneInput: string, code: string): Promise<st
   }
 
   const otpSalt = getOtpSalt();
-  const ref = db.collection("otp_codes").doc(msisdn);
-  const snap = await ref.get();
+  const otpIds = Array.from(new Set([msisdn, ...otpMsisdnCandidates(trimmedPhone)]));
+  let matchedId = msisdn;
+  let ref = db.collection("otp_codes").doc(msisdn);
+  let snap = await ref.get();
+  if (!snap.exists) {
+    for (const id of otpIds) {
+      if (id === msisdn) continue;
+      const other = await db.collection("otp_codes").doc(id).get();
+      if (other.exists) {
+        matchedId = id;
+        ref = db.collection("otp_codes").doc(id);
+        snap = other;
+        break;
+      }
+    }
+  }
   if (!snap.exists) {
     const proxied = await proxyPmuOtp("verifyOtp", { phone: trimmedPhone, code: trimmedCode });
     if (proxied.httpStatus >= 200 && proxied.httpStatus < 300 && proxied.data.ok === true) {
-      await mirrorOtpVerified(msisdn);
+      await mirrorOtpVerified(msisdn, trimmedPhone);
       return msisdn;
     }
     throw new Error(
@@ -520,7 +535,7 @@ export async function verifySmsOtp(phoneInput: string, code: string): Promise<st
     );
   }
 
-  const data = snap.data() as { code_hash?: string; expires_at?: string; attempts?: number };
+  const data = snap.data() as { code_hash?: string; expires_at?: string; attempts?: number; phone?: string };
   const expiresAt = data.expires_at ? Date.parse(data.expires_at) : 0;
   if (!expiresAt || Date.now() > expiresAt) {
     await ref.delete().catch(() => undefined);
@@ -534,7 +549,8 @@ export async function verifySmsOtp(phoneInput: string, code: string): Promise<st
   }
 
   const expectedHash = data.code_hash || "";
-  const actualHash = hashOtp(trimmedCode, msisdn, otpSalt);
+  const hashPhone = String(data.phone || matchedId);
+  const actualHash = hashOtp(trimmedCode, hashPhone, otpSalt);
   if (expectedHash !== actualHash) {
     await ref.update({ attempts: attempts + 1 }).catch(() => undefined);
     throw new Error("Invalid OTP code.");
@@ -542,11 +558,17 @@ export async function verifySmsOtp(phoneInput: string, code: string): Promise<st
 
   await ref.delete().catch(() => undefined);
   const verifiedExpiresAt = Date.now() + OTP_VERIFIED_TTL_SECONDS * 1000;
-  await db.collection("otp_verified").doc(msisdn).set({
+  const verifiedPayload = {
     phone: msisdn,
     verified_at: new Date().toISOString(),
     expires_at: new Date(verifiedExpiresAt).toISOString(),
-  });
+  };
+  const verifiedIds = Array.from(new Set([msisdn, ...otpMsisdnCandidates(trimmedPhone)]));
+  await Promise.all(
+    verifiedIds.map((id) =>
+      db.collection("otp_verified").doc(id).set({ ...verifiedPayload, phone: id }),
+    ),
+  );
   return msisdn;
 }
 

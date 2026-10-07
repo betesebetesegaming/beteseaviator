@@ -32,6 +32,7 @@ import {
   creditAgentCustomerDeposits,
   type ProfileData,
 } from "./helpers";
+import { legacyGambiaLocal } from "./phone";
 import { onReferralDeposit } from "./referrals";
 import { recordDepositPlaythrough } from "./wagering";
 
@@ -86,6 +87,35 @@ export async function ensureAgentLoginDocs(
   await batch.commit();
 }
 
+function alreadyRegisteredMessage(canonical: string): string {
+  const legacy = legacyGambiaLocal(canonical);
+  if (legacy && legacy !== canonical) {
+    return `This phone number is already registered (${canonical} / ${legacy}). Search Users for either number.`;
+  }
+  return "This phone number is already registered.";
+}
+
+/**
+ * Login leftover with no customer profile / wallet — safe to replace.
+ * Same pattern as completeRegistration / QTech repair.
+ */
+async function deleteOrphanPlayerAuth(uid: string): Promise<boolean> {
+  const [profile, wallet] = await Promise.all([
+    db.doc(`users/${uid}`).get(),
+    db.doc(`wallets/${uid}`).get(),
+  ]);
+  if (profile.exists || wallet.exists) return false;
+  try {
+    const record = await auth.getUser(uid);
+    const role = String((record.customClaims as { role?: string } | undefined)?.role ?? "");
+    if (role && role !== "player") return false;
+  } catch {
+    return false;
+  }
+  await auth.deleteUser(uid);
+  return true;
+}
+
 /** Shared: create a player account owned by an agent. */
 export async function createPlayerAccount(opts: {
   name: string;
@@ -109,13 +139,18 @@ export async function createPlayerAccount(opts: {
   for (const key of phoneStorageKeys(phone)) {
     const phoneDoc = await db.doc(`phones/${key}`).get();
     if (phoneDoc.exists) {
-      throw new HttpsError("already-exists", "This phone number is already registered.");
+      throw new HttpsError("already-exists", alreadyRegisteredMessage(phone));
     }
   }
   for (const email of phoneAuthEmails(phone)) {
     try {
-      await auth.getUserByEmail(email);
-      throw new HttpsError("already-exists", "This phone number is already registered.");
+      const existing = await auth.getUserByEmail(email);
+      const deleted = await deleteOrphanPlayerAuth(existing.uid);
+      if (deleted) {
+        logger.warn("createPlayerAccount removed orphan auth", { uid: existing.uid, email });
+        continue;
+      }
+      throw new HttpsError("already-exists", alreadyRegisteredMessage(phone));
     } catch (e: unknown) {
       const code = (e as { code?: string }).code;
       if (code === "auth/user-not-found") continue;
@@ -134,9 +169,25 @@ export async function createPlayerAccount(opts: {
     uid = u.uid;
   } catch (e: unknown) {
     if ((e as { code?: string }).code === "auth/email-already-exists") {
-      throw new HttpsError("already-exists", "This phone number is already registered.");
+      const authEmail = phoneToEmail(phone);
+      const existing = await auth.getUserByEmail(authEmail);
+      const deleted = await deleteOrphanPlayerAuth(existing.uid);
+      if (!deleted) {
+        throw new HttpsError("already-exists", alreadyRegisteredMessage(phone));
+      }
+      logger.warn("createPlayerAccount removed orphan auth on create", {
+        uid: existing.uid,
+        email: authEmail,
+      });
+      const u = await auth.createUser({
+        email: authEmail,
+        password: opts.password,
+        displayName: opts.name,
+      });
+      uid = u.uid;
+    } else {
+      throw e;
     }
-    throw e;
   }
   await auth.setCustomUserClaims(uid, { role: "player" });
 
@@ -145,7 +196,7 @@ export async function createPlayerAccount(opts: {
     const phoneRefs = phoneStorageKeys(phone).map((key) => db.doc(`phones/${key}`));
     const snaps = await Promise.all(phoneRefs.map((ref) => tx.get(ref)));
     if (snaps.some((snap) => snap.exists)) {
-      throw new HttpsError("already-exists", "This phone number is already registered.");
+      throw new HttpsError("already-exists", alreadyRegisteredMessage(phone));
     }
     playerNumber = await allocatePlayerNumber(tx);
     tx.set(db.doc(`users/${uid}`), {
