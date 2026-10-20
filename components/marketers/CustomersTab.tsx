@@ -9,7 +9,7 @@ function statusTag(a: AccountState | undefined) {
   if (a.state === "matched") {
     if (a.counted) return <Tag tone="green">Verified</Tag>;
     if (a.decision === "rejected") return <Tag tone="red">Not credited</Tag>;
-    return <Tag tone="amber">Existing customer · owner review</Tag>;
+    return <Tag tone="amber">Owner review needed</Tag>;
   }
   if (a.state === "not_found") return <Tag tone="slate">Not registered yet</Tag>;
   if (a.state === "ambiguous") return <Tag tone="amber">Needs owner check</Tag>;
@@ -62,7 +62,10 @@ function AddCustomer({ state, onSaved, onClose }: { state: MkState; onSaved: (c:
     <Panel>
       <form onSubmit={submit} className="space-y-3">
         <H2>Add customer</H2>
-        <Notice>Record the customer after they sign up themselves. Never ask for their password or code.</Notice>
+        <Notice>
+          Record the number <strong>before</strong> the customer signs up — then their registration is verified as yours automatically.
+          If they already have an account, the owner reviews it. Never ask for their password or code.
+        </Notice>
         <Field label="Customer name">
           <TextInput value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={80} autoComplete="off" />
         </Field>

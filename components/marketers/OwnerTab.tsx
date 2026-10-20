@@ -152,6 +152,7 @@ interface DisputeRow {
   accountId: string;
   registeredAtMs: number | null;
   recordedAtMs: number;
+  reviewHint: "registered_shortly_before" | "registered_long_before" | "registration_time_unknown" | null;
   hadPriorDeposits: boolean | null;
   contactName: string | null;
   phone: string | null;
@@ -169,10 +170,11 @@ function Disputes() {
 
   return (
     <Panel className="space-y-3">
-      <H2>Existing-customer matches</H2>
+      <H2>Registrations needing your review</H2>
       <p className="text-sm text-slate-600">
-        These accounts were registered before the marketer recorded them. They do not count until you decide. Accepting credits only
-        deposits made after the referral was recorded.
+        These accounts were registered before the marketer recorded the number, so the system cannot prove who brought them in. They
+        earn nothing until you decide. When crediting, choose whether the marketer gets the customer from their registration (they
+        signed them up) or only from when the number was recorded (an existing customer they reactivated).
       </p>
       <ErrorLine message={a.error} />
       {!rows ? (
@@ -190,15 +192,29 @@ function Disputes() {
                 Marketer: {d.marketerName} · Registered {dateTime(d.registeredAtMs)} · Recorded {dateTime(d.recordedAtMs)}
                 {d.hadPriorDeposits ? " · had deposits before referral" : ""}
               </p>
+              <p>
+                {d.reviewHint === "registered_shortly_before" ? (
+                  <Tag tone="amber">Registered shortly before recording — check with the marketer</Tag>
+                ) : d.reviewHint === "registration_time_unknown" ? (
+                  <Tag tone="red">Registration time unknown</Tag>
+                ) : (
+                  <Tag>Long-standing account</Tag>
+                )}
+              </p>
               <TextInput
                 value={notes[d.id] ?? ""}
                 onChange={(e) => setNotes({ ...notes, [d.id]: e.target.value })}
                 placeholder="Reason (required, saved in audit)"
                 aria-label="Reason"
               />
-              <div className="grid grid-cols-2 gap-2">
-                <Btn disabled={a.busy} onClick={() => void a.run(() => mk("resolveAttribution", { id: d.id, decision: "accept", note: notes[d.id] })).then((r) => r && load())}>
-                  Credit marketer
+              <div className="grid gap-2">
+                {d.registeredAtMs != null && (
+                  <Btn disabled={a.busy} onClick={() => void a.run(() => mk("resolveAttribution", { id: d.id, decision: "accept", countFrom: "registration", note: notes[d.id] })).then((r) => r && load())}>
+                    Credit from registration (marketer signed them up)
+                  </Btn>
+                )}
+                <Btn variant="secondary" disabled={a.busy} onClick={() => void a.run(() => mk("resolveAttribution", { id: d.id, decision: "accept", countFrom: "recorded", note: notes[d.id] })).then((r) => r && load())}>
+                  Credit from recording only (reactivated customer)
                 </Btn>
                 <Btn variant="danger" disabled={a.busy} onClick={() => void a.run(() => mk("resolveAttribution", { id: d.id, decision: "reject", note: notes[d.id] })).then((r) => r && load())}>
                   Do not credit
@@ -279,7 +295,7 @@ function Templates() {
 
 function Settings({ state, reloadState }: { state: MkState; reloadState: () => Promise<void> }) {
   const [links, setLinks] = useState<ApprovedLink[]>(state.links);
-  const [windowHours, setWindowHours] = useState(String(state.settings?.referralWindowHours ?? 24));
+  const [windowHours, setWindowHours] = useState(String(state.settings?.reviewHintHours ?? 24));
   const [price, setPrice] = useState(state.settings?.smsPricePerSegmentMinor == null ? "" : String(state.settings.smsPricePerSegmentMinor));
   const [sender, setSender] = useState(state.settings?.senderId ?? "");
   const [saved, setSaved] = useState(false);
@@ -291,7 +307,7 @@ function Settings({ state, reloadState }: { state: MkState; reloadState: () => P
     const r = await a.run(() =>
       mk("saveSettings", {
         links,
-        referralWindowHours: Number(windowHours),
+        reviewHintHours: Number(windowHours),
         smsPricePerSegmentMinor: price === "" ? null : Number(price),
         senderId: sender.trim() || null,
       }),
@@ -328,7 +344,10 @@ function Settings({ state, reloadState }: { state: MkState; reloadState: () => P
       </Panel>
       <Panel className="space-y-3">
         <H2>Rules and SMS settings</H2>
-        <Field label="Referral window (hours)" hint="A signup up to this long before the marketer recorded the number still counts as their new customer.">
+        <Field
+          label="Review hint window (hours)"
+          hint="Never credits anyone automatically. A registration made up to this long before the marketer recorded the number is labelled “registered shortly before recording” in Disputes to help your decision."
+        >
           <TextInput type="number" min={0} max={168} value={windowHours} onChange={(e) => setWindowHours(e.target.value)} />
         </Field>
         <Field label="Price per SMS segment (bututs)" hint="Used only for cost estimates.">

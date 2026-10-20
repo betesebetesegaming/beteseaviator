@@ -23,8 +23,11 @@ export const DEFAULT_LINKS: ApprovedLink[] = [
   { id: "football", label: "Betese Football", product: "football", url: "https://betesegaming.com/" },
 ];
 
-/** A signup that happened this long before the marketer recorded the number still counts as their referral. */
-export const DEFAULT_REFERRAL_WINDOW_HOURS = 24;
+/**
+ * Review hint only — never an automatic credit. A registration made up to this long before the
+ * marketer recorded the number is flagged "registered shortly before recording" for the owner.
+ */
+export const DEFAULT_REVIEW_HINT_HOURS = 24;
 
 export const MAX_RECIPIENTS = 500;
 export const MAX_BODY = 459; // 3 GSM-7 segments
@@ -241,19 +244,26 @@ export function ineligibleReason(contact: ContactLike | null, marketerId: string
 }
 
 export type Attribution = "new_signup" | "needs_review";
+export type ReviewHint = "registered_shortly_before" | "registered_long_before" | "registration_time_unknown";
 
 /**
- * A registration counts as this marketer's new signup when it happened after (or within the
- * referral window before) the moment the marketer recorded the number. Anything older was an
- * existing customer and goes to the owner for a decision.
+ * Acquisition is only established automatically when the betting account was registered AFTER
+ * the marketer recorded the number. Every earlier (or undated) registration goes to the owner;
+ * the hint window only labels it for the review and never credits anything by itself.
  */
 export function classifyAttribution(
   registeredAtMs: number | null,
   recordedAtMs: number,
-  windowHours = DEFAULT_REFERRAL_WINDOW_HOURS,
-): Attribution {
-  if (registeredAtMs == null || !Number.isFinite(registeredAtMs)) return "needs_review";
-  return registeredAtMs >= recordedAtMs - windowHours * 3600_000 ? "new_signup" : "needs_review";
+  hintHours = DEFAULT_REVIEW_HINT_HOURS,
+): { attribution: Attribution; hint: ReviewHint | null } {
+  if (registeredAtMs == null || !Number.isFinite(registeredAtMs)) {
+    return { attribution: "needs_review", hint: "registration_time_unknown" };
+  }
+  if (registeredAtMs >= recordedAtMs) return { attribution: "new_signup", hint: null };
+  return {
+    attribution: "needs_review",
+    hint: registeredAtMs >= recordedAtMs - hintHours * 3600_000 ? "registered_shortly_before" : "registered_long_before",
+  };
 }
 
 /** GMD amount (2 dp float in the wallet ledger) → integer bututs. */

@@ -7,7 +7,7 @@ import { phoneStorageKeys } from "../phone";
 import {
   CURRENCY,
   DEFAULT_LINKS,
-  DEFAULT_REFERRAL_WINDOW_HOURS,
+  DEFAULT_REVIEW_HINT_HOURS,
   DomainError,
   MAX_BODY,
   MAX_NOTE,
@@ -32,6 +32,7 @@ import {
 } from "./domain";
 import { SMS_MISSING, type Providers } from "./providers";
 import { AlreadyExistsError, type Data, type Doc, type Store, type Where } from "./store";
+import { EARNINGS_ACTIONS, recomputeAll, recomputeEarnings } from "./earnings";
 
 export const C = {
   contacts: "mkContacts",
@@ -75,9 +76,9 @@ export interface Caller {
   role: "admin" | "marketer";
 }
 
-const isOwner = (c: Caller) => c.role === "admin";
+export const isOwner = (c: Caller) => c.role === "admin";
 
-function deny(message = "Owner access required."): never {
+export function deny(message = "Owner access required."): never {
   throw new DomainError("permission-denied", message);
 }
 
@@ -104,7 +105,7 @@ export async function authorizeCaller(store: Store, uid: string | undefined, aut
 
 interface Settings {
   links: ApprovedLink[];
-  referralWindowHours: number;
+  reviewHintHours: number;
   smsPricePerSegmentMinor: number | null;
   senderId: string | null;
 }
@@ -113,13 +114,13 @@ async function loadSettings(store: Store): Promise<Settings> {
   const d = (await store.get(`${C.settings}/config`))?.data ?? {};
   return {
     links: Array.isArray(d.links) && d.links.length ? (d.links as ApprovedLink[]) : DEFAULT_LINKS,
-    referralWindowHours: Number(d.referralWindowHours ?? DEFAULT_REFERRAL_WINDOW_HOURS),
+    reviewHintHours: Number(d.reviewHintHours ?? DEFAULT_REVIEW_HINT_HOURS),
     smsPricePerSegmentMinor: d.smsPricePerSegmentMinor == null ? null : Number(d.smsPricePerSegmentMinor),
     senderId: d.senderId ? String(d.senderId) : null,
   };
 }
 
-async function audit(ctx: Ctx, caller: Caller | null, action: string, target: string, meta: Data = {}): Promise<void> {
+export async function audit(ctx: Ctx, caller: Caller | null, action: string, target: string, meta: Data = {}): Promise<void> {
   await ctx.store.set(`${C.audit}/${ctx.store.newId(C.audit)}`, {
     actorId: caller?.uid ?? "system",
     actorRole: caller?.role ?? "system",
@@ -174,13 +175,13 @@ async function contactFor(ctx: Ctx, caller: Caller, id: unknown): Promise<Doc> {
   return doc;
 }
 
-function cursorOf(rows: Doc[], field: string, limit: number) {
+export function cursorOf(rows: Doc[], field: string, limit: number) {
   if (rows.length < limit) return null;
   const last = rows[rows.length - 1];
   return { v: last.data[field], id: last.id };
 }
 
-function parseCursor(input: unknown): { v: unknown; id: string } | null {
+export function parseCursor(input: unknown): { v: unknown; id: string } | null {
   if (!input || typeof input !== "object") return null;
   const c = input as { v?: unknown; id?: unknown };
   if (typeof c.id !== "string") return null;
@@ -204,7 +205,7 @@ async function getState(ctx: Ctx, caller: Caller): Promise<Data> {
     ...(isOwner(caller)
       ? {
           settings: {
-            referralWindowHours: s.referralWindowHours,
+            reviewHintHours: s.reviewHintHours,
             smsPricePerSegmentMinor: s.smsPricePerSegmentMinor,
             senderId: s.senderId,
           },
@@ -420,12 +421,10 @@ export async function matchContact(ctx: Ctx, contactId: string): Promise<void> {
       continue;
     }
 
-    const attribution = classifyAttribution(found.registeredAtMs, Number(d.recordedAtMs), settings.referralWindowHours);
+    const { attribution, hint } = classifyAttribution(found.registeredAtMs, Number(d.recordedAtMs), settings.reviewHintHours);
     const accountDocId = `${product}_${found.accountId}`;
-    const countFromMs =
-      attribution === "new_signup"
-        ? Math.min(found.registeredAtMs ?? Number(d.recordedAtMs), Number(d.recordedAtMs))
-        : Number(d.recordedAtMs);
+    // Owner may later choose to count from registration when accepting a review.
+    const countFromMs = Number(d.recordedAtMs);
 
     const claimed = await ctx.store.txn(async (tx) => {
       const existing = await tx.get(`${C.accounts}/${accountDocId}`);
@@ -440,6 +439,7 @@ export async function matchContact(ctx: Ctx, contactId: string): Promise<void> {
         matchedAtMs: now,
         verificationSource: product === "aviator" ? "aviator_users_collection" : "provider_api",
         attribution,
+        reviewHint: hint,
         decision: attribution === "new_signup" ? "auto" : "pending",
         counted: attribution === "new_signup",
         countFromMs,
@@ -599,6 +599,7 @@ async function listDisputes(ctx: Ctx, caller: Caller, data: Data): Promise<Data>
       accountId: r.data.externalAccountId,
       registeredAtMs: r.data.registeredAtMs,
       recordedAtMs: r.data.recordedAtMs,
+      reviewHint: r.data.reviewHint ?? null,
       hadPriorDeposits: r.data.hadPriorDeposits,
       contactName: contact?.data.name ?? null,
       phone: contact?.data.phoneE164 ?? null,
@@ -617,12 +618,26 @@ async function resolveAttribution(ctx: Ctx, caller: Caller, data: Data): Promise
   const doc = await ctx.store.get(`${C.accounts}/${id}`);
   if (!doc || doc.data.attribution !== "needs_review") throw new DomainError("not-found", "Dispute not found.");
   const counted = decision === "accepted";
-  const before = { decision: doc.data.decision, counted: doc.data.counted };
-  await ctx.store.set(
-    `${C.accounts}/${id}`,
-    { decision, counted, decidedBy: caller.uid, decidedAtMs: ctx.now(), decisionNote: note },
-    true,
-  );
+  // Accepting can credit from registration (owner confirms the marketer brought them in at signup)
+  // or only from the moment the marketer recorded them (an existing customer they reactivated).
+  const fromRegistration = counted && data.countFrom === "registration";
+  if (counted && data.countFrom !== "registration" && data.countFrom !== "recorded") {
+    throw new DomainError("invalid-argument", "Choose whether to count from registration or from when it was recorded.");
+  }
+  const registeredAtMs = doc.data.registeredAtMs as number | null;
+  if (fromRegistration && registeredAtMs == null) {
+    throw new DomainError("failed-precondition", "Registration time is unknown; count from when it was recorded.");
+  }
+  const countFromMs = fromRegistration ? registeredAtMs! : Number(doc.data.recordedAtMs);
+  const before = { decision: doc.data.decision, counted: doc.data.counted, countFromMs: doc.data.countFromMs };
+  const update: Data = { decision, counted, decidedBy: caller.uid, decidedAtMs: ctx.now(), decisionNote: note, countFromMs };
+  if (countFromMs !== Number(doc.data.countFromMs)) {
+    update.depositCursorMs = Math.min(countFromMs, Number(doc.data.depositCursorMs ?? countFromMs));
+    update.hadPriorDeposits = null;
+    if (countFromMs < Number(doc.data.countFromMs)) update.firstDepositTxnId = null;
+  }
+  await ctx.store.set(`${C.accounts}/${id}`, update, true);
+  doc.data.countFromMs = countFromMs;
 
   const contactPath = `${C.contacts}/${String(doc.data.contactId)}`;
   const contact = await ctx.store.get(contactPath);
@@ -637,7 +652,10 @@ async function resolveAttribution(ctx: Ctx, caller: Caller, data: Data): Promise
     const should = counted && Number(dep.data.depositedAtMs) >= Number(doc.data.countFromMs);
     if (dep.data.counted !== should) await ctx.store.set(`${C.deposits}/${dep.id}`, { counted: should }, true);
   }
-  await audit(ctx, caller, `attribution.${decision}`, id, { before, after: { decision, counted }, note });
+  await audit(ctx, caller, `attribution.${decision}`, id, { before, after: { decision, counted, countFromMs }, note });
+  // Pull any deposits between the new counting start and the old cursor, then refresh earnings.
+  await syncAccountDeposits(ctx, id).catch(() => undefined);
+  await recomputeEarnings(ctx, String(doc.data.marketerId)).catch(() => undefined);
   return { ok: true };
 }
 
@@ -871,10 +889,10 @@ async function saveSettings(ctx: Ctx, caller: Caller, data: Data): Promise<Data>
   const before = await loadSettings(ctx.store);
   const next: Data = {};
   if (data.links !== undefined) next.links = validateLinks(data.links);
-  if (data.referralWindowHours !== undefined) {
-    const h = Number(data.referralWindowHours);
-    if (!Number.isInteger(h) || h < 0 || h > 168) throw new DomainError("invalid-argument", "Referral window must be 0–168 hours.");
-    next.referralWindowHours = h;
+  if (data.reviewHintHours !== undefined) {
+    const h = Number(data.reviewHintHours);
+    if (!Number.isInteger(h) || h < 0 || h > 168) throw new DomainError("invalid-argument", "Review hint window must be 0–168 hours.");
+    next.reviewHintHours = h;
   }
   if (data.smsPricePerSegmentMinor !== undefined) {
     const v = data.smsPricePerSegmentMinor;
@@ -1206,7 +1224,8 @@ async function listAudit(ctx: Ctx, caller: Caller, data: Data): Promise<Data> {
 async function syncNow(ctx: Ctx, caller: Caller): Promise<Data> {
   if (!isOwner(caller)) deny();
   const status = await syncAll(ctx, 200_000);
-  await audit(ctx, caller, "sync.manual", "aviator", status);
+  const marketers = await recomputeAll(ctx);
+  await audit(ctx, caller, "sync.manual", "aviator", { ...status, earningsRecomputed: marketers });
   return status;
 }
 
@@ -1238,8 +1257,16 @@ const ACTIONS: Record<string, (ctx: Ctx, caller: Caller, data: Data) => Promise<
   syncNow: (ctx, c) => syncNow(ctx, c),
 };
 
+function actionFor(name: string) {
+  return Object.prototype.hasOwnProperty.call(ACTIONS, name)
+    ? ACTIONS[name]
+    : Object.prototype.hasOwnProperty.call(EARNINGS_ACTIONS, name)
+      ? EARNINGS_ACTIONS[name]
+      : undefined;
+}
+
 export async function handle(ctx: Ctx, caller: Caller, action: unknown, data: unknown): Promise<Data> {
-  const fn = ACTIONS[String(action ?? "")];
+  const fn = actionFor(String(action ?? ""));
   if (!fn) throw new DomainError("invalid-argument", "Unknown action.");
   const payload = data && typeof data === "object" && !Array.isArray(data) ? (data as Data) : {};
   return fn(ctx, caller, payload);

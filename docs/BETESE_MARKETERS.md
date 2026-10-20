@@ -1,74 +1,113 @@
-# Betese Marketers (`/m`)
+# Betese Marketers (`/staff/marketers`)
 
-Separate staff app for marketers, running on the shared Betese Aviator backend (Firebase project
-`beteseaviator-a05ae`). Phase 1, from `CLAUDE_HANDOFF.md` (Betese Marketers package, 20 Oct 2026).
+Separate staff app for marketers on the shared Betese Aviator backend (Firebase project `beteseaviator-a05ae`).
+Branch `feat/betese-marketers`. **Nothing here is deployed.** SMS sending does not exist in this code.
 
-## What it does
+## Route
 
-- **Roles**: the owner is the existing `admin`. Marketers have a new `marketer` role: no wallet, no referral slug, no
-  commissions. They sign in at `/s` with their name (e.g. `ebrimajallow`) or phone plus a password of 10+ characters,
-  and land on `/m`. Disable and password reset end their sessions immediately (checked on every request).
-- **Customers**: one record per canonical Gambian phone (`functions/src/phone.ts`, Gambia9-aware), Football / Aviator /
-  both, adult confirmation, SMS consent with wording version and revocation history. The first marketer to record a
-  number keeps it; a duplicate shows no details of the other marketer.
-- **Verification (Aviator, read-only)**: phone → `phones/` index → `users/` player → registration time. Registered after
-  the referral (or within the owner's referral window, default 24 h before) → new signup, counted. Older accounts →
-  owner decision in Owner → Disputes, with audit. Not found / ambiguous / timeout stay unverified.
-- **Deposits (Aviator, read-only)**: completed `transactions` with `type == "deposit"`, excluding demo resets, repairs and
-  QTech test funding. Stored once each in `mkDeposits` as integer bututs + currency. First deposit vs later, reversals
-  kept apart, GMD only. Daily sync at 03:00 Banjul, plus Owner → Links & settings → Sync now.
-- **Dashboard**: per product verified customers and deposits, unique total, played-both; today / week / month / custom
-  (deposit timestamps); owner sees overall + per marketer.
-- **Invite**: copy/open buttons for the owner-approved links (default `https://beteseaviator.com/`,
-  `https://betesegaming.com/`). No tracking, no SMS, no account creation.
-- **Campaigns**: marketer requests (template or "owner writes it") + approved link + own consenting customers. Each
-  revision freezes message, link, sender, schedule, recipient list (hash), segments and estimated cost. Owner revisions
-  create a new revision; approval re-checks consent, ownership, product and link, and invalidates rather than approving
-  a changed list. Approved revisions cannot change. **There is no send action.**
+`/staff/marketers` — two path segments on purpose. The middleware only treats single-segment paths
+(`beteseaviator.com/<slug>`) as agent referral links, so this route can never collide with an agent link and **no slug
+is reserved**. (`/staff` on its own still redirects to `/s` exactly as before.) An earlier draft used `/m` and reserved
+`m`; that was removed.
 
-## Code
+## Roles and sign-in
 
-| Area | Files |
-|------|-------|
-| Callable `marketers` + schedule `marketersDailySync` | `functions/src/marketers/index.ts` |
-| Service (authorization, workflows) | `functions/src/marketers/service.ts` |
-| Pure rules (phone, links, SMS segments, attribution, ranges) | `functions/src/marketers/domain.ts` |
-| Aviator adapter (read-only) / Football placeholder | `functions/src/marketers/providers.ts` |
-| Storage interface | `functions/src/marketers/store.ts` |
-| UI | `app/m/`, `components/marketers/`, `lib/marketersApi.ts` |
-| Data | `mkContacts`, `mkConsentEvents`, `mkProductAccounts`, `mkDeposits`, `mkCampaignRevisions`, `mkTemplates`, `mkSettings`, `mkAudit` — no client access in `firestore.rules`; indexes in `firestore.indexes.json` |
+- Owner = existing `admin`. New role `marketer`: no wallet, no referral slug, no commissions.
+- Marketers sign in at `/s` with their name key (e.g. `ebrimajallow`) or phone + a 10–64 character password that is not
+  only digits. Login goes through the existing `agentLogin` → Firebase Auth path.
+- Every `marketers` call reloads the caller's profile: suspended accounts and sessions older than a disable/password
+  reset are rejected immediately.
 
-Touched outside the new module: `marketer` role (types, roles, `resolveStaffSession`, `/s` → `/m` routing), `m` reserved
-as a path/slug, and agent login sync no longer overwrites a marketer's sign-in key.
+## Customer attribution (owner rule)
+
+- **Automatic** only when the Aviator account was registered **after** the marketer recorded the number. Marketers are
+  told to record the number first, then share the link.
+- **Owner review** for every registration before the recording (or with no registration time). Nothing is counted or
+  earned until the owner decides, with a required reason in the audit trail:
+  - *Credit from registration* — the marketer signed them up (first deposit counts);
+  - *Credit from recording only* — an existing customer they reactivated (only later deposits count);
+  - *Do not credit*.
+- **Review hint window** (default 24 h, owner setting): labels a registration "registered shortly before recording" in
+  the review list. It never credits anything by itself.
+
+## My Business & Earnings
+
+Bookkeeping only — separate collections, never wallets, the ledger or agent commissions. **No default rates**: every
+amount and percentage is entered by the owner.
+
+| Piece | Who | Rule |
+|---|---|---|
+| Targets | Marketer proposes (measure, product, threshold, dates) | Owner approves with a bonus amount (0 allowed) or rejects. Approved targets are frozen. Progress is live. |
+| Payment agreement | Owner drafts, then approves separately | Approved terms are frozen; a newer approved agreement ends the previous one on its start date. Marketers never see drafts. |
+| Fixed customer reward | Term | Per counted new customer of a product, on verified signup or on first deposit (optional minimum). |
+| Percentage commission | Term (basis points) | Per calendar month on **net** verified deposits (deposits − reversals) of a product; truncated to whole bututs. Open months update while pending. |
+| Fixed campaign payment | Term referencing an approved campaign | Earned only after the owner confirms the campaign was completed. |
+| Target bonus | Approved target with bonus > 0 | Earned once the period has ended and the target was met. |
+| Earnings lines | Engine | `pending → approved → paid` (or `void`). Approved/paid lines never change; later facts (reversals, rejected attribution) create separate **adjustment** lines. Owner voids are respected on recalculation. |
+| Payments | Owner records | Records an off-system payment (Wave/cash/bank/other, reference, date) against approved lines. Moves no money. |
+
+Recalculation runs after the daily sync, after "Sync now", after attribution decisions, agreement approvals and
+campaign confirmations, and on the owner's "Recalculate earnings" button.
+
+## Changes to shared Aviator code (everything outside the new module)
+
+| File | Change | Effect on existing users |
+|---|---|---|
+| `functions/src/roles.ts`, `lib/types.ts`, `lib/roles.ts` | Add `marketer` role + `isMarketerRole`, label "Betese Marketer" | None. `isStaffRole` / `isAgentRole` unchanged. |
+| `functions/src/auth.ts` `resolveStaffSession` | Also accepts `marketer` | None for others. |
+| `functions/src/auth.ts` `completeRegistration` | Refuses an existing `marketer` profile | None for others. Stops a marketer turning their staff login into a player profile. |
+| `functions/src/httpAuth.ts` `requireHttpAuth` | Returns 403 for `marketer` | None for others. Keeps ModemPay deposit/payout routes away from marketer accounts (no wallets). |
+| `functions/src/agent.ts` | Agent slug/login sync skips a `staffLogins` key owned by a marketer | Identical unless a marketer already owns that exact key. Adds 1–2 document reads per agent session sync. |
+| `functions/src/index.ts` | Exports `marketers`, `marketersDailySync` | Two new Cloud Run services. |
+| `lib/staff-routes.ts`, `lib/auth-context.tsx` | `marketer` signs in at `/s`, home is `/staff/marketers` | Admin/agent/player routing unchanged; `/admin` still excludes marketers. |
+| `firestore.rules` | New `isMarketer()`; marketers cannot create `deposit_requests` / `withdrawal_requests`; 13 `mk*` collections closed to all clients | Players keep both creates; all other rules unchanged. |
+| `firestore.indexes.json` | 21 new composite indexes, all on `mk*` collections | None on existing collections. |
+
+Not changed: RTDB rules (marketers are in no read list), storage rules, wallets, ledger, games, payments, commissions,
+agent screens, `/s`, middleware, `next.config.ts`.
+
+## Football / SMS / OTP specification (docs/BETESE-Football-SMS-OTP-Flow-Spec.pdf, 7 Oct 2026)
+
+What it provides: the OTP rules Football must copy from Aviator (Africell gateway, 6-digit hashed codes, expiry, rate
+limits), the Africell HTTP contract and status codes, the PMU relay fallback, registration/reset/withdrawal/agent-cash
+flows, recommended Football collections (`otp_codes`, `otp_verified`, `otp_rate_limits`, `deposit_requests`,
+`withdrawal_requests`, `agentWithdrawalCodes`, `sms_log`), SMS templates and a go-live checklist. It also flags that
+Aviator's public `sendOtp` accepts any `message` + `code` from anyone (open SMS relay).
+
+What it does not provide (still needed to verify Football customers and deposits):
+- where the Football backend runs (Firebase project or API base URL) and who controls it;
+- an account-by-phone lookup with registration time;
+- settled deposits and reversals per account (amounts, currency, timestamps, transaction ids, cursor);
+- read-only server-to-server credentials and a webhook secret or agreed sync window.
+
+For SMS it confirms the provider (Africell, sender `Betese`, message id returned) but describes **no delivery reports**,
+no signed callbacks and no per-message price — all required before campaign sending.
 
 ## Tests
 
 ```bash
-cd functions; npm test
+cd functions; npm test            # 32 unit/acceptance tests, in-memory store
+cd functions; npm run test:emulator   # Firestore emulator: real rules + real Firestore store
 ```
 
-22 tests against an in-memory store with the same contract as Firestore: marketer isolation (including direct
-calls), owner-only actions, session ending, phone collisions, attribution/disputes, duplicate deposits, first deposit,
-reversals and currencies, ledger filtering, campaign approval/revision/invalidation/tamper, link policy, SMS segments,
-date ranges. Not covered: the Firestore emulator (needs Java, not installed here) and a live Aviator data test.
+`test:emulator` needs Java 21 and the Firebase CLI on PATH; it uses the offline project `demo-betese-marketers` and
+never contacts the live project.
 
-## Deploy (not done)
+## Deployment changes (not done — needs owner approval)
 
-```bash
-npx firebase-tools@latest deploy --only firestore:rules,firestore:indexes
-cd functions; npm run build; cd ..
-npx firebase-tools@latest deploy --only functions:marketers,functions:marketersDailySync
-```
+1. `firebase deploy --only firestore:indexes` — 21 new indexes on `mk*` collections; wait until all show *Enabled*.
+2. `firebase deploy --only firestore:rules` — changes listed above.
+3. `cd functions && npm run build`, then `firebase deploy --only functions:marketers,functions:marketersDailySync,functions:resolveStaffSession,functions:completeRegistration,functions:agentLogin,functions:adminCreateUser,functions:modempayApi`
+   — the two new functions plus existing functions whose code paths changed (`auth.ts`, `agent.ts`, `httpAuth.ts` are
+   bundled into every function, so a full `--only functions` deploy is the simplest correct option).
+4. Frontend: merge to `main` → Vercel production deploy. A Vercel preview needs the branch pushed.
 
-Deploy indexes first and wait for them to finish building. The frontend ships with the normal Vercel deploy; push the
-branch for a preview URL. The callable must be deployed for `/m` to load data.
+Rollback: redeploy `main` for functions and rules; the `mk*` collections can stay (no client access).
 
 ## Blockers
 
-- **Football (betesegaming.com)**: no backend, API docs or credentials found. Needed: account-by-phone lookup with
-  registration time, settled deposits/reversals per account with cursor, read-only server credentials, webhook signing
-  secret or agreed sync window.
-- **SMS sending**: needs a provider with per-message delivery reports, signed webhooks, idempotency keys, approved sender
-  ID, price per segment, and opt-out handling. The current promo path (`promoSms.ts` → betesepmu `sendOtp`) has none of
-  these.
-- **Per-marketer referral links**: not built. Needs signed opaque referral IDs integrated into each signup flow.
+- **Football**: backend location, lookup/deposit API or read access, credentials (see above).
+- **SMS sending**: provider with delivery reports, signed webhooks, idempotency, approved sender ID, price per segment,
+  opt-out handling. Sending stays disabled.
+- **Per-marketer referral links**: not built; needs signed referral IDs in each signup flow.
+- **Existing issue (not changed here)**: public `sendOtp` accepts arbitrary `message`/`code`.

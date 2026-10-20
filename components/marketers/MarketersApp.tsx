@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Home, Users, Share2, MessageSquare, Shield, LogOut } from "lucide-react";
+import { Home, Users, Share2, MessageSquare, Shield, LogOut, Briefcase } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { mk, mkError, type MkState } from "@/lib/marketersApi";
 import { HomeTab } from "./HomeTab";
@@ -9,15 +9,17 @@ import { CustomersTab } from "./CustomersTab";
 import { InviteTab } from "./InviteTab";
 import { SmsTab } from "./SmsTab";
 import { OwnerTab } from "./OwnerTab";
+import { BusinessTab } from "./BusinessTab";
 import { Btn, ErrorLine, Loading } from "./ui";
 
-type Tab = "home" | "customers" | "invite" | "sms" | "owner";
+type Tab = "home" | "customers" | "invite" | "sms" | "business" | "owner";
 
 const TABS: { id: Tab; label: string; icon: typeof Home; ownerOnly?: boolean }[] = [
   { id: "home", label: "Home", icon: Home },
   { id: "customers", label: "Customers", icon: Users },
   { id: "invite", label: "Invite", icon: Share2 },
   { id: "sms", label: "SMS", icon: MessageSquare },
+  { id: "business", label: "Business", icon: Briefcase },
   { id: "owner", label: "Owner", icon: Shield, ownerOnly: true },
 ];
 
@@ -120,6 +122,7 @@ export function MarketersApp() {
         {tab === "customers" && <CustomersTab state={state} addOpen={addOpen} setAddOpen={setAddOpen} />}
         {tab === "invite" && <InviteTab state={state} />}
         {tab === "sms" && <SmsTab state={state} />}
+        {tab === "business" && <BusinessTab state={state} />}
         {tab === "owner" && owner && <OwnerTab state={state} reloadState={load} />}
       </main>
 

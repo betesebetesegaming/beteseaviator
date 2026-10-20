@@ -32,7 +32,6 @@ export const AGENT_RESERVED_PATHS = new Set([
   "admin",
   "agent",
   "s",
-  "m",
   "staff",
   "suspended",
   "api",

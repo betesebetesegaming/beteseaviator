@@ -117,6 +117,9 @@ export const completeRegistration = onCall(async (req) => {
           referralCode?: string;
           playerNumber?: number;
         };
+        if (isMarketerRole(existing.role)) {
+          throw new HttpsError("permission-denied", "Marketer staff accounts cannot register as players.");
+        }
         const existingCanonical = normalizePhone(String(existing.phone ?? ""));
         if (existing.phone === phone || existingCanonical === phone) {
           assignedPlayerNumber = Number(existing.playerNumber ?? 0);

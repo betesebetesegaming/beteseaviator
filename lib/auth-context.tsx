@@ -16,7 +16,7 @@ import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/fires
 import { auth, initAnalytics } from "./firebase";
 import { db } from "./firestore";
 import { rtdb } from "./rtdb";
-import { loginPathFor } from "./staff-routes";
+import { loginPathFor, MARKETERS_HOME } from "./staff-routes";
 import { hardRedirect } from "./hardRedirect";
 import { isAgentRole } from "@/lib/roles";
 import type { Role, UserProfile, Wallet } from "./types";
@@ -42,7 +42,7 @@ const AuthContext = createContext<AuthState>({
 });
 
 export function homeFor(role: Role | undefined | null): string {
-  if (role === "marketer") return "/m";
+  if (role === "marketer") return MARKETERS_HOME;
   if (role === "admin" || isAgentRole(role)) return "/admin";
   if (role === "player") return "/play";
   return "/play";
@@ -61,7 +61,7 @@ const STAFF_PROFILE_MAX_WAIT_MS = 12000;
 function isStaffPath(): boolean {
   if (typeof window === "undefined") return false;
   const p = window.location.pathname;
-  return p === "/s" || p === "/m" || p.startsWith("/m/") || p.startsWith("/admin") || p.startsWith("/agent");
+  return p === "/s" || p.startsWith(MARKETERS_HOME) || p.startsWith("/admin") || p.startsWith("/agent");
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

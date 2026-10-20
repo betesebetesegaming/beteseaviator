@@ -75,8 +75,8 @@ export function InviteTab({ state }: { state: MkState }) {
         account. The customer sets their own password and codes — never ask for them.
       </Notice>
       <Notice tone="amber">
-        These standard links do not track who referred the customer. After they sign up, add them under Customers so the system can
-        verify the registration.
+        These standard links do not track who referred the customer. Add the customer under Customers first, then share the link: a
+        signup after you record the number is verified as yours. Signups recorded afterwards go to the owner for review.
       </Notice>
     </div>
   );

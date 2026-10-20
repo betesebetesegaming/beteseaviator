@@ -28,6 +28,11 @@ service cloud.firestore {
       return signedIn() && role() == 'player';
     }
 
+    /** Betese Marketers staff — no wallet, no payment requests, no player or ledger data. */
+    function isMarketer() {
+      return signedIn() && role() == 'marketer';
+    }
+
     function userDoc(u) {
       return get(/databases/$(database)/documents/users/$(u)).data;
     }
@@ -107,6 +112,7 @@ service cloud.firestore {
       allow read: if signedIn()
         && (resource.data.customer_id == uid() || isAdmin());
       allow create: if signedIn()
+        && !isMarketer()
         && isActiveUser(uid())
         && request.resource.data.customer_id == uid()
         && request.resource.data.status == 'Pending';
@@ -117,6 +123,7 @@ service cloud.firestore {
       allow read: if signedIn()
         && (resource.data.user_id == uid() || isAdmin());
       allow create: if signedIn()
+        && !isMarketer()
         && isActiveUser(uid())
         && request.resource.data.user_id == uid()
         && request.resource.data.status == 'Pending';
@@ -251,7 +258,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    /** Betese Marketers (/m) — customer directory, deposits, campaigns, audit.
+    /** Betese Marketers (/staff/marketers) — customer directory, deposits, campaigns, audit.
      *  No client reads or writes at all: every access goes through the `marketers`
      *  callable, which re-checks role, active status and ownership per request. */
     match /mkContacts/{id} { allow read, write: if false; }
@@ -262,6 +269,12 @@ service cloud.firestore {
     match /mkTemplates/{id} { allow read, write: if false; }
     match /mkSettings/{id} { allow read, write: if false; }
     match /mkAudit/{id} { allow read, write: if false; }
+    // My Business & Earnings — bookkeeping only, never wallets or agent commissions.
+    match /mkTargets/{id} { allow read, write: if false; }
+    match /mkAgreements/{id} { allow read, write: if false; }
+    match /mkEarnings/{id} { allow read, write: if false; }
+    match /mkPayouts/{id} { allow read, write: if false; }
+    match /mkCampaignCompletions/{id} { allow read, write: if false; }
 
     match /{document=**} {
       allow read, write: if false;

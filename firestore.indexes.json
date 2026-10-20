@@ -314,6 +314,72 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "createdAtMs", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "mkTargets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkTargets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkTargets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkEarnings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkEarnings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkEarnings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkAgreements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkPayouts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "paidAtMs", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

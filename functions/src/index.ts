@@ -82,7 +82,7 @@ export {
 } from "./smartBonus";
 export { adminStartPromoSms, adminCancelPromoSms, processPromoSms } from "./promoSms";
 
-/** Betese Marketers staff app (/m) — marketing directory, approvals, read-only Aviator sync. */
+/** Betese Marketers staff app (/staff/marketers) — marketing directory, approvals, read-only Aviator sync. */
 export { marketers, marketersDailySync } from "./marketers";
 
 export { getOperationsHub } from "./operations";

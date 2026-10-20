@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { auth, db, type ProfileData, type Role } from "./helpers";
-import { roleAllowed } from "./roles";
+import { isMarketerRole, roleAllowed } from "./roles";
 
 export interface AuthenticatedRequest extends Request {
   authUid?: string;
@@ -40,6 +40,11 @@ export function requireHttpAuth() {
     const profile = await loadActiveProfile(tokenAuth.uid);
     if (!profile) {
       res.status(403).json({ error: "Account not found or suspended." });
+      return;
+    }
+    // Betese Marketers staff have no wallet: payment routes stay players/agents/admin only.
+    if (isMarketerRole(profile.role)) {
+      res.status(403).json({ error: "Marketer accounts cannot use payments." });
       return;
     }
     req.authUid = tokenAuth.uid;

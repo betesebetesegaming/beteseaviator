@@ -4,115 +4,8 @@
  */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { memoryStore } = require("./memoryStore");
-const service = require("../lib/marketers/service");
-const domain = require("../lib/marketers/domain");
+const { HOUR, T0, setup, customer, rejects, dep, service, domain } = require("./harness");
 const { aviatorLedgerDeposit } = require("../lib/marketers/providers");
-
-const HOUR = 3600_000;
-const T0 = Date.UTC(2026, 9, 20, 10, 0, 0); // 20 Oct 2026 10:00 GMT
-
-function fakeProvider(product, { connected = true } = {}) {
-  const accounts = new Map(); // phoneKey -> result
-  const deposits = new Map(); // accountId -> ProviderDeposit[]
-  return {
-    product,
-    connected,
-    missing: connected ? [] : ["docs"],
-    accounts,
-    deposits,
-    async findAccount(phoneKey) {
-      return accounts.get(phoneKey) ?? { state: "not_found" };
-    },
-    async fetchDeposits(accountId, sinceMs) {
-      const rows = (deposits.get(accountId) ?? []).filter((d) => d.depositedAtMs >= sinceMs);
-      const next = rows.reduce((m, d) => Math.max(m, d.depositedAtMs), sinceMs);
-      return { state: "ok", deposits: rows, nextSinceMs: next, complete: true };
-    },
-    async hasDepositsBefore(accountId, beforeMs) {
-      return (deposits.get(accountId) ?? []).some((d) => d.depositedAtMs < beforeMs);
-    },
-  };
-}
-
-function fakeAuth() {
-  const users = new Map();
-  let n = 0;
-  return {
-    users,
-    async createUser({ email, password, displayName }) {
-      for (const u of users.values()) if (u.email === email) throw new Error("auth/email-already-exists");
-      const uid = `u${++n}`;
-      users.set(uid, { email, password, displayName, disabled: false, revoked: 0, role: null });
-      return uid;
-    },
-    async deleteUser(uid) {
-      users.delete(uid);
-    },
-    async updatePassword(uid, password) {
-      users.get(uid).password = password;
-    },
-    async setDisabled(uid, disabled) {
-      users.get(uid).disabled = disabled;
-    },
-    async revokeSessions(uid) {
-      users.get(uid).revoked += 1;
-    },
-    async setRole(uid, role) {
-      users.get(uid).role = role;
-    },
-  };
-}
-
-async function setup({ footballConnected = false } = {}) {
-  const store = memoryStore();
-  let clock = T0;
-  const ctx = {
-    store,
-    auth: fakeAuth(),
-    providers: { aviator: fakeProvider("aviator"), football: fakeProvider("football", { connected: footballConnected }) },
-    now: () => clock,
-    timestamp: (ms) => ms,
-  };
-  await store.set("users/owner", { name: "Gregory", role: "admin", status: "active" });
-  const owner = { uid: "owner", name: "Gregory", role: "admin" };
-  const call = (caller, action, data = {}) => service.handle(ctx, caller, action, data);
-  const mkMarketer = async (name, phone) => {
-    const { uid } = await call(owner, "createMarketer", { name, phone, password: "correct horse 1" });
-    return { uid, name, role: "marketer" };
-  };
-  const A = await mkMarketer("Ebrima Jallow", "7000001");
-  const B = await mkMarketer("Fatou Ceesay", "7000002");
-  return {
-    ctx,
-    store,
-    owner,
-    A,
-    B,
-    call,
-    mkMarketer,
-    advance: (ms) => (clock += ms),
-    setClock: (ms) => (clock = ms),
-  };
-}
-
-const customer = (phone, extra = {}) => ({
-  name: "Demo Customer",
-  phone,
-  products: ["aviator"],
-  smsConsent: true,
-  adultConfirmed: true,
-  ...extra,
-});
-
-async function rejects(promise, code, re) {
-  await assert.rejects(promise, (e) => {
-    assert.ok(e instanceof domain.DomainError, `expected DomainError, got ${e}`);
-    assert.equal(e.code, code);
-    if (re) assert.match(e.message, re);
-    return true;
-  });
-}
 
 // ---------- phone + contacts ----------
 
@@ -227,24 +120,23 @@ test("marketer creation: credential rules, sign-in keys, conflicts and audit", a
 
 // ---------- verification + deposits ----------
 
-function dep(id, amountGmd, atMs, extra = {}) {
-  return { externalTxnId: id, amountMinor: Math.round(amountGmd * 100), currency: "GMD", kind: "deposit", depositedAtMs: atMs, channel: "modempay", ...extra };
-}
 
-test("new signup verifies, deposits count once, first vs subsequent split, totals per product", async () => {
+test("signup after the number was recorded verifies; deposits count once; first vs later split", async () => {
   const t = await setup();
   const key = domain.canonicalPhone("7012345").key;
-  t.ctx.providers.aviator.accounts.set(key, { state: "matched", accountId: "P1", registeredAtMs: T0 - 2 * HOUR });
-  t.ctx.providers.aviator.deposits.set("P1", [dep("tx1", 100, T0 - HOUR), dep("tx2", 50.5, T0 + HOUR)]);
-
+  // Marketer records the number first; the customer then signs up on their own phone.
   const { contact } = await t.call(t.A, "createContact", customer("7012345"));
-  assert.equal(contact.accounts.aviator.state, "matched");
-  assert.equal(contact.accounts.aviator.attribution, "new_signup");
-  assert.deepEqual(contact.verifiedProducts, ["aviator"]);
+  assert.equal(contact.accounts.aviator.state, "not_found");
+  t.ctx.providers.aviator.accounts.set(key, { state: "matched", accountId: "P1", registeredAtMs: T0 + 10 * 60_000 });
+  t.ctx.providers.aviator.deposits.set("P1", [dep("tx1", 100, T0 + 20 * 60_000), dep("tx2", 50.5, T0 + HOUR)]);
+  t.advance(2 * HOUR);
+  await t.call(t.owner, "syncNow");
+  const c2 = (await t.call(t.A, "listContacts")).rows[0];
+  assert.equal(c2.accounts.aviator.attribution, "new_signup");
+  assert.deepEqual(c2.verifiedProducts, ["aviator"]);
 
   // replayed events and repeated syncs never double count
   t.ctx.providers.aviator.deposits.get("P1").push(dep("tx2", 50.5, T0 + HOUR));
-  t.advance(2 * HOUR);
   await t.call(t.owner, "syncNow");
   await t.call(t.owner, "syncNow");
 
@@ -263,6 +155,29 @@ test("new signup verifies, deposits count once, first vs subsequent split, total
   assert.equal(today.totals.products.aviator.depositsMinor, 15050);
   const before = await t.call(t.A, "dashboard", { range: "custom", from: "2026-10-01", to: "2026-10-19" });
   assert.equal(before.totals.products.aviator.depositsMinor, 0);
+});
+
+test("a registration minutes before recording is NOT credited automatically", async () => {
+  const t = await setup();
+  const key = domain.canonicalPhone("7012345").key;
+  t.ctx.providers.aviator.accounts.set(key, { state: "matched", accountId: "P2", registeredAtMs: T0 - 30 * 60_000 });
+  t.ctx.providers.aviator.deposits.set("P2", [dep("e1", 80, T0 - 10 * 60_000), dep("e2", 40, T0 + HOUR)]);
+  const { contact } = await t.call(t.A, "createContact", customer("7012345"));
+  assert.equal(contact.accounts.aviator.attribution, "needs_review");
+  assert.equal(contact.accounts.aviator.counted, false);
+  t.advance(2 * HOUR);
+  await t.call(t.owner, "syncNow");
+  assert.equal((await t.call(t.A, "dashboard")).totals.products.aviator.depositsMinor, 0);
+
+  const [row] = (await t.call(t.owner, "listDisputes")).rows;
+  assert.equal(row.reviewHint, "registered_shortly_before");
+  await rejects(t.call(t.owner, "resolveAttribution", { id: row.id, decision: "accept", note: "Helped at the stall" }), "invalid-argument", /count from/);
+  // Owner confirms the marketer signed them up: count from registration, so the first deposit counts too.
+  await t.call(t.owner, "resolveAttribution", { id: row.id, decision: "accept", countFrom: "registration", note: "Helped at the stall" });
+  const av = (await t.call(t.A, "dashboard")).totals.products.aviator;
+  assert.equal(av.depositsMinor, 12000);
+  assert.equal(av.firstDepositCount, 1);
+  assert.equal(av.firstDepositsMinor, 8000);
 });
 
 test("existing customers are not new registrations until the owner decides, with audit", async () => {
@@ -284,8 +199,9 @@ test("existing customers are not new registrations until the owner decides, with
   const disputes = await t.call(t.owner, "listDisputes");
   assert.equal(disputes.rows.length, 1);
   assert.equal(disputes.rows[0].hadPriorDeposits, true);
-  await rejects(t.call(t.owner, "resolveAttribution", { id: disputes.rows[0].id, decision: "accept" }), "invalid-argument", /Reason/);
-  await t.call(t.owner, "resolveAttribution", { id: disputes.rows[0].id, decision: "accept", note: "Reactivated by Ebrima" });
+  assert.equal(disputes.rows[0].reviewHint, "registered_long_before");
+  await rejects(t.call(t.owner, "resolveAttribution", { id: disputes.rows[0].id, decision: "accept", countFrom: "recorded" }), "invalid-argument", /Reason/);
+  await t.call(t.owner, "resolveAttribution", { id: disputes.rows[0].id, decision: "accept", countFrom: "recorded", note: "Reactivated by Ebrima" });
 
   d = await t.call(t.A, "dashboard");
   assert.equal(d.totals.products.aviator.depositsMinor, 20000, "only deposits after the referral count");
@@ -509,9 +425,11 @@ test("date ranges use Gambia (UTC) calendar boundaries", () => {
   assert.throws(() => domain.resolveRange("custom", now, "2024-01-01", "2026-10-01"));
 });
 
-test("attribution window", () => {
-  assert.equal(domain.classifyAttribution(T0 - 23 * HOUR, T0), "new_signup");
-  assert.equal(domain.classifyAttribution(T0 - 25 * HOUR, T0), "needs_review");
-  assert.equal(domain.classifyAttribution(T0 + 5 * 24 * HOUR, T0), "new_signup");
-  assert.equal(domain.classifyAttribution(null, T0), "needs_review");
+test("attribution: only registrations after recording are automatic; the window is a review hint", () => {
+  assert.deepEqual(domain.classifyAttribution(T0 + 1, T0), { attribution: "new_signup", hint: null });
+  assert.deepEqual(domain.classifyAttribution(T0, T0), { attribution: "new_signup", hint: null });
+  assert.deepEqual(domain.classifyAttribution(T0 - 1, T0), { attribution: "needs_review", hint: "registered_shortly_before" });
+  assert.deepEqual(domain.classifyAttribution(T0 - 23 * HOUR, T0), { attribution: "needs_review", hint: "registered_shortly_before" });
+  assert.deepEqual(domain.classifyAttribution(T0 - 25 * HOUR, T0), { attribution: "needs_review", hint: "registered_long_before" });
+  assert.deepEqual(domain.classifyAttribution(null, T0), { attribution: "needs_review", hint: "registration_time_unknown" });
 });

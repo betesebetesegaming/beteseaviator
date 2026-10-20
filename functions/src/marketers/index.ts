@@ -10,6 +10,7 @@ import { logger } from "firebase-functions/v2";
 import { auth, db } from "../helpers";
 import { DomainError } from "./domain";
 import { aviatorProvider, footballProvider } from "./providers";
+import { recomputeAll } from "./earnings";
 import { authorizeCaller, handle, syncAll, type Ctx } from "./service";
 import { firestoreStore } from "./store";
 
@@ -59,8 +60,10 @@ export const marketers = onCall({ timeoutSeconds: 300 }, async (req) => {
 export const marketersDailySync = onSchedule(
   { schedule: "0 3 * * *", timeZone: "Africa/Banjul", timeoutSeconds: 540, memory: "512MiB" },
   async () => {
-    const status = await syncAll(productionCtx(), 480_000);
-    logger.info("marketers sync", status);
+    const ctx = productionCtx();
+    const status = await syncAll(ctx, 420_000);
+    const marketers = await recomputeAll(ctx);
+    logger.info("marketers sync", { ...status, earningsRecomputed: marketers });
     if (status.errors) logger.error("marketers sync had errors", status);
   },
 );

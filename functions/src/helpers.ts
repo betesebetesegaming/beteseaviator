@@ -88,7 +88,6 @@ export const RESERVED_SLUGS = [
   "play",
   "agent",
   "suspended",
-  "m",
 ];
 
 export const PROVIDERS = ["wave", "afrimoney", "aps", "qmoney"] as const;
