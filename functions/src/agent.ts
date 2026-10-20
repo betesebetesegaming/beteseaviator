@@ -53,6 +53,7 @@ export async function claimSlug(desired: string, uid: string, agentName: string)
   }
   for (let attempt = 0; attempt < 5; attempt++) {
     const candidate = attempt === 0 ? base : `${base}${Math.floor(Math.random() * 900 + 100)}`;
+    if (await isMarketerLoginKey(candidate)) continue;
     try {
       await db.doc(`slugs/${candidate}`).create({ uid, agentName, active: true });
       return candidate;
@@ -61,6 +62,13 @@ export async function claimSlug(desired: string, uid: string, agentName: string)
     }
   }
   throw new HttpsError("already-exists", "Username is taken — choose another.");
+}
+
+/** True when a Betese Marketer already signs in with this key — agents must not take it over. */
+async function isMarketerLoginKey(key: string, exceptUid?: string): Promise<boolean> {
+  const snap = await db.doc(`staffLogins/${key}`).get();
+  const data = snap.data();
+  return !!data && data.role === "marketer" && data.uid !== exceptUid;
 }
 
 /** Keeps agent username login + customer referral slugs in sync with the user profile. */
@@ -78,10 +86,12 @@ export async function ensureAgentLoginDocs(
     { uid, agentName: profile.name, active: profile.status === "active" },
     { merge: true }
   );
-  batch.set(db.doc(`staffLogins/${slug}`), { uid, role: "agent" }, { merge: true });
+  if (!(await isMarketerLoginKey(slug, uid))) {
+    batch.set(db.doc(`staffLogins/${slug}`), { uid, role: "agent" }, { merge: true });
+  }
 
   const nameKey = staffLoginKey(profile.name);
-  if (nameKey && nameKey !== slug) {
+  if (nameKey && nameKey !== slug && !(await isMarketerLoginKey(nameKey, uid))) {
     batch.set(db.doc(`staffLogins/${nameKey}`), { uid, role: "agent" }, { merge: true });
   }
   await batch.commit();

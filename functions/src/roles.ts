@@ -2,10 +2,15 @@ import { normalizeCommissionRate } from "./commissionRate";
 import type { Settings } from "./helpers";
 
 /** Canonical roles — legacy super_agent/sub_agent still accepted in Firestore. */
-export type Role = "admin" | "agent" | "player";
+export type Role = "admin" | "agent" | "player" | "marketer";
 
 export function isAgentRole(role: string | undefined | null): boolean {
   return role === "agent" || role === "super_agent" || role === "sub_agent";
+}
+
+/** Betese Marketers staff — no wallet, slug or commissions; customers live in mk* collections. */
+export function isMarketerRole(role: string | undefined | null): boolean {
+  return role === "marketer";
 }
 
 export function isStaffRole(role: string | undefined | null): boolean {

@@ -15,6 +15,7 @@ export const STAFF_ROLES: Role[] = ["admin", ...AGENT_ROLES];
 export function roleLabel(role: Role | string): string {
   if (isAgentRole(role)) return "Agent Marketer";
   if (role === "admin") return "Admin";
+  if (role === "marketer") return "Betese Marketer";
   if (role === "player") return "Player";
   return String(role);
 }

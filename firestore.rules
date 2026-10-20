@@ -251,6 +251,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /** Betese Marketers (/m) — customer directory, deposits, campaigns, audit.
+     *  No client reads or writes at all: every access goes through the `marketers`
+     *  callable, which re-checks role, active status and ownership per request. */
+    match /mkContacts/{id} { allow read, write: if false; }
+    match /mkConsentEvents/{id} { allow read, write: if false; }
+    match /mkProductAccounts/{id} { allow read, write: if false; }
+    match /mkDeposits/{id} { allow read, write: if false; }
+    match /mkCampaignRevisions/{id} { allow read, write: if false; }
+    match /mkTemplates/{id} { allow read, write: if false; }
+    match /mkSettings/{id} { allow read, write: if false; }
+    match /mkAudit/{id} { allow read, write: if false; }
+
     match /{document=**} {
       allow read, write: if false;
     }

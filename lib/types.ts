@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 
-export type Role = "admin" | "agent" | "super_agent" | "sub_agent" | "player";
+export type Role = "admin" | "agent" | "super_agent" | "sub_agent" | "player" | "marketer";
 export type UserStatus = "active" | "suspended";
 
 export interface UserProfile {

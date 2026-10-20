@@ -42,6 +42,7 @@ const AuthContext = createContext<AuthState>({
 });
 
 export function homeFor(role: Role | undefined | null): string {
+  if (role === "marketer") return "/m";
   if (role === "admin" || isAgentRole(role)) return "/admin";
   if (role === "player") return "/play";
   return "/play";
@@ -60,7 +61,7 @@ const STAFF_PROFILE_MAX_WAIT_MS = 12000;
 function isStaffPath(): boolean {
   if (typeof window === "undefined") return false;
   const p = window.location.pathname;
-  return p === "/s" || p.startsWith("/admin") || p.startsWith("/agent");
+  return p === "/s" || p === "/m" || p.startsWith("/m/") || p.startsWith("/admin") || p.startsWith("/agent");
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

@@ -196,6 +196,124 @@
         { "fieldPath": "agentId", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "mkContacts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "recordedAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkContacts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "searchName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkContacts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "products", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "mkContacts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "verifiedProducts", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "mkContacts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "verifiedCount", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkContacts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "products", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "phoneKey", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkDeposits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "product", "order": "ASCENDING" },
+        { "fieldPath": "currency", "order": "ASCENDING" },
+        { "fieldPath": "counted", "order": "ASCENDING" },
+        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "depositedAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkDeposits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "product", "order": "ASCENDING" },
+        { "fieldPath": "currency", "order": "ASCENDING" },
+        { "fieldPath": "counted", "order": "ASCENDING" },
+        { "fieldPath": "isFirst", "order": "ASCENDING" },
+        { "fieldPath": "depositedAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkDeposits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "product", "order": "ASCENDING" },
+        { "fieldPath": "currency", "order": "ASCENDING" },
+        { "fieldPath": "counted", "order": "ASCENDING" },
+        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "depositedAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkDeposits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "product", "order": "ASCENDING" },
+        { "fieldPath": "currency", "order": "ASCENDING" },
+        { "fieldPath": "counted", "order": "ASCENDING" },
+        { "fieldPath": "isFirst", "order": "ASCENDING" },
+        { "fieldPath": "depositedAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkProductAccounts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "decision", "order": "ASCENDING" },
+        { "fieldPath": "matchedAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkCampaignRevisions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkCampaignRevisions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

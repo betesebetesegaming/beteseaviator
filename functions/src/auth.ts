@@ -35,7 +35,7 @@ import {
 import { allocatePlayerNumber, formatPlayerId } from "./playerIds";
 import { assertValidPassword, PASSWORD_MIN, PASSWORD_MAX } from "./passwordPolicy";
 import { verifySmsOtp } from "./routes/otp";
-import { isAgentRole, isStaffRole as isStaffRoleCheck } from "./roles";
+import { isAgentRole, isMarketerRole, isStaffRole as isStaffRoleCheck } from "./roles";
 
 /** WARNING: Do NOT use Firebase Phone Auth for OTP. Gambian SMS = Africell sendOtp/verifyOtp only. */
 
@@ -463,7 +463,7 @@ export const resolveStaffSession = onCall(async (req) => {
   if (profile.status !== "active") {
     throw new HttpsError("permission-denied", "Account suspended.");
   }
-  if (!isStaffRole(profile.role)) {
+  if (!isStaffRole(profile.role) && !isMarketerRole(profile.role)) {
     throw new HttpsError("permission-denied", "This account is not authorized for the staff portal.");
   }
 
