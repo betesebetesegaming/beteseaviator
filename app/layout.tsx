@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { AppProviders } from "@/components/AppProviders";
 import { PublicEnvScript } from "@/components/public-env-script";
+import { TestEnvBanner } from "@/components/test-env-banner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -57,6 +58,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-slate-950 text-slate-100" suppressHydrationWarning>
         <PublicEnvScript />
+        <TestEnvBanner />
         <AppProviders>
             {children}
           <Toaster

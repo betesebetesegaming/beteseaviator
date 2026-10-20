@@ -21,6 +21,8 @@ export const auth =
 /** Analytics only works in the browser; load lazily and ignore failures (ad blockers etc.). */
 export async function initAnalytics() {
   if (typeof window === "undefined") return null;
+  // Test builds (marketer preview) never send analytics.
+  if (process.env.NEXT_PUBLIC_TEST_ENV === "1") return null;
   try {
     const { getAnalytics, isSupported } = await import("firebase/analytics");
     if (await isSupported()) return getAnalytics(app);
