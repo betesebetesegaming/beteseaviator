@@ -93,6 +93,11 @@ cd functions; npm run test:emulator   # Firestore emulator: real rules + real Fi
 `test:emulator` needs Java 21 and the Firebase CLI on PATH; it uses the offline project `demo-betese-marketers` and
 never contacts the live project.
 
+Results on 20 Oct 2026 (Temurin JDK 21.0.12.1, firebase-tools 15.34.0, Node 24.19): **unit 32/32 pass, emulator 8/8 pass**
+(rules: mk* closed to every client; marketer limited to own profile + public docs; marketers cannot create payment
+requests while players still can; players/agents/admin regression matrix unchanged. Store: create conflicts, deep merge,
+cursors, count/sum, transaction rollback, full service flow on real Firestore).
+
 ## Deployment changes (not done — needs owner approval)
 
 1. `firebase deploy --only firestore:indexes` — 21 new indexes on `mk*` collections; wait until all show *Enabled*.
