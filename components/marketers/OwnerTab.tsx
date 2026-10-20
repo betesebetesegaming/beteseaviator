@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { dateTime, mk, mkError, PRODUCT_LABEL, type ApprovedLink, type Cursor, type MkState, type Template } from "@/lib/marketersApi";
+import { ApplicationsReview, GrowthSettings } from "./OwnerGrowth";
+import { EarningsDisputes, PaymentRequests } from "./GrowthSections";
 import { Btn, Choice, Empty, ErrorLine, Field, H2, Loading, Notice, Panel, Tag, TextArea, TextInput } from "./ui";
 
-type Section = "team" | "disputes" | "templates" | "settings" | "audit";
+type Section = "team" | "applications" | "money" | "disputes" | "templates" | "settings" | "audit";
 
 function useAction() {
   const [busy, setBusy] = useState(false);
@@ -454,7 +456,9 @@ export function OwnerTab({ state, reloadState }: { state: MkState; reloadState: 
   const [section, setSection] = useState<Section>("team");
   const sections: { id: Section; label: string }[] = [
     { id: "team", label: "Team & access" },
-    { id: "disputes", label: "Disputes" },
+    { id: "applications", label: "Applications" },
+    { id: "money", label: "Payment requests" },
+    { id: "disputes", label: "Registration reviews" },
     { id: "templates", label: "Templates" },
     { id: "settings", label: "Links & settings" },
     { id: "audit", label: "Audit" },
@@ -476,9 +480,21 @@ export function OwnerTab({ state, reloadState }: { state: MkState; reloadState: 
         ))}
       </div>
       {section === "team" && <Team />}
+      {section === "applications" && <ApplicationsReview />}
+      {section === "money" && (
+        <>
+          <PaymentRequests owner />
+          <EarningsDisputes owner />
+        </>
+      )}
       {section === "disputes" && <Disputes />}
       {section === "templates" && <Templates />}
-      {section === "settings" && <Settings state={state} reloadState={reloadState} />}
+      {section === "settings" && (
+        <>
+          <GrowthSettings state={state} reloadState={reloadState} />
+          <Settings state={state} reloadState={reloadState} />
+        </>
+      )}
       {section === "audit" && <Audit />}
     </div>
   );

@@ -32,7 +32,14 @@ export interface MkState {
     football: { connected: boolean; missing: string[] };
     sms: { connected: boolean; sendingEnabled: boolean; missing: string[] };
   };
-  settings?: { reviewHintHours: number; smsPricePerSegmentMinor: number | null; senderId: string | null };
+  settings?: {
+    reviewHintHours: number;
+    smsPricePerSegmentMinor: number | null;
+    senderId: string | null;
+    commissionTiers: Tier[];
+    leaderboardEnabled: boolean;
+    applicationsOpen: boolean;
+  };
 }
 
 export interface AccountState {
@@ -125,13 +132,120 @@ export type Cursor = { v: unknown; id: string } | null;
 export type Term =
   | { type: "customer_reward"; product: Product; qualifies: "verified_signup" | "first_deposit"; minFirstDepositMinor: number; amountMinor: number }
   | { type: "deposit_commission"; product: Product; basisPoints: number }
-  | { type: "campaign_payment"; campaignId: string; amountMinor: number };
+  | { type: "campaign_payment"; campaignId: string; amountMinor: number }
+  | TargetCommissionTerm;
+
+export type Period = "weekly" | "monthly";
+
+export interface TargetCommissionTerm {
+  type: "target_commission";
+  products: Product[];
+  period: Period;
+  customerTarget: number;
+  depositTargetMinor: number;
+  rateBp: number;
+  missedRateBp: number;
+  qualifyingDays: number;
+  conditions?: string[];
+}
+
+export interface Tier {
+  minDepositTargetMinor: number;
+  minCustomerTarget: number;
+  rateBp: number;
+}
+
+export interface TargetCard {
+  target: null | {
+    agreementId: string;
+    products: Product[];
+    period: Period;
+    customerTarget: number;
+    depositTargetMinor: number;
+    rateBp: number;
+    missedRateBp: number;
+    qualifyingDays: number;
+    startMs: number;
+    endMs: number | null;
+    conditions: string[];
+    current: null | {
+      key: string;
+      startMs: number;
+      endMs: number;
+      newCustomers: number;
+      customersRemaining: number;
+      qualifyingMinor: number;
+      qualifyingByProduct: Partial<Record<Product, number>>;
+      depositsRemainingMinor: number;
+      met: boolean;
+    };
+    history: { key: string; met: boolean; newCustomers: number; qualifyingMinor: number }[];
+  };
+  awaiting: (Agreement & { termsHash: string })[];
+  summary: { currency: string; pendingMinor: number; approvedMinor: number; paidMinor: number };
+  badges: { id: string; label: string; earned: boolean }[];
+}
+
+export interface Application {
+  id: string;
+  kind: "application" | "target_proposal";
+  status: "pending" | "reviewing" | "approved" | "rejected";
+  name: string;
+  phone?: string | null;
+  invitedBy?: string | null;
+  invitedByName?: string | null;
+  marketerId?: string | null;
+  products: Product[];
+  period: Period;
+  customerTarget: number;
+  depositTargetMinor: number;
+  requestedRateBp: number;
+  estimatePerPeriodMinor: number;
+  tierMaxRateBp: number | null;
+  tiersConfigured: boolean;
+  note: string;
+  createdAtMs: number;
+  reviewNote: string | null;
+}
+
+export interface PaymentRequest {
+  id: string;
+  marketerId: string;
+  marketerName: string;
+  earningIds: string[];
+  totalMinor: number;
+  currency: string;
+  method: string;
+  note: string;
+  status: "open" | "paid" | "rejected" | "cancelled";
+  createdAtMs: number;
+  reviewNote?: string;
+}
+
+export interface EarningsDispute {
+  id: string;
+  marketerId: string;
+  marketerName: string;
+  earningId: string | null;
+  message: string;
+  status: "open" | "resolved" | "rejected";
+  resolution?: string;
+  adjustmentMinor?: number;
+  createdAtMs: number;
+}
+
+export function pct(bp: number): string {
+  return `${(bp / 100).toFixed(bp % 100 === 0 ? 0 : 2)}%`;
+}
 
 export interface Agreement {
   id: string;
   marketerId: string;
   marketerName?: string;
-  status: "draft" | "approved" | "ended";
+  status: "draft" | "awaiting_acceptance" | "active" | "ended" | "declined" | "withdrawn";
+  termsHash?: string;
+  acceptedAtMs?: number;
+  earningFromMs?: number;
   terms: Term[];
   effectiveFromMs: number;
   effectiveToMs: number | null;
@@ -208,6 +322,13 @@ export function termText(t: Term): string {
   }
   if (t.type === "deposit_commission") {
     return `${(t.basisPoints / 100).toFixed(2)}% of net verified ${PRODUCT_LABEL[t.product]} deposits, per month`;
+  }
+  if (t.type === "target_commission") {
+    const products = t.products.map((p) => PRODUCT_LABEL[p]).join(" + ");
+    const targets = [t.customerTarget ? `${t.customerTarget} new customers` : "", t.depositTargetMinor ? `${money(t.depositTargetMinor)} qualifying deposits` : ""]
+      .filter(Boolean)
+      .join(" and ");
+    return `${products}: ${pct(t.rateBp)} commission per ${t.period === "weekly" ? "week" : "month"} when ${targets} are reached; ${t.missedRateBp ? pct(t.missedRateBp) : "nothing"} if missed`;
   }
   return `${money(t.amountMinor)} for campaign ${t.campaignId.slice(0, 8)}… once you confirm it was completed`;
 }

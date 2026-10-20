@@ -27,12 +27,15 @@ import {
   resolveRange,
   smsSegments,
   validateLinks,
+  validateTiers,
   type ApprovedLink,
+  type Tier,
   type Product,
 } from "./domain";
 import { SMS_MISSING, type Providers } from "./providers";
 import { AlreadyExistsError, type Data, type Doc, type Store, type Where } from "./store";
 import { EARNINGS_ACTIONS, recomputeAll, recomputeEarnings } from "./earnings";
+import { GROWTH_ACTIONS, PUBLIC_ACTIONS } from "./growth";
 
 export const C = {
   contacts: "mkContacts",
@@ -103,20 +106,27 @@ export async function authorizeCaller(store: Store, uid: string | undefined, aut
 
 // ---------- settings + audit ----------
 
-interface Settings {
+export interface Settings {
   links: ApprovedLink[];
   reviewHintHours: number;
   smsPricePerSegmentMinor: number | null;
   senderId: string | null;
+  /** Owner-configured; empty until the owner sets them (then proposals just go to review). */
+  commissionTiers: Tier[];
+  leaderboardEnabled: boolean;
+  applicationsOpen: boolean;
 }
 
-async function loadSettings(store: Store): Promise<Settings> {
+export async function loadSettings(store: Store): Promise<Settings> {
   const d = (await store.get(`${C.settings}/config`))?.data ?? {};
   return {
     links: Array.isArray(d.links) && d.links.length ? (d.links as ApprovedLink[]) : DEFAULT_LINKS,
     reviewHintHours: Number(d.reviewHintHours ?? DEFAULT_REVIEW_HINT_HOURS),
     smsPricePerSegmentMinor: d.smsPricePerSegmentMinor == null ? null : Number(d.smsPricePerSegmentMinor),
     senderId: d.senderId ? String(d.senderId) : null,
+    commissionTiers: Array.isArray(d.commissionTiers) ? (d.commissionTiers as Tier[]) : [],
+    leaderboardEnabled: d.leaderboardEnabled === true,
+    applicationsOpen: d.applicationsOpen !== false,
   };
 }
 
@@ -206,6 +216,9 @@ async function getState(ctx: Ctx, caller: Caller): Promise<Data> {
       ? {
           settings: {
             reviewHintHours: s.reviewHintHours,
+            commissionTiers: s.commissionTiers,
+            leaderboardEnabled: s.leaderboardEnabled,
+            applicationsOpen: s.applicationsOpen,
             smsPricePerSegmentMinor: s.smsPricePerSegmentMinor,
             senderId: s.senderId,
           },
@@ -544,7 +557,7 @@ export async function syncAccountDeposits(ctx: Ctx, accountDocId: string): Promi
   return { added, duplicates };
 }
 
-/** Scheduled / owner-triggered pass over Aviator contacts. Resumes from a saved cursor. */
+/** Scheduled / owner-triggered pass over all contacts. Resumes from a saved cursor. */
 export async function syncAll(ctx: Ctx, budgetMs = 240_000): Promise<Data> {
   const started = ctx.now();
   const statusPath = `${C.settings}/syncStatus`;
@@ -554,8 +567,8 @@ export async function syncAll(ctx: Ctx, budgetMs = 240_000): Promise<Data> {
   let errors = 0;
   let complete = false;
   while (ctx.now() - started < budgetMs) {
+    // Every contact: matchContact checks only the products each customer chose, and skips disconnected ones.
     const rows = await ctx.store.query(C.contacts, {
-      where: [["products", "array-contains", "aviator"]],
       orderBy: ["phoneKey", "asc"],
       limit: 50,
       after,
@@ -755,9 +768,19 @@ export function loginKeyFromName(name: string): string {
 
 async function createMarketer(ctx: Ctx, caller: Caller, data: Data): Promise<Data> {
   if (!isOwner(caller)) deny();
-  const name = cleanName(data.name, 2, 60);
-  const phone = canonicalPhone(data.phone);
-  const password = assertStaffPassword(data.password);
+  return createMarketerAccount(ctx, caller, { name: data.name, phone: data.phone, password: data.password });
+}
+
+/** Owner-only path that creates a marketer login (direct, or when approving an application). */
+export async function createMarketerAccount(
+  ctx: Ctx,
+  caller: Caller,
+  input: { name: unknown; phone: unknown; password: unknown; invitedBy?: string | null; applicationId?: string | null },
+): Promise<Data> {
+  if (!isOwner(caller)) deny();
+  const name = cleanName(input.name, 2, 60);
+  const phone = canonicalPhone(input.phone);
+  const password = assertStaffPassword(input.password);
   const loginKey = loginKeyFromName(name);
   if (loginKey.length < 3 || /^\d+$/.test(loginKey)) {
     throw new DomainError("invalid-argument", "Name must contain at least 3 letters for sign-in.");
@@ -796,6 +819,8 @@ async function createMarketer(ctx: Ctx, caller: Caller, data: Data): Promise<Dat
         createdAt: ctx.timestamp(now),
         createdAtMs: now,
         createdBy: caller.uid,
+        invitedBy: input.invitedBy ?? null,
+        applicationId: input.applicationId ?? null,
       });
       for (const k of keys) tx.create(`staffLogins/${k}`, { uid, role: "marketer" });
     });
@@ -906,6 +931,9 @@ async function saveSettings(ctx: Ctx, caller: Caller, data: Data): Promise<Data>
     if (s !== null && !/^[A-Za-z0-9 ]{3,11}$/.test(s)) throw new DomainError("invalid-argument", "Sender ID must be 3–11 letters or numbers.");
     next.senderId = s;
   }
+  if (data.commissionTiers !== undefined) next.commissionTiers = validateTiers(data.commissionTiers);
+  if (data.leaderboardEnabled !== undefined) next.leaderboardEnabled = data.leaderboardEnabled === true;
+  if (data.applicationsOpen !== undefined) next.applicationsOpen = data.applicationsOpen === true;
   await ctx.store.set(`${C.settings}/config`, { ...next, updatedBy: caller.uid, updatedAtMs: ctx.now() }, true);
   await audit(ctx, caller, "settings.saved", "config", { before, after: next });
   return { ok: true };
@@ -1258,11 +1286,21 @@ const ACTIONS: Record<string, (ctx: Ctx, caller: Caller, data: Data) => Promise<
 };
 
 function actionFor(name: string) {
-  return Object.prototype.hasOwnProperty.call(ACTIONS, name)
-    ? ACTIONS[name]
-    : Object.prototype.hasOwnProperty.call(EARNINGS_ACTIONS, name)
-      ? EARNINGS_ACTIONS[name]
-      : undefined;
+  for (const table of [ACTIONS, EARNINGS_ACTIONS, GROWTH_ACTIONS]) {
+    if (Object.prototype.hasOwnProperty.call(table, name)) return table[name];
+  }
+  return undefined;
+}
+
+/** Actions that work without signing in (the public Become a Marketer page). Nothing else does. */
+export function isPublicAction(action: unknown): boolean {
+  return typeof action === "string" && Object.prototype.hasOwnProperty.call(PUBLIC_ACTIONS, action);
+}
+
+export async function handlePublic(ctx: Ctx, action: unknown, data: unknown, meta: { ip: string }): Promise<Data> {
+  if (!isPublicAction(action)) throw new DomainError("permission-denied", "Sign in first.");
+  const payload = data && typeof data === "object" && !Array.isArray(data) ? (data as Data) : {};
+  return PUBLIC_ACTIONS[String(action)](ctx, payload, meta);
 }
 
 export async function handle(ctx: Ctx, caller: Caller, action: unknown, data: unknown): Promise<Data> {

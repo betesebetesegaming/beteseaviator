@@ -238,14 +238,6 @@
       ]
     },
     {
-      "collectionGroup": "mkContacts",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "products", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "phoneKey", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "mkDeposits",
       "queryScope": "COLLECTION",
       "fields": [
@@ -379,6 +371,89 @@
       "fields": [
         { "fieldPath": "marketerId", "order": "ASCENDING" },
         { "fieldPath": "paidAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkApplications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkApplications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkApplications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkPaymentRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkPaymentRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkPaymentRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkEarningDisputes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkEarningDisputes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkEarningDisputes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkApplications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "phoneKey", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
       ]
     }
   ],

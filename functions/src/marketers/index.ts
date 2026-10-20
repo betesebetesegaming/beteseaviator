@@ -11,7 +11,7 @@ import { auth, db } from "../helpers";
 import { DomainError } from "./domain";
 import { aviatorProvider, footballProvider } from "./providers";
 import { recomputeAll } from "./earnings";
-import { authorizeCaller, handle, syncAll, type Ctx } from "./service";
+import { authorizeCaller, handle, handlePublic, isPublicAction, syncAll, type Ctx } from "./service";
 import { firestoreStore } from "./store";
 
 function productionCtx(): Ctx {
@@ -46,6 +46,11 @@ function productionCtx(): Ctx {
 export const marketers = onCall({ timeoutSeconds: 300 }, async (req) => {
   const ctx = productionCtx();
   try {
+    // Only the public application actions run without sign-in; everything else is authorized per call.
+    if (isPublicAction(req.data?.action)) {
+      const fwd = String(req.rawRequest?.headers["x-forwarded-for"] ?? "").split(",")[0].trim();
+      return await handlePublic(ctx, req.data?.action, req.data?.data, { ip: fwd || req.rawRequest?.ip || "unknown" });
+    }
     const caller = await authorizeCaller(ctx.store, req.auth?.uid, Number(req.auth?.token.auth_time) || undefined);
     return await handle(ctx, caller, req.data?.action, req.data?.data);
   } catch (e) {

@@ -5,8 +5,23 @@
  *
  * Every rate and amount comes from the owner. There are no default rates.
  */
-import { CURRENCY, DomainError, MAX_NOTE, PRODUCTS, cleanText, sha256, type Product } from "./domain";
-import { C, audit, cursorOf, deny, isOwner, parseCursor, type Caller, type Ctx } from "./service";
+import {
+  CURRENCY,
+  DomainError,
+  MAX_NOTE,
+  PRODUCTS,
+  RATE_MAX_BP,
+  RATE_MIN_BP,
+  cleanText,
+  periodWindows,
+  pct,
+  qualifyingText,
+  sha256,
+  tierMaxRate,
+  type Period,
+  type Product,
+} from "./domain";
+import { C, audit, cursorOf, deny, isOwner, loadSettings, parseCursor, type Caller, type Ctx } from "./service";
 import type { Data, Doc, Where } from "./store";
 
 export const E = {
@@ -27,7 +42,20 @@ type Scope = Product | "any";
 export type Term =
   | { type: "customer_reward"; product: Product; qualifies: "verified_signup" | "first_deposit"; minFirstDepositMinor: number; amountMinor: number }
   | { type: "deposit_commission"; product: Product; basisPoints: number }
-  | { type: "campaign_payment"; campaignId: string; amountMinor: number };
+  | { type: "campaign_payment"; campaignId: string; amountMinor: number }
+  | TargetCommission;
+
+/** Target + commission per period. The missed rate is explicit so a missed target never pays the full rate. */
+export interface TargetCommission {
+  type: "target_commission";
+  products: Product[];
+  period: Period;
+  customerTarget: number;
+  depositTargetMinor: number;
+  rateBp: number;
+  missedRateBp: number;
+  qualifyingDays: number;
+}
 
 // ---------- validation ----------
 
@@ -80,20 +108,69 @@ export function validateTerms(input: unknown): Term[] {
         if (!/^[A-Za-z0-9_-]{6,64}$/.test(campaignId)) throw new DomainError("invalid-argument", "Choose the campaign.");
         return { type: "campaign_payment", campaignId, amountMinor: minor(t.amountMinor, "Campaign payment") };
       }
+      case "target_commission":
+        return validateTargetCommission(t);
       default:
         throw new DomainError("invalid-argument", "Unknown payment term.");
     }
   });
 }
 
+export function validateTargetCommission(t: Record<string, unknown>): TargetCommission {
+  const products = Array.isArray(t.products) ? [...new Set(t.products.map((x) => product(x)))] : [];
+  if (!products.length) throw new DomainError("invalid-argument", "Choose Football, Aviator or both.");
+  const period = t.period === "weekly" ? "weekly" : t.period === "monthly" ? "monthly" : null;
+  if (!period) throw new DomainError("invalid-argument", "Choose a weekly or monthly target period.");
+  const customerTarget = Number(t.customerTarget ?? 0);
+  if (!Number.isInteger(customerTarget) || customerTarget < 0 || customerTarget > 100_000) {
+    throw new DomainError("invalid-argument", "Customer target must be a whole number.");
+  }
+  const depositTargetMinor = minor(t.depositTargetMinor ?? 0, "Deposit target", true);
+  if (!customerTarget && !depositTargetMinor) throw new DomainError("invalid-argument", "Set a customer target, a deposit target, or both.");
+  const rateBp = Number(t.rateBp);
+  if (!Number.isInteger(rateBp) || rateBp < RATE_MIN_BP || rateBp > RATE_MAX_BP) {
+    throw new DomainError("invalid-argument", "Commission must be between 5% and 15%.");
+  }
+  const missedRateBp = Number(t.missedRateBp);
+  if (!Number.isInteger(missedRateBp) || missedRateBp < 0 || missedRateBp > rateBp) {
+    throw new DomainError("invalid-argument", "Say what is paid if the target is missed (0% up to the agreed rate).");
+  }
+  const qualifyingDays = Number(t.qualifyingDays);
+  if (!Number.isInteger(qualifyingDays) || qualifyingDays < 1 || qualifyingDays > 3650) {
+    throw new DomainError("invalid-argument", "Set how many days after joining a customer's deposits qualify (1–3650).");
+  }
+  return {
+    type: "target_commission",
+    products: PRODUCTS.filter((p) => products.includes(p)),
+    period,
+    customerTarget,
+    depositTargetMinor,
+    rateBp,
+    missedRateBp,
+    qualifyingDays,
+  };
+}
+
+/** Owner tiers cap the agreed rate for the agreed targets — a higher target alone unlocks nothing. */
+async function assertWithinTiers(ctx: Ctx, terms: Term[]): Promise<void> {
+  const { commissionTiers } = await loadSettings(ctx.store);
+  for (const t of terms) {
+    if (t.type !== "target_commission") continue;
+    const max = tierMaxRate(commissionTiers, t.depositTargetMinor, t.customerTarget);
+    if (max != null && t.rateBp > max) {
+      throw new DomainError("failed-precondition", `Your tiers allow at most ${max ? pct(max) : "no commission"} for these targets.`);
+    }
+  }
+}
+
 // ---------- metrics (shared by targets, rewards, progress) ----------
 
-async function accountsFor(ctx: Ctx, marketerId: string): Promise<Doc[]> {
+export async function accountsFor(ctx: Ctx, marketerId: string): Promise<Doc[]> {
   return ctx.store.query(C.accounts, { where: [["marketerId", "==", marketerId]], limit: 10_000 });
 }
 
 /** When the marketer acquired the account: its registration for automatic new signups, else the owner's counting start. */
-function acquiredAtMs(acc: Data): number {
+export function acquiredAtMs(acc: Data): number {
   return acc.attribution === "new_signup" ? Number(acc.registeredAtMs ?? acc.countFromMs) : Number(acc.countFromMs);
 }
 
@@ -269,43 +346,136 @@ async function saveAgreementDraft(ctx: Ctx, caller: Caller, data: Data): Promise
   return { id };
 }
 
-/** Approval freezes the terms. A newer approved agreement ends the previous one where it starts. */
+/**
+ * Owner approval freezes the exact terms and sends them to the marketer. Nothing is earned until
+ * the marketer accepts. Statuses: draft → awaiting_acceptance → active → ended
+ * (or declined / withdrawn). Changing anything means a new version; history is never edited.
+ */
 async function approveAgreement(ctx: Ctx, caller: Caller, data: Data): Promise<Data> {
   if (!isOwner(caller)) deny();
   const id = String(data.id ?? "");
   const doc = await ctx.store.get(`${E.agreements}/${id}`);
   if (!doc || doc.data.status !== "draft") throw new DomainError("failed-precondition", "Only drafts can be approved.");
-  const a = doc.data;
-  const active = (await ctx.store.query(E.agreements, { where: [["marketerId", "==", a.marketerId]], limit: 200 })).filter(
-    (r) => r.data.status === "approved",
-  );
-  const from = Number(a.effectiveFromMs);
-  for (const r of active) {
-    if (Number(r.data.effectiveFromMs) >= from) {
-      throw new DomainError("failed-precondition", "Another approved agreement starts on or after this date. End it first.");
-    }
-  }
-  const hash = termsHash(a.terms as Term[], from, (a.effectiveToMs as number | null) ?? null);
+  await assertWithinTiers(ctx, doc.data.terms as Term[]);
+  const hash = termsHash(doc.data.terms as Term[], Number(doc.data.effectiveFromMs), (doc.data.effectiveToMs as number | null) ?? null);
   await ctx.store.txn(async (tx) => {
     const fresh = await tx.get(`${E.agreements}/${id}`);
     if (fresh?.data.status !== "draft") throw new DomainError("failed-precondition", "Already decided.");
-    tx.update(`${E.agreements}/${id}`, { status: "approved", approvedBy: caller.uid, approvedAtMs: ctx.now(), termsHash: hash });
+    tx.update(`${E.agreements}/${id}`, { status: "awaiting_acceptance", approvedBy: caller.uid, approvedAtMs: ctx.now(), termsHash: hash });
+  });
+  await audit(ctx, caller, "agreement.approved", id, { termsHash: hash });
+  return { ok: true, status: "awaiting_acceptance" };
+}
+
+/** Creates an owner-approved version straight away (used when approving an application or proposal). */
+export async function createApprovedVersion(
+  ctx: Ctx,
+  caller: Caller,
+  args: { marketerId: string; marketerName: string; terms: Term[]; fromMs: number; toMs: number | null; note: string; sourceId: string },
+): Promise<string> {
+  await assertWithinTiers(ctx, args.terms);
+  const id = ctx.store.newId(E.agreements);
+  const prior = (await ctx.store.query(E.agreements, { where: [["marketerId", "==", args.marketerId]], limit: 200 })).filter(
+    (r) => r.data.status === "active",
+  );
+  const now = ctx.now();
+  await ctx.store.create(`${E.agreements}/${id}`, {
+    marketerId: args.marketerId,
+    marketerName: args.marketerName,
+    status: "awaiting_acceptance",
+    currency: CURRENCY,
+    terms: args.terms,
+    effectiveFromMs: args.fromMs,
+    effectiveToMs: args.toMs,
+    note: args.note,
+    replaces: prior.map((r) => r.id),
+    sourceId: args.sourceId,
+    createdBy: caller.uid,
+    createdAtMs: now,
+    approvedBy: caller.uid,
+    approvedAtMs: now,
+    termsHash: termsHash(args.terms, args.fromMs, args.toMs),
+  });
+  await audit(ctx, caller, "agreement.approved", id, { sourceId: args.sourceId });
+  return id;
+}
+
+/** The marketer accepts the exact approved terms. Earning starts at max(start date, acceptance). */
+async function acceptAgreement(ctx: Ctx, caller: Caller, data: Data): Promise<Data> {
+  if (isOwner(caller)) deny("Only the marketer can accept their agreement.");
+  const id = String(data.id ?? "");
+  const doc = await ctx.store.get(`${E.agreements}/${id}`);
+  if (!doc || doc.data.marketerId !== caller.uid) throw new DomainError("not-found", "Agreement not found.");
+  const a = doc.data;
+  if (a.status !== "awaiting_acceptance") throw new DomainError("failed-precondition", "This agreement is not waiting for your acceptance.");
+  const terms = a.terms as Term[];
+  if (termsHash(terms, Number(a.effectiveFromMs), (a.effectiveToMs as number | null) ?? null) !== a.termsHash) {
+    throw new DomainError("failed-precondition", "These terms do not match what the owner approved. Ask for a new version.");
+  }
+  if (data.termsHash !== a.termsHash) {
+    throw new DomainError("failed-precondition", "The terms changed since you opened them. Reload and read them again.");
+  }
+  const now = ctx.now();
+  const startMs = Math.max(Number(a.effectiveFromMs), now);
+  if (a.effectiveToMs != null && Number(a.effectiveToMs) <= startMs) {
+    throw new DomainError("failed-precondition", "This agreement has already expired.");
+  }
+  const active = (await ctx.store.query(E.agreements, { where: [["marketerId", "==", caller.uid]], limit: 200 })).filter(
+    (r) => r.data.status === "active",
+  );
+  await ctx.store.txn(async (tx) => {
+    const fresh = await tx.get(`${E.agreements}/${id}`);
+    if (fresh?.data.status !== "awaiting_acceptance") throw new DomainError("failed-precondition", "Already decided.");
+    tx.update(`${E.agreements}/${id}`, {
+      status: "active",
+      acceptedAtMs: now,
+      acceptedBy: caller.uid,
+      earningFromMs: startMs,
+      acceptedTermsHash: a.termsHash,
+    });
+    // The previous version stops where the new one starts; its earnings stay as they are.
     for (const r of active) {
-      const end = r.data.effectiveToMs == null ? from : Math.min(Number(r.data.effectiveToMs), from);
-      tx.update(`${E.agreements}/${r.id}`, { status: "ended", effectiveToMs: end, supersededBy: id, endedAtMs: ctx.now() });
+      const end = r.data.effectiveToMs == null ? startMs : Math.min(Number(r.data.effectiveToMs), startMs);
+      tx.update(`${E.agreements}/${r.id}`, { status: "ended", effectiveToMs: end, supersededBy: id, endedAtMs: now });
     }
   });
-  await audit(ctx, caller, "agreement.approved", id, { termsHash: hash, ended: active.map((r) => r.id) });
-  await recomputeEarnings(ctx, String(a.marketerId));
+  await audit(ctx, caller, "agreement.accepted", id, { termsHash: a.termsHash, ended: active.map((r) => r.id) });
+  await recomputeEarnings(ctx, caller.uid);
+  return { ok: true, status: "active" };
+}
+
+async function declineAgreement(ctx: Ctx, caller: Caller, data: Data): Promise<Data> {
+  if (isOwner(caller)) deny("Only the marketer can decline their agreement.");
+  const doc = await ctx.store.get(`${E.agreements}/${String(data.id ?? "")}`);
+  if (!doc || doc.data.marketerId !== caller.uid) throw new DomainError("not-found", "Agreement not found.");
+  if (doc.data.status !== "awaiting_acceptance") {
+    throw new DomainError("failed-precondition", "This agreement is not waiting for your acceptance.");
+  }
+  const note = cleanText(data.note, "Reason", MAX_NOTE, true);
+  await ctx.store.set(`${E.agreements}/${doc.id}`, { status: "declined", declinedAtMs: ctx.now(), declineNote: note }, true);
+  await audit(ctx, caller, "agreement.declined", doc.id, { note });
+  return { ok: true };
+}
+
+async function withdrawAgreement(ctx: Ctx, caller: Caller, data: Data): Promise<Data> {
+  if (!isOwner(caller)) deny();
+  const doc = await ctx.store.get(`${E.agreements}/${String(data.id ?? "")}`);
+  if (!doc || doc.data.status !== "awaiting_acceptance") {
+    throw new DomainError("failed-precondition", "Only agreements waiting for acceptance can be withdrawn.");
+  }
+  await ctx.store.set(`${E.agreements}/${doc.id}`, { status: "withdrawn", withdrawnAtMs: ctx.now(), withdrawnBy: caller.uid }, true);
+  await audit(ctx, caller, "agreement.withdrawn", doc.id);
   return { ok: true };
 }
 
 async function endAgreement(ctx: Ctx, caller: Caller, data: Data): Promise<Data> {
   if (!isOwner(caller)) deny();
   const doc = await ctx.store.get(`${E.agreements}/${String(data.id ?? "")}`);
-  if (!doc || doc.data.status !== "approved") throw new DomainError("failed-precondition", "Only approved agreements can be ended.");
+  if (!doc || doc.data.status !== "active") throw new DomainError("failed-precondition", "Only active agreements can be ended.");
   const endMs = data.endDate ? day(data.endDate, "End date") + 86_400_000 : ctx.now();
-  if (endMs <= Number(doc.data.effectiveFromMs)) throw new DomainError("invalid-argument", "End date must be after the start.");
+  if (endMs <= Number(doc.data.earningFromMs ?? doc.data.effectiveFromMs)) {
+    throw new DomainError("invalid-argument", "End date must be after the start.");
+  }
   const to = doc.data.effectiveToMs == null ? endMs : Math.min(Number(doc.data.effectiveToMs), endMs);
   await ctx.store.set(`${E.agreements}/${doc.id}`, { status: "ended", effectiveToMs: to, endedAtMs: ctx.now(), endedBy: caller.uid }, true);
   await audit(ctx, caller, "agreement.ended", doc.id, { effectiveToMs: to });
@@ -322,15 +492,22 @@ async function deleteAgreementDraft(ctx: Ctx, caller: Caller, data: Data): Promi
   return { ok: true };
 }
 
+const MARKETER_VISIBLE = new Set(["awaiting_acceptance", "active", "ended", "declined"]);
+
+export function agreementView(r: Doc): Data {
+  const terms = (r.data.terms as Term[]).map((t) => (t.type === "target_commission" ? { ...t, conditions: qualifyingText(t) } : t));
+  return { id: r.id, ...r.data, terms };
+}
+
 async function listAgreements(ctx: Ctx, caller: Caller, data: Data): Promise<Data> {
   const marketerId = isOwner(caller) ? (data.marketerId ? String(data.marketerId) : null) : caller.uid;
   const where: Where[] = marketerId ? [["marketerId", "==", marketerId]] : [];
   const rows = await ctx.store.query(E.agreements, { where, orderBy: ["createdAtMs", "desc"], limit: 100 });
   return {
     rows: rows
-      // Marketers only ever see what the owner approved — never drafts.
-      .filter((r) => (isOwner(caller) ? r.data.status !== "discarded" : r.data.status === "approved" || r.data.status === "ended"))
-      .map((r) => ({ id: r.id, ...r.data })),
+      // Marketers see what the owner approved for them — never drafts.
+      .filter((r) => (isOwner(caller) ? r.data.status !== "discarded" : MARKETER_VISIBLE.has(String(r.data.status))))
+      .map(agreementView),
   };
 }
 
@@ -351,7 +528,7 @@ async function confirmCampaignCompleted(ctx: Ctx, caller: Caller, data: Data): P
 // ---------- earnings engine ----------
 
 interface Desired {
-  kind: "customer_reward" | "deposit_commission" | "campaign_payment" | "target_bonus";
+  kind: "customer_reward" | "deposit_commission" | "campaign_payment" | "target_bonus" | "target_commission";
   amountMinor: number;
   description: string;
   basis: Data;
@@ -378,16 +555,95 @@ function* months(fromMs: number, toMs: number): Generator<[string, number, numbe
   }
 }
 
+export interface PeriodResult {
+  key: string;
+  startMs: number;
+  endMs: number;
+  open: boolean;
+  newCustomers: number;
+  byProduct: Partial<Record<Product, number>>;
+  totalQualifyingMinor: number;
+  met: boolean;
+}
+
+/**
+ * Per period: new verified customers acquired in it, and qualifying net deposits (counted, GMD,
+ * from customers acquired under this marketer's accepted agreements, within qualifyingDays of
+ * joining). Products are summed separately; the target is judged on their total.
+ */
+export async function targetCommissionPeriods(
+  ctx: Ctx,
+  marketerId: string,
+  t: TargetCommission,
+  fromMs: number,
+  toMs: number,
+  chainStartMs: number,
+  accounts?: Doc[],
+): Promise<PeriodResult[]> {
+  const now = ctx.now();
+  const accs = (accounts ?? (await accountsFor(ctx, marketerId))).filter(
+    (a) => a.data.counted === true && t.products.includes(a.data.product as Product) && acquiredAtMs(a.data) >= chainStartMs,
+  );
+  const acquired = new Map(accs.map((a) => [a.id, acquiredAtMs(a.data)]));
+  const out: PeriodResult[] = [];
+  for (const w of periodWindows(t.period, fromMs, toMs)) {
+    const contacts = new Set<string>();
+    for (const a of accs) {
+      const at = acquiredAtMs(a.data);
+      if (at >= w.startMs && at < w.endMs) contacts.add(String(a.data.contactId));
+    }
+    const byProduct: Partial<Record<Product, number>> = {};
+    for (const p of t.products) {
+      let net = 0;
+      for (const kind of ["deposit", "reversal"]) {
+        const rows = await ctx.store.query(C.deposits, {
+          where: [
+            ["marketerId", "==", marketerId],
+            ["product", "==", p],
+            ["currency", "==", CURRENCY],
+            ["counted", "==", true],
+            ["kind", "==", kind],
+            ["depositedAtMs", ">=", w.startMs],
+            ["depositedAtMs", "<", w.endMs],
+          ],
+          limit: 20_000,
+        });
+        for (const d of rows) {
+          const at = acquired.get(String(d.data.accountDocId));
+          if (at == null || Number(d.data.depositedAtMs) >= at + t.qualifyingDays * 86_400_000) continue;
+          net += (kind === "deposit" ? 1 : -1) * Number(d.data.amountMinor);
+        }
+      }
+      byProduct[p] = net;
+    }
+    const total = Object.values(byProduct).reduce((n: number, v) => n + (v ?? 0), 0);
+    const met = (!t.customerTarget || contacts.size >= t.customerTarget) && (!t.depositTargetMinor || total >= t.depositTargetMinor);
+    out.push({
+      key: w.key,
+      startMs: w.startMs,
+      endMs: w.endMs,
+      open: w.fullEndMs > now,
+      newCustomers: contacts.size,
+      byProduct,
+      totalQualifyingMinor: total,
+      met,
+    });
+  }
+  return out;
+}
+
 async function desiredLines(ctx: Ctx, marketerId: string): Promise<Map<string, Desired>> {
   const now = ctx.now();
   const out = new Map<string, Desired>();
+  // Only agreements the marketer accepted earn anything, and only from the moment of acceptance.
   const agreements = (await ctx.store.query(E.agreements, { where: [["marketerId", "==", marketerId]], limit: 200 })).filter(
-    (r) => r.data.status === "approved" || r.data.status === "ended",
+    (r) => (r.data.status === "active" || r.data.status === "ended") && r.data.acceptedAtMs != null,
   );
   const accounts = await accountsFor(ctx, marketerId);
+  const firstStart = Math.min(...agreements.map((a) => Number(a.data.earningFromMs)), Infinity);
 
   for (const ag of agreements) {
-    const fromMs = Number(ag.data.effectiveFromMs);
+    const fromMs = Number(ag.data.earningFromMs);
     const toMs = Math.min(ag.data.effectiveToMs == null ? Infinity : Number(ag.data.effectiveToMs), now + 1);
     if (toMs <= fromMs) continue;
     const terms = ag.data.terms as Term[];
@@ -427,6 +683,35 @@ async function desiredLines(ctx: Ctx, marketerId: string): Promise<Map<string, D
             agreementId: ag.id,
             period,
           });
+        }
+      } else if (t.type === "target_commission") {
+        for (const w of await targetCommissionPeriods(ctx, marketerId, t, fromMs, toMs, firstStart, accounts)) {
+          // An open period pays the missed rate until the target is actually reached.
+          const rate = w.met ? t.rateBp : t.missedRateBp;
+          for (const p of t.products) {
+            const qualifying = w.byProduct[p] ?? 0;
+            const amount = Math.trunc((qualifying * rate) / 10_000);
+            if (amount === 0) continue;
+            const state = w.open ? (w.met ? "target reached so far" : "in progress") : w.met ? "target met" : "target missed";
+            out.set(`tc_${ag.id}_${i}_${w.key}_${p}`, {
+              kind: "target_commission",
+              amountMinor: amount,
+              description: `${p === "aviator" ? "Aviator" : "Football"} commission ${pct(rate)} · ${w.key} (${state})`,
+              basis: {
+                period: w.key,
+                periodOpen: w.open,
+                newCustomers: w.newCustomers,
+                customerTarget: t.customerTarget,
+                qualifyingDepositsMinor: qualifying,
+                totalQualifyingMinor: w.totalQualifyingMinor,
+                depositTargetMinor: t.depositTargetMinor,
+                met: w.met,
+                rateBp: rate,
+              },
+              agreementId: ag.id,
+              period: w.key,
+            });
+          }
         }
       } else if (t.type === "campaign_payment") {
         const done = await ctx.store.get(`${E.completions}/${t.campaignId}`);
@@ -479,7 +764,8 @@ export async function recomputeEarnings(ctx: Ctx, marketerId: string): Promise<{
   let updated = 0;
   let adjustments = 0;
 
-  const keys = new Set<string>([...desired.keys(), ...[...byKey.keys()]]);
+  // Owner manual adjustments (from disputes) are not derived from facts, so recalculation leaves them alone.
+  const keys = new Set<string>([...desired.keys(), ...[...byKey.keys()].filter((k) => !k.startsWith("manual_"))]);
   for (const key of keys) {
     const want = desired.get(key);
     const lines = byKey.get(key) ?? [];
@@ -543,7 +829,7 @@ export async function recomputeAll(ctx: Ctx): Promise<number> {
 
 // ---------- earnings: list, approve, pay ----------
 
-async function earningsSummary(ctx: Ctx, marketerId: string): Promise<Data> {
+export async function earningsSummary(ctx: Ctx, marketerId: string): Promise<Data> {
   const out: Data = { currency: CURRENCY };
   for (const status of ["pending", "approved", "paid"]) {
     out[`${status}Minor`] = await ctx.store.sum(E.earnings, [["marketerId", "==", marketerId], ["status", "==", status]], "amountMinor");
@@ -686,6 +972,9 @@ export const EARNINGS_ACTIONS: Record<string, (ctx: Ctx, caller: Caller, data: D
   listTargets,
   saveAgreementDraft,
   approveAgreement,
+  acceptAgreement,
+  declineAgreement,
+  withdrawAgreement,
   endAgreement,
   deleteAgreementDraft,
   listAgreements,

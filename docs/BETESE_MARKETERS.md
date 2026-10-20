@@ -38,13 +38,37 @@ amount and percentage is entered by the owner.
 | Piece | Who | Rule |
 |---|---|---|
 | Targets | Marketer proposes (measure, product, threshold, dates) | Owner approves with a bonus amount (0 allowed) or rejects. Approved targets are frozen. Progress is live. |
-| Payment agreement | Owner drafts, then approves separately | Approved terms are frozen; a newer approved agreement ends the previous one on its start date. Marketers never see drafts. |
+| Payment agreement | Owner drafts and approves → **marketer accepts** → active | Statuses `draft → awaiting_acceptance → active → ended` (or `declined` / `withdrawn`). The marketer accepts against a hash of the exact terms. Earning starts at max(start date, acceptance). Accepting a new version ends the previous one at that moment; old versions and their earnings are kept unchanged. Marketers never see drafts. |
+| Target + commission | Term (from an application/proposal or the owner) | Weekly (Mon–Sun) or monthly; customer target and/or qualifying-deposit target; rate 5–15% if met and an explicit owner-set rate (0% up to the agreed rate) if missed; owner-set number of days a customer's deposits qualify after joining. Products are paid on separate lines; the target is judged on their total. Open periods pay the missed rate until the target is reached. Owner tiers cap the rate. |
 | Fixed customer reward | Term | Per counted new customer of a product, on verified signup or on first deposit (optional minimum). |
 | Percentage commission | Term (basis points) | Per calendar month on **net** verified deposits (deposits − reversals) of a product; truncated to whole bututs. Open months update while pending. |
 | Fixed campaign payment | Term referencing an approved campaign | Earned only after the owner confirms the campaign was completed. |
 | Target bonus | Approved target with bonus > 0 | Earned once the period has ended and the target was met. |
 | Earnings lines | Engine | `pending → approved → paid` (or `void`). Approved/paid lines never change; later facts (reversals, rejected attribution) create separate **adjustment** lines. Owner voids are respected on recalculation. |
 | Payments | Owner records | Records an off-system payment (Wave/cash/bank/other, reference, date) against approved lines. Moves no money. |
+
+### Become a Marketer, invites, requests, disputes
+
+- **Public application** at `/staff/apply` (no sign-in): name, phone, Football/Aviator/both, weekly/monthly, customer
+  target, deposit target (GMD), requested commission 5–15%. Shows qualifying conditions and a per-period **estimate**
+  (deposit target × requested rate). Limited by owner **commission tiers** (minimum deposit target and optional minimum
+  customers → maximum rate); with no tiers configured, proposals still go to review. 5 submissions per IP per hour;
+  one pending application per phone; existing marketer phones refused; owner can close applications.
+- **Owner review**: sets the final terms (rate, missed-target rate, qualifying days, dates) and a sign-in password;
+  approval creates the marketer login and an agreement **awaiting the applicant's acceptance**. Applicants cannot
+  approve themselves, activate access or change an approved rate.
+- **Propose a new target**: existing marketers send the same proposal; approval creates a new version they must accept.
+- **Invite link**: each marketer gets `/staff/apply?invite=<12-char opaque code>` with Copy and Share. The inviter is
+  recorded server-side; no phone, name or account id is in the URL. **No recruitment commission.**
+- **My Approved Target & Commission** card (marketer Home and Business): products, targets, rates, dates, conditions,
+  this period's progress and remaining, recent periods met/missed, pending/approved/paid, badges, and any offer waiting
+  for acceptance with Accept/Decline.
+- **Payment requests**: marketer requests all approved, unrequested lines; owner records the payment (no money moves)
+  or rejects; requested lines are locked against double requests.
+- **Earnings disputes**: marketer raises one; owner resolves (optionally with a manual adjustment line that still needs
+  approval and is never touched by recalculation) or rejects.
+- **Badges** (recognition only, from verified records) and an **opt-in leaderboard** (owner switch; first name +
+  initial; new verified customers per product this month; no phones, customers or money).
 
 Recalculation runs after the daily sync, after "Sync now", after attribution decisions, agreement approvals and
 campaign confirmations, and on the owner's "Recalculate earnings" button.
@@ -58,10 +82,10 @@ campaign confirmations, and on the owner's "Recalculate earnings" button.
 | `functions/src/auth.ts` `completeRegistration` | Refuses an existing `marketer` profile | None for others. Stops a marketer turning their staff login into a player profile. |
 | `functions/src/httpAuth.ts` `requireHttpAuth` | Returns 403 for `marketer` | None for others. Keeps ModemPay deposit/payout routes away from marketer accounts (no wallets). |
 | `functions/src/agent.ts` | Agent slug/login sync skips a `staffLogins` key owned by a marketer | Identical unless a marketer already owns that exact key. Adds 1–2 document reads per agent session sync. |
-| `functions/src/index.ts` | Exports `marketers`, `marketersDailySync` | Two new Cloud Run services. |
+| `functions/src/index.ts` | Exports `marketers`, `marketersDailySync` | Two new Cloud Run services. `marketers` accepts exactly two actions without sign-in (`applicationInfo`, `apply`); every other action is authorized per call. |
 | `lib/staff-routes.ts`, `lib/auth-context.tsx` | `marketer` signs in at `/s`, home is `/staff/marketers` | Admin/agent/player routing unchanged; `/admin` still excludes marketers. |
-| `firestore.rules` | New `isMarketer()`; marketers cannot create `deposit_requests` / `withdrawal_requests`; 13 `mk*` collections closed to all clients | Players keep both creates; all other rules unchanged. |
-| `firestore.indexes.json` | 21 new composite indexes, all on `mk*` collections | None on existing collections. |
+| `firestore.rules` | New `isMarketer()`; marketers cannot create `deposit_requests` / `withdrawal_requests`; 18 `mk*` collections closed to all clients | Players keep both creates; all other rules unchanged. |
+| `firestore.indexes.json` | 30 new composite indexes, all on `mk*` collections | None on existing collections. |
 
 Not changed: RTDB rules (marketers are in no read list), storage rules, wallets, ledger, games, payments, commissions,
 agent screens, `/s`, middleware, `next.config.ts`.
@@ -86,21 +110,21 @@ no signed callbacks and no per-message price — all required before campaign se
 ## Tests
 
 ```bash
-cd functions; npm test            # 32 unit/acceptance tests, in-memory store
+cd functions; npm test            # 43 unit/acceptance tests, in-memory store
 cd functions; npm run test:emulator   # Firestore emulator: real rules + real Firestore store
 ```
 
 `test:emulator` needs Java 21 and the Firebase CLI on PATH; it uses the offline project `demo-betese-marketers` and
 never contacts the live project.
 
-Results on 20 Oct 2026 (Temurin JDK 21.0.12.1, firebase-tools 15.34.0, Node 24.19): **unit 32/32 pass, emulator 8/8 pass**
+Results on 20 Oct 2026 (Temurin JDK 21.0.12.1, firebase-tools 15.34.0, Node 24.19): **unit 43/43 pass, emulator 8/8 pass** (re-run after the growth features)
 (rules: mk* closed to every client; marketer limited to own profile + public docs; marketers cannot create payment
 requests while players still can; players/agents/admin regression matrix unchanged. Store: create conflicts, deep merge,
 cursors, count/sum, transaction rollback, full service flow on real Firestore).
 
 ## Deployment changes (not done — needs owner approval)
 
-1. `firebase deploy --only firestore:indexes` — 21 new indexes on `mk*` collections; wait until all show *Enabled*.
+1. `firebase deploy --only firestore:indexes` — 30 new indexes on `mk*` collections; wait until all show *Enabled*.
 2. `firebase deploy --only firestore:rules` — changes listed above.
 3. `cd functions && npm run build`, then `firebase deploy --only functions:marketers,functions:marketersDailySync,functions:resolveStaffSession,functions:completeRegistration,functions:agentLogin,functions:adminCreateUser,functions:modempayApi`
    — the two new functions plus existing functions whose code paths changed (`auth.ts`, `agent.ts`, `httpAuth.ts` are

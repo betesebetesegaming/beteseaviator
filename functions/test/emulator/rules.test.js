@@ -50,6 +50,11 @@ const MK = [
   "mkEarnings",
   "mkPayouts",
   "mkCampaignCompletions",
+  "mkApplications",
+  "mkInvites",
+  "mkPaymentRequests",
+  "mkEarningDisputes",
+  "mkRateLimits",
 ];
 
 let players, agent, owner, marketer, marketerB, anon;

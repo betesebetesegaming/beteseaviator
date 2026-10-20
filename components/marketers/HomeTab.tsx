@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { UserPlus } from "lucide-react";
 import { dateTime, mk, mkError, money, type Dashboard, type MkState, type Product, type ProductTotals } from "@/lib/marketersApi";
+import { TargetCard } from "./TargetCard";
 import { Btn, Choice, ErrorLine, Field, H2, Loading, Notice, Panel, Tag, TextInput } from "./ui";
 
 const RANGES = [
@@ -104,6 +105,8 @@ export function HomeTab({ state, onAddCustomer }: { state: MkState; onAddCustome
         </Btn>
       </div>
 
+      {!owner && <TargetCard owner={false} />}
+
       <Panel className="space-y-3">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Date range">
           {RANGES.map((r) => (
@@ -167,7 +170,7 @@ export function HomeTab({ state, onAddCustomer }: { state: MkState; onAddCustome
             </div>
           </Panel>
           {owner && !!data.pendingDisputes && (
-            <Notice tone="amber">{data.pendingDisputes} existing-customer match(es) need your decision — see Owner → Disputes.</Notice>
+            <Notice tone="amber">{data.pendingDisputes} existing-customer match(es) need your decision — see Owner → Registration reviews.</Notice>
           )}
           {data.byMarketer && (
             <Panel>

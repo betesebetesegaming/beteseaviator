@@ -275,6 +275,12 @@ service cloud.firestore {
     match /mkEarnings/{id} { allow read, write: if false; }
     match /mkPayouts/{id} { allow read, write: if false; }
     match /mkCampaignCompletions/{id} { allow read, write: if false; }
+    // Become a Marketer applications, invites, payment requests, earnings disputes, rate limits.
+    match /mkApplications/{id} { allow read, write: if false; }
+    match /mkInvites/{id} { allow read, write: if false; }
+    match /mkPaymentRequests/{id} { allow read, write: if false; }
+    match /mkEarningDisputes/{id} { allow read, write: if false; }
+    match /mkRateLimits/{id} { allow read, write: if false; }
 
     match /{document=**} {
       allow read, write: if false;

@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "test": "npm run build && node --test test/marketers.test.js test/earnings.test.js",
+    "test": "npm run build && node --test test/marketers.test.js test/earnings.test.js test/growth.test.js",
     "test:emulator": "npm run build && firebase emulators:exec --config ../firebase.json --only firestore --project demo-betese-marketers \"node --test --test-concurrency=1 test/emulator/rules.test.js test/emulator/store.test.js\"",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",

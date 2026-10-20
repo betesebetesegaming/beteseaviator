@@ -306,3 +306,117 @@ export function resolveRange(
       return { key: "all", fromMs: 0, toMs: end, label: "All time" };
   }
 }
+
+// ---------- commission tiers, periods, qualifying conditions ----------
+
+/** Commission a marketer may request or be offered: 5%–15%, in basis points. */
+export const RATE_MIN_BP = 500;
+export const RATE_MAX_BP = 1500;
+
+export type Period = "weekly" | "monthly";
+
+/** Owner-configured tier: a proposal reaching these targets may receive up to `rateBp`. */
+export interface Tier {
+  minDepositTargetMinor: number;
+  minCustomerTarget: number;
+  rateBp: number;
+}
+
+export function validateTiers(input: unknown): Tier[] {
+  if (!Array.isArray(input) || input.length > 20) throw new DomainError("invalid-argument", "Provide up to 20 tiers.");
+  const tiers = input.map((raw) => {
+    const t = (raw ?? {}) as Record<string, unknown>;
+    const dep = Number(t.minDepositTargetMinor);
+    const cust = Number(t.minCustomerTarget ?? 0);
+    const rate = Number(t.rateBp);
+    if (!Number.isInteger(dep) || dep < 0 || dep > 1_000_000_000) throw new DomainError("invalid-argument", "Tier deposit target must be whole bututs.");
+    if (!Number.isInteger(cust) || cust < 0 || cust > 100_000) throw new DomainError("invalid-argument", "Tier customer target must be a whole number.");
+    if (!Number.isInteger(rate) || rate < RATE_MIN_BP || rate > RATE_MAX_BP) throw new DomainError("invalid-argument", "Tier commission must be 5%–15%.");
+    return { minDepositTargetMinor: dep, minCustomerTarget: cust, rateBp: rate };
+  });
+  tiers.sort((a, b) => a.rateBp - b.rateBp || a.minDepositTargetMinor - b.minDepositTargetMinor);
+  return tiers;
+}
+
+/**
+ * Highest commission the configured tiers allow for these targets, or null when no tiers are
+ * configured yet (then proposals simply go to the owner for review).
+ */
+export function tierMaxRate(tiers: Tier[], depositTargetMinor: number, customerTarget: number): number | null {
+  if (!tiers.length) return null;
+  let best = 0;
+  for (const t of tiers) {
+    if (depositTargetMinor >= t.minDepositTargetMinor && customerTarget >= t.minCustomerTarget) best = Math.max(best, t.rateBp);
+  }
+  return best;
+}
+
+const DAY_MS = 86_400_000;
+
+/** Start of the Gambia (UTC) week (Monday) or calendar month containing `ms`. */
+export function periodStart(period: Period, ms: number): number {
+  const d = new Date(ms);
+  if (period === "monthly") return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+  const day = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return day - ((d.getUTCDay() + 6) % 7) * DAY_MS;
+}
+
+export function periodEnd(period: Period, startMs: number): number {
+  if (period === "weekly") return startMs + 7 * DAY_MS;
+  const d = new Date(startMs);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
+}
+
+export function periodKey(period: Period, startMs: number): string {
+  const iso = new Date(startMs).toISOString();
+  return period === "weekly" ? `W${iso.slice(0, 10)}` : iso.slice(0, 7);
+}
+
+/** Calendar periods overlapping [fromMs, toMs), each clipped to that window. */
+export function periodWindows(period: Period, fromMs: number, toMs: number): { key: string; startMs: number; endMs: number; fullStartMs: number; fullEndMs: number }[] {
+  const out = [];
+  let s = periodStart(period, fromMs);
+  while (s < toMs && out.length < 600) {
+    const e = periodEnd(period, s);
+    out.push({ key: periodKey(period, s), startMs: Math.max(s, fromMs), endMs: Math.min(e, toMs), fullStartMs: s, fullEndMs: e });
+    s = e;
+  }
+  return out;
+}
+
+export function pct(bp: number): string {
+  return `${(bp / 100).toFixed(bp % 100 === 0 ? 0 : 2)}%`;
+}
+
+/** The exact wording shown to applicants, marketers and the owner for a target + commission term. */
+export function qualifyingText(t: {
+  products: Product[];
+  period: Period;
+  customerTarget: number;
+  depositTargetMinor: number;
+  rateBp: number;
+  missedRateBp: number;
+  qualifyingDays: number | null;
+}): string[] {
+  const products = t.products.map((p) => (p === "aviator" ? "Betese Aviator" : "Betese Football")).join(" and ");
+  const per = t.period === "weekly" ? "week (Monday to Sunday, Gambia time)" : "calendar month";
+  const gmd = (m: number) => `GMD ${(m / 100).toLocaleString("en-GB", { maximumFractionDigits: 2 })}`;
+  const targets = [
+    t.customerTarget ? `${t.customerTarget} new verified customers` : null,
+    t.depositTargetMinor ? `${gmd(t.depositTargetMinor)} of qualifying deposits` : null,
+  ].filter(Boolean);
+  return [
+    `Qualifying customers: new ${products} customers verified as yours — registered after you recorded their number, or approved by the owner.`,
+    `Qualifying deposits: settled deposits into those customers' accounts${t.qualifyingDays ? `, made within ${t.qualifyingDays} days of the customer joining` : ""}, while this agreement is active. Bets, winnings, bonuses and balances never count; reversals are deducted.`,
+    `Targets are measured per ${per}: ${targets.join(" and ") || "no target"}.`,
+    `Commission: ${pct(t.rateBp)} of qualifying deposits in a ${t.period === "weekly" ? "week" : "month"} when the target is met; ${t.missedRateBp ? pct(t.missedRateBp) : "no commission"} when it is missed.`,
+    "Football and Aviator are counted and paid separately. Earnings need owner approval before payment.",
+  ];
+}
+
+/** Privacy-safe leaderboard name: first name and last initial only. */
+export function displayName(name: string): string {
+  const parts = String(name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "Marketer";
+  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.` : parts[0];
+}

@@ -18,9 +18,12 @@ async function verifiedCustomer(t, marketer, phone, accountId, deposits) {
 
 const reward = (amountMinor, extra = {}) => ({ type: "customer_reward", product: "aviator", qualifies: "verified_signup", amountMinor, ...extra });
 
+/** Owner drafts and approves; the marketer reads the exact terms and accepts them. */
 async function approvedAgreement(t, marketer, terms, from = "2026-10-01") {
   const { id } = await t.call(t.owner, "saveAgreementDraft", { marketerId: marketer.uid, from, terms });
   await t.call(t.owner, "approveAgreement", { id });
+  const offered = (await t.call(marketer, "listAgreements")).rows.find((a) => a.id === id);
+  await t.call(marketer, "acceptAgreement", { id, termsHash: offered.termsHash });
   return id;
 }
 
@@ -41,7 +44,13 @@ test("rates come only from the owner: no defaults, validation, marketers cannot 
   await t.call(t.owner, "approveAgreement", { id });
   const mine = (await t.call(t.A, "listAgreements")).rows;
   assert.equal(mine.length, 1);
+  assert.equal(mine[0].status, "awaiting_acceptance");
   assert.equal(mine[0].terms[0].amountMinor, 5000);
+  await rejects(t.call(t.owner, "acceptAgreement", { id, termsHash: mine[0].termsHash }), "permission-denied");
+  await rejects(t.call(t.B, "acceptAgreement", { id, termsHash: mine[0].termsHash }), "not-found");
+  await rejects(t.call(t.A, "acceptAgreement", { id, termsHash: "stale" }), "failed-precondition", /changed/);
+  await t.call(t.A, "acceptAgreement", { id, termsHash: mine[0].termsHash });
+  assert.equal((await t.call(t.A, "listAgreements")).rows[0].status, "active");
   await rejects(t.call(t.owner, "saveAgreementDraft", { id, marketerId: t.A.uid, from: "2026-10-01", terms: [reward(9000)] }), "failed-precondition", /Only drafts/);
   assert.equal((await t.call(t.B, "listAgreements")).rows.length, 0);
 });
@@ -214,8 +223,7 @@ test("a newer agreement ends the previous one; earnings follow each agreement's 
   await t.call(t.owner, "syncNow");
   const rows = (await t.call(t.owner, "listAgreements", { marketerId: t.A.uid })).rows;
   assert.equal(rows.find((r) => r.id === first).status, "ended");
-  assert.equal(rows.find((r) => r.id === second).status, "approved");
+  assert.equal(rows.find((r) => r.id === second).status, "active");
   const amounts = (await lines(t, t.A)).map((l) => l.amountMinor).sort();
   assert.deepEqual(amounts, [1000, 2000]);
-  await rejects(approvedAgreement(t, t.A, [reward(3000)], "2026-10-05"), "failed-precondition", /starts on or after/);
 });

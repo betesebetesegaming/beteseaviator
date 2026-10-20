@@ -21,6 +21,8 @@ import {
   type Target,
   type Term,
 } from "@/lib/marketersApi";
+import { TargetCard } from "./TargetCard";
+import { EarningsDisputes, Leaderboard, PaymentRequests, ProposeNewTarget, ShareApplication } from "./GrowthSections";
 import { Btn, Choice, Empty, ErrorLine, Field, H2, Loading, Notice, Panel, Tag, TextInput } from "./ui";
 
 const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
@@ -95,6 +97,15 @@ function Summary({ biz }: { biz: Business }) {
   );
 }
 
+const AGREEMENT_LABEL: Record<string, string> = {
+  draft: "draft",
+  awaiting_acceptance: "waiting for marketer to accept",
+  active: "active",
+  ended: "ended",
+  declined: "declined by marketer",
+  withdrawn: "withdrawn",
+};
+
 function AgreementCard({ a, children }: { a: Agreement; children?: React.ReactNode }) {
   return (
     <div className="space-y-2 rounded-lg border border-slate-200 p-3 text-sm">
@@ -102,7 +113,7 @@ function AgreementCard({ a, children }: { a: Agreement; children?: React.ReactNo
         <p className="font-semibold">
           {day(a.effectiveFromMs)} → {a.effectiveToMs ? lastDay(a.effectiveToMs) : "open-ended"}
         </p>
-        <Tag tone={a.status === "approved" ? "green" : a.status === "draft" ? "amber" : "slate"}>{a.status}</Tag>
+        <Tag tone={a.status === "active" ? "green" : a.status === "draft" || a.status === "awaiting_acceptance" ? "amber" : "slate"}>{AGREEMENT_LABEL[a.status] ?? a.status}</Tag>
       </div>
       <ul className="ml-5 list-disc text-slate-700">
         {a.terms.map((t, i) => (
@@ -456,7 +467,7 @@ function AgreementEditor({ marketerId, campaigns, onDone }: { marketerId: string
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 p-3 text-sm">
       <p className="font-semibold">New payment agreement (draft)</p>
-      <Notice>You set every rate. Nothing is pre-filled. The draft does nothing until you approve it.</Notice>
+      <Notice>You set every rate. Nothing is pre-filled. After you approve, the marketer must accept the exact terms before anything is earned.</Notice>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Starts">
           <TextInput type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -594,7 +605,12 @@ function OwnerAgreements({ marketerId, onChanged }: { marketerId: string; onChan
                     </Btn>
                   </>
                 )}
-                {a.status === "approved" && (
+                {a.status === "awaiting_acceptance" && (
+                  <Btn variant="secondary" disabled={r.busy} onClick={() => window.confirm("Withdraw this offer before the marketer accepts?") && act("withdrawAgreement", { id: a.id })}>
+                    Withdraw offer
+                  </Btn>
+                )}
+                {a.status === "active" && (
                   <Btn variant="danger" disabled={r.busy} onClick={() => window.confirm("End this agreement today?") && act("endAgreement", { id: a.id })}>
                     End agreement
                   </Btn>
@@ -653,6 +669,7 @@ function BusinessFor({ owner, marketerId }: { owner: boolean; marketerId: string
   if (!biz) return error ? <ErrorLine message={error} /> : <Loading />;
   return (
     <div className="space-y-4">
+      <TargetCard owner={owner} marketerId={owner ? marketerId : undefined} />
       <Summary biz={biz} />
       {owner && (
         <div className="flex flex-wrap items-center gap-2">
@@ -676,7 +693,12 @@ function BusinessFor({ owner, marketerId }: { owner: boolean; marketerId: string
       )}
       <Targets owner={owner} marketerId={marketerId} />
       <Earnings key={version} owner={owner} marketerId={marketerId} onChanged={refresh} />
+      <PaymentRequests owner={owner} marketerId={owner ? marketerId : undefined} onChanged={refresh} />
       <Payments payouts={biz.payouts} />
+      <EarningsDisputes owner={owner} marketerId={owner ? marketerId : undefined} />
+      {!owner && <ProposeNewTarget />}
+      {!owner && <ShareApplication />}
+      <Leaderboard owner={owner} />
     </div>
   );
 }

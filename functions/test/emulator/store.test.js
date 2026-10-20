@@ -89,6 +89,8 @@ test("service flows on real Firestore: isolation, verification, deposit de-dupli
   ctx.providers.aviator.deposits.set("P1", [dep("d1", 100, T0 + 5 * 60_000), dep("d1", 100, T0 + 5 * 60_000), dep("d2", 25, T0 + HOUR)]);
   const { id: agreementId } = await call(owner, "saveAgreementDraft", { marketerId: A.uid, from: "2026-10-01", terms: [{ type: "customer_reward", product: "aviator", qualifies: "verified_signup", amountMinor: 5000 }] });
   await call(owner, "approveAgreement", { id: agreementId });
+  const offered = (await call(A, "listAgreements")).rows[0];
+  await call(A, "acceptAgreement", { id: agreementId, termsHash: offered.termsHash });
   clock += 2 * HOUR;
   await call(owner, "syncNow");
   await call(owner, "syncNow");
@@ -104,4 +106,17 @@ test("service flows on real Firestore: isolation, verification, deposit de-dupli
   assert.equal((await call(B, "listEarnings")).rows.length, 0);
   // createMarketer wrote real staff login docs
   assert.equal((await store.get("staffLogins/ebrimajallow")).data.role, "marketer");
+
+  // Public application → owner approval (creates the login) → applicant accepts the exact terms.
+  const applied = await service.handlePublic(ctx, "apply", { name: "Awa Touray", phone: "7099001", products: ["aviator"], period: "weekly", customerTarget: 2, depositTargetMinor: 10000, requestedRateBp: 1000, consent: true }, { ip: "1.1.1.1" });
+  assert.match(applied.reference, /^[A-Z0-9-]{8}$/);
+  const [app] = (await call(owner, "listApplications", { status: "pending" })).rows;
+  const approved = await call(owner, "approveApplication", { id: app.id, password: "awa password 1", products: ["aviator"], period: "weekly", customerTarget: 2, depositTargetMinor: 10000, rateBp: 1000, missedRateBp: 500, qualifyingDays: 30, from: "2026-10-19" });
+  const awa = { uid: approved.marketerId, name: "Awa Touray", role: "marketer" };
+  const offer = (await call(awa, "listAgreements")).rows[0];
+  assert.equal(offer.status, "awaiting_acceptance");
+  await call(awa, "acceptAgreement", { id: offer.id, termsHash: offer.termsHash });
+  const card = await call(awa, "myTargetCard");
+  assert.equal(card.target.rateBp, 1000);
+  assert.equal((await store.get("staffLogins/awatouray")).data.uid, awa.uid);
 });
