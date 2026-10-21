@@ -5,7 +5,7 @@ import { Home, Users, Share2, MessageSquare, Shield, LogOut, Briefcase } from "l
 import { useAuth } from "@/lib/auth-context";
 import { mk, mkError, type MkState } from "@/lib/marketersApi";
 import { HomeTab } from "./HomeTab";
-import { CustomersTab } from "./CustomersTab";
+import { CustomersTab, emptyDraft, type CustomerDraft } from "./CustomersTab";
 import { InviteTab } from "./InviteTab";
 import { SmsTab } from "./SmsTab";
 import { OwnerTab } from "./OwnerTab";
@@ -35,6 +35,9 @@ export function MarketersApp() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTabState] = useState<Tab>(tabFromHash);
   const [addOpen, setAddOpen] = useState(false);
+  // Kept here so typed customer details survive switching tabs.
+  const [draft, setDraft] = useState<CustomerDraft>(emptyDraft);
+  const [invitePhone, setInvitePhone] = useState("");
 
   const load = useCallback(
     () =>
@@ -119,8 +122,8 @@ export function MarketersApp() {
             }}
           />
         )}
-        {tab === "customers" && <CustomersTab state={state} addOpen={addOpen} setAddOpen={setAddOpen} />}
-        {tab === "invite" && <InviteTab state={state} />}
+        {tab === "customers" && <CustomersTab state={state} addOpen={addOpen} setAddOpen={setAddOpen} draft={draft} setDraft={setDraft} />}
+        {tab === "invite" && <InviteTab state={state} phone={invitePhone} setPhone={setInvitePhone} />}
         {tab === "sms" && <SmsTab state={state} />}
         {tab === "business" && <BusinessTab state={state} />}
         {tab === "owner" && owner && <OwnerTab state={state} reloadState={load} />}

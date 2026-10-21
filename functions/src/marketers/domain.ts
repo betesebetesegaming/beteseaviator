@@ -20,7 +20,7 @@ export const ALLOWED_LINK_HOSTS = [
 
 export const DEFAULT_LINKS: ApprovedLink[] = [
   { id: "aviator", label: "Betese Aviator", product: "aviator", url: "https://beteseaviator.com/" },
-  { id: "football", label: "Betese Football", product: "football", url: "https://betesegaming.com/" },
+  { id: "football", label: "Betese Football", product: "football", url: "https://www.betesegaming.com/" },
 ];
 
 /**

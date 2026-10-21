@@ -1,8 +1,47 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { mk, mkError, dateTime, PRODUCT_LABEL, type AccountState, type Contact, type Cursor, type MkState, type Product } from "@/lib/marketersApi";
+import {
+  mk,
+  mkError,
+  dateTime,
+  PRODUCT_LABEL,
+  type AccountState,
+  type ApprovedLink,
+  type Contact,
+  type Cursor,
+  type MkState,
+  type Product,
+} from "@/lib/marketersApi";
+import { SignupActions } from "./SignupActions";
 import { Btn, Choice, Empty, ErrorLine, Field, H2, Loading, Notice, Panel, Tag, TextInput } from "./ui";
+
+export interface CustomerDraft {
+  name: string;
+  phone: string;
+  products: Product[];
+  adult: boolean;
+  consent: "" | "yes" | "no";
+  marketerId: string;
+}
+
+export const emptyDraft = (): CustomerDraft => ({ name: "", phone: "", products: [], adult: false, consent: "", marketerId: "" });
+
+/** Signup actions for each product the customer is recorded for (approved links only). */
+function ProductSignupActions({ links, products, phone }: { links: ApprovedLink[]; products: Product[]; phone: string }) {
+  const shown = links.filter((l) => products.includes(l.product));
+  if (!shown.length) return <p className="text-sm text-slate-500">No approved signup link for this product yet.</p>;
+  return (
+    <div className="space-y-3">
+      {shown.map((l) => (
+        <div key={l.id} className="space-y-1">
+          <p className="text-sm font-semibold text-[#0b2a5b]">{l.label}</p>
+          <SignupActions link={l} phone={phone} />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function statusTag(a: AccountState | undefined) {
   if (!a) return null;
@@ -17,14 +56,27 @@ function statusTag(a: AccountState | undefined) {
   return <Tag tone="slate">Pending check</Tag>;
 }
 
-function AddCustomer({ state, onSaved, onClose }: { state: MkState; onSaved: (c: Contact) => void; onClose: () => void }) {
+function AddCustomer({
+  state,
+  draft,
+  setDraft,
+  onSaved,
+  onClose,
+}: {
+  state: MkState;
+  draft: CustomerDraft;
+  setDraft: (fn: (d: CustomerDraft) => CustomerDraft) => void;
+  onSaved: (c: Contact) => void;
+  onClose: () => void;
+}) {
   const owner = state.me.role === "owner";
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [products, setProducts] = useState<Product[]>([]);
-  const [adult, setAdult] = useState(false);
-  const [consent, setConsent] = useState<"" | "yes" | "no">("");
-  const [marketerId, setMarketerId] = useState("");
+  const { name, phone, products, adult, consent, marketerId } = draft;
+  const set = <K extends keyof CustomerDraft>(k: K) => (v: CustomerDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
+  const setName = set("name");
+  const setPhone = set("phone");
+  const setAdult = set("adult");
+  const setConsent = set("consent");
+  const setMarketerId = set("marketerId");
   const [marketers, setMarketers] = useState<{ uid: string; name: string; status: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,7 +85,7 @@ function AddCustomer({ state, onSaved, onClose }: { state: MkState; onSaved: (c:
     if (owner) void mk<{ rows: typeof marketers }>("listMarketers").then((r) => setMarketers(r.rows.filter((m) => m.status === "active")));
   }, [owner]);
 
-  const toggle = (p: Product) => setProducts((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
+  const toggle = (p: Product) => setDraft((d) => ({ ...d, products: d.products.includes(p) ? d.products.filter((x) => x !== p) : [...d.products, p] }));
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -129,8 +181,9 @@ function AddCustomer({ state, onSaved, onClose }: { state: MkState; onSaved: (c:
   );
 }
 
-function ContactRow({ c, owner, onChange }: { c: Contact; owner: boolean; onChange: (c: Contact) => void }) {
+function ContactRow({ c, owner, links, onChange }: { c: Contact; owner: boolean; links: ApprovedLink[]; onChange: (c: Contact) => void }) {
   const [busy, setBusy] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const run = async (action: string, data: Record<string, unknown>) => {
     setBusy(true);
@@ -165,6 +218,9 @@ function ContactRow({ c, owner, onChange }: { c: Contact; owner: boolean; onChan
         <Btn variant="secondary" disabled={busy} onClick={() => void run("checkContact", {})}>
           Check now
         </Btn>
+        <Btn variant="secondary" aria-expanded={sendOpen} onClick={() => setSendOpen((v) => !v)}>
+          {sendOpen ? "Hide signup link" : "Signup link"}
+        </Btn>
         {missing.map((p) => (
           <Btn key={p} variant="secondary" disabled={busy} onClick={() => void run("addProduct", { product: p })}>
             Also uses {PRODUCT_LABEL[p]}
@@ -182,13 +238,27 @@ function ContactRow({ c, owner, onChange }: { c: Contact; owner: boolean; onChan
           </Btn>
         )}
       </div>
+      {sendOpen && <ProductSignupActions links={links} products={c.products} phone={c.phone} />}
       <ErrorLine message={error} />
     </li>
   );
 }
 
-export function CustomersTab({ state, addOpen, setAddOpen }: { state: MkState; addOpen: boolean; setAddOpen: (v: boolean) => void }) {
+export function CustomersTab({
+  state,
+  addOpen,
+  setAddOpen,
+  draft,
+  setDraft,
+}: {
+  state: MkState;
+  addOpen: boolean;
+  setAddOpen: (v: boolean) => void;
+  draft: CustomerDraft;
+  setDraft: (fn: (d: CustomerDraft) => CustomerDraft) => void;
+}) {
   const owner = state.me.role === "owner";
+  const [justSaved, setJustSaved] = useState<Contact | null>(null);
   const [rows, setRows] = useState<Contact[] | null>(null);
   const [next, setNext] = useState<Cursor>(null);
   const [q, setQ] = useState("");
@@ -220,10 +290,14 @@ export function CustomersTab({ state, addOpen, setAddOpen }: { state: MkState; a
       {addOpen ? (
         <AddCustomer
           state={state}
+          draft={draft}
+          setDraft={setDraft}
           onClose={() => setAddOpen(false)}
           onSaved={(c) => {
             setAddOpen(false);
+            setDraft(emptyDraft);
             setSaved(`${c.name} saved.`);
+            setJustSaved(c);
             setRows((cur) => [c, ...(cur ?? []).filter((x) => x.id !== c.id)]);
           }}
         />
@@ -233,6 +307,15 @@ export function CustomersTab({ state, addOpen, setAddOpen }: { state: MkState; a
         </Btn>
       )}
       {saved && <Notice tone="green">{saved}</Notice>}
+      {justSaved && !addOpen && (
+        <Panel className="space-y-3">
+          <H2>Send {justSaved.name} the signup link</H2>
+          <ProductSignupActions links={state.links} products={justSaved.products} phone={justSaved.phone} />
+          <p className="text-xs text-slate-500">
+            The customer creates their own password and codes. They count as verified only after the betting system confirms the account.
+          </p>
+        </Panel>
+      )}
       <Panel className="space-y-3">
         <H2>{owner ? "All customers" : "My customers"}</H2>
         <form
@@ -255,7 +338,7 @@ export function CustomersTab({ state, addOpen, setAddOpen }: { state: MkState; a
         ) : (
           <ul>
             {rows.map((c) => (
-              <ContactRow key={c.id} c={c} owner={owner} onChange={replace} />
+              <ContactRow key={c.id} c={c} owner={owner} links={state.links} onChange={replace} />
             ))}
           </ul>
         )}
