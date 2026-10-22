@@ -47,6 +47,7 @@ export const G = {
   paymentRequests: "mkPaymentRequests",
   disputes: "mkEarningDisputes",
   rateLimits: "mkRateLimits",
+  shareLinks: "mkShareLinks",
 } as const;
 
 const PAGE = 25;
@@ -194,6 +195,7 @@ async function apply(ctx: Ctx, data: Data, meta: { ip: string }): Promise<Data> 
 export const PUBLIC_ACTIONS: Record<string, (ctx: Ctx, data: Data, meta: { ip: string }) => Promise<Data>> = {
   applicationInfo: (ctx, data) => applicationInfo(ctx, data),
   apply,
+  shareLinkInfo: (ctx, data) => shareLinkInfo(ctx, data),
 };
 
 // ---------- marketers: invite link + new target proposal ----------
@@ -218,6 +220,77 @@ async function myInvite(ctx: Ctx, caller: Caller): Promise<Data> {
     url: `${SITE}/staff/apply?invite=${code}`,
     note: "Anyone with this link can apply. You are recorded as the inviter; there is no automatic recruitment commission.",
   };
+}
+
+// ---------- marketers: personal share link for customers ----------
+
+const SHARE_SLUG = /^[a-z]{1,16}-[a-z0-9]{4}$/;
+
+/** First name only, lower-case letters, so the link shows who shared it without exposing the sign-in name. */
+function shareFirstName(name: string): string {
+  const first = name
+    .replace(/^TEST\s+/i, "")
+    .trim()
+    .split(/\s+/)[0]
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "")
+    .slice(0, 16);
+  return first || "betese";
+}
+
+function displayFirstName(name: unknown): string | null {
+  return String(name ?? "").replace(/^TEST\s+/i, "").trim().split(/\s+/)[0] || null;
+}
+
+function newShareSuffix(): string {
+  const alphabet = "abcdefghijkmnpqrstuvwxyz23456789";
+  return [...randomBytes(4)].map((b) => alphabet[b % alphabet.length]).join("");
+}
+
+/**
+ * One stable link per marketer: /join/<first-name>-<4 random>. It opens a page naming the marketer with
+ * buttons to the owner-approved Football and Aviator sites. It does not create accounts or prove attribution —
+ * the marketer still records the customer's number, and provider matching verifies the signup.
+ */
+async function myShareLink(ctx: Ctx, caller: Caller): Promise<Data> {
+  if (isOwner(caller)) deny("Share links are for marketers.");
+  const existing = await ctx.store.query(G.shareLinks, { where: [["marketerId", "==", caller.uid]], limit: 5 });
+  let slug = existing.find((d) => d.data.active === true)?.id;
+  if (!slug) {
+    const me = await ctx.store.get(`users/${caller.uid}`);
+    const first = shareFirstName(String(me?.data.name ?? caller.name ?? ""));
+    for (let i = 0; i < 5 && !slug; i++) {
+      const candidate = `${first}-${newShareSuffix()}`;
+      try {
+        await ctx.store.create(`${G.shareLinks}/${candidate}`, { marketerId: caller.uid, active: true, createdAtMs: ctx.now() });
+        slug = candidate;
+      } catch (e) {
+        if (!(e instanceof AlreadyExistsError)) throw e;
+      }
+    }
+    if (!slug) throw new DomainError("failed-precondition", "Could not create a link. Try again.");
+    await audit(ctx, caller, "share_link.created", slug);
+  }
+  return {
+    slug,
+    url: `${SITE}/join/${slug}`,
+    note: "Your link opens a Betese page showing your first name, with buttons to the Football and Aviator websites. Customers still create their own accounts, and you still add them under Customers so their signup can be verified as yours.",
+  };
+}
+
+/** Public: what the /join page shows. Only the marketer's first name and the owner-approved links. */
+async function shareLinkInfo(ctx: Ctx, data: Data): Promise<Data> {
+  const s = await loadSettings(ctx.store);
+  const links = s.links.map((l) => ({ id: l.id, label: l.label, product: l.product, url: l.url }));
+  const none = { valid: false, firstName: null, links };
+  const slug = String(data.slug ?? "").trim().toLowerCase();
+  if (!SHARE_SLUG.test(slug)) return none;
+  const doc = await ctx.store.get(`${G.shareLinks}/${slug}`);
+  if (!doc || doc.data.active !== true) return none;
+  const m = await ctx.store.get(`users/${String(doc.data.marketerId)}`);
+  if (!m || m.data.role !== "marketer" || m.data.status !== "active") return none;
+  return { valid: true, firstName: displayFirstName(m.data.name), links };
 }
 
 async function proposeTerms(ctx: Ctx, caller: Caller, data: Data): Promise<Data> {
@@ -644,6 +717,7 @@ async function resolveEarningsDispute(ctx: Ctx, caller: Caller, data: Data): Pro
 
 export const GROWTH_ACTIONS: Record<string, (ctx: Ctx, caller: Caller, data: Data) => Promise<Data>> = {
   myInvite: (ctx, c) => myInvite(ctx, c),
+  myShareLink: (ctx, c) => myShareLink(ctx, c),
   proposeTerms,
   listApplications,
   rejectApplication,

@@ -281,6 +281,7 @@ service cloud.firestore {
     match /mkPaymentRequests/{id} { allow read, write: if false; }
     match /mkEarningDisputes/{id} { allow read, write: if false; }
     match /mkRateLimits/{id} { allow read, write: if false; }
+    match /mkShareLinks/{id} { allow read, write: if false; }
 
     match /{document=**} {
       allow read, write: if false;

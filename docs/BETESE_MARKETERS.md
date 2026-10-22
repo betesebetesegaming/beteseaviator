@@ -60,6 +60,11 @@ amount and percentage is entered by the owner.
 - **Propose a new target**: existing marketers send the same proposal; approval creates a new version they must accept.
 - **Invite link**: each marketer gets `/staff/apply?invite=<12-char opaque code>` with Copy and Share. The inviter is
   recorded server-side; no phone, name or account id is in the URL. **No recruitment commission.**
+- **Customer share link** (Invite tab, marketers only): `beteseaviator.com/join/<first-name>-<4 random>`, e.g.
+  `/join/ebrima-7k3m`, with Copy, Share and WhatsApp. It opens a public page "Invited by Ebrima" with buttons to the
+  owner-approved sites (Football `https://www.betesegaming.com/`, Aviator `https://beteseaviator.com/`). The page
+  shows only the first name; a suspended marketer's link stops naming them; if the server can't be reached the buttons
+  still show. The link does **not** prove attribution: the marketer still records the number under Customers.
 - **My Approved Target & Commission** card (marketer Home and Business): products, targets, rates, dates, conditions,
   this period's progress and remaining, recent periods met/missed, pending/approved/paid, badges, and any offer waiting
   for acceptance with Accept/Decline.
@@ -84,7 +89,7 @@ campaign confirmations, and on the owner's "Recalculate earnings" button.
 | `functions/src/agent.ts` | Agent slug/login sync skips a `staffLogins` key owned by a marketer | Identical unless a marketer already owns that exact key. Adds 1–2 document reads per agent session sync. |
 | `functions/src/index.ts` | Exports `marketers`, `marketersDailySync` | Two new Cloud Run services. `marketers` accepts exactly two actions without sign-in (`applicationInfo`, `apply`); every other action is authorized per call. |
 | `lib/staff-routes.ts`, `lib/auth-context.tsx` | `marketer` signs in at `/s`, home is `/staff/marketers` | Admin/agent/player routing unchanged; `/admin` still excludes marketers. |
-| `firestore.rules` | New `isMarketer()`; marketers cannot create `deposit_requests` / `withdrawal_requests`; 18 `mk*` collections closed to all clients | Players keep both creates; all other rules unchanged. |
+| `firestore.rules` | New `isMarketer()`; marketers cannot create `deposit_requests` / `withdrawal_requests`; 19 `mk*` collections closed to all clients | Players keep both creates; all other rules unchanged. |
 | `firestore.indexes.json` | 30 new composite indexes, all on `mk*` collections | None on existing collections. |
 
 Not changed: RTDB rules (marketers are in no read list), storage rules, wallets, ledger, games, payments, commissions,
@@ -138,5 +143,6 @@ Rollback: redeploy `main` for functions and rules; the `mk*` collections can sta
 - **Football**: backend location, lookup/deposit API or read access, credentials (see above).
 - **SMS sending**: provider with delivery reports, signed webhooks, idempotency, approved sender ID, price per segment,
   opt-out handling. Sending stays disabled.
-- **Per-marketer referral links**: not built; needs signed referral IDs in each signup flow.
+- **Per-marketer referral attribution**: the share link names the marketer but the signup sites don't record it;
+  automatic attribution needs signed referral IDs in each signup flow (Football is outside this repo).
 - **Existing issue (not changed here)**: public `sendOtp` accepts arbitrary `message`/`code`.

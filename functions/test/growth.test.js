@@ -104,6 +104,39 @@ test("rate limit and closed applications", async () => {
   await rejects(pub(t, "apply", application({ phone: "7099198" }), "9.9.9.9"), "failed-precondition", /closed/);
 });
 
+// ---------- customer share links ----------
+
+test("share links carry the marketer's first name, stay stable, and show only the first name and approved links", async () => {
+  const t = await setup();
+  await rejects(t.call(t.owner, "myShareLink"), "permission-denied");
+  const link = await t.call(t.A, "myShareLink");
+  assert.match(link.slug, /^ebrima-[a-z0-9]{4}$/);
+  assert.equal(link.url, `https://beteseaviator.com/join/${link.slug}`);
+  assert.ok(!link.url.includes(t.A.uid) && !link.url.includes("7000001") && !link.url.includes("jallow"), "no id, phone or surname");
+  assert.equal((await t.call(t.A, "myShareLink")).slug, link.slug, "stable link");
+  assert.notEqual((await t.call(t.B, "myShareLink")).slug, link.slug, "one link per marketer");
+
+  assert.equal(service.isPublicAction("shareLinkInfo"), true);
+  const info = await pub(t, "shareLinkInfo", { slug: link.slug.toUpperCase() });
+  assert.deepEqual({ valid: info.valid, firstName: info.firstName }, { valid: true, firstName: "Ebrima" });
+  assert.deepEqual(
+    info.links.map((l) => l.url),
+    ["https://beteseaviator.com/", "https://www.betesegaming.com/"],
+  );
+  assert.deepEqual(Object.keys(info).sort(), ["firstName", "links", "valid"], "nothing else about the marketer");
+
+  for (const slug of ["nope", "ebrima-zzzz", "../users/owner", ""]) {
+    const bad = await pub(t, "shareLinkInfo", { slug });
+    assert.equal(bad.valid, false);
+    assert.equal(bad.firstName, null);
+    assert.equal(bad.links.length, 2, "page still offers the sites");
+  }
+
+  // A suspended marketer's link stops naming them; nothing is recorded or verified by opening it.
+  await t.call(t.owner, "setMarketerStatus", { uid: t.A.uid, status: "suspended" });
+  assert.equal((await pub(t, "shareLinkInfo", { slug: link.slug })).valid, false);
+});
+
 // ---------- invites ----------
 
 test("invite links are opaque, record the inviter, and never pay recruitment commission", async () => {
