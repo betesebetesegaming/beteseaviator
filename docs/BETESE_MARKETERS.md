@@ -115,14 +115,14 @@ no signed callbacks and no per-message price — all required before campaign se
 ## Tests
 
 ```bash
-cd functions; npm test            # 43 unit/acceptance tests, in-memory store
+cd functions; npm test            # 44 unit/acceptance tests, in-memory store
 cd functions; npm run test:emulator   # Firestore emulator: real rules + real Firestore store
 ```
 
 `test:emulator` needs Java 21 and the Firebase CLI on PATH; it uses the offline project `demo-betese-marketers` and
 never contacts the live project.
 
-Results on 20 Oct 2026 (Temurin JDK 21.0.12.1, firebase-tools 15.34.0, Node 24.19): **unit 43/43 pass, emulator 8/8 pass** (re-run after the growth features)
+Results on 20 Oct 2026 (Temurin JDK 21.0.12.1, firebase-tools 15.34.0, Node 24.19): **unit 43/43 pass, emulator 8/8 pass** (re-run after the growth features); 22 Oct 2026 after the share link: unit 44/44 pass (emulator not re-run)
 (rules: mk* closed to every client; marketer limited to own profile + public docs; marketers cannot create payment
 requests while players still can; players/agents/admin regression matrix unchanged. Store: create conflicts, deep merge,
 cursors, count/sum, transaction rollback, full service flow on real Firestore).
