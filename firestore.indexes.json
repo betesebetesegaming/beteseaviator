@@ -455,6 +455,65 @@
         { "fieldPath": "phoneKey", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "mkDeposits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "product", "order": "ASCENDING" },
+        { "fieldPath": "currency", "order": "ASCENDING" },
+        { "fieldPath": "counted", "order": "ASCENDING" },
+        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "depositedAtMs", "order": "ASCENDING" },
+        { "fieldPath": "amountMinor", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkDeposits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "product", "order": "ASCENDING" },
+        { "fieldPath": "currency", "order": "ASCENDING" },
+        { "fieldPath": "counted", "order": "ASCENDING" },
+        { "fieldPath": "isFirst", "order": "ASCENDING" },
+        { "fieldPath": "depositedAtMs", "order": "ASCENDING" },
+        { "fieldPath": "amountMinor", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkDeposits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "product", "order": "ASCENDING" },
+        { "fieldPath": "currency", "order": "ASCENDING" },
+        { "fieldPath": "counted", "order": "ASCENDING" },
+        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "depositedAtMs", "order": "ASCENDING" },
+        { "fieldPath": "amountMinor", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkDeposits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "product", "order": "ASCENDING" },
+        { "fieldPath": "currency", "order": "ASCENDING" },
+        { "fieldPath": "counted", "order": "ASCENDING" },
+        { "fieldPath": "isFirst", "order": "ASCENDING" },
+        { "fieldPath": "depositedAtMs", "order": "ASCENDING" },
+        { "fieldPath": "amountMinor", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mkEarnings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "marketerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "amountMinor", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
