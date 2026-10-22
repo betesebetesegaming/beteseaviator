@@ -69,3 +69,6 @@ docs/qtech/__pycache__/
 .capacitor/
 .vercel
 .env*
+
+# Firebase emulator logs
+firestore-debug.log
