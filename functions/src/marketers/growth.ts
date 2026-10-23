@@ -250,8 +250,8 @@ function newShareSuffix(): string {
 
 /**
  * One stable link per marketer: /join/<first-name>-<4 random>. It opens a page naming the marketer with
- * buttons to the owner-approved Football and Aviator sites. It does not create accounts or prove attribution —
- * the marketer still records the customer's number, and provider matching verifies the signup.
+ * buttons to the owner-approved Football and Aviator sites. It never creates accounts. Aviator sign-up passes the
+ * slug back (recordShareLinkSignup); Football customers are still recorded by hand and verified by matching.
  */
 async function myShareLink(ctx: Ctx, caller: Caller): Promise<Data> {
   if (isOwner(caller)) deny("Share links are for marketers.");
@@ -275,7 +275,7 @@ async function myShareLink(ctx: Ctx, caller: Caller): Promise<Data> {
   return {
     slug,
     url: `${SITE}/join/${slug}`,
-    note: "Your link opens a Betese page showing your first name, with buttons to the Football and Aviator websites. Customers still create their own accounts, and you still add them under Customers so their signup can be verified as yours.",
+    note: "Your link opens a Betese page showing your first name, with buttons to the Football and Aviator websites. Customers create their own accounts. Aviator sign-ups through your link are added to your Customers automatically; for Football, still add the customer under Customers so their signup can be verified as yours.",
   };
 }
 
