@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { mk, type ApprovedLink } from "@/lib/marketersApi";
+import { rememberMarketerRef, withMarketerRef } from "@/lib/marketerRef";
 import { Loading, Notice } from "./ui";
 
 interface Info {
@@ -29,7 +30,11 @@ export function JoinPage({ slug }: { slug: string }) {
   useEffect(() => {
     let live = true;
     mk<Info>("shareLinkInfo", { slug }).then(
-      (i) => live && setInfo(i),
+      (i) => {
+        if (!live) return;
+        if (i.valid) rememberMarketerRef(slug);
+        setInfo(i);
+      },
       () => live && setInfo({ valid: false, firstName: null, links: FALLBACK_LINKS }),
     );
     return () => {
@@ -59,7 +64,7 @@ export function JoinPage({ slug }: { slug: string }) {
             {info.links.map((l) => (
               <a
                 key={l.id}
-                href={l.url}
+                href={info.valid && l.product === "aviator" ? withMarketerRef(l.url, slug) : l.url}
                 rel="noopener noreferrer"
                 className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50"
               >

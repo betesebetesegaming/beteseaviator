@@ -38,7 +38,7 @@ import {
   type TargetCommission,
   type Term,
 } from "./earnings";
-import { C, audit, createMarketerAccount, cursorOf, deny, isOwner, loadSettings, parseCursor, type Caller, type Ctx } from "./service";
+import { C, audit, createMarketerAccount, cursorOf, deny, isOwner, loadSettings, matchContact, parseCursor, type Caller, type Ctx } from "./service";
 import { AlreadyExistsError, type Data, type Doc, type Where } from "./store";
 
 export const G = {
@@ -291,6 +291,65 @@ async function shareLinkInfo(ctx: Ctx, data: Data): Promise<Data> {
   const m = await ctx.store.get(`users/${String(doc.data.marketerId)}`);
   if (!m || m.data.role !== "marketer" || m.data.status !== "active") return none;
   return { valid: true, firstName: displayFirstName(m.data.name), links };
+}
+
+/**
+ * Called by Aviator sign-up (server side, after the phone was verified by OTP) when the customer arrived
+ * through a share link. The slug is only a pointer: it is checked here against an active link of an active
+ * marketer, so nothing on the device decides who gets the credit. The first record of a number is kept —
+ * a customer a marketer already recorded is never moved to another marketer.
+ */
+export async function recordShareLinkSignup(
+  ctx: Ctx,
+  input: { slug: unknown; accountId: string; phone: string; name: string },
+): Promise<{ state: "recorded" | "already_recorded" | "invalid_link" }> {
+  const slug = String(input.slug ?? "").trim().toLowerCase();
+  if (!SHARE_SLUG.test(slug)) return { state: "invalid_link" };
+  const link = await ctx.store.get(`${G.shareLinks}/${slug}`);
+  if (!link || link.data.active !== true) return { state: "invalid_link" };
+  const m = await ctx.store.get(`users/${String(link.data.marketerId)}`);
+  if (!m || m.data.role !== "marketer" || m.data.status !== "active") return { state: "invalid_link" };
+
+  const phone = canonicalPhone(input.phone);
+  const now = ctx.now();
+  const name = String(input.name ?? "").replace(/\s+/g, " ").trim().slice(0, 80) || "Customer";
+  try {
+    await ctx.store.create(`${C.contacts}/${phone.key}`, {
+      phoneKey: phone.key,
+      phoneE164: phone.e164,
+      name,
+      searchName: name.toLowerCase(),
+      marketerId: m.id,
+      marketerName: String(m.data.name ?? ""),
+      recordedAtMs: now,
+      recordedBy: "share_link",
+      products: ["aviator"],
+      // Aviator sign-up itself requires the 18+ confirmation.
+      adultConfirmed: true,
+      status: "active",
+      // No SMS consent was collected by the marketer, so campaigns exclude this customer.
+      consent: {
+        sms: false,
+        wordingVersion: null,
+        source: "share_link_signup",
+        collectedBy: null,
+        collectedAtMs: null,
+        revokedAtMs: null,
+        revokedBy: null,
+      },
+      signup: { product: "aviator", accountId: input.accountId, slug, atMs: now },
+      accounts: { aviator: { state: "pending" } },
+      verifiedProducts: [],
+      verifiedCount: 0,
+      updatedAtMs: now,
+    });
+  } catch (e) {
+    if (e instanceof AlreadyExistsError) return { state: "already_recorded" };
+    throw e;
+  }
+  await audit(ctx, null, "contact.share_link_signup", phone.key, { marketerId: m.id, slug });
+  await matchContact(ctx, phone.key);
+  return { state: "recorded" };
 }
 
 async function proposeTerms(ctx: Ctx, caller: Caller, data: Data): Promise<Data> {

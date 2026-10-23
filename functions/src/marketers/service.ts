@@ -434,7 +434,13 @@ export async function matchContact(ctx: Ctx, contactId: string): Promise<void> {
       continue;
     }
 
-    const { attribution, hint } = classifyAttribution(found.registeredAtMs, Number(d.recordedAtMs), settings.reviewHintHours);
+    // An account created through the marketer's share link is a new signup by construction: the server
+    // recorded it during that registration, so the registration-vs-recording time test does not apply.
+    const signup = (d.signup ?? null) as Data | null;
+    const viaShareLink = signup?.product === product && signup.accountId === found.accountId;
+    const { attribution, hint } = viaShareLink
+      ? { attribution: "new_signup" as const, hint: null }
+      : classifyAttribution(found.registeredAtMs, Number(d.recordedAtMs), settings.reviewHintHours);
     const accountDocId = `${product}_${found.accountId}`;
     // Owner may later choose to count from registration when accepting a review.
     const countFromMs = Number(d.recordedAtMs);
@@ -450,7 +456,7 @@ export async function matchContact(ctx: Ctx, contactId: string): Promise<void> {
         recordedAtMs: d.recordedAtMs,
         registeredAtMs: found.registeredAtMs,
         matchedAtMs: now,
-        verificationSource: product === "aviator" ? "aviator_users_collection" : "provider_api",
+        verificationSource: viaShareLink ? "share_link_signup" : product === "aviator" ? "aviator_users_collection" : "provider_api",
         attribution,
         reviewHint: hint,
         decision: attribution === "new_signup" ? "auto" : "pending",

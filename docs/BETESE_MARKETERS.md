@@ -95,6 +95,17 @@ campaign confirmations, and on the owner's "Recalculate earnings" button.
 Not changed: RTDB rules (marketers are in no read list), storage rules, wallets, ledger, games, payments, commissions,
 agent screens, `/s`, middleware, `next.config.ts`.
 
+## Aviator sign-up through a share link
+
+`/join/<slug>` remembers the slug on the device (30 days) and adds `?mk=<slug>` to the Aviator button. Any page
+that mounts the auth modal also picks up `?mk=`. Sign-up sends it to `completeRegistration`, which — only for a
+brand-new, OTP-verified profile — calls `recordShareLinkSignup`. The server checks the slug against an active link
+of an active marketer, then creates the customer record for that marketer (`recordedBy: "share_link"`,
+`signup.accountId` = the new uid) and matches it at once as a `new_signup` (`verificationSource: "share_link_signup"`),
+so no owner review is needed. The first record of a number always wins; a later link never moves a customer.
+No SMS consent is collected this way (`consent.sms = false`), so campaigns exclude these customers. Any failure is
+logged and never fails sign-up.
+
 ## Football / SMS / OTP specification (docs/BETESE-Football-SMS-OTP-Flow-Spec.pdf, 7 Oct 2026)
 
 What it provides: the OTP rules Football must copy from Aviator (Africell gateway, 6-digit hashed codes, expiry, rate
@@ -143,8 +154,8 @@ Rollback: redeploy `main` for functions and rules; the `mk*` collections can sta
 - **Football**: backend location, lookup/deposit API or read access, credentials (see above).
 - **SMS sending**: provider with delivery reports, signed webhooks, idempotency, approved sender ID, price per segment,
   opt-out handling. Sending stays disabled.
-- **Per-marketer referral attribution**: the share link names the marketer but the signup sites don't record it;
-  automatic attribution needs signed referral IDs in each signup flow (Football is outside this repo).
+- **Per-marketer referral attribution (Football only)**: Football sign-up is outside this repo and does not record the
+  share link yet. Aviator is done (see below).
 - **`sendOtp` open relay — fixed in code, needs deploy**: Aviator's public `sendOtp` now ignores caller `message`/`code`;
   it always sends its own code with the standard template and stores its hash (`test/emulator/otp.test.js`). Deploy
   `functions:sendOtp` (or the full functions deploy above). **Still open outside this repo:** betesepmu's `sendOtp`

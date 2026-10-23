@@ -4,10 +4,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
 import { AuthModal, type AuthModalMode } from "@/components/auth-modal";
+import { captureMarketerRefFromUrl } from "@/lib/marketerRef";
 
 interface AuthModalContextValue {
   openAuth: (mode?: AuthModalMode, ref?: string | null, pref?: string | null) => void;
@@ -25,6 +27,10 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
   const [refCode, setRefCode] = useState<string | null>(null);
   const [prefCode, setPrefCode] = useState<string | null>(null);
   const [session, setSession] = useState(0);
+
+  useEffect(() => {
+    captureMarketerRefFromUrl();
+  }, []);
 
   const openAuth = useCallback(
     (next: AuthModalMode = "register", ref?: string | null, pref?: string | null) => {
