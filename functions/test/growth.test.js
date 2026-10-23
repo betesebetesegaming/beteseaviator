@@ -137,6 +137,54 @@ test("share links carry the marketer's first name, stay stable, and show only th
   assert.equal((await pub(t, "shareLinkInfo", { slug: link.slug })).valid, false);
 });
 
+test("Aviator sign-up through a share link credits that marketer automatically, without SMS consent", async () => {
+  const t = await setup();
+  const { recordShareLinkSignup } = require("../lib/marketers/growth");
+  const link = await t.call(t.A, "myShareLink");
+  const key = domain.canonicalPhone("7055501").key;
+  // The account already exists when sign-up calls in, so registration is slightly before recording.
+  t.ctx.providers.aviator.accounts.set(key, { state: "matched", accountId: "U1", registeredAtMs: t.ctx.now() - 500 });
+  t.ctx.providers.aviator.deposits.set("U1", [dep("tx1", 200, t.ctx.now() + HOUR)]);
+
+  const res = await recordShareLinkSignup(t.ctx, { slug: link.slug.toUpperCase(), accountId: "U1", phone: "7055501", name: "Lamin Bah" });
+  assert.equal(res.state, "recorded");
+  const [c] = (await t.call(t.A, "listContacts")).rows;
+  assert.equal(c.name, "Lamin Bah");
+  assert.equal(c.accounts.aviator.attribution, "new_signup", "no owner review needed");
+  assert.equal(c.accounts.aviator.decision, "auto");
+  assert.deepEqual(c.verifiedProducts, ["aviator"]);
+  assert.equal(c.smsConsent, false, "campaigns must not reach link sign-ups");
+  const acc = await t.store.get("mkProductAccounts/aviator_U1");
+  assert.equal(acc.data.verificationSource, "share_link_signup");
+  assert.equal((await t.call(t.B, "listContacts")).rows.length, 0);
+
+  // First record wins: a second link or a later sign-up never moves the customer.
+  const linkB = await t.call(t.B, "myShareLink");
+  assert.equal((await recordShareLinkSignup(t.ctx, { slug: linkB.slug, accountId: "U1", phone: "7055501", name: "x" })).state, "already_recorded");
+  assert.equal((await t.call(t.A, "listContacts")).rows.length, 1);
+});
+
+test("share-link sign-up ignores unknown, inactive and suspended-marketer links", async () => {
+  const t = await setup();
+  const { recordShareLinkSignup } = require("../lib/marketers/growth");
+  const link = await t.call(t.A, "myShareLink");
+  for (const slug of [null, "", "nope", "ebrima-zzzz", "../users/owner"]) {
+    assert.equal((await recordShareLinkSignup(t.ctx, { slug, accountId: "U2", phone: "7055502", name: "x" })).state, "invalid_link");
+  }
+  await t.call(t.owner, "setMarketerStatus", { uid: t.A.uid, status: "suspended" });
+  assert.equal((await recordShareLinkSignup(t.ctx, { slug: link.slug, accountId: "U2", phone: "7055502", name: "x" })).state, "invalid_link");
+  assert.equal(await t.store.get(`mkContacts/${domain.canonicalPhone("7055502").key}`), null);
+});
+
+// A customer the marketer recorded by hand who then signs up normally keeps the time-based rule.
+test("a recorded customer who registered long before still goes to owner review", async () => {
+  const t = await setup();
+  const key = domain.canonicalPhone("7055503").key;
+  t.ctx.providers.aviator.accounts.set(key, { state: "matched", accountId: "U3", registeredAtMs: T0 - 30 * DAY });
+  const { contact } = await t.call(t.A, "createContact", customer("7055503"));
+  assert.equal(contact.accounts.aviator.attribution, "needs_review");
+});
+
 // ---------- invites ----------
 
 test("invite links are opaque, record the inviter, and never pay recruitment commission", async () => {

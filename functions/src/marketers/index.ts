@@ -3,45 +3,13 @@
  * staff app adds only two Cloud Run services to the project's CPU quota.
  * SMS sending is intentionally absent: approval never sends.
  */
-import * as admin from "firebase-admin";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions/v2";
-import { auth, db } from "../helpers";
 import { DomainError } from "./domain";
-import { aviatorProvider, footballProvider } from "./providers";
 import { recomputeAll } from "./earnings";
-import { authorizeCaller, handle, handlePublic, isPublicAction, syncAll, type Ctx } from "./service";
-import { firestoreStore } from "./store";
-
-function productionCtx(): Ctx {
-  return {
-    store: firestoreStore(db),
-    providers: { aviator: aviatorProvider(db), football: footballProvider },
-    now: () => Date.now(),
-    timestamp: (ms) => admin.firestore.Timestamp.fromMillis(ms),
-    auth: {
-      async createUser(args) {
-        return (await auth.createUser(args)).uid;
-      },
-      async deleteUser(uid) {
-        await auth.deleteUser(uid);
-      },
-      async updatePassword(uid, password) {
-        await auth.updateUser(uid, { password });
-      },
-      async setDisabled(uid, disabled) {
-        await auth.updateUser(uid, { disabled });
-      },
-      async revokeSessions(uid) {
-        await auth.revokeRefreshTokens(uid);
-      },
-      async setRole(uid, role) {
-        await auth.setCustomUserClaims(uid, { role });
-      },
-    },
-  };
-}
+import { authorizeCaller, handle, handlePublic, isPublicAction, syncAll } from "./service";
+import { productionCtx } from "./context";
 
 export const marketers = onCall({ timeoutSeconds: 300 }, async (req) => {
   const ctx = productionCtx();

@@ -41,6 +41,7 @@ const completeRegistrationFn = call<
     phone?: string;
     ref?: string | null;
     pref?: string | null;
+    mk?: string | null;
     deviceId?: string | null;
   },
   { ok: true; role: Role; playerNumber?: number; playerId?: string }

@@ -36,6 +36,8 @@ import { allocatePlayerNumber, formatPlayerId } from "./playerIds";
 import { assertValidPassword, PASSWORD_MIN, PASSWORD_MAX } from "./passwordPolicy";
 import { verifySmsOtp } from "./routes/otp";
 import { isAgentRole, isMarketerRole, isStaffRole as isStaffRoleCheck } from "./roles";
+import { productionCtx as marketersCtx } from "./marketers/context";
+import { recordShareLinkSignup } from "./marketers/growth";
 
 /** WARNING: Do NOT use Firebase Phone Auth for OTP. Gambian SMS = Africell sendOtp/verifyOtp only. */
 
@@ -53,6 +55,8 @@ export const completeRegistration = onCall(async (req) => {
   const phone = rawPhone ? normalizePhone(rawPhone) : "";
   const ref = req.data?.ref ? String(req.data.ref).toLowerCase().trim() : null;
   const pref = req.data?.pref ? normalizeReferralCode(String(req.data.pref)) : null;
+  // Marketer share-link slug; checked server-side, never trusted to name the marketer by itself.
+  const mk = req.data?.mk ? String(req.data.mk).slice(0, 32) : null;
   const deviceId = req.data?.deviceId ? String(req.data.deviceId).trim().slice(0, 128) : null;
   const signupIp =
     (req.rawRequest?.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
@@ -98,9 +102,11 @@ export const completeRegistration = onCall(async (req) => {
   }
 
   let assignedPlayerNumber = 0;
+  let createdProfile = false;
 
   try {
     await db.runTransaction(async (tx) => {
+      createdProfile = false;
       const userRef = db.doc(`users/${uid}`);
       const inviteRef = db.doc(`referralInvites/${uid}`);
       const phoneKeys = phoneStorageKeys(phone);
@@ -148,6 +154,7 @@ export const completeRegistration = onCall(async (req) => {
 
       const referralCode = await pickPlayerReferralCode(tx, uid, name);
       assignedPlayerNumber = await allocatePlayerNumber(tx);
+      createdProfile = true;
 
       writePlayerReferralCode(tx, uid, name, referralCode);
       tx.set(userRef, {
@@ -198,6 +205,14 @@ export const completeRegistration = onCall(async (req) => {
       "internal",
       "Could not finish your profile. Please try again in a moment."
     );
+  }
+  if (mk && createdProfile) {
+    // Best effort: the account is already created, so a marketers failure must never fail sign-up.
+    try {
+      await recordShareLinkSignup(marketersCtx(), { slug: mk, accountId: uid, phone, name });
+    } catch (e) {
+      logger.warn("marketer share-link attribution failed", { uid, error: String(e) });
+    }
   }
   return {
     ok: true,

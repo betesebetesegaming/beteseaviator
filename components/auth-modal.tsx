@@ -33,6 +33,7 @@ import {
 import { probeSignupOtpGateway, type OtpGatewayStatus } from "@/lib/otpClient";
 import { OtpConfirmPanel, usePhoneOtp } from "@/components/PhoneOtpVerification";
 import { getReferralDeviceId } from "@/lib/referrals";
+import { readMarketerRef } from "@/lib/marketerRef";
 import {
   PHONE_HINT,
   PHONE_LABEL,
@@ -290,6 +291,7 @@ export function AuthModal({
         phone: normalized,
         ref: refCode,
         pref: prefCode,
+        mk: readMarketerRef() || undefined,
         deviceId: getReferralDeviceId() || undefined,
       };
 
@@ -360,6 +362,7 @@ export function AuthModal({
         phone: normalized,
         ref: refCode,
         pref: prefCode,
+        mk: readMarketerRef() || undefined,
         deviceId: getReferralDeviceId() || undefined,
       });
       await auth.currentUser?.getIdToken(true);
