@@ -339,7 +339,7 @@ export async function sendSmsWithFallback(
     const proxied = await proxyPmuOtp("sendOtp", {
       phone,
       message,
-      // Non-empty code → PMU/Aviator skip otp_codes write and just send the body.
+      // Non-empty code → PMU skips its otp_codes write and just sends the body.
       code: "000000",
     });
     if (proxied.httpStatus >= 200 && proxied.httpStatus < 300 && proxied.data.ok === true) {
@@ -372,7 +372,10 @@ function otpGatewayReady(): { ok: boolean; via?: "africell" | "pmu"; error?: str
 
 export async function sendOtpHandler(req: Request, res: Response): Promise<void> {
   const started = Date.now();
-  const body = (req.body || {}) as { phone?: string; code?: string; message?: string; probe?: boolean | string };
+  // `code` and `message` from the caller are ignored: this endpoint is public, and
+  // honouring them let anyone send any text from the Betese sender. Server code
+  // that needs a custom SMS calls sendSmsWithFallback directly.
+  const body = (req.body || {}) as { phone?: string; probe?: boolean | string };
 
   // Config-only health check — never send SMS. `live` stays disabled (it used to
   // fire a real Africell message at a hardcoded number).
@@ -415,44 +418,30 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const suppliedCode = (body.code || "").trim();
-  let code: string;
-  let storeHashForVerification = false;
-  if (suppliedCode) {
-    code = suppliedCode;
-  } else {
-    const min = 10 ** (OTP_LENGTH - 1);
-    const max = 10 ** OTP_LENGTH;
-    code = String(randomInt(min, max));
-    storeHashForVerification = true;
-  }
-
+  const code = String(randomInt(10 ** (OTP_LENGTH - 1), 10 ** OTP_LENGTH));
   const messageTemplate =
-    body.message ||
     process.env.OTP_MESSAGE_TEMPLATE ||
     "Your BETESE verification code is: {{code}}. It expires in 5 minutes. Do not share this code with anyone.";
   const smsText = messageTemplate.replace("{{code}}", code);
 
-  if (storeHashForVerification) {
-    const expiresAt = Date.now() + OTP_TTL_SECONDS * 1000;
-    const otpIds = Array.from(new Set([msisdn, ...otpMsisdnCandidates(phoneInput)]));
-    try {
-      await Promise.all(
-        otpIds.map((id) =>
-          db.collection("otp_codes").doc(id).set({
-            phone: id,
-            code_hash: hashOtp(code, id, otpSalt),
-            expires_at: new Date(expiresAt).toISOString(),
-            attempts: 0,
-            created_at: new Date().toISOString(),
-          }),
-        ),
-      );
-    } catch (err) {
-      logger.error("Failed to persist OTP hash", err);
-      res.status(502).json({ error: "Failed to persist OTP. Please try again." });
-      return;
-    }
+  const expiresAt = Date.now() + OTP_TTL_SECONDS * 1000;
+  const otpIds = Array.from(new Set([msisdn, ...otpMsisdnCandidates(phoneInput)]));
+  try {
+    await Promise.all(
+      otpIds.map((id) =>
+        db.collection("otp_codes").doc(id).set({
+          phone: id,
+          code_hash: hashOtp(code, id, otpSalt),
+          expires_at: new Date(expiresAt).toISOString(),
+          attempts: 0,
+          created_at: new Date().toISOString(),
+        }),
+      ),
+    );
+  } catch (err) {
+    logger.error("Failed to persist OTP hash", err);
+    res.status(502).json({ error: "Failed to persist OTP. Please try again." });
+    return;
   }
 
   try {
@@ -465,9 +454,7 @@ export async function sendOtpHandler(req: Request, res: Response): Promise<void>
     });
     res.json({ ok: true, messageId, expirySeconds: OTP_TTL_SECONDS, via });
   } catch (err) {
-    if (storeHashForVerification) {
-      await db.collection("otp_codes").doc(msisdn).delete().catch(() => undefined);
-    }
+    await db.collection("otp_codes").doc(msisdn).delete().catch(() => undefined);
     const msg = err instanceof Error ? err.message : String(err);
     logger.error("Africell SMS dispatch failed", {
       msisdn,

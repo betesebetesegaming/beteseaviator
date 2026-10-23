@@ -100,8 +100,8 @@ agent screens, `/s`, middleware, `next.config.ts`.
 What it provides: the OTP rules Football must copy from Aviator (Africell gateway, 6-digit hashed codes, expiry, rate
 limits), the Africell HTTP contract and status codes, the PMU relay fallback, registration/reset/withdrawal/agent-cash
 flows, recommended Football collections (`otp_codes`, `otp_verified`, `otp_rate_limits`, `deposit_requests`,
-`withdrawal_requests`, `agentWithdrawalCodes`, `sms_log`), SMS templates and a go-live checklist. It also flags that
-Aviator's public `sendOtp` accepts any `message` + `code` from anyone (open SMS relay).
+`withdrawal_requests`, `agentWithdrawalCodes`, `sms_log`), SMS templates and a go-live checklist. It also flagged that
+Aviator's public `sendOtp` accepted any `message` + `code` from anyone (open SMS relay); fixed 23 Oct 2026 (see Blockers).
 
 What it does not provide (still needed to verify Football customers and deposits):
 - where the Football backend runs (Firebase project or API base URL) and who controls it;
@@ -116,13 +116,13 @@ no signed callbacks and no per-message price — all required before campaign se
 
 ```bash
 cd functions; npm test            # 44 unit/acceptance tests, in-memory store
-cd functions; npm run test:emulator   # Firestore emulator: real rules + real Firestore store
+cd functions; npm run test:emulator   # Firestore emulator: real rules + real Firestore store + sendOtp
 ```
 
 `test:emulator` needs Java 21 and the Firebase CLI on PATH; it uses the offline project `demo-betese-marketers` and
 never contacts the live project.
 
-Results on 20 Oct 2026 (Temurin JDK 21.0.12.1, firebase-tools 15.34.0, Node 24.19): **unit 43/43 pass, emulator 8/8 pass** (re-run after the growth features); 22 Oct 2026 after the share link: unit 44/44 pass (emulator not re-run)
+Results on 20 Oct 2026 (Temurin JDK 21.0.12.1, firebase-tools 15.34.0, Node 24.19): **unit 43/43 pass, emulator 8/8 pass** (re-run after the growth features); 22 Oct 2026 after the share link: unit 44/44 pass (emulator not re-run); 23 Oct 2026 after the sendOtp fix: unit 44/44, emulator 9/9 pass
 (rules: mk* closed to every client; marketer limited to own profile + public docs; marketers cannot create payment
 requests while players still can; players/agents/admin regression matrix unchanged. Store: create conflicts, deep merge,
 cursors, count/sum, transaction rollback, full service flow on real Firestore).
@@ -145,4 +145,8 @@ Rollback: redeploy `main` for functions and rules; the `mk*` collections can sta
   opt-out handling. Sending stays disabled.
 - **Per-marketer referral attribution**: the share link names the marketer but the signup sites don't record it;
   automatic attribution needs signed referral IDs in each signup flow (Football is outside this repo).
-- **Existing issue (not changed here)**: public `sendOtp` accepts arbitrary `message`/`code`.
+- **`sendOtp` open relay — fixed in code, needs deploy**: Aviator's public `sendOtp` now ignores caller `message`/`code`;
+  it always sends its own code with the standard template and stores its hash (`test/emulator/otp.test.js`). Deploy
+  `functions:sendOtp` (or the full functions deploy above). **Still open outside this repo:** betesepmu's `sendOtp`
+  has the same hole, and Aviator's SMS fallback and promo SMS rely on it to send custom text, so closing it there
+  needs a server-to-server secret for those callers first.
